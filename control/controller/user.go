@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"linkany/control/dto"
 	"linkany/control/entity"
 	"linkany/control/mapper"
 )
@@ -13,6 +14,10 @@ func NewUserController(userMapper mapper.UserInterface) *UserController {
 	return &UserController{userMapper: userMapper}
 }
 
-func (u *UserController) Login(user *entity.User) (*entity.Token, error) {
-	return u.userMapper.Login(user)
+func (u *UserController) Login(dto *dto.UserDto) (*entity.Token, error) {
+	return u.userMapper.Login(dto)
+}
+
+func (u *UserController) Register(e *dto.UserDto) (*entity.User, error) {
+	return u.userMapper.Register(e)
 }

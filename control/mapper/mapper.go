@@ -1,8 +1,14 @@
 package mapper
 
 import (
+	"errors"
+	"linkany/control/dto"
 	"linkany/control/entity"
 	"linkany/control/utils"
+)
+
+var (
+	_ UserInterface = (*UserMapper)(nil)
 )
 
 type UserMapper struct {
@@ -14,16 +20,37 @@ func NewUserMapper(db *DatabaseService) *UserMapper {
 	return &UserMapper{DatabaseService: db, tokener: utils.NewTokener()}
 }
 
-func (u *UserMapper) Login(user *entity.User) (*entity.Token, error) {
-	var rUser entity.User
-	err := u.Where("username = ? AND password = ?", user.UserName, user.Password).First(&rUser).Error
-	if err != nil {
-		return nil, err
+// Login checks if the user exists and returns a token
+func (u *UserMapper) Login(dto *dto.UserDto) (*entity.Token, error) {
+	var user entity.User
+	if err := u.Where("username = ?", dto.Username).First(&user).Error; err != nil {
+		return nil, errors.New("user not found")
 	}
 
-	token, err := u.tokener.Generate(rUser.UserName, rUser.Password)
+	if err := utils.ComparePassword(user.Password, dto.Password); err != nil {
+		return nil, errors.New("invalid password")
+	}
+
+	token, err := u.tokener.Generate(user.UserName, user.Password)
 	if err != nil {
 		return nil, err
 	}
 	return &entity.Token{Token: token}, nil
+}
+
+// Register creates a new user
+func (u *UserMapper) Register(dto *dto.UserDto) (*entity.User, error) {
+	hashedPassword, err := utils.EncryptPassword(dto.Password)
+	if err != nil {
+		return nil, err
+	}
+	e := &entity.User{
+		UserName: dto.Username,
+		Password: hashedPassword,
+	}
+	err = u.Create(e).Error
+	if err != nil {
+		return nil, err
+	}
+	return e, nil
 }

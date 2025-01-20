@@ -1,9 +1,11 @@
 package mapper
 
 import (
+	"linkany/control/dto"
 	"linkany/control/entity"
 )
 
 type UserInterface interface {
-	Login(u *entity.User) (*entity.Token, error)
+	Login(u *dto.UserDto) (*entity.Token, error)
+	Register(e *dto.UserDto) (*entity.User, error)
 }
