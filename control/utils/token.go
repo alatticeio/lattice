@@ -3,21 +3,25 @@ package utils
 import (
 	"fmt"
 	"github.com/golang-jwt/jwt/v5"
-	"linkany/management/entity"
+	"linkany/control/entity"
 	"log"
 	"time"
 )
 
 type TokenInterface interface {
 	Generate() (string, error)
-	Validate(token string) (bool, error)
+	Verify(username, password, token string) (bool, error)
 
 	Parse(token string)
 }
 
-const haSalt = "linkany"
+var haSalt = []byte("linkany.io")
 
 type Tokener struct {
+}
+
+func NewTokener() *Tokener {
+	return &Tokener{}
 }
 
 func (t *Tokener) Generate(username, password string) (string, error) {
@@ -31,13 +35,16 @@ func (t *Tokener) Generate(username, password string) (string, error) {
 	return token.SignedString(haSalt)
 }
 
-func (t *Tokener) Validate(token string) (bool, error) {
-	_, err := jwt.Parse(token, func(token *jwt.Token) (interface{}, error) {
-		return []byte(haSalt), nil
-	})
+func (t *Tokener) Verify(username, password, token string) (bool, error) {
+	u, err := t.Parse(token)
 	if err != nil {
 		return false, err
 	}
+
+	if u.UserName != username || u.Password != password {
+		return false, fmt.Errorf("username or password is incorrect")
+	}
+
 	return true, nil
 }
 

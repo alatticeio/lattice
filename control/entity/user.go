@@ -11,6 +11,10 @@ type User struct {
 	Gender   int    `json:"gender,omitempty"`
 }
 
+func (u *User) TableName() string {
+	return "la_user"
+}
+
 type Token struct {
 	Token string `json:"token,omitempty"`
 }
