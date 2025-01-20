@@ -4,6 +4,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"linkany/control/client"
 	"linkany/control/controller"
+	"linkany/control/dto"
 	"linkany/control/entity"
 	"linkany/control/mapper"
 	"linkany/control/utils"
@@ -43,6 +44,7 @@ func (s *Server) initRoute() {
 		})
 	})
 
+	s.POST("/api/v1/user/register", s.register())
 	s.POST("/api/v1/user/login", s.login())
 	s.GET("/api/v1/users", s.authCheck(), s.getUsers())
 }
@@ -51,17 +53,35 @@ func (s *Server) Start() error {
 	return s.Run(s.listen)
 }
 
-func (s *Server) login() gin.HandlerFunc {
+func (s *Server) register() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		var u entity.User
-		var err error
-		var token *entity.Token
-		if err = c.ShouldBind(&u); err != nil {
+		var u dto.UserDto
+		if err := c.ShouldBind(&u); err != nil {
 			c.JSON(client.BadRequest(err))
 			return
 		}
 
-		token, err = s.userController.Login(&u)
+		user, err := s.userController.Register(&u)
+		if err != nil {
+			c.JSON(client.InternalServerError(err))
+			return
+		}
+
+		c.JSON(client.Success(user))
+	}
+}
+
+func (s *Server) login() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var dto dto.UserDto
+		var err error
+		var token *entity.Token
+		if err = c.ShouldBind(&dto); err != nil {
+			c.JSON(client.BadRequest(err))
+			return
+		}
+
+		token, err = s.userController.Login(&dto)
 		if err != nil {
 			c.JSON(client.InternalServerError(err))
 			return
