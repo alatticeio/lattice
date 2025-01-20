@@ -1,0 +1,108 @@
+package cmd
+
+import (
+	"bufio"
+	"errors"
+	"fmt"
+	"github.com/moby/term"
+	"github.com/spf13/cobra"
+	"linkany/control/client"
+	"linkany/pkg/config"
+	"os"
+)
+
+type loginOptions struct {
+	Username string
+	Password string
+}
+
+func loginCmd() *cobra.Command {
+	var opts loginOptions
+	var cmd = &cobra.Command{
+		Use:          "login",
+		SilenceUsage: true,
+		Short:        "login up",
+		Long:         `when you are using up, you should logon first, login up use username and password which registered on our site, if you did not logon, you can not join any networks.`,
+
+		PreRunE: func(cmd *cobra.Command, args []string) error {
+			return nil
+		},
+
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runLogin(opts)
+		},
+	}
+	fs := cmd.Flags()
+	fs.StringVarP(&opts.Username, "username", "u", "", "username for up")
+	fs.StringVarP(&opts.Password, "password", "p", "", "username for up")
+
+	return cmd
+}
+
+// runJoin join a network cmd
+func runLogin(opts loginOptions) error {
+	conf, err := config.InitConfig()
+	if err != nil {
+		return err
+	}
+	if opts.Password == "" {
+		if opts.Username == "" {
+			opts.Username, _ = readLine("username: ", false)
+		}
+
+		if opts.Password == "" {
+			//	if token, err := readLine("Token", true); err != nil {
+			//		return errors.New("token required")
+			//	} else {
+			//		opts.Password = token
+			//	}
+			//} else {
+			if password, err := readLine("password: ", false); err != nil {
+				return errors.New("password required")
+			} else {
+				opts.Password = password
+			}
+		}
+	}
+
+	client := client.NewClient(&client.ClientConfig{
+		Conf: conf,
+	})
+	user := &config.User{
+		Username: opts.Username,
+		Password: opts.Password,
+	}
+	_, err = client.Login(user)
+	if err != nil {
+		return err
+	}
+	fmt.Println("Login Succeeded")
+
+	return nil
+
+}
+
+func readLine(prompt string, slient bool) (string, error) {
+	fmt.Print(prompt)
+	if slient {
+		fd := os.Stdin.Fd()
+		state, err := term.SaveState(fd)
+		if err != nil {
+			fmt.Println(err)
+			return "", err
+		}
+		term.DisableEcho(fd, state)
+		defer term.RestoreTerminal(fd, state)
+	}
+
+	reader := bufio.NewReader(os.Stdin)
+	line, _, err := reader.ReadLine()
+	if err != nil {
+		return "", err
+	}
+	if slient {
+		fmt.Println()
+	}
+
+	return string(line), nil
+}

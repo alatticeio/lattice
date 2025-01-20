@@ -1,0 +1,32 @@
+kind: pipeline # 定义对象类型，还有secret和signature两种类型
+type: docker # 定义流水线类型，还有kubernetes、exec、ssh等类型
+name: linkany # 定义流水线名称
+
+clone:
+  disable: true
+
+steps: # 定义流水线执行步骤，这些步骤将顺序执行
+  - name: Build
+    image: registry.cn-hangzhou.aliyuncs.com/linkany-io/drone-ssh:latest # SSH工具镜像
+    settings:
+      host: 81.68.109.143 # 远程连接地址
+      username: root # 远程连接账号
+      password:
+        from_secret: ssh_password # 从Secret中读取SSH密码
+      port: 22 # 远程连接端口
+      script:
+        - cd /root/docker/maven/build/linkany && source ~/.bash_profile
+        - git pull
+        - make build && make image
+  - name: deploy
+    image: registry.cn-hangzhou.aliyuncs.com/linkany-io/drone-ssh:latest # SSH工具镜像
+    settings:
+      host: 81.68.109.143 # 远程连接地址
+      username: root # 远程连接账号
+      password:
+        from_secret: ssh_password # 从Secret中读取SSH密码
+      port: 22 # 远程连接端口
+      script:
+        - source ~/.bash_profile
+        - kubectl apply -f /root/docker/maven/build/linkany/conf/drp-deployment.yaml
+        - kubectl rollout restart deployment/linkany-drp -n linkany

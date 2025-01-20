@@ -1,0 +1,39 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: linkany-drp
+  namespace: linkany
+  labels:
+    k8s-app: linkany-drp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      k8s-app: linkany-drp
+  template:
+    metadata:
+      labels:
+        k8s-app: linkany-drp
+    spec:
+      imagePullSecrets:
+        - name: ali-registry
+      containers:
+        - name: linkany-drp
+          image: registry.cn-hangzhou.aliyuncs.com/linkany-io/linkany
+          imagePullPolicy: Always
+          command: [ "linkany", "drp" ]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: linkany-drp-svc
+  namespace: linkany
+spec:
+  ports:
+    - protocol: TCP
+      port: 8080
+      targetPort: 8080
+      nodePort: 32131
+  selector:
+    k8s-app: linkany-drp
+  type: NodePort
