@@ -8,7 +8,7 @@ import (
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 	"io"
 	"k8s.io/klog/v2"
-	"linkany/control/service"
+	"linkany/control/mapper"
 	"linkany/internal"
 	"linkany/pkg/drp"
 	"net"
@@ -18,13 +18,13 @@ import (
 type Server struct {
 	*gin.Engine
 	listen      string
-	userService service.UserInterface
+	userService mapper.UserInterface
 	indexTable  *drp.IndexTable
 }
 
 type ServerConfig struct {
 	Listen      string
-	UserService service.UserInterface
+	UserService mapper.UserInterface
 	Table       *drp.IndexTable
 }
 
