@@ -1,0 +1,34 @@
+syntax = "proto3";
+
+option go_package = "linkany/grpc/control/peer";
+
+// The greeting service definition.
+service ListWatcher {
+
+  rpc List (ListRequest) returns (ListResponse) {}
+
+  rpc Watch (WatchRequest) returns (stream WatchResponse) {}
+}
+
+message ListRequest {
+  string username = 1;
+}
+
+message ListResponse {
+  repeated Peer peer = 2;
+}
+
+message WatchRequest {
+  string appId = 1;
+  string username = 2;
+}
+
+message WatchResponse {
+  string type = 1;
+  Peer peer = 2;
+}
+
+// The response message containing the greetings
+message Peer {
+  string message = 1;
+}

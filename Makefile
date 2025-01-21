@@ -9,5 +9,8 @@ image:
 	docker build -t registry.cn-hangzhou.aliyuncs.com/linkany-io/linkany:latest -f ${shell pwd}/docker/Dockerfile ${shell pwd}/bin
 	docker push registry.cn-hangzhou.aliyuncs.com/linkany-io/linkany:latest
 
+generate:
+	protoc --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative  control/grpc/peer/peer.proto
+
 clean:
 	rm -rf bin
