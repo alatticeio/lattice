@@ -1,0 +1,39 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: linkany-control
+  namespace: linkany
+  labels:
+    k8s-app: linkany-control
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      k8s-app: linkany-control
+  template:
+    metadata:
+      labels:
+        k8s-app: linkany-control
+    spec:
+      imagePullSecrets:
+        - name: ali-registry
+      containers:
+        - name: linkany-control
+          image: registry.cn-hangzhou.aliyuncs.com/linkany-io/linkany
+          imagePullPolicy: Always
+          command: [ "linkany", "manager" ]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: linkany-control-svc
+  namespace: linkany
+spec:
+  ports:
+    - protocol: TCP
+      port: 8080
+      targetPort: 8080
+      nodePort: 32138
+  selector:
+    k8s-app: linkany-control
+  type: NodePort
