@@ -31,7 +31,7 @@ func (u *UserMapper) Login(dto *dto.UserDto) (*entity.Token, error) {
 		return nil, errors.New("invalid password")
 	}
 
-	token, err := u.tokener.Generate(user.UserName, user.Password)
+	token, err := u.tokener.Generate(user.Username, user.Password)
 	if err != nil {
 		return nil, err
 	}
@@ -45,7 +45,7 @@ func (u *UserMapper) Register(dto *dto.UserDto) (*entity.User, error) {
 		return nil, err
 	}
 	e := &entity.User{
-		UserName: dto.Username,
+		Username: dto.Username,
 		Password: hashedPassword,
 	}
 	err = u.Create(e).Error

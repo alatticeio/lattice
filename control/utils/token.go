@@ -41,7 +41,7 @@ func (t *Tokener) Verify(username, password, token string) (bool, error) {
 		return false, err
 	}
 
-	if u.UserName != username || u.Password != password {
+	if u.Username != username || u.Password != password {
 		return false, fmt.Errorf("username or password is incorrect")
 	}
 
@@ -69,7 +69,7 @@ func (t *Tokener) Parse(tokenString string) (*entity.User, error) {
 	if claims, ok := token.Claims.(jwt.MapClaims); ok {
 		fmt.Println(claims["username"], claims["nbf"])
 		return &entity.User{
-			UserName: claims["username"].(string),
+			Username: claims["username"].(string),
 			Password: claims["password"].(string),
 		}, nil
 	}

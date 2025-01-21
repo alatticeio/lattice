@@ -7,10 +7,10 @@ import (
 )
 
 var rootCmd = &cobra.Command{
-	Use:          "up [command]",
+	Use:          "linkany [command]",
 	SilenceUsage: true,
 	Short:        "any",
-	Long:         `start up up, login, logout, register and also will use https to serve DRP`,
+	Long:         `linkany up, login, logout, register and also so on`,
 }
 
 func Execute() {
