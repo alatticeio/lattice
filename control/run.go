@@ -2,7 +2,10 @@ package control
 
 import (
 	"github.com/spf13/viper"
+	pb "linkany/control/grpc/peer"
+	grpcserver "linkany/control/grpc/server"
 	"linkany/control/server"
+	"log"
 )
 
 func Start(listen string) error {
@@ -16,6 +19,19 @@ func Start(listen string) error {
 	if err := viper.Unmarshal(&cfg); err != nil {
 		return err
 	}
+	queue := make(chan *pb.WatchResponse)
+	cfg.Queue = queue
+
+	gServer := grpcserver.NewServer(&grpcserver.ServerConfig{
+		Port:  50015,
+		Queue: queue,
+	})
+	// go run a grpc server
+	go func() {
+		if err := gServer.Start(); err != nil {
+			log.Fatal(err)
+		}
+	}()
 
 	// Create a new server
 	s := server.NewServer(&cfg)

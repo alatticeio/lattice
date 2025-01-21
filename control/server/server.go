@@ -6,21 +6,25 @@ import (
 	"linkany/control/controller"
 	"linkany/control/dto"
 	"linkany/control/entity"
+	pb "linkany/control/grpc/peer"
 	"linkany/control/mapper"
 	"linkany/control/utils"
 )
 
 type Server struct {
 	*gin.Engine
-	listen         string
-	tokener        *utils.Tokener
-	userController *controller.UserController
+	listen          string
+	tokener         *utils.Tokener
+	userController  *controller.UserController
+	peerControlloer *controller.PeerController
+	queue           chan *pb.WatchResponse
 }
 
 type ServerConfig struct {
 	Listen         string                `mapstructure: "listen,omitempty"`
 	Database       mapper.DatabaseConfig `mapstructure: "database,omitempty"`
 	UserController mapper.UserInterface
+	Queue          chan *pb.WatchResponse
 }
 
 func NewServer(cfg *ServerConfig) *Server {
@@ -31,6 +35,7 @@ func NewServer(cfg *ServerConfig) *Server {
 		listen:         cfg.Listen,
 		userController: controller.NewUserController(mapper.NewUserMapper(dbService)),
 		tokener:        utils.NewTokener(),
+		queue:          cfg.Queue,
 	}
 	s.initRoute()
 
@@ -47,6 +52,7 @@ func (s *Server) initRoute() {
 	s.POST("/api/v1/user/register", s.register())
 	s.POST("/api/v1/user/login", s.login())
 	s.GET("/api/v1/users", s.authCheck(), s.getUsers())
+	s.GET("/api/v1/peer/:appId", s.authCheck(), s.getPeerByAppId())
 }
 
 func (s *Server) Start() error {
@@ -94,5 +100,18 @@ func (s *Server) login() gin.HandlerFunc {
 func (s *Server) getUsers() gin.HandlerFunc {
 	return func(context *gin.Context) {
 
+	}
+}
+
+func (s *Server) getPeerByAppId() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		appId := c.Param("appId")
+		peer, err := s.peerControlloer.GetByAppId(appId)
+		if err != nil {
+			c.JSON(client.InternalServerError(err))
+			return
+		}
+
+		c.JSON(client.Success(peer))
 	}
 }
