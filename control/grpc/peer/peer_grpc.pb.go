@@ -19,6 +19,7 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
+	ListWatcher_Get_FullMethodName   = "/ListWatcher/Get"
 	ListWatcher_List_FullMethodName  = "/ListWatcher/List"
 	ListWatcher_Watch_FullMethodName = "/ListWatcher/Watch"
 )
@@ -29,8 +30,9 @@ const (
 //
 // The greeting service definition.
 type ListWatcherClient interface {
-	List(ctx context.Context, in *ListRequest, opts ...grpc.CallOption) (*ListResponse, error)
-	Watch(ctx context.Context, in *WatchRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[WatchResponse], error)
+	Get(ctx context.Context, in *Request, opts ...grpc.CallOption) (*Peer, error)
+	List(ctx context.Context, in *Request, opts ...grpc.CallOption) (*ListResponse, error)
+	Watch(ctx context.Context, in *Request, opts ...grpc.CallOption) (grpc.ServerStreamingClient[WatchResponse], error)
 }
 
 type listWatcherClient struct {
@@ -41,7 +43,17 @@ func NewListWatcherClient(cc grpc.ClientConnInterface) ListWatcherClient {
 	return &listWatcherClient{cc}
 }
 
-func (c *listWatcherClient) List(ctx context.Context, in *ListRequest, opts ...grpc.CallOption) (*ListResponse, error) {
+func (c *listWatcherClient) Get(ctx context.Context, in *Request, opts ...grpc.CallOption) (*Peer, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(Peer)
+	err := c.cc.Invoke(ctx, ListWatcher_Get_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *listWatcherClient) List(ctx context.Context, in *Request, opts ...grpc.CallOption) (*ListResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ListResponse)
 	err := c.cc.Invoke(ctx, ListWatcher_List_FullMethodName, in, out, cOpts...)
@@ -51,13 +63,13 @@ func (c *listWatcherClient) List(ctx context.Context, in *ListRequest, opts ...g
 	return out, nil
 }
 
-func (c *listWatcherClient) Watch(ctx context.Context, in *WatchRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[WatchResponse], error) {
+func (c *listWatcherClient) Watch(ctx context.Context, in *Request, opts ...grpc.CallOption) (grpc.ServerStreamingClient[WatchResponse], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	stream, err := c.cc.NewStream(ctx, &ListWatcher_ServiceDesc.Streams[0], ListWatcher_Watch_FullMethodName, cOpts...)
 	if err != nil {
 		return nil, err
 	}
-	x := &grpc.GenericClientStream[WatchRequest, WatchResponse]{ClientStream: stream}
+	x := &grpc.GenericClientStream[Request, WatchResponse]{ClientStream: stream}
 	if err := x.ClientStream.SendMsg(in); err != nil {
 		return nil, err
 	}
@@ -76,8 +88,9 @@ type ListWatcher_WatchClient = grpc.ServerStreamingClient[WatchResponse]
 //
 // The greeting service definition.
 type ListWatcherServer interface {
-	List(context.Context, *ListRequest) (*ListResponse, error)
-	Watch(*WatchRequest, grpc.ServerStreamingServer[WatchResponse]) error
+	Get(context.Context, *Request) (*Peer, error)
+	List(context.Context, *Request) (*ListResponse, error)
+	Watch(*Request, grpc.ServerStreamingServer[WatchResponse]) error
 	mustEmbedUnimplementedListWatcherServer()
 }
 
@@ -88,10 +101,13 @@ type ListWatcherServer interface {
 // pointer dereference when methods are called.
 type UnimplementedListWatcherServer struct{}
 
-func (UnimplementedListWatcherServer) List(context.Context, *ListRequest) (*ListResponse, error) {
+func (UnimplementedListWatcherServer) Get(context.Context, *Request) (*Peer, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Get not implemented")
+}
+func (UnimplementedListWatcherServer) List(context.Context, *Request) (*ListResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method List not implemented")
 }
-func (UnimplementedListWatcherServer) Watch(*WatchRequest, grpc.ServerStreamingServer[WatchResponse]) error {
+func (UnimplementedListWatcherServer) Watch(*Request, grpc.ServerStreamingServer[WatchResponse]) error {
 	return status.Errorf(codes.Unimplemented, "method Watch not implemented")
 }
 func (UnimplementedListWatcherServer) mustEmbedUnimplementedListWatcherServer() {}
@@ -115,8 +131,26 @@ func RegisterListWatcherServer(s grpc.ServiceRegistrar, srv ListWatcherServer) {
 	s.RegisterService(&ListWatcher_ServiceDesc, srv)
 }
 
+func _ListWatcher_Get_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(Request)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ListWatcherServer).Get(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ListWatcher_Get_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ListWatcherServer).Get(ctx, req.(*Request))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _ListWatcher_List_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ListRequest)
+	in := new(Request)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -128,17 +162,17 @@ func _ListWatcher_List_Handler(srv interface{}, ctx context.Context, dec func(in
 		FullMethod: ListWatcher_List_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ListWatcherServer).List(ctx, req.(*ListRequest))
+		return srv.(ListWatcherServer).List(ctx, req.(*Request))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
 func _ListWatcher_Watch_Handler(srv interface{}, stream grpc.ServerStream) error {
-	m := new(WatchRequest)
+	m := new(Request)
 	if err := stream.RecvMsg(m); err != nil {
 		return err
 	}
-	return srv.(ListWatcherServer).Watch(m, &grpc.GenericServerStream[WatchRequest, WatchResponse]{ServerStream: stream})
+	return srv.(ListWatcherServer).Watch(m, &grpc.GenericServerStream[Request, WatchResponse]{ServerStream: stream})
 }
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
@@ -151,6 +185,10 @@ var ListWatcher_ServiceDesc = grpc.ServiceDesc{
 	ServiceName: "ListWatcher",
 	HandlerType: (*ListWatcherServer)(nil),
 	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "Get",
+			Handler:    _ListWatcher_Get_Handler,
+		},
 		{
 			MethodName: "List",
 			Handler:    _ListWatcher_List_Handler,

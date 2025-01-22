@@ -3,6 +3,7 @@ package server
 import (
 	"fmt"
 	"google.golang.org/grpc"
+	"linkany/control/controller"
 	pb "linkany/control/grpc/peer"
 	"linkany/control/mapper"
 	"log"
@@ -12,7 +13,8 @@ import (
 // Server is used to implement helloworld.GreeterServer.
 type Server struct {
 	pb.UnimplementedListWatcherServer
-	userMapper mapper.UserInterface
+	userMapper *controller.UserController
+	peerMapper *controller.PeerController
 	port       int
 	queue      chan *pb.WatchResponse
 }
@@ -26,13 +28,14 @@ type ServerConfig struct {
 func NewServer(cfg *ServerConfig) *Server {
 	return &Server{
 		port:       cfg.Port,
-		userMapper: mapper.NewUserMapper(cfg.DataBaseService),
+		userMapper: controller.NewUserController(mapper.NewUserMapper(cfg.DataBaseService)),
+		peerMapper: controller.NewPeerController(mapper.NewPeerMapper(cfg.DataBaseService)),
 		queue:      cfg.Queue,
 	}
 }
 
 // ListWatch once request, will return a stream of watched response
-func (s *Server) Watch(in *pb.WatchRequest, stream pb.ListWatcher_WatchServer) error {
+func (s *Server) Watch(in *pb.Request, stream pb.ListWatcher_WatchServer) error {
 	log.Printf("Received username: %v, appId; %v", in.GetUsername(), in.GetAppId())
 	//TODO implement the logic here
 
