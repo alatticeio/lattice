@@ -11,3 +11,11 @@ func GetCidrFromIP(str string) string {
 	return ipNet.String()
 
 }
+
+func GetGatewayFromIP(str string) string {
+	_, ipNet, err := net.ParseCIDR(str + "/24")
+	if err != nil {
+		return ""
+	}
+	return ipNet.IP.String()
+}
