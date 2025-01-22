@@ -9,6 +9,7 @@ import (
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 	"k8s.io/klog/v2"
 	controlclient "linkany/control/client"
+	client2 "linkany/control/grpc/client"
 	"linkany/internal"
 	"linkany/pkg/config"
 	"linkany/pkg/drp"
@@ -59,6 +60,7 @@ type EngineParams struct {
 	Logger        *wg.Logger
 	StunUri       string
 	ForceRelay    bool
+	GrpcAddr      string
 }
 
 func (e *Engine) IpcHandle(conn net.Conn) {
@@ -107,6 +109,11 @@ func NewEngine(cfg *EngineParams) (*Engine, error) {
 	}
 	proberManager := probe.NewProberManager(cfg.ForceRelay)
 
+	grpcClient, err := client2.NewGrpcClient(&client2.GrpcConfig{Addr: cfg.GrpcAddr})
+	if err != nil {
+		return nil, err
+	}
+
 	ufrag, pwd := probe.GenerateRandomUfragPwd()
 	client := controlclient.NewClient(&controlclient.ClientConfig{
 		Pm:              peersManager,
@@ -119,6 +126,7 @@ func NewEngine(cfg *EngineParams) (*Engine, error) {
 		Pwd:             pwd,
 		ProberManager:   proberManager,
 		TurnClient:      turnClient,
+		GrpcClient:      grpcClient,
 	})
 	//fetconf
 	deviceConf, err := client.Register()
