@@ -33,7 +33,7 @@ func NewClient() {
 	// Contact the server and print out its response.
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	stream, err := c.Watch(ctx, &pb.WatchRequest{Username: *name})
+	stream, err := c.Watch(ctx, &pb.Request{Username: *name})
 	if err != nil {
 		log.Fatalf("could not greet: %v", err)
 	}

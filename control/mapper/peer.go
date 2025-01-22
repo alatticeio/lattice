@@ -13,6 +13,10 @@ type PeerMapper struct {
 	*DatabaseService
 }
 
+func NewPeerMapper(db *DatabaseService) *PeerMapper {
+	return &PeerMapper{DatabaseService: db}
+}
+
 func (p *PeerMapper) Register(e *dto.PeerDto) (*entity.Peer, error) {
 	//TODO implement me
 	panic("implement me")

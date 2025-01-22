@@ -5,22 +5,21 @@ option go_package = "linkany/grpc/control/peer";
 // The greeting service definition.
 service ListWatcher {
 
-  rpc List (ListRequest) returns (ListResponse) {}
+  rpc Get (Request) returns (Peer) {}
 
-  rpc Watch (WatchRequest) returns (stream WatchResponse) {}
+  rpc List (Request) returns (ListResponse) {}
+
+  rpc Watch (Request) returns (stream WatchResponse) {}
 }
 
-message ListRequest {
+
+message Request {
   string username = 1;
+  string appId = 2;
 }
 
 message ListResponse {
   repeated Peer peer = 2;
-}
-
-message WatchRequest {
-  string appId = 1;
-  string username = 2;
 }
 
 message WatchResponse {
