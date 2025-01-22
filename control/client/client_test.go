@@ -24,7 +24,7 @@ func TestClient_Login(t *testing.T) {
 	client := NewClient(&ClientConfig{
 		Conf: conf,
 	})
-	u, err := client.Login(user)
+	u, err := client.Login(&user)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -51,20 +51,22 @@ func TestFetchPeers(t *testing.T) {
 }
 
 func TestClient_Register(t *testing.T) {
-	config, err := config.GetLocalConfig()
+	conf, err := config.GetLocalConfig()
 	if err != nil {
 		t.Fatal(err)
 	}
-	c := NewClient(&ClientConfig{
-		Conf: config,
+	cli := NewClient(&ClientConfig{
+		Conf: conf,
 	})
+
+	c := cli.(*Client)
 
 	hostname, err := os.Hostname()
 	if err != nil {
 		klog.Errorf("get hostname failed: %v", err)
 	}
 
-	peer := &PeerRegisterInfo{
+	peer := &config.PeerRegisterInfo{
 		AppId:    c.conf.AppId,
 		Hostname: hostname,
 	}

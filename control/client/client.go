@@ -2,6 +2,7 @@ package client
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -31,7 +32,7 @@ type ClientInterface interface {
 
 	Login(user *config.User) (*config.User, error)
 
-	FetchPeers() (*config.DeviceConf, error)
+	List() (*config.DeviceConf, error)
 
 	GetUsers() []*config.User
 }
@@ -293,27 +294,48 @@ func (c *Client) post(url string, inObject interface{}) (*HttpResponse[config.Lo
 	return nil, nil
 }
 
-// FetchPeers fetch user's all peer and configuration to linkany instance
-func (c *Client) FetchPeers() (*config.DeviceConf, error) {
+// List fetch user's all peer and configuration to linkany instance
+func (c *Client) List() (*config.DeviceConf, error) {
 	var conf *config.DeviceConf
 	var err error
 	appId, err := config.GetAppId()
 	if err != nil {
 		return nil, err
 	}
+	info, err := config.GetLocalUserInfo()
+	if err != nil {
+		return nil, err
+	}
+	ctx := context.Background()
+	peers, err := c.grpcClient.List(ctx, &pb.Request{
+		Username: info.Username,
+		AppId:    appId,
+	})
 
-	conf, err = doRequest(c, "GET", fmt.Sprintf("%s/api/v1/peer/node/%s", ConsoleDomain, appId), nil, &config.DeviceConf{}, nil)
-
-	if errors.Is(err, linkerrors.ErrInvalidToken) {
-		c.RefreshToken()
-		return nil, fmt.Errorf("fetch peers failed: %v, now refreshed", err)
+	if err != nil {
+		return nil, err
 	}
 
-	for _, peer := range conf.Peers {
+	for _, p := range peers.Peer {
+		var peer config.Peer
+		if err := json.Unmarshal([]byte(p.Message), &peer); err != nil {
+			return nil, err
+		}
+
+		//}
+		//
+		//conf, err = doRequest(c, "GET", fmt.Sprintf("%s/api/v1/peer/node/%s", ConsoleDomain, appId), nil, &config.DeviceConf{}, nil)
+		//
+		//if errors.Is(err, linkerrors.ErrInvalidToken) {
+		//	c.RefreshToken()
+		//	return nil, fmt.Errorf("fetch peers failed: %v, now refreshed", err)
+		//}
+		//
+		//for _, peer := range conf.Peers {
 		mappedPeer := c.pm.GetPeer(peer.PublicKey)
 		if mappedPeer == nil {
-			mappedPeer = peer
-			c.pm.AddPeer(peer.PublicKey, peer)
+			mappedPeer = &peer
+			c.pm.AddPeer(peer.PublicKey, &peer)
 			klog.Infof("add peer to local cache, key: %s, peer: %v", peer.PublicKey, peer)
 		} else if mappedPeer.Connected.Load() {
 			continue
@@ -353,7 +375,7 @@ func (c *Client) FetchPeers() (*config.DeviceConf, error) {
 					klog.Infof("check connection failed, will use relay, remove agent")
 					break
 				default:
-					c.pm.AddPeer(peer.PublicKey, peer)
+					c.pm.AddPeer(peer.PublicKey, &peer)
 				}
 			}); err != nil {
 				return nil, err
@@ -364,7 +386,7 @@ func (c *Client) FetchPeers() (*config.DeviceConf, error) {
 
 		// start probeConn
 		if !peer.ConnectionState.Load() {
-			go c.probeConn(agent, peer)
+			go c.probeConn(agent, &peer)
 		}
 
 	}
