@@ -10,6 +10,7 @@ import (
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 	"io"
 	"k8s.io/klog/v2"
+	pb "linkany/control/grpc/peer"
 	"linkany/internal"
 	"linkany/pkg/config"
 	"linkany/pkg/drp"
@@ -56,6 +57,7 @@ type Client struct {
 	ifaceName       string
 	conf            *config.LocalConfig
 	httpClient      *http.Client
+	grpcClient      pb.ListWatcherClient
 	agent           *ice.Agent
 	conn4           net.PacketConn
 	udpMux          *ice.UDPMuxDefault
@@ -77,6 +79,7 @@ type ClientConfig struct {
 	UniversalUdpMux *ice.UniversalUDPMuxDefault
 	Km              *internal.KeyManager
 	AgentManager    *internal.AgentManager
+	GrpcClient      pb.ListWatcherClient
 	Ufrag           string
 	Pwd             string
 	OfferManager    internal.OfferManager
@@ -99,6 +102,7 @@ func NewClient(config *ClientConfig) ClientInterface {
 		pwd:             config.Pwd,
 		proberManager:   config.ProberManager,
 		turnClient:      config.TurnClient,
+		grpcClient:      config.GrpcClient,
 	}
 
 	return client

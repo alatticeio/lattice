@@ -4,6 +4,7 @@ import (
 	"github.com/spf13/viper"
 	pb "linkany/control/grpc/peer"
 	grpcserver "linkany/control/grpc/server"
+	"linkany/control/mapper"
 	"linkany/control/server"
 	"log"
 )
@@ -21,10 +22,11 @@ func Start(listen string) error {
 	}
 	queue := make(chan *pb.WatchResponse)
 	cfg.Queue = queue
-
+	dbService := mapper.NewDatabaseService(&cfg.Database)
 	gServer := grpcserver.NewServer(&grpcserver.ServerConfig{
-		Port:  50015,
-		Queue: queue,
+		Port:            50051,
+		Queue:           queue,
+		DataBaseService: dbService,
 	})
 	// go run a grpc server
 	go func() {
@@ -33,6 +35,7 @@ func Start(listen string) error {
 		}
 	}()
 
+	cfg.DatabaseService = dbService
 	// Create a new server
 	s := server.NewServer(&cfg)
 	// Start the server

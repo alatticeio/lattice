@@ -1,6 +1,8 @@
 package server
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
 	"google.golang.org/grpc"
 	"linkany/control/controller"
@@ -13,10 +15,10 @@ import (
 // Server is used to implement helloworld.GreeterServer.
 type Server struct {
 	pb.UnimplementedListWatcherServer
-	userMapper *controller.UserController
-	peerMapper *controller.PeerController
-	port       int
-	queue      chan *pb.WatchResponse
+	userController *controller.UserController
+	peerController *controller.PeerController
+	port           int
+	queue          chan *pb.WatchResponse
 }
 
 type ServerConfig struct {
@@ -27,11 +29,36 @@ type ServerConfig struct {
 
 func NewServer(cfg *ServerConfig) *Server {
 	return &Server{
-		port:       cfg.Port,
-		userMapper: controller.NewUserController(mapper.NewUserMapper(cfg.DataBaseService)),
-		peerMapper: controller.NewPeerController(mapper.NewPeerMapper(cfg.DataBaseService)),
-		queue:      cfg.Queue,
+		port:           cfg.Port,
+		userController: controller.NewUserController(mapper.NewUserMapper(cfg.DataBaseService)),
+		peerController: controller.NewPeerController(mapper.NewPeerMapper(cfg.DataBaseService)),
+		queue:          cfg.Queue,
 	}
+}
+
+// List, will return a list of response
+func (s *Server) List(ctx context.Context, in *pb.Request) (*pb.ListResponse, error) {
+	log.Printf("Received username: %v, appId; %v", in.GetUsername(), in.GetAppId())
+	user, err := s.userController.Get(in.GetUsername())
+	if err != nil {
+		return nil, err
+	}
+	peers, err := s.peerController.List(fmt.Sprintf("%v", user.ID))
+	if err != nil {
+		return nil, err
+	}
+
+	var result []*pb.Peer
+	for _, peer := range peers {
+		b, err := json.Marshal(peer)
+		if err != nil {
+			return nil, err
+		}
+
+		result = append(result, &pb.Peer{Message: string(b)})
+	}
+
+	return &pb.ListResponse{Peer: result}, nil
 }
 
 // ListWatch once request, will return a stream of watched response

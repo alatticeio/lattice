@@ -16,3 +16,7 @@ func NewPeerController(peerMapper mapper.PeerInterface) *PeerController {
 func (p *PeerController) GetByAppId(appId string) (*entity.Peer, error) {
 	return p.peerMapper.GetByAppId(appId)
 }
+
+func (p *PeerController) List(userId string) ([]*entity.Peer, error) {
+	return p.peerMapper.List(userId)
+}

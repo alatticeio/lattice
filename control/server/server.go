@@ -21,19 +21,19 @@ type Server struct {
 }
 
 type ServerConfig struct {
-	Listen         string                `mapstructure: "listen,omitempty"`
-	Database       mapper.DatabaseConfig `mapstructure: "database,omitempty"`
-	UserController mapper.UserInterface
-	Queue          chan *pb.WatchResponse
+	Listen          string                `mapstructure: "listen,omitempty"`
+	Database        mapper.DatabaseConfig `mapstructure: "database,omitempty"`
+	UserController  mapper.UserInterface
+	Queue           chan *pb.WatchResponse
+	DatabaseService *mapper.DatabaseService
 }
 
 func NewServer(cfg *ServerConfig) *Server {
 	e := gin.Default()
-	dbService := mapper.NewDatabaseService(&cfg.Database)
 	s := &Server{
 		Engine:         e,
 		listen:         cfg.Listen,
-		userController: controller.NewUserController(mapper.NewUserMapper(dbService)),
+		userController: controller.NewUserController(mapper.NewUserMapper(cfg.DatabaseService)),
 		tokener:        utils.NewTokener(),
 		queue:          cfg.Queue,
 	}
