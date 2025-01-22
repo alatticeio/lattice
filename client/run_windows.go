@@ -1,5 +1,5 @@
-//go:build !windows
-// +build !windows
+//go:build windows
+// +build windows
 
 package client
 
@@ -56,7 +56,7 @@ func Start(interfaceName string, isRelay bool) error {
 	engine.OnSync = func(c client.ClientInterface) (*config.DeviceConf, error) {
 		// control plane fetch config from origin server
 		// update config
-		conf, err := c.List()
+		conf, err := c.FetchPeers()
 		if err != nil {
 			klog.Errorf("sync peers failed: %v", err)
 		}
@@ -74,11 +74,8 @@ func Start(interfaceName string, isRelay bool) error {
 
 	// open UAPI file (or use supplied fd)
 	klog.Infof("got device name: %s", engine.Name)
-	fileUAPI, err := func() (*os.File, error) {
-		return ipc.UAPIOpen(engine.Name)
-	}()
 
-	uapi, err := ipc.UAPIListen(engine.Name, fileUAPI)
+	uapi, err := ipc.UAPIListen(engine.Name)
 	if err != nil {
 		logger.Errorf("Failed to listen on uapi socket: %v", err)
 		os.Exit(-1)
