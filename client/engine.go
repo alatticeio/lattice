@@ -183,30 +183,42 @@ func NewEngine(cfg *EngineParams) (*Engine, error) {
 
 // Start open a ticker to sync peers
 func (e *Engine) Start(ticker *time.Ticker, quit chan struct{}) error {
-	go func() {
-		for {
-			select {
-			case <-ticker.C:
-				// do stuff
-				conf, err := e.OnSync(e.client)
-				if err != nil {
-					klog.Errorf("sync peers failed: %v", err)
-					break
-				}
+	//go func() {
+	//	for {
+	//		select {
+	//		case <-ticker.C:
+	//			// do stuff
+	//			conf, err := e.OnSync(e.client)
+	//			if err != nil {
+	//				klog.Errorf("sync peers failed: %v", err)
+	//				break
+	//			}
+	//
+	//			// this should be done after ipset
+	//			if conf.DrpUrl != "" {
+	//				if !e.updated.Load() {
+	//					e.updated.Store(true)
+	//				}
+	//			}
+	//
+	//		case <-quit:
+	//			ticker.Stop()
+	//			return
+	//		}
+	//	}
+	//}()
+	// List peers from control plane, first time, after, use watch
+	conf, err := e.OnSync(e.client)
+	if err != nil {
+		klog.Errorf("sync peers failed: %v", err)
+	}
 
-				// this should be done after ipset
-				if conf.DrpUrl != "" {
-					if !e.updated.Load() {
-						e.updated.Store(true)
-					}
-				}
-
-			case <-quit:
-				ticker.Stop()
-				return
-			}
+	// this should be done after ipset
+	if conf.DrpUrl != "" {
+		if !e.updated.Load() {
+			e.updated.Store(true)
 		}
-	}()
+	}
 
 	return nil
 }
