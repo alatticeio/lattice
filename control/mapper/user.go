@@ -56,7 +56,12 @@ func (u *UserMapper) Register(dto *dto.UserDto) (*entity.User, error) {
 }
 
 // Get returns a user by username
-func (u *UserMapper) Get(username string) (*entity.User, error) {
+func (u *UserMapper) Get(token string) (*entity.User, error) {
+	username, err := u.tokener.Parse(token)
+	if err != nil {
+		return nil, err
+	}
+
 	var user entity.User
 	if err := u.Where("username = ?", username).Find(&user).Error; err != nil {
 		return nil, err
