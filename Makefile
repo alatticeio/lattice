@@ -10,7 +10,7 @@ image:
 	docker push registry.cn-hangzhou.aliyuncs.com/linkany-io/linkany:latest
 
 generate:
-	protoc --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative  control/grpc/peer/peer.proto
+	protoc --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative  management/grpc/mgt/management.proto
 
 clean:
 	rm -rf bin

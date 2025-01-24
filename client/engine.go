@@ -8,9 +8,9 @@ import (
 	"golang.zx2c4.com/wireguard/tun"
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 	"k8s.io/klog/v2"
-	controlclient "linkany/control/client"
-	client2 "linkany/control/grpc/client"
 	"linkany/internal"
+	controlclient "linkany/management/client"
+	grpcclient "linkany/management/grpc/client"
 	"linkany/pkg/config"
 	"linkany/pkg/drp"
 	"linkany/pkg/iface"
@@ -109,7 +109,7 @@ func NewEngine(cfg *EngineParams) (*Engine, error) {
 	}
 	proberManager := probe.NewProberManager(cfg.ForceRelay)
 
-	grpcClient, err := client2.NewGrpcClient(&client2.GrpcConfig{Addr: cfg.GrpcAddr})
+	grpcClient, err := grpcclient.NewGrpcClient(&grpcclient.GrpcConfig{Addr: cfg.GrpcAddr})
 	if err != nil {
 		return nil, err
 	}

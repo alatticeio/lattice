@@ -5,6 +5,7 @@ go 1.21.12
 require (
 	github.com/gin-gonic/gin v1.10.0
 	github.com/golang-jwt/jwt/v5 v5.2.1
+	github.com/golang/protobuf v1.5.3
 	github.com/linkanyio/ice v0.0.0
 	github.com/moby/term v0.5.0
 	github.com/pion/logging v0.2.2

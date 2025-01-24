@@ -56,7 +56,7 @@ func Start(interfaceName string, isRelay bool) error {
 	engine.OnSync = func(c client.ClientInterface) (*config.DeviceConf, error) {
 		// control plane fetch config from origin server
 		// update config
-		conf, err := c.FetchPeers()
+		conf, err := c.List()
 		if err != nil {
 			klog.Errorf("sync peers failed: %v", err)
 		}
