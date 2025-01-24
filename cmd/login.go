@@ -6,8 +6,9 @@ import (
 	"fmt"
 	"github.com/moby/term"
 	"github.com/spf13/cobra"
-	"linkany/control/client"
+	"linkany/management/client"
 	"linkany/pkg/config"
+	"log"
 	"os"
 )
 
@@ -41,6 +42,9 @@ func loginCmd() *cobra.Command {
 
 // runJoin join a network cmd
 func runLogin(opts loginOptions) error {
+	defer func() {
+		log.Println("Login success")
+	}()
 	conf, err := config.InitConfig()
 	if err != nil {
 		return err
@@ -72,13 +76,7 @@ func runLogin(opts loginOptions) error {
 		Username: opts.Username,
 		Password: opts.Password,
 	}
-	_, err = client.Login(user)
-	if err != nil {
-		return err
-	}
-	fmt.Println("Login Succeeded")
-
-	return nil
+	return client.Login(user)
 
 }
 

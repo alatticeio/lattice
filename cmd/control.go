@@ -2,7 +2,7 @@ package cmd
 
 import (
 	"github.com/spf13/cobra"
-	"linkany/control"
+	"linkany/management"
 )
 
 type managementOptions struct {
@@ -33,5 +33,5 @@ func managementCmd() *cobra.Command {
 
 // run drp
 func runManagement(opts managementOptions) error {
-	return control.Start(opts.Listen)
+	return management.Start(opts.Listen)
 }

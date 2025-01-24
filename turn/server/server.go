@@ -3,7 +3,7 @@ package server
 import (
 	"github.com/pion/turn/v4"
 	"k8s.io/klog/v2"
-	"linkany/control/client"
+	"linkany/management/client"
 	"linkany/pkg/config"
 	"log"
 	"net"

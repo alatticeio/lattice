@@ -8,7 +8,7 @@ import (
 	wg "golang.zx2c4.com/wireguard/device"
 	"golang.zx2c4.com/wireguard/ipc"
 	"k8s.io/klog/v2"
-	"linkany/control/client"
+	"linkany/management/client"
 	"linkany/pkg/config"
 	"os"
 	"time"

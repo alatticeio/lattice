@@ -2,7 +2,7 @@ package cmd
 
 import (
 	"github.com/spf13/cobra"
-	"linkany/control/client"
+	"linkany/management/client"
 	"linkany/pkg/config"
 	"linkany/turn"
 	"linkany/turn/server"
