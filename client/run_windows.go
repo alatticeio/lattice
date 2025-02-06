@@ -10,6 +10,7 @@ import (
 	"k8s.io/klog/v2"
 	"linkany/control/client"
 	"linkany/pkg/config"
+	"log"
 	"os"
 	"time"
 )
@@ -53,7 +54,7 @@ func Start(interfaceName string, isRelay bool) error {
 		return err
 	}
 
-	engine.OnSync = func(c client.ClientInterface) (*config.DeviceConf, error) {
+	engine.GetNetworkMap = func(c client.ClientInterface) (*config.DeviceConf, error) {
 		// control plane fetch config from origin server
 		// update config
 		conf, err := c.List()
@@ -61,7 +62,7 @@ func Start(interfaceName string, isRelay bool) error {
 			klog.Errorf("sync peers failed: %v", err)
 		}
 
-		klog.Infof("success synced!!!")
+		log.Printf("success synced!!!")
 
 		return conf, err
 	}

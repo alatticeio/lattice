@@ -2,9 +2,9 @@ package management
 
 import (
 	"github.com/spf13/viper"
-	"linkany/management/grpc/server"
 	grpcserver "linkany/management/grpc/server"
 	"linkany/management/mapper"
+	"linkany/management/server"
 	"log"
 )
 
@@ -31,7 +31,7 @@ func Start(listen string) error {
 		}
 	}()
 
-	cfg.DataBaseService = dbService
+	cfg.DatabaseService = dbService
 	// Create a new server
 	s := server.NewServer(&cfg)
 	// Start the server

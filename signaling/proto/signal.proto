@@ -1,0 +1,24 @@
+syntax = "proto3";
+
+option go_package = "linkany/signaling/grpc/mgt";
+
+// The greeting service definition.
+service ManagementService {
+
+  rpc register(SignalingMessage) returns (SignalingMessage) {}
+  rpc Forward(stream SignalingMessage) returns (stream SignalingMessage) {}
+}
+
+// ControlMessage is dynamic message for kind to request and response
+message SignalingMessage  {
+  string pub_key = 1;
+  bytes body = 2;
+  int32 encrypt = 3;
+  int32 version = 4;
+}
+
+message Request {
+  string pub_key = 1;
+  string appId = 2;
+  string token = 3;
+}

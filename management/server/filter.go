@@ -2,7 +2,7 @@ package server
 
 import (
 	"github.com/gin-gonic/gin"
-	"linkany/control/client"
+	"linkany/management/client"
 )
 
 func (s *Server) authCheck() gin.HandlerFunc {

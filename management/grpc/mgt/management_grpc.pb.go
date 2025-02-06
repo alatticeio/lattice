@@ -19,10 +19,11 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	ManagementService_Login_FullMethodName = "/ManagementService/Login"
-	ManagementService_Get_FullMethodName   = "/ManagementService/Get"
-	ManagementService_List_FullMethodName  = "/ManagementService/List"
-	ManagementService_Watch_FullMethodName = "/ManagementService/Watch"
+	ManagementService_Login_FullMethodName     = "/ManagementService/Login"
+	ManagementService_Get_FullMethodName       = "/ManagementService/Get"
+	ManagementService_List_FullMethodName      = "/ManagementService/List"
+	ManagementService_Watch_FullMethodName     = "/ManagementService/Watch"
+	ManagementService_Keepalive_FullMethodName = "/ManagementService/Keepalive"
 )
 
 // ManagementServiceClient is the client API for ManagementService service.
@@ -35,6 +36,7 @@ type ManagementServiceClient interface {
 	Get(ctx context.Context, in *ManagementMessage, opts ...grpc.CallOption) (*ManagementMessage, error)
 	List(ctx context.Context, in *ManagementMessage, opts ...grpc.CallOption) (*ManagementMessage, error)
 	Watch(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[ManagementMessage, ManagementMessage], error)
+	Keepalive(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[ManagementMessage, ManagementMessage], error)
 }
 
 type managementServiceClient struct {
@@ -88,6 +90,19 @@ func (c *managementServiceClient) Watch(ctx context.Context, opts ...grpc.CallOp
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type ManagementService_WatchClient = grpc.BidiStreamingClient[ManagementMessage, ManagementMessage]
 
+func (c *managementServiceClient) Keepalive(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[ManagementMessage, ManagementMessage], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &ManagementService_ServiceDesc.Streams[1], ManagementService_Keepalive_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[ManagementMessage, ManagementMessage]{ClientStream: stream}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type ManagementService_KeepaliveClient = grpc.BidiStreamingClient[ManagementMessage, ManagementMessage]
+
 // ManagementServiceServer is the server API for ManagementService service.
 // All implementations must embed UnimplementedManagementServiceServer
 // for forward compatibility.
@@ -98,6 +113,7 @@ type ManagementServiceServer interface {
 	Get(context.Context, *ManagementMessage) (*ManagementMessage, error)
 	List(context.Context, *ManagementMessage) (*ManagementMessage, error)
 	Watch(grpc.BidiStreamingServer[ManagementMessage, ManagementMessage]) error
+	Keepalive(grpc.BidiStreamingServer[ManagementMessage, ManagementMessage]) error
 	mustEmbedUnimplementedManagementServiceServer()
 }
 
@@ -119,6 +135,9 @@ func (UnimplementedManagementServiceServer) List(context.Context, *ManagementMes
 }
 func (UnimplementedManagementServiceServer) Watch(grpc.BidiStreamingServer[ManagementMessage, ManagementMessage]) error {
 	return status.Errorf(codes.Unimplemented, "method Watch not implemented")
+}
+func (UnimplementedManagementServiceServer) Keepalive(grpc.BidiStreamingServer[ManagementMessage, ManagementMessage]) error {
+	return status.Errorf(codes.Unimplemented, "method Keepalive not implemented")
 }
 func (UnimplementedManagementServiceServer) mustEmbedUnimplementedManagementServiceServer() {}
 func (UnimplementedManagementServiceServer) testEmbeddedByValue()                           {}
@@ -202,6 +221,13 @@ func _ManagementService_Watch_Handler(srv interface{}, stream grpc.ServerStream)
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type ManagementService_WatchServer = grpc.BidiStreamingServer[ManagementMessage, ManagementMessage]
 
+func _ManagementService_Keepalive_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(ManagementServiceServer).Keepalive(&grpc.GenericServerStream[ManagementMessage, ManagementMessage]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type ManagementService_KeepaliveServer = grpc.BidiStreamingServer[ManagementMessage, ManagementMessage]
+
 // ManagementService_ServiceDesc is the grpc.ServiceDesc for ManagementService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -226,6 +252,12 @@ var ManagementService_ServiceDesc = grpc.ServiceDesc{
 		{
 			StreamName:    "Watch",
 			Handler:       _ManagementService_Watch_Handler,
+			ServerStreams: true,
+			ClientStreams: true,
+		},
+		{
+			StreamName:    "Keepalive",
+			Handler:       _ManagementService_Keepalive_Handler,
 			ServerStreams: true,
 			ClientStreams: true,
 		},

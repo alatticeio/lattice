@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"linkany/management/dto"
 	"linkany/management/entity"
 	"linkany/management/mapper"
 )
@@ -17,6 +18,14 @@ func (p *PeerController) GetByAppId(appId string) (*entity.Peer, error) {
 	return p.peerMapper.GetByAppId(appId)
 }
 
-func (p *PeerController) List(userId string) ([]*entity.Peer, error) {
-	return p.peerMapper.List(userId)
+func (p *PeerController) List(params *mapper.QueryParams) ([]*entity.Peer, error) {
+	return p.peerMapper.List(params)
+}
+
+func (p *PeerController) Update(dto *dto.PeerDto) (*entity.Peer, error) {
+	return p.peerMapper.Update(dto)
+}
+
+func (p *PeerController) GetNetworkMap(appId, userId string) (*entity.NetworkMap, error) {
+	return p.peerMapper.GetNetworkMap(appId, userId)
 }

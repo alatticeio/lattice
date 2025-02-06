@@ -5,6 +5,7 @@ import (
 	"sync"
 )
 
+var lock sync.Mutex
 var once sync.Once
 var manager *WatchManager
 
@@ -18,7 +19,6 @@ type WatchMessage struct {
 
 // NewWatchMessage creates a new WatchMessage, when a peer is added, updated or deleted
 func NewWatchMessage(eventType mgt.EventType, peer *mgt.Peer) *WatchMessage {
-
 	return &WatchMessage{
 		Type: eventType,
 		Peer: peer,
@@ -30,7 +30,13 @@ type WatchManager struct {
 	m    map[string]chan *WatchMessage
 }
 
+// NewWatchManager create a whole manager for connected peers
 func NewWatchManager() *WatchManager {
+	defer lock.Unlock()
+	lock.Lock()
+	if manager != nil {
+		return manager
+	}
 	return &WatchManager{
 		m: make(map[string]chan *WatchMessage),
 	}
@@ -60,4 +66,10 @@ func (w *WatchManager) Send(key string, msg *WatchMessage) {
 	if ch, ok := w.m[key]; ok {
 		ch <- msg
 	}
+}
+
+func (w *WatchManager) Get(key string) chan *WatchMessage {
+	w.lock.Lock()
+	defer w.lock.Unlock()
+	return w.m[key]
 }

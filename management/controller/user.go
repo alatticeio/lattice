@@ -22,6 +22,6 @@ func (u *UserController) Register(e *dto.UserDto) (*entity.User, error) {
 	return u.userMapper.Register(e)
 }
 
-func (u *UserController) Get(username string) (*entity.User, error) {
-	return u.userMapper.Get(username)
+func (u *UserController) Get(token string) (*entity.User, error) {
+	return u.userMapper.Get(token)
 }

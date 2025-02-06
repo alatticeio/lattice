@@ -24,7 +24,7 @@ func TestClient_Login(t *testing.T) {
 	client := NewClient(&ClientConfig{
 		Conf: conf,
 	})
-	u, err := client.Login(&user)
+	err := client.Login(&user)
 	if err != nil {
 		t.Fatal(err)
 	}

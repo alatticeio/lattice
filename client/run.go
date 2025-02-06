@@ -7,9 +7,9 @@ import (
 	"fmt"
 	wg "golang.zx2c4.com/wireguard/device"
 	"golang.zx2c4.com/wireguard/ipc"
-	"k8s.io/klog/v2"
 	"linkany/management/client"
 	"linkany/pkg/config"
+	"log"
 	"os"
 	"time"
 )
@@ -53,15 +53,15 @@ func Start(interfaceName string, isRelay bool) error {
 		return err
 	}
 
-	engine.OnSync = func(c client.ClientInterface) (*config.DeviceConf, error) {
+	engine.GetNetworkMap = func(c client.ClientInterface) (*config.DeviceConf, error) {
 		// control plane fetch config from origin server
 		// update config
 		conf, err := c.List()
 		if err != nil {
-			klog.Errorf("sync peers failed: %v", err)
+			log.Fatalf("sync peers failed: %v", err)
 		}
 
-		klog.Infof("success synced!!!")
+		log.Println("success synced!!!")
 
 		return conf, err
 	}
@@ -73,7 +73,7 @@ func Start(interfaceName string, isRelay bool) error {
 	err = engine.Start(ticker, quit)
 
 	// open UAPI file (or use supplied fd)
-	klog.Infof("got device name: %s", engine.Name)
+	log.Printf("got device name: %s", engine.Name)
 	fileUAPI, err := func() (*os.File, error) {
 		return ipc.UAPIOpen(engine.Name)
 	}()
@@ -93,7 +93,7 @@ func Start(interfaceName string, isRelay bool) error {
 			go engine.IpcHandle(conn)
 		}
 	}()
-	klog.Infof("UAPI listener started")
+	log.Println("UAPI listener started")
 
 	<-ctx.Done()
 	uapi.Close()

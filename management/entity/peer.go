@@ -9,6 +9,7 @@ type Peer struct {
 	AllowedIPs string
 	PublicKey  string
 	PrivateKey string
+	Online     int // 0: offline 1: online
 }
 
 // TableName returns the table name of the model

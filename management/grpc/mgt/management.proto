@@ -12,6 +12,8 @@ service ManagementService {
   rpc List (ManagementMessage) returns (ManagementMessage) {}
 
   rpc Watch (stream ManagementMessage) returns (stream ManagementMessage) {}
+
+  rpc Keepalive(stream ManagementMessage) returns (stream ManagementMessage) {}
 }
 
 // ControlMessage is dynamic message for kind to request and response

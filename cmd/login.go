@@ -7,6 +7,7 @@ import (
 	"github.com/moby/term"
 	"github.com/spf13/cobra"
 	"linkany/management/client"
+	grpcclient "linkany/management/grpc/client"
 	"linkany/pkg/config"
 	"log"
 	"os"
@@ -42,8 +43,11 @@ func loginCmd() *cobra.Command {
 
 // runJoin join a network cmd
 func runLogin(opts loginOptions) error {
+	var err error
 	defer func() {
-		log.Println("Login success")
+		if err == nil {
+			log.Println("Login success")
+		}
 	}()
 	conf, err := config.InitConfig()
 	if err != nil {
@@ -69,15 +73,21 @@ func runLogin(opts loginOptions) error {
 		}
 	}
 
+	grpcClient, err := grpcclient.NewGrpcClient(&grpcclient.GrpcConfig{Addr: "localhost:50051"})
+	if err != nil {
+		return err
+	}
+
 	client := client.NewClient(&client.ClientConfig{
-		Conf: conf,
+		GrpcClient: grpcClient,
+		Conf:       conf,
 	})
 	user := &config.User{
 		Username: opts.Username,
 		Password: opts.Password,
 	}
-	return client.Login(user)
-
+	err = client.Login(user)
+	return err
 }
 
 func readLine(prompt string, slient bool) (string, error) {

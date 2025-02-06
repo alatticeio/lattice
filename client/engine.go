@@ -2,12 +2,6 @@ package client
 
 import (
 	"fmt"
-	"github.com/vishvananda/netlink"
-	"golang.zx2c4.com/wireguard/conn"
-	wg "golang.zx2c4.com/wireguard/device"
-	"golang.zx2c4.com/wireguard/tun"
-	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
-	"k8s.io/klog/v2"
 	"linkany/internal"
 	controlclient "linkany/management/client"
 	grpcclient "linkany/management/grpc/client"
@@ -18,12 +12,19 @@ import (
 	"linkany/pkg/wrapper"
 	"linkany/signaling/client"
 	turnclient "linkany/turn/client"
+	"log"
 	"net"
 	"net/url"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/vishvananda/netlink"
+	"golang.zx2c4.com/wireguard/conn"
+	wg "golang.zx2c4.com/wireguard/device"
+	"golang.zx2c4.com/wireguard/tun"
+	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 )
 
 var (
@@ -39,12 +40,12 @@ type Engine struct {
 	Name   string
 	device *wg.Device
 	//agent         *ice.Agent
-	tieBreaker uint64
-	client     controlclient.ClientInterface
-	bind       conn.Bind
-	drpClient  *drp.Client
-	OnSync     func(client controlclient.ClientInterface) (*config.DeviceConf, error)
-	updated    atomic.Bool
+	tieBreaker    uint64
+	client        controlclient.ClientInterface
+	bind          conn.Bind
+	drpClient     *drp.Client
+	GetNetworkMap func(client controlclient.ClientInterface) (*config.DeviceConf, error)
+	updated       atomic.Bool
 
 	pm           *config.PeersManager
 	agentManager *internal.AgentManager
@@ -188,9 +189,9 @@ func (e *Engine) Start(ticker *time.Ticker, quit chan struct{}) error {
 	//		select {
 	//		case <-ticker.C:
 	//			// do stuff
-	//			conf, err := e.OnSync(e.client)
+	//			conf, err := e.GetNetworkMap(e.client)
 	//			if err != nil {
-	//				klog.Errorf("sync peers failed: %v", err)
+	//				log.Fatalf("sync peers failed: %v", err)
 	//				break
 	//			}
 	//
@@ -208,9 +209,9 @@ func (e *Engine) Start(ticker *time.Ticker, quit chan struct{}) error {
 	//	}
 	//}()
 	// List peers from control plane, first time, after, use watch
-	conf, err := e.OnSync(e.client)
+	conf, err := e.GetNetworkMap(e.client)
 	if err != nil {
-		klog.Errorf("sync peers failed: %v", err)
+		log.Printf("sync peers failed: %v", err)
 	}
 
 	// this should be done after ipset
@@ -226,7 +227,7 @@ func (e *Engine) Start(ticker *time.Ticker, quit chan struct{}) error {
 func NewDrpClient(drpUrl string, manager *internal.AgentManager, probers *probe.NetProber, turnClient *turnclient.Client) (*drp.Client, error) {
 	u, err := url.Parse(drpUrl)
 	if err != nil {
-		klog.Errorf("parse drp url failed: %v", err)
+		log.Fatalf("parse drp url failed: %v", err)
 		return nil, err
 	}
 	if !strings.Contains(u.Host, ":") {
@@ -234,17 +235,17 @@ func NewDrpClient(drpUrl string, manager *internal.AgentManager, probers *probe.
 	}
 	addr, err := net.ResolveTCPAddr("tcp", u.Host)
 	if err != nil {
-		klog.Errorf("resolve tcp addr failed: %v", err)
+		log.Fatalf("resolve tcp addr failed: %v", err)
 		return nil, err
 	}
 
 	node := drp.NewNode("", addr, nil)
 	drpClient, err := client.NewClient(node, manager, probers, turnClient).Connect(drpUrl)
 	if err != nil {
-		klog.Errorf("connect to drp server failed: %v", err)
+		log.Fatalf("connect to drp server failed: %v", err)
 		return nil, err
 	}
-	klog.Infof("connect to drp server success")
+	log.Println("connect to drp server success")
 
 	return drpClient, nil
 
@@ -268,7 +269,7 @@ func (e *Engine) SetConfig(conf *config.DeviceConf) error {
 	}
 
 	if conf.String() == nowConf {
-		klog.Infof("config is same, no need to update")
+		log.Printf("config is same, no need to update")
 		return nil
 	}
 

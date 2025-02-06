@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"github.com/golang-jwt/jwt/v5"
 	"linkany/management/entity"
-	"log"
 	"time"
 )
 
@@ -63,7 +62,7 @@ func (t *Tokener) Parse(tokenString string) (*entity.User, error) {
 		return haSalt, nil
 	})
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 
 	if claims, ok := token.Claims.(jwt.MapClaims); ok {

@@ -2,12 +2,18 @@ package client
 
 import (
 	"context"
-	pb "linkany/control/grpc/peer"
+	"github.com/golang/protobuf/proto"
+	pb "linkany/management/grpc/mgt"
 	"linkany/pkg/config"
 	"testing"
 )
 
 func TestNewGrpcClient(t *testing.T) {
+	t.Run("TestGrpcClient_List", TestGrpcClient_List)
+
+}
+
+func TestGrpcClient_List(t *testing.T) {
 	client, err := NewGrpcClient(&GrpcConfig{Addr: "localhost:50051"})
 	if err != nil {
 		t.Fatal(err)
@@ -18,15 +24,25 @@ func TestNewGrpcClient(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	requset := &pb.Request{
+		AppId: cfg.AppId,
+		Token: cfg.Token,
+	}
+
+	body, err := proto.Marshal(requset)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	ctx := context.Background()
-	resp, err := client.List(ctx, &pb.Request{
-		Username: "linkany",
-		AppId:    cfg.AppId,
+	resp, err := client.List(ctx, &pb.ManagementMessage{
+		PubKey: "a+BYvXq6/xrvsnKbgORSL6lwFzqtfXV0VnTzwdo+Vnw=",
+		Body:   body,
 	})
 
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	t.Log(resp.Peer)
+	t.Log(resp)
 }
