@@ -5,7 +5,6 @@ import (
 	"k8s.io/klog/v2"
 	"linkany/management/client"
 	"linkany/pkg/config"
-	"log"
 	"net"
 	"os"
 	"os/signal"
@@ -85,7 +84,7 @@ func (ts *TurnServer) start(publicIP string, port int) error {
 	<-sigs
 
 	if err = s.Close(); err != nil {
-		log.Panic(err)
+		klog.Errorf("Failed to close turn server: %v", err)
 	}
 
 	return nil

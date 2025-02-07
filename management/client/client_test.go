@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 	"k8s.io/klog/v2"
+	"linkany/internal"
 	"linkany/pkg/config"
 	"net/http"
 	"os"
@@ -77,7 +78,7 @@ func TestClient_Register(t *testing.T) {
 	}
 
 	data := bytes.NewBuffer(jsonStr)
-	request, err := http.NewRequest("POST", fmt.Sprintf("%s/api/v1/peer/register", ConsoleDomain), data)
+	request, err := http.NewRequest("POST", fmt.Sprintf("%s/api/v1/peer/register", internal.ConsoleDomain), data)
 	request.Header.Add("TOKEN", c.conf.Token)
 	resp, err := c.httpClient.Do(request)
 

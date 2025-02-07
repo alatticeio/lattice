@@ -53,3 +53,14 @@ message NetworkMap {
   string eventType = 3;
   repeated Peer peers = 4;
 }
+
+message WatchMessage {
+  EventType type = 1;
+  Peer peer = 2;
+}
+
+enum EventType {
+  ADD = 0;
+  UPDATE = 1;
+  DELETE = 2;
+}

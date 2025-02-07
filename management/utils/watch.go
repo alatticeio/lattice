@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"k8s.io/klog/v2"
 	"linkany/management/grpc/mgt"
 	"sync"
 )
@@ -9,17 +10,9 @@ var lock sync.Mutex
 var once sync.Once
 var manager *WatchManager
 
-// WatchMessage is the message sent to the chan when a watch event is triggered,
-// it contains the event type and the peer that was updated, will seed to every client
-type WatchMessage struct {
-	// The key of the updated object
-	Type mgt.EventType `json:"event_type"`
-	Peer *mgt.Peer     `json:"peer"`
-}
-
 // NewWatchMessage creates a new WatchMessage, when a peer is added, updated or deleted
-func NewWatchMessage(eventType mgt.EventType, peer *mgt.Peer) *WatchMessage {
-	return &WatchMessage{
+func NewWatchMessage(eventType mgt.EventType, peer *mgt.Peer) *mgt.WatchMessage {
+	return &mgt.WatchMessage{
 		Type: eventType,
 		Peer: peer,
 	}
@@ -27,26 +20,31 @@ func NewWatchMessage(eventType mgt.EventType, peer *mgt.Peer) *WatchMessage {
 
 type WatchManager struct {
 	lock sync.Mutex
-	m    map[string]chan *WatchMessage
+	m    map[string]chan *mgt.WatchMessage
 }
 
 // NewWatchManager create a whole manager for connected peers
 func NewWatchManager() *WatchManager {
-	defer lock.Unlock()
 	lock.Lock()
+	defer lock.Unlock()
 	if manager != nil {
 		return manager
 	}
-	return &WatchManager{
-		m: make(map[string]chan *WatchMessage),
-	}
+	once.Do(func() {
+		manager = &WatchManager{
+			m: make(map[string]chan *mgt.WatchMessage),
+		}
+	})
+
+	return manager
 }
 
 // Add adds a new channel to the watch manager for a new connected peer
-func (w *WatchManager) Add(key string, ch chan *WatchMessage) {
+func (w *WatchManager) Add(key string, ch chan *mgt.WatchMessage) {
 	w.lock.Lock()
 	defer w.lock.Unlock()
 
+	klog.Infof("manager: %v, ch: %v", w, ch)
 	w.m[key] = ch
 }
 
@@ -59,7 +57,7 @@ func (w *WatchManager) Remove(key string) {
 }
 
 // Send sends a message to all connected peer's channel
-func (w *WatchManager) Send(key string, msg *WatchMessage) {
+func (w *WatchManager) Send(key string, msg *mgt.WatchMessage) {
 	w.lock.Lock()
 	defer w.lock.Unlock()
 
@@ -68,8 +66,10 @@ func (w *WatchManager) Send(key string, msg *WatchMessage) {
 	}
 }
 
-func (w *WatchManager) Get(key string) chan *WatchMessage {
+func (w *WatchManager) Get(key string) chan *mgt.WatchMessage {
 	w.lock.Lock()
 	defer w.lock.Unlock()
-	return w.m[key]
+	ch := w.m[key]
+	klog.Infof("Get channel: %v, manager: %v", ch, w)
+	return ch
 }

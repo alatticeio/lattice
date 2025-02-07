@@ -2,10 +2,10 @@ package management
 
 import (
 	"github.com/spf13/viper"
+	"k8s.io/klog/v2"
 	grpcserver "linkany/management/grpc/server"
 	"linkany/management/mapper"
 	"linkany/management/server"
-	"log"
 )
 
 func Start(listen string) error {
@@ -27,7 +27,7 @@ func Start(listen string) error {
 	// go run a grpc server
 	go func() {
 		if err := gServer.Start(); err != nil {
-			log.Fatal(err)
+			klog.Errorf("grpc server start failed: %v", err)
 		}
 	}()
 

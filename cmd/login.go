@@ -6,10 +6,11 @@ import (
 	"fmt"
 	"github.com/moby/term"
 	"github.com/spf13/cobra"
+	"k8s.io/klog/v2"
+	"linkany/internal"
 	"linkany/management/client"
 	grpcclient "linkany/management/grpc/client"
 	"linkany/pkg/config"
-	"log"
 	"os"
 )
 
@@ -46,7 +47,7 @@ func runLogin(opts loginOptions) error {
 	var err error
 	defer func() {
 		if err == nil {
-			log.Println("Login success")
+			klog.Infof("login success")
 		}
 	}()
 	conf, err := config.InitConfig()
@@ -73,7 +74,7 @@ func runLogin(opts loginOptions) error {
 		}
 	}
 
-	grpcClient, err := grpcclient.NewGrpcClient(&grpcclient.GrpcConfig{Addr: "localhost:50051"})
+	grpcClient, err := grpcclient.NewGrpcClient(&grpcclient.GrpcConfig{Addr: internal.ManagementDomain + ":50051"})
 	if err != nil {
 		return err
 	}

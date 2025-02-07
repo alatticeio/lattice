@@ -10,7 +10,6 @@ import (
 	"k8s.io/klog/v2"
 	"linkany/control/client"
 	"linkany/pkg/config"
-	"log"
 	"os"
 	"time"
 )
@@ -61,8 +60,7 @@ func Start(interfaceName string, isRelay bool) error {
 		if err != nil {
 			klog.Errorf("sync peers failed: %v", err)
 		}
-
-		log.Printf("success synced!!!")
+		klog.Infof("success synced!!!")
 
 		return conf, err
 	}
@@ -96,6 +94,6 @@ func Start(interfaceName string, isRelay bool) error {
 	<-ctx.Done()
 	uapi.Close()
 
-	logger.Verbosef("linkany shutting down")
+	klog.Infof("linkany shutting down")
 	return err
 }

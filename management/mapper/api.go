@@ -43,7 +43,7 @@ func (qp *QueryParams) Generate() []*kv {
 
 	if qp.Online != nil {
 		v := &kv{
-			Key:   "on_line",
+			Key:   "online",
 			Value: qp.Online,
 		}
 

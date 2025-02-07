@@ -47,7 +47,7 @@ func (p *PeerMapper) Register(e *dto.PeerDto) (*entity.Peer, error) {
 
 func (p *PeerMapper) Update(e *dto.PeerDto) (*entity.Peer, error) {
 	var peer entity.Peer
-	if err := p.Where("pub_key = ?", e.PubKey).First(&peer).Error; err != nil {
+	if err := p.Where("public_key = ?", e.PubKey).First(&peer).Error; err != nil {
 		return nil, err
 	}
 

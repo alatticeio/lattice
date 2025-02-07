@@ -5,7 +5,6 @@ import (
 	"github.com/pion/logging"
 	"github.com/pion/turn/v4"
 	"k8s.io/klog/v2"
-	"log"
 	"net"
 	"strings"
 	"time"
@@ -17,18 +16,18 @@ func main() {
 
 func TurnClient(host, user, realm string, port int, ping bool) {
 	if host == "" {
-		log.Fatalf("'host' is required")
+		klog.Errorf("'host' is required")
 	}
 
 	if user == "" {
-		log.Fatalf("'user' is required")
+		klog.Errorf("'user' is required")
 	}
 
 	// Dial TURN Server
 	turnServerAddr := fmt.Sprintf("%s:%d", host, port)
 	conn, err := net.Dial("udp", turnServerAddr)
 	if err != nil {
-		log.Panicf("Failed to connect to TURN server: %s", err)
+		klog.Errorf("Failed to connect to TURN server: %s", err)
 	}
 
 	cred := strings.SplitN(user, "=", 2)
@@ -47,14 +46,14 @@ func TurnClient(host, user, realm string, port int, ping bool) {
 
 	client, err := turn.NewClient(cfg)
 	if err != nil {
-		log.Panicf("Failed to create TURN client: %s", err)
+		klog.Errorf("Failed to create TURN client: %s", err)
 	}
 	defer client.Close()
 
 	// ProbeConnect listening on the conn provided.
 	err = client.Listen()
 	if err != nil {
-		log.Panicf("Failed to listen: %s", err)
+		klog.Errorf("Failed to listen: %s", err)
 	}
 
 	// Allocate a relay socket on the TURN server. On success, it
@@ -62,24 +61,24 @@ func TurnClient(host, user, realm string, port int, ping bool) {
 	// socket.
 	relayConn, err := client.Allocate()
 	if err != nil {
-		log.Panicf("Failed to allocate: %s", err)
+		klog.Errorf("Failed to allocate: %s", err)
 	}
 	defer func() {
 		if closeErr := relayConn.Close(); closeErr != nil {
-			log.Fatalf("Failed to close connection: %s", closeErr)
+			klog.Errorf("Failed to close connection: %s", closeErr)
 		}
 	}()
 
 	// The relayConn's local address is actually the transport
 	// address assigned on the TURN server.
-	log.Printf("relayed-address=%s", relayConn.LocalAddr().String())
+	klog.Infof("relayed-address=%s", relayConn.LocalAddr().String())
 
 	// If you provided `-ping`, perform a ping test against the
 	// relayConn we have just allocated.
 	if ping {
 		err = doPingTest(client, relayConn)
 		if err != nil {
-			log.Panicf("Failed to ping: %s", err)
+			klog.Errorf("Failed to ping: %s", err)
 		}
 	}
 }
@@ -96,11 +95,11 @@ func doPingTest(client *turn.Client, relayConn net.PacketConn) error {
 	// Set up pinger socket (pingerConn)
 	pingerConn, err := net.ListenPacket("udp4", "0.0.0.0:0")
 	if err != nil {
-		log.Panicf("Failed to listen: %s", err)
+		klog.Errorf("Failed to listen: %s", err)
 	}
 	defer func() {
 		if closeErr := pingerConn.Close(); closeErr != nil {
-			log.Panicf("Failed to close connection: %s", closeErr)
+			klog.Errorf("Failed to close connection: %s", closeErr)
 		}
 	}()
 
@@ -126,7 +125,7 @@ func doPingTest(client *turn.Client, relayConn net.PacketConn) error {
 			msg := string(buf[:n])
 			if sentAt, pingerErr := time.Parse(time.RFC3339Nano, msg); pingerErr == nil {
 				rtt := time.Since(sentAt)
-				log.Printf("%d bytes from from %s time=%d ms\n", n, from.String(), int(rtt.Seconds()*1000))
+				klog.Infof("%d bytes from from %s time=%d ms\n", n, from.String(), int(rtt.Seconds()*1000))
 			}
 		}
 	}()

@@ -2,6 +2,7 @@ package client
 
 import (
 	"fmt"
+	"k8s.io/klog/v2"
 	"linkany/internal"
 	controlclient "linkany/management/client"
 	grpcclient "linkany/management/grpc/client"
@@ -12,7 +13,6 @@ import (
 	"linkany/pkg/wrapper"
 	"linkany/signaling/client"
 	turnclient "linkany/turn/client"
-	"log"
 	"net"
 	"net/url"
 	"strings"
@@ -211,7 +211,7 @@ func (e *Engine) Start(ticker *time.Ticker, quit chan struct{}) error {
 	// List peers from control plane, first time, after, use watch
 	conf, err := e.GetNetworkMap(e.client)
 	if err != nil {
-		log.Printf("sync peers failed: %v", err)
+		klog.Errorf("sync peers failed: %v", err)
 	}
 
 	// this should be done after ipset
@@ -227,7 +227,7 @@ func (e *Engine) Start(ticker *time.Ticker, quit chan struct{}) error {
 func NewDrpClient(drpUrl string, manager *internal.AgentManager, probers *probe.NetProber, turnClient *turnclient.Client) (*drp.Client, error) {
 	u, err := url.Parse(drpUrl)
 	if err != nil {
-		log.Fatalf("parse drp url failed: %v", err)
+		klog.Errorf("parse drp url failed: %v", err)
 		return nil, err
 	}
 	if !strings.Contains(u.Host, ":") {
@@ -235,17 +235,17 @@ func NewDrpClient(drpUrl string, manager *internal.AgentManager, probers *probe.
 	}
 	addr, err := net.ResolveTCPAddr("tcp", u.Host)
 	if err != nil {
-		log.Fatalf("resolve tcp addr failed: %v", err)
+		klog.Errorf("resolve tcp addr failed: %v", err)
 		return nil, err
 	}
 
 	node := drp.NewNode("", addr, nil)
 	drpClient, err := client.NewClient(node, manager, probers, turnClient).Connect(drpUrl)
 	if err != nil {
-		log.Fatalf("connect to drp server failed: %v", err)
+		klog.Errorf("connect to drp server failed: %v", err)
 		return nil, err
 	}
-	log.Println("connect to drp server success")
+	klog.Infof("connect to drp server success")
 
 	return drpClient, nil
 
@@ -269,7 +269,7 @@ func (e *Engine) SetConfig(conf *config.DeviceConf) error {
 	}
 
 	if conf.String() == nowConf {
-		log.Printf("config is same, no need to update")
+		klog.Infof("config is same, no need to update")
 		return nil
 	}
 
