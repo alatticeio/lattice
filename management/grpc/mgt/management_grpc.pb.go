@@ -19,24 +19,27 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	ManagementService_Login_FullMethodName     = "/ManagementService/Login"
-	ManagementService_Get_FullMethodName       = "/ManagementService/Get"
-	ManagementService_List_FullMethodName      = "/ManagementService/List"
-	ManagementService_Watch_FullMethodName     = "/ManagementService/Watch"
-	ManagementService_Keepalive_FullMethodName = "/ManagementService/Keepalive"
+	ManagementService_Login_FullMethodName       = "/ManagementService/Login"
+	ManagementService_Get_FullMethodName         = "/ManagementService/Get"
+	ManagementService_List_FullMethodName        = "/ManagementService/List"
+	ManagementService_Watch_FullMethodName       = "/ManagementService/Watch"
+	ManagementService_Keepalive_FullMethodName   = "/ManagementService/Keepalive"
+	ManagementService_VerifyToken_FullMethodName = "/ManagementService/VerifyToken"
 )
 
 // ManagementServiceClient is the client API for ManagementService service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 //
-// The greeting service definition.
+// The Management service definition.
 type ManagementServiceClient interface {
 	Login(ctx context.Context, in *ManagementMessage, opts ...grpc.CallOption) (*ManagementMessage, error)
 	Get(ctx context.Context, in *ManagementMessage, opts ...grpc.CallOption) (*ManagementMessage, error)
 	List(ctx context.Context, in *ManagementMessage, opts ...grpc.CallOption) (*ManagementMessage, error)
 	Watch(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[ManagementMessage, ManagementMessage], error)
 	Keepalive(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[ManagementMessage, ManagementMessage], error)
+	// valid token for service
+	VerifyToken(ctx context.Context, in *ManagementMessage, opts ...grpc.CallOption) (*ManagementMessage, error)
 }
 
 type managementServiceClient struct {
@@ -103,17 +106,29 @@ func (c *managementServiceClient) Keepalive(ctx context.Context, opts ...grpc.Ca
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type ManagementService_KeepaliveClient = grpc.BidiStreamingClient[ManagementMessage, ManagementMessage]
 
+func (c *managementServiceClient) VerifyToken(ctx context.Context, in *ManagementMessage, opts ...grpc.CallOption) (*ManagementMessage, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ManagementMessage)
+	err := c.cc.Invoke(ctx, ManagementService_VerifyToken_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ManagementServiceServer is the server API for ManagementService service.
 // All implementations must embed UnimplementedManagementServiceServer
 // for forward compatibility.
 //
-// The greeting service definition.
+// The Management service definition.
 type ManagementServiceServer interface {
 	Login(context.Context, *ManagementMessage) (*ManagementMessage, error)
 	Get(context.Context, *ManagementMessage) (*ManagementMessage, error)
 	List(context.Context, *ManagementMessage) (*ManagementMessage, error)
 	Watch(grpc.BidiStreamingServer[ManagementMessage, ManagementMessage]) error
 	Keepalive(grpc.BidiStreamingServer[ManagementMessage, ManagementMessage]) error
+	// valid token for service
+	VerifyToken(context.Context, *ManagementMessage) (*ManagementMessage, error)
 	mustEmbedUnimplementedManagementServiceServer()
 }
 
@@ -138,6 +153,9 @@ func (UnimplementedManagementServiceServer) Watch(grpc.BidiStreamingServer[Manag
 }
 func (UnimplementedManagementServiceServer) Keepalive(grpc.BidiStreamingServer[ManagementMessage, ManagementMessage]) error {
 	return status.Errorf(codes.Unimplemented, "method Keepalive not implemented")
+}
+func (UnimplementedManagementServiceServer) VerifyToken(context.Context, *ManagementMessage) (*ManagementMessage, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method VerifyToken not implemented")
 }
 func (UnimplementedManagementServiceServer) mustEmbedUnimplementedManagementServiceServer() {}
 func (UnimplementedManagementServiceServer) testEmbeddedByValue()                           {}
@@ -228,6 +246,24 @@ func _ManagementService_Keepalive_Handler(srv interface{}, stream grpc.ServerStr
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type ManagementService_KeepaliveServer = grpc.BidiStreamingServer[ManagementMessage, ManagementMessage]
 
+func _ManagementService_VerifyToken_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ManagementMessage)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ManagementServiceServer).VerifyToken(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ManagementService_VerifyToken_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ManagementServiceServer).VerifyToken(ctx, req.(*ManagementMessage))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // ManagementService_ServiceDesc is the grpc.ServiceDesc for ManagementService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -246,6 +282,10 @@ var ManagementService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "List",
 			Handler:    _ManagementService_List_Handler,
+		},
+		{
+			MethodName: "VerifyToken",
+			Handler:    _ManagementService_VerifyToken_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

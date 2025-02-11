@@ -1,0 +1,32 @@
+syntax = "proto3";
+
+option go_package = "linkany/signaling/grpc/signaling";
+
+// The greeting service definition.
+service SignalingService {
+  rpc Register(EncryptMessage) returns (EncryptMessage) {}
+  rpc Forward(stream EncryptMessage) returns (stream EncryptMessage) {}
+}
+
+// ControlMessage is dynamic message for kind to request and response
+message EncryptMessage  {
+  string publicKey = 1;
+  bytes body = 2;
+  int32 encrypt = 3;
+  int32 version = 4;
+}
+
+message EncryptMessageReqAndResp {
+  string srcPublicKey = 1;
+  string dstPublicKey = 2;
+  bytes body = 3;
+  string appId = 4;
+  string token = 5;
+  MessageType type = 6;
+}
+
+enum MessageType {
+  MessageDirectOfferType = 0;
+  MessageRelayOfferType = 1;
+  MessageForwardType = 2;
+}

@@ -11,6 +11,7 @@ image:
 
 generate:
 	protoc --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative  management/grpc/mgt/management.proto
+	protoc --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative  signaling/grpc/signaling/signaling.proto
 
 clean:
 	rm -rf bin

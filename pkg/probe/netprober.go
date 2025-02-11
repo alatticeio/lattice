@@ -1,7 +1,6 @@
 package probe
 
 import (
-	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 	"linkany/internal"
 	"linkany/pkg/iface"
 	"sync"
@@ -12,42 +11,43 @@ type NetProber struct {
 	probers      map[string]*Prober
 	wgLock       sync.Mutex
 	isForceRelay bool
-	wgConfiger   iface.WGConfigure
+	wgConfiger   *iface.WGConfigure
 	relayer      internal.Relay
 }
 
-func (pm *NetProber) AddProber(key wgtypes.Key, prober *Prober) {
+func (pm *NetProber) AddProber(key string, prober *Prober) {
 	pm.lock.Lock()
 	defer pm.lock.Unlock()
-	pm.probers[key.String()] = prober
+	pm.probers[key] = prober
 }
 
-func (pm *NetProber) GetProber(key wgtypes.Key) *Prober {
+func (pm *NetProber) GetProber(key string) *Prober {
 	pm.lock.Lock()
 	defer pm.lock.Unlock()
-	return pm.probers[key.String()]
+	return pm.probers[key]
 }
 
-func NewProberManager(isForceRelay bool) *NetProber {
+func NewProberManager(isForceRelay bool, relayer internal.Relay) *NetProber {
 	return &NetProber{
 		probers:      make(map[string]*Prober),
 		isForceRelay: isForceRelay,
+		relayer:      relayer,
 	}
 }
 
-func (pm *NetProber) RemoveProber(key wgtypes.Key) {
+func (pm *NetProber) RemoveProber(key string) {
 	pm.lock.Lock()
 	defer pm.lock.Unlock()
-	delete(pm.probers, key.String())
+	delete(pm.probers, key)
 }
 
-func (pm *NetProber) SetWgConfiger(wgConfiger iface.WGConfigure) {
+func (pm *NetProber) SetWgConfiger(wgConfiger *iface.WGConfigure) {
 	pm.wgLock.Lock()
 	defer pm.wgLock.Unlock()
 	pm.wgConfiger = wgConfiger
 }
 
-func (pm *NetProber) GetWgConfiger() iface.WGConfigure {
+func (pm *NetProber) GetWgConfiger() *iface.WGConfigure {
 	pm.wgLock.Lock()
 	defer pm.wgLock.Unlock()
 	return pm.wgConfiger

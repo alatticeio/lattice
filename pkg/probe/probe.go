@@ -3,10 +3,10 @@ package probe
 import (
 	"context"
 	"errors"
-	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 	"k8s.io/klog/v2"
-	internal2 "linkany/internal"
+	"linkany/internal"
 	"linkany/pkg/iface"
+	"linkany/signaling/grpc/signaling"
 	"linkany/turn/client"
 	"net"
 	"sync/atomic"
@@ -14,17 +14,17 @@ import (
 
 type Probe interface {
 	// Start the check process
-	Start(srcKey, dstKey wgtypes.Key, offer internal2.Offer) error
+	Start(srcKey, dstKey string, offer internal.Offer) error
 
-	SendOffer(frameType internal2.FrameType, srcKey, dstKey wgtypes.Key, offer internal2.Offer) error
+	SendOffer(frameType signaling.MessageType, srcKey, dstKey string, offer internal.Offer) error
 
-	HandleOffer(offer internal2.Offer) error
+	HandleOffer(offer internal.Offer) error
 
-	ProbeConnect(ctx context.Context, offer internal2.Offer) error
+	ProbeConnect(ctx context.Context, offer internal.Offer) error
 
-	ProbeSuccess(publicKey wgtypes.Key, conn string) error
+	ProbeSuccess(publicKey string, conn string) error
 
-	ProbeFailed(checker ConnChecker, offer internal2.Offer) error
+	ProbeFailed(checker ConnChecker, offer internal.Offer) error
 }
 
 var (
@@ -33,17 +33,17 @@ var (
 
 // Prober is a wrapper directchecker & relaychecker
 type Prober struct {
-	ConnectionState internal2.ConnectionState
+	ConnectionState internal.ConnectionState
 
 	isStarted atomic.Bool
 
 	isForceRelay bool
 
-	agentManager *internal2.AgentManager
+	agentManager *internal.AgentManager
 
 	proberManager *NetProber
 
-	key wgtypes.Key
+	key string
 
 	// isController == true, will send a relay offer, otherwise, will wait for the relay offer
 	isControlling bool
@@ -58,15 +58,17 @@ type Prober struct {
 
 	localKey uint32
 
-	wgConfiger iface.WGConfigure
+	wgConfiger *iface.WGConfigure
 
-	directOfferManager internal2.OfferManager
-	relayOfferManager  internal2.OfferManager
+	directOfferManager internal.OfferManager
+	relayOfferManager  internal.OfferManager
 
 	turnClient *client.Client
+
+	signalingChannel chan *signaling.EncryptMessage
 }
 
-func (p *Prober) UpdateConnectionState(state internal2.ConnectionState) {
+func (p *Prober) UpdateConnectionState(state internal.ConnectionState) {
 	p.ConnectionState = state
 	p.proberManager.AddProber(p.key, p)
 }
@@ -79,8 +81,8 @@ func (p *Prober) GetRelayChecker() *RelayChecker {
 	return p.relayChecker
 }
 
-func (p *Prober) HandleOffer(offer internal2.Offer) error {
-	if _, ok := offer.(*internal2.DirectOffer); ok {
+func (p *Prober) HandleOffer(offer internal.Offer) error {
+	if _, ok := offer.(*internal.DirectOffer); ok {
 		if err := p.directChecker.handleOffer(offer); err != nil {
 			return err
 		}
@@ -104,20 +106,21 @@ type ProberConfig struct {
 	IsP2P              bool
 	DirectChecker      *DirectChecker
 	RelayChecker       *RelayChecker
-	AgentManager       *internal2.AgentManager
-	DirectOfferManager internal2.OfferManager
-	RelayOfferManager  internal2.OfferManager
-	WGConfiger         iface.WGConfigure
+	AgentManager       *internal.AgentManager
+	DirectOfferManager internal.OfferManager
+	RelayOfferManager  internal.OfferManager
+	WGConfiger         *iface.WGConfigure
 	ProberManager      *NetProber
-	Key                wgtypes.Key
+	Key                string
 	TurnClient         *client.Client
-	Relayer            internal2.Relay
+	Relayer            internal.Relay
+	SignalingChannel   chan *signaling.EncryptMessage
 }
 
 // NewProber creates a new Prober
 func NewProber(config *ProberConfig) *Prober {
 	prober := &Prober{
-		ConnectionState:    internal2.ConnectionStateNew,
+		ConnectionState:    internal.ConnectionStateNew,
 		isControlling:      config.IsControlling,
 		isP2P:              config.IsP2P,
 		directChecker:      config.DirectChecker,
@@ -129,6 +132,7 @@ func NewProber(config *ProberConfig) *Prober {
 		proberManager:      config.ProberManager,
 		isForceRelay:       config.IsForceRelay,
 		turnClient:         config.TurnClient,
+		signalingChannel:   config.SignalingChannel,
 	}
 
 	prober.localKey = config.AgentManager.GetLocalKey()
@@ -137,16 +141,16 @@ func NewProber(config *ProberConfig) *Prober {
 
 // ProbeConnect probes the connection, if isForceRelay, will start the relayChecker, otherwise, will start the directChecker
 // when direct failed, we will start the relayChecker
-func (p *Prober) ProbeConnect(ctx context.Context, offer internal2.Offer) error {
+func (p *Prober) ProbeConnect(ctx context.Context, offer internal.Offer) error {
 
 	defer func() {
-		if p.ConnectionState == internal2.ConnectionStateNew {
-			p.UpdateConnectionState(internal2.ConnectionStateChecking)
+		if p.ConnectionState == internal.ConnectionStateNew {
+			p.UpdateConnectionState(internal.ConnectionStateChecking)
 		}
 	}()
 
 	if p.isForceRelay {
-		if _, ok := offer.(*internal2.DirectOffer); ok {
+		if _, ok := offer.(*internal.DirectOffer); ok {
 			// ignore the direct offer
 			return nil
 		} else {
@@ -156,15 +160,15 @@ func (p *Prober) ProbeConnect(ctx context.Context, offer internal2.Offer) error 
 	return p.directChecker.ProbeConnect(ctx, p.isControlling, offer)
 }
 
-func (p *Prober) ProbeSuccess(publicKey wgtypes.Key, addr string) error {
+func (p *Prober) ProbeSuccess(publicKey, addr string) error {
 	defer func() {
-		p.UpdateConnectionState(internal2.ConnectionStateConnected)
-		klog.Infof("prober set to: %v", internal2.ConnectionStateConnected)
+		p.UpdateConnectionState(internal.ConnectionStateConnected)
+		klog.Infof("prober set to: %v", internal.ConnectionStateConnected)
 	}()
 	var err error
 	klog.Infof("peer remoteKey: %v, remote addr: %v", publicKey, addr)
 
-	peer := p.wgConfiger.GetPeersManager().GetPeer(publicKey.String())
+	peer := p.wgConfiger.GetPeersManager().GetPeer(publicKey)
 	if err = p.wgConfiger.AddPeer(&iface.SetPeer{
 		PublicKey:            publicKey,
 		Endpoint:             addr,
@@ -193,8 +197,8 @@ func (p *Prober) ProbeSuccess(publicKey wgtypes.Key, addr string) error {
 	return nil
 }
 
-func (p *Prober) ProbeFailed(checker ConnChecker, offer internal2.Offer) error {
-	defer p.UpdateConnectionState(internal2.ConnectionStateFailed)
+func (p *Prober) ProbeFailed(checker ConnChecker, offer internal.Offer) error {
+	defer p.UpdateConnectionState(internal.ConnectionStateFailed)
 	if checker.(*DirectChecker) == p.directChecker {
 		return p.relayChecker.ProbeConnect(context.Background(), p.isControlling, offer.(*RelayOffer))
 	}
@@ -206,28 +210,30 @@ func (p *Prober) IsForceRelay() bool {
 	return p.isForceRelay
 }
 
-func (p *Prober) Start(srcKey, dstKey wgtypes.Key, offer internal2.Offer) error {
+func (p *Prober) Start(srcKey, dstKey string, offer internal.Offer) error {
 	klog.Infof("prober start, srcKey: %v, dstKey: %v, offer: %v, isForceRelay: %v,  connection state: %v", srcKey, dstKey, offer, p.isForceRelay, p.ConnectionState)
 	switch p.ConnectionState {
-	case internal2.ConnectionStateConnected, internal2.ConnectionStateChecking:
+	case internal.ConnectionStateConnected, internal.ConnectionStateChecking:
 		return nil
-	case internal2.ConnectionStateNew:
+	case internal.ConnectionStateNew:
 		if p.isForceRelay {
-			return p.SendOffer(internal2.MessageRelayOfferType, srcKey, dstKey, offer)
+			return p.SendOffer(signaling.MessageType_MessageRelayOfferType, srcKey, dstKey, offer)
 		} else {
-			return p.SendOffer(internal2.MessageDirectOfferType, srcKey, dstKey, offer)
+			return p.SendOffer(signaling.MessageType_MessageDirectOfferType, srcKey, dstKey, offer)
 		}
+	default:
+
 	}
 
 	return nil
 }
 
-func (p *Prober) SendOffer(frameType internal2.FrameType, srcKey, dstKey wgtypes.Key, offer internal2.Offer) error {
-	switch frameType {
-	case internal2.MessageDirectOfferType:
-		return p.directOfferManager.SendOffer(frameType, srcKey, dstKey, offer)
-	case internal2.MessageRelayOfferType, internal2.MessageRelayOfferResponseType:
-		return p.relayOfferManager.SendOffer(frameType, srcKey, dstKey, offer)
+func (p *Prober) SendOffer(msgType signaling.MessageType, srcKey, dstKey string, offer internal.Offer) error {
+	switch msgType {
+	case signaling.MessageType_MessageDirectOfferType:
+		return p.directOfferManager.SendOffer(msgType, srcKey, dstKey, offer)
+	case signaling.MessageType_MessageRelayOfferType:
+		return p.relayOfferManager.SendOffer(msgType, srcKey, dstKey, offer)
 	}
 
 	return nil

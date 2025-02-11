@@ -1,88 +1,109 @@
 package client
 
 import (
-	"bufio"
-	"fmt"
+	"context"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/keepalive"
+	"google.golang.org/grpc/status"
+	"io"
 	"k8s.io/klog/v2"
-	"linkany/internal"
-	"linkany/pkg/drp"
-	"linkany/pkg/probe"
-	"linkany/turn/client"
-	"net"
-	"net/http"
+	"linkany/signaling/grpc/signaling"
+	"time"
 )
 
-// Client http client will use to connect drp server, Upgrade drp protocol
 type Client struct {
-	node       *drp.Node // drp server
-	manager    *internal.AgentManager
-	probers    *probe.NetProber
-	turnClient *client.Client
+	conn   *grpc.ClientConn
+	client signaling.SignalingServiceClient
 }
 
-func NewClient(node *drp.Node, manager *internal.AgentManager, probers *probe.NetProber, turnClient *client.Client) *Client {
+type ClientConfig struct {
+	Addr string
+}
+
+func NewClient(cfg *ClientConfig) (*Client, error) {
+
+	keepAliveArgs := keepalive.ClientParameters{
+		Time:    20 * time.Second,
+		Timeout: 20 * time.Second,
+	}
+	// Set up a connection to the server.
+	conn, err := grpc.NewClient(cfg.Addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		klog.Errorf("connect failed: %v", err)
+		return nil, err
+	}
+	grpc.WithKeepaliveParams(keepAliveArgs)
+	c := signaling.NewSignalingServiceClient(conn)
 	return &Client{
-		node:       node,
-		manager:    manager,
-		probers:    probers,
-		turnClient: turnClient,
-	}
+		conn:   conn,
+		client: c,
+	}, nil
 }
 
-func (c *Client) Connect(url string) (*drp.Client, error) {
-	return c.connect(url)
+func (c *Client) Register(ctx context.Context, in *signaling.EncryptMessage) (*signaling.EncryptMessage, error) {
+	return c.client.Register(ctx, in)
 }
 
-// connect connect use http,then upgrade drp protocol
-func (c *Client) connect(url string) (*drp.Client, error) {
-	var err error
-	req, err := http.NewRequest("GET", url, nil)
+func (c *Client) Forward(ctx context.Context, ch chan *signaling.EncryptMessage, callback func(message *signaling.EncryptMessage) error) error {
+	stream, err := c.client.Forward(ctx)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	req.Header.Set("Upgrade", "drp")
-	req.Header.Set("Connection", "Upgrade")
+	defer func() {
+		klog.Infof("close signaling stream")
+		if err = stream.CloseSend(); err != nil {
+			klog.Errorf("close send failed: %v", err)
+		}
+	}()
 
-	//TODO impl ipv6 logic
-	var conn net.Conn
-	conn, err = net.Dial("tcp", c.node.IpV4Addr.String())
-	if err != nil {
-		return nil, fmt.Errorf("dial to drp %s failed: %v", c.node.IpV4Addr.String(), err)
+	go func() {
+		for {
+			select {
+			case msg := <-ch:
+				if err := stream.Send(msg); err != nil {
+					s, ok := status.FromError(err)
+					if ok && s.Code() == codes.Canceled {
+						klog.Infof("stream canceled")
+						return
+					} else if err == io.EOF {
+						klog.Infof("stream EOF")
+						return
+					}
+
+					klog.Errorf("send message failed: %v", err)
+					return
+				}
+			}
+		}
+	}()
+
+	for {
+		msg, err := stream.Recv()
+		if err != nil {
+			s, ok := status.FromError(err)
+			if ok && s.Code() == codes.Canceled {
+				klog.Infof("client canceled")
+				return nil
+			} else if err == io.EOF {
+				klog.Infof("client closed")
+				return nil
+			}
+
+			klog.Errorf("recv msg failed: %v", err)
+		}
+
+		if err = callback(msg); err != nil {
+			klog.Errorf("callback failed: %v", err)
+		}
+
 	}
-	// upgrade drp
 
-	brw := bufio.NewReadWriter(bufio.NewReader(conn), bufio.NewWriter(conn))
+}
 
-	//use brw write
-	if err = req.Write(brw); err != nil {
-		return nil, err
-	}
-
-	if err = brw.Flush(); err != nil {
-		return nil, err
-	}
-
-	resp, err := http.ReadResponse(brw.Reader, req)
-	if err != nil {
-		return nil, err
-	}
-
-	klog.Infof("statusCode: %d", resp.StatusCode)
-
-	if resp.StatusCode != http.StatusSwitchingProtocols {
-		return nil, fmt.Errorf("unexpected code, can not switch drp protocol: %d", resp.StatusCode)
-	}
-
-	// upgrade success
-	klog.Infof("drp protocol upgrade success")
-
-	client := drp.NewClient(&drp.ClientConfig{
-		Brw:          brw,
-		Conn:         conn,
-		Node:         c.node,
-		AgentManager: c.manager,
-		Probers:      c.probers,
-	})
-	return client, err
+func (c *Client) Close() error {
+	klog.Infof("close signaling client connection")
+	return c.conn.Close()
 }

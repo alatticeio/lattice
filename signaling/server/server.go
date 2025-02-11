@@ -1,190 +1,195 @@
 package server
 
 import (
-	"bufio"
+	"context"
 	"errors"
 	"fmt"
-	"github.com/gin-gonic/gin"
-	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
+	"github.com/golang/protobuf/proto"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"io"
 	"k8s.io/klog/v2"
-	"linkany/internal"
+	"linkany/management/grpc/client"
 	"linkany/management/mapper"
 	"linkany/pkg/drp"
+	"linkany/pkg/linkerrors"
+	"linkany/signaling/grpc/signaling"
 	"net"
-	"net/http"
 )
 
 type Server struct {
-	*gin.Engine
+	signaling.UnimplementedSignalingServiceServer
 	listen      string
 	userService mapper.UserInterface
 	indexTable  *drp.IndexTable
+	mgtClient   *client.Client
+
+	forwardManager *ForwardManager
+}
+
+// Register will register a client to signaling server, will check token
+func (s *Server) Register(ctx context.Context, message *signaling.EncryptMessage) (*signaling.EncryptMessage, error) {
+	klog.Infof("register client: %v", message)
+	var req signaling.EncryptMessageReqAndResp
+	if err := proto.Unmarshal(message.Body, &req); err != nil {
+		klog.Errorf("unmarshal failed: %v", err)
+		return nil, err
+	}
+
+	_, err := s.mgtClient.VerifyToken(req.Token)
+	if err != nil {
+		klog.Errorf("verify token failed: %v", err)
+		return nil, err
+	}
+
+	s.forwardManager.CreateChannel(message.PublicKey)
+	klog.Infof("register '%v' client channel success", req.SrcPublicKey)
+
+	var resp = &signaling.EncryptMessageReqAndResp{
+		SrcPublicKey: req.SrcPublicKey,
+		DstPublicKey: req.DstPublicKey,
+	}
+
+	body, err := proto.Marshal(resp)
+	if err != nil {
+		klog.Errorf("marshal failed: %v", err)
+		return nil, err
+	}
+
+	return &signaling.EncryptMessage{
+		Body: body,
+	}, nil
+}
+
+func (s *Server) Forward(stream grpc.BidiStreamingServer[signaling.EncryptMessage, signaling.EncryptMessage]) error {
+
+	done := make(chan interface{})
+	defer func() {
+		klog.Infof("close server signaling stream")
+		close(done)
+	}()
+
+	req, err, body := s.recv(stream)
+	if err != nil {
+		return err
+	}
+
+	channel, bool := s.forwardManager.GetChannel(req.SrcPublicKey)
+	if !bool {
+		klog.Errorf("channel not exists: %v", req.SrcPublicKey)
+		return errors.New("channel not exists")
+	}
+
+	go func() {
+		klog.Infof("start forward signaling stream, publicKey : %v", req.DstPublicKey)
+		for {
+			select {
+			case forwardMsg := <-channel:
+				klog.Infof("forward message to client: %v, streak: %v", forwardMsg, stream)
+				if err := stream.Send(&signaling.EncryptMessage{Body: forwardMsg.Body}); err != nil {
+					s, ok := status.FromError(err)
+					if ok && s.Code() == codes.Canceled {
+						klog.Infof("client canceled")
+						return
+					} else if err == io.EOF {
+						klog.Infof("client closed")
+						return
+					}
+					return
+				}
+			case <-done:
+				s.forwardManager.DeleteChannel(req.DstPublicKey) // because client closed
+				klog.Infof("close forward signaling stream")
+				return
+			}
+		}
+	}()
+
+	klog.Infof("forward message: %v, body: %v", req.Type, body)
+	s.forward(&req, body)
+
+	for {
+		req, err, body := s.recv(stream)
+		if err != nil {
+			return err
+		}
+
+		klog.Infof("forward message: %v, body: %v", req.Type, body)
+		s.forward(&req, body)
+
+		klog.Infof("forward message success")
+
+	}
+}
+
+func (s *Server) forward(req *signaling.EncryptMessageReqAndResp, body []byte) {
+	dstChannel, ok := s.forwardManager.GetChannel(req.DstPublicKey)
+	if !ok {
+		klog.Errorf("channel not exists: %v", req.DstPublicKey)
+	}
+
+	if dstChannel != nil {
+		dstChannel <- &ForwardMessage{
+			Body: body,
+		}
+	}
+
+}
+
+func (s *Server) recv(stream grpc.BidiStreamingServer[signaling.EncryptMessage, signaling.EncryptMessage]) (signaling.EncryptMessageReqAndResp, error, []byte) {
+	msg, err := stream.Recv()
+	if err != nil {
+		s, ok := status.FromError(err)
+		if ok && s.Code() == codes.Canceled {
+			klog.Infof("client canceled")
+			return signaling.EncryptMessageReqAndResp{}, linkerrors.ErrorClientCanceled, nil
+		} else if err == io.EOF {
+			klog.Infof("client closed")
+			return signaling.EncryptMessageReqAndResp{}, linkerrors.ErrorClientClosed, nil
+		}
+
+		klog.Errorf("recv msg failed: %v", err)
+		return signaling.EncryptMessageReqAndResp{}, err, nil
+	}
+
+	// forward message to client
+	var req signaling.EncryptMessageReqAndResp
+	if err := proto.Unmarshal(msg.Body, &req); err != nil {
+		return signaling.EncryptMessageReqAndResp{}, err, nil
+	}
+	return req, nil, msg.Body
 }
 
 type ServerConfig struct {
+	Port        int
 	Listen      string
 	UserService mapper.UserInterface
 	Table       *drp.IndexTable
 }
 
-func NewServer(cfg *ServerConfig) *Server {
-	e := gin.Default()
-	return &Server{Engine: e, listen: cfg.Listen, userService: cfg.UserService, indexTable: cfg.Table}
-}
+func NewServer(cfg *ServerConfig) (*Server, error) {
 
-func (s *Server) Add(key wgtypes.Key, conn net.Conn, brw *bufio.ReadWriter) error {
-	return s.PutClientset(key, conn, brw)
-}
-
-// Lookup will return a clientset by key, if not found return nil
-func (s *Server) Lookup(key wgtypes.Key) *drp.Clientset {
-	s.indexTable.Lock()
-	defer s.indexTable.Unlock()
-	return s.indexTable.Clients[key.String()]
-}
-
-// PutClientset will put a clientset to index table
-func (s *Server) PutClientset(key wgtypes.Key, conn net.Conn, brw *bufio.ReadWriter) error {
-	s.indexTable.Lock()
-	defer s.indexTable.Unlock()
-	s.indexTable.Clients[key.String()] = &drp.Clientset{
-		PubKey: key,
-		Conn:   conn,
-		Brw:    brw,
+	mgtClient, err := client.NewClient(&client.GrpcConfig{
+		Addr: "console.linkany.io:32051",
+	})
+	if err != nil {
+		return nil, err
 	}
-	return nil
-}
 
-func (s *Server) initRoute() {
-	s.POST("/api/v1/drp", s.upgrade())
+	return &Server{
+		mgtClient:      mgtClient,
+		forwardManager: NewForwardManager(),
+	}, nil
 }
 
 func (s *Server) Start() error {
-	return s.Run(s.listen)
-}
-
-func (s *Server) upgrade() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		klog.Infof("get header upgrade: %v, connection: %v", c.GetHeader("Upgrade"), c.GetHeader("Connection"))
-		if c.GetHeader("Upgrade") != "drp" {
-			c.JSON(http.StatusBadRequest, gin.H{"message": "Upgrade header not set to drp"})
-			return
-		}
-		if c.GetHeader("Connection") != "upgrade" {
-			//http.Error(w, "Connection header not set to Upgrade", http.StatusBadRequest)
-			c.JSON(http.StatusBadRequest, gin.H{"message": "Connection header not set to Upgrade"})
-			return
-		}
-		h, ok := c.Writer.(http.Hijacker)
-		if !ok {
-			//http.Error(c.Writer, "server does not support hijacking", http.StatusInternalServerError)
-			c.JSON(http.StatusInternalServerError, gin.H{"message": "server does not support hijacking"})
-			return
-		}
-		conn, brw, err := h.Hijack()
-		if err != nil {
-			//http.Error(w, "hijack failed", http.StatusInternalServerError)
-			c.JSON(http.StatusInternalServerError, gin.H{"message": "hijack failed"})
-			return
-		}
-
-		klog.Infof("got connection from %v", conn)
-
-		// write 101 to tell client that upgrade is successful
-		fmt.Fprintf(brw.Writer, "HTTP/1.1 101 Switching Protocols\r\n"+
-			"Upgrade: DRP\r\n"+
-			"Connection: Upgrade\r\n"+
-			"Drp-Version: %v\r\n"+
-			"Drp-Public-Key: %s\r\n\r\n",
-			"v1", "fdsafdxxxx===") //TODO change to real public key
-		brw.Flush()
-		s.Accept(conn, brw, c.Request.RemoteAddr)
+	listen, err := net.Listen("tcp", fmt.Sprintf(":%d", 32132))
+	if err != nil {
+		return err
 	}
-}
-
-func (s *Server) Accept(conn net.Conn, brw *bufio.ReadWriter, remoteAddr string) error {
-	//add to indexTable
-	return s.accept(conn, brw, remoteAddr)
-}
-
-func (s *Server) accept(conn net.Conn, brw *bufio.ReadWriter, remoteAddr string) error {
-
-	for {
-		b := make([]byte, 1024)
-		ft, fl, err := drp.ReadFrameHeader(brw.Reader, b[:])
-		if err != nil {
-			if err == io.EOF {
-				continue
-			} else {
-				klog.Errorf("read from remote failed: %v", err)
-			}
-		}
-
-		n, err := drp.ReadFrame(brw.Reader, 5, int(fl+5), b)
-		if err != nil {
-			return err
-		}
-
-		if n != int(fl) {
-			return errors.New("read frame failed")
-		}
-
-		klog.Infof("got frame type: %v, frame len: %v, content: %v", ft, fl, b[:])
-
-		switch ft {
-		case internal.MessageForwardType:
-			// forward message
-			// get the key
-			srcKey, dstKey, content, err := drp.ReadKey(brw.Reader, fl)
-			klog.Infof("forward message from %v to %v, content: %v", srcKey, dstKey, content)
-			if err != nil {
-				klog.Errorf("invalid frame: %v", err)
-				continue
-			}
-
-			// get the clientset
-			clientset := s.Lookup(*dstKey)
-			if clientset != nil {
-				klog.Errorf("clientset not found, may be node has not been joined.")
-				continue
-			}
-
-			n, er := clientset.Brw.Writer.Write(content)
-			if n != len(content) || er != nil {
-				klog.Errorf("write to clientset failed: %v", er)
-				continue
-			}
-
-		case internal.MessageDirectOfferType, internal.MessageRelayOfferType, internal.MessageRelayOfferResponseType:
-			klog.Infof("got offer info packet: %v, length: %d", b[:], fl)
-			srcKey := wgtypes.Key(b[5:37])
-			klog.Infof("srcKey: %s", srcKey.String())
-			if indexConn := s.Lookup(srcKey); indexConn == nil || indexConn.Conn != conn {
-				klog.Infof("add or update conn to index table: %v, conn: %v", srcKey.String(), conn.LocalAddr().String())
-				s.Add(srcKey, conn, brw)
-			}
-
-			dstKey := wgtypes.Key(b[37:69])
-			clientset := s.Lookup(dstKey)
-			if clientset == nil {
-				klog.Errorf("dst node not found: %v", dstKey)
-				continue
-			}
-
-			klog.Infof("clientset is: %v", clientset)
-			// forward to dst node
-			if _, err := clientset.Brw.Write(b[:fl+5]); err != nil {
-				klog.Errorf("forward to dst node failed: %v", err)
-				continue
-			}
-
-			if err := clientset.Brw.Flush(); err != nil {
-				klog.Errorf("flush error", err)
-			}
-
-			klog.Infof("forward offer to dst node success: %v, content: %v", dstKey, b[:fl+5])
-		}
-
-	}
+	grpcServer := grpc.NewServer()
+	signaling.RegisterSignalingServiceServer(grpcServer, s)
+	klog.Infof("Signaling grpc server listening at %v", listen.Addr())
+	return grpcServer.Serve(listen)
 }

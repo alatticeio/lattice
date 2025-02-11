@@ -1,39 +1,43 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: linkany-drp
+  name: linkany-signaling
   namespace: linkany
   labels:
-    k8s-app: linkany-drp
+    k8s-app: linkany-signaling
 spec:
   replicas: 1
   selector:
     matchLabels:
-      k8s-app: linkany-drp
+      k8s-app: linkany-signaling
   template:
     metadata:
       labels:
-        k8s-app: linkany-drp
+        k8s-app: linkany-signaling
     spec:
       imagePullSecrets:
         - name: ali-registry
+      hostAliases:
+        - ip: "10.96.80.105"
+          hostnames:
+            - "console.linkany.io"
       containers:
-        - name: linkany-drp
+        - name: linkany-signaling
           image: registry.cn-hangzhou.aliyuncs.com/linkany-io/linkany
           imagePullPolicy: Always
-          command: [ "linkany", "drp" ]
+          command: [ "linkany", "signaling" ]
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: linkany-drp-svc
+  name: linkany-signaling-svc
   namespace: linkany
 spec:
   ports:
     - protocol: TCP
-      port: 8080
-      targetPort: 8080
-      nodePort: 32131
+      port: 32132
+      targetPort: 32132
+      nodePort: 32132
   selector:
-    k8s-app: linkany-drp
+    k8s-app: linkany-signaling
   type: NodePort

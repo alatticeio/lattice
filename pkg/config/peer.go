@@ -28,6 +28,7 @@ type Peer struct {
 	P2PFlag             atomic.Bool
 	ConnectionState     atomic.Bool `json:"checkingStatue,omitempty"`
 	Name                string      `json:"name,omitempty"`
+	PrivateKey          string      `json:"privateKey,omitempty"`
 	PublicKey           string      `json:"publicKey,omitempty"`
 	Address             string      `json:"address,omitempty"`
 	Remove              bool        `json:"remove,omitempty"`
@@ -82,7 +83,9 @@ func (d *DeviceConfig) String() string {
 	var sb strings.Builder
 	//sb.WriteString("set=1\n")
 	printf(&sb, "private_key", d.PrivateKey, keyf)
-	printf(&sb, "listen_port", strconv.Itoa(d.ListenPort), nil)
+	if d.ListenPort != 0 {
+		printf(&sb, "listen_port", strconv.Itoa(d.ListenPort), nil)
+	}
 	printf(&sb, "fwmark", strconv.Itoa(d.Fwmark), nil)
 	return sb.String()
 }

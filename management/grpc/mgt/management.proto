@@ -2,7 +2,7 @@ syntax = "proto3";
 
 option go_package = "linkany/management/grpc/mgt";
 
-// The greeting service definition.
+// The Management service definition.
 service ManagementService {
 
   rpc Login(ManagementMessage) returns (ManagementMessage) {}
@@ -14,6 +14,9 @@ service ManagementService {
   rpc Watch (stream ManagementMessage) returns (stream ManagementMessage) {}
 
   rpc Keepalive(stream ManagementMessage) returns (stream ManagementMessage) {}
+
+  // valid token for service
+  rpc VerifyToken(ManagementMessage) returns (ManagementMessage) {}
 }
 
 // ControlMessage is dynamic message for kind to request and response
@@ -39,24 +42,24 @@ message Request {
   string token = 3;
 }
 
-message Peer {
-  string publicKey = 1;
-  string endpoint = 2;
-  string address = 3;
-  string allowedIps = 4;
-  int32  persistentKeepalive = 5;
-}
+//message Peer {
+//  string privateKey = 1;
+//  string publicKey = 2;
+//  string endpoint = 3;
+//  string address = 4;
+//  string allowedIps = 5;
+//  int32  persistentKeepalive = 6;
+//}
 
-message NetworkMap {
-  string username = 1;
-  string pub_key = 2;
-  string eventType = 3;
-  repeated Peer peers = 4;
-}
+//message NetworkMap {
+//  string userId = 1;
+//  Peer peer = 2;
+//  repeated Peer peers = 3;
+//}
 
 message WatchMessage {
   EventType type = 1;
-  Peer peer = 2;
+  bytes body = 2;
 }
 
 enum EventType {

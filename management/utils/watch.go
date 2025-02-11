@@ -1,7 +1,9 @@
 package utils
 
 import (
+	"encoding/json"
 	"k8s.io/klog/v2"
+	"linkany/management/entity"
 	"linkany/management/grpc/mgt"
 	"sync"
 )
@@ -11,10 +13,14 @@ var once sync.Once
 var manager *WatchManager
 
 // NewWatchMessage creates a new WatchMessage, when a peer is added, updated or deleted
-func NewWatchMessage(eventType mgt.EventType, peer *mgt.Peer) *mgt.WatchMessage {
+func NewWatchMessage(eventType mgt.EventType, peers []*entity.Peer) *mgt.WatchMessage {
+	body, err := json.Marshal(peers)
+	if err != nil {
+		return nil
+	}
 	return &mgt.WatchMessage{
 		Type: eventType,
-		Peer: peer,
+		Body: body,
 	}
 }
 

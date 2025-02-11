@@ -9,7 +9,7 @@ type UserDto struct {
 // PeerDto is a data transfer object for Peer entity
 type PeerDto struct {
 	PubKey string
-	Online int
+	Status int
 }
 
 // PlanDto is a data transfer object for Plan entity

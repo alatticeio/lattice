@@ -18,16 +18,11 @@ type GrpcConfig struct {
 	Addr string
 }
 
-type GrpcClient struct {
+type Client struct {
 	client mgt.ManagementServiceClient
 }
 
-//var (
-//	addr = flag.String("addr", "localhost:50051", "the address to connect to")
-//	name = flag.String("name", defaultName, "Name to greet")
-//)
-
-func NewGrpcClient(config *GrpcConfig) (*GrpcClient, error) {
+func NewClient(config *GrpcConfig) (*Client, error) {
 	flag.Parse()
 	keepAliveArgs := keepalive.ClientParameters{
 		Time:    20 * time.Second,
@@ -42,39 +37,23 @@ func NewGrpcClient(config *GrpcConfig) (*GrpcClient, error) {
 	grpc.WithKeepaliveParams(keepAliveArgs)
 	c := mgt.NewManagementServiceClient(conn)
 
-	return &GrpcClient{client: c}, nil
-
-	//// Contact the server and print out its response.
-	//ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	//defer cancel()
-	//stream, err := c.Watch(ctx, &pb.Request{Username: *name})
-	//if err != nil {
-	//	log.Fatalf("could not greet: %v", err)
-	//}
-	//
-	//for {
-	//	in, err := stream.Recv()
-	//	if err == io.EOF {
-	//		// read done.
-	//		return
-	//	}
-	//	if err != nil {
-	//		log.Fatalf("client watch failed: %v", err)
-	//	}
-	//	log.Printf("Got event: %v, peer: %v", in.Type, in.Peer)
-	//}
+	return &Client{client: c}, nil
 
 }
 
-func (c *GrpcClient) List(ctx context.Context, in *mgt.ManagementMessage) (*mgt.ManagementMessage, error) {
+func (c *Client) Get(ctx context.Context, in *mgt.ManagementMessage) (*mgt.ManagementMessage, error) {
+	return c.client.Get(ctx, in)
+}
+
+func (c *Client) List(ctx context.Context, in *mgt.ManagementMessage) (*mgt.ManagementMessage, error) {
 	return c.client.List(ctx, in)
 }
 
-func (c *GrpcClient) Login(ctx context.Context, in *mgt.ManagementMessage) (*mgt.ManagementMessage, error) {
+func (c *Client) Login(ctx context.Context, in *mgt.ManagementMessage) (*mgt.ManagementMessage, error) {
 	return c.client.Login(ctx, in)
 }
 
-func (c *GrpcClient) Watch(ctx context.Context, in *mgt.ManagementMessage, callback func(wm *mgt.WatchMessage) error) error {
+func (c *Client) Watch(ctx context.Context, in *mgt.ManagementMessage, callback func(wm *mgt.WatchMessage) error) error {
 	//ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	//defer cancel()
 	stream, err := c.client.Watch(ctx)
@@ -115,7 +94,7 @@ func (c *GrpcClient) Watch(ctx context.Context, in *mgt.ManagementMessage, callb
 	return nil
 }
 
-func (c *GrpcClient) Keepalive(ctx context.Context, in *mgt.ManagementMessage) error {
+func (c *Client) Keepalive(ctx context.Context, in *mgt.ManagementMessage) error {
 	stream, err := c.client.Keepalive(ctx)
 	var errChan = make(chan error, 1)
 	if err != nil {
@@ -165,4 +144,28 @@ func (c *GrpcClient) Keepalive(ctx context.Context, in *mgt.ManagementMessage) e
 
 	}
 
+}
+
+// VerifyToken verify token for sso
+func (c *Client) VerifyToken(token string) (*mgt.LoginResponse, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	in := &mgt.Request{Token: token}
+
+	body, err := proto.Marshal(in)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := c.client.VerifyToken(ctx, &mgt.ManagementMessage{Body: body})
+	if err != nil {
+		return nil, err
+	}
+
+	var loginResp mgt.LoginResponse
+	if err = proto.Unmarshal(resp.Body, &loginResp); err != nil {
+		return nil, err
+	}
+
+	return &loginResp, nil
 }

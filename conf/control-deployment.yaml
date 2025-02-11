@@ -22,6 +22,17 @@ spec:
           image: registry.cn-hangzhou.aliyuncs.com/linkany-io/linkany
           imagePullPolicy: Always
           command: [ "linkany", "manager" ]
+          volumeMounts:
+            - mountPath: /app/control.yaml
+              name: conf
+              subPath: control.yaml
+      volumes:
+        - name: conf
+          configMap:
+            name: linkany-control-config
+            items:
+              - key: control.yaml
+                path: control.yaml
 ---
 apiVersion: v1
 kind: Service
@@ -31,9 +42,30 @@ metadata:
 spec:
   ports:
     - protocol: TCP
+      name: http
       port: 8080
       targetPort: 8080
       nodePort: 32138
+    - protocol: TCP
+      name: grpc
+      port: 32051
+      targetPort: 32051
+      nodePort: 32051
   selector:
     k8s-app: linkany-control
   type: NodePort
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: linkany-control-config
+  namespace: linkany
+data:
+  control.yaml: |
+    listen: :8080
+    database:
+      host: 81.68.109.143
+      port: 3306
+      name: linkany
+      user: root
+      password: dhvuYUoxnSZMavdJ

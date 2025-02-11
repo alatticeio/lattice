@@ -474,10 +474,10 @@ func (device *Device) BindUpdate() error {
 	device.net.Lock()
 	defer device.net.Unlock()
 
-	// close existing sockets
-	//if err := closeBindLocked(device); err != nil {
-	//	return err
-	//} //TODO not close
+	//close existing sockets
+	if err := closeBindLocked(device); err != nil {
+		return err
+	}
 
 	// open new sockets
 	if !device.isUp() {

@@ -26,54 +26,24 @@ var (
 	ErrClientExist = errors.New("client exist")
 )
 
-// Forward drp will relay pkt packet to dst
-func Forward(bw *bufio.Writer, dst wgtypes.Key, pkt []byte) (frameLen int, err error) {
-
-	if len(pkt) > MAX_PACKET_SIZE {
-		return 0, fmt.Errorf("packet too large: %d", len(pkt))
-	}
-
-	return 0, nil
-}
-
-// WritePing writes a node info to bw.
-func WritePing(bw *bufio.Writer, t internal.FrameType, frame []byte) (int, error) {
-	if err := writeFrameHeader(bw, t, uint32(len(frame))); err != nil {
-		return 0, err
-	}
-
-	return writeFrame(bw, frame)
-}
-
-// writeFrameHeader writes a frame header and frame length to bw.
-func writeFrameHeader(bw *bufio.Writer, t internal.FrameType, frameLen uint32) error {
-	if err := bw.WriteByte(byte(t)); err != nil {
-		return err
-	}
-	return writeUint32(bw, frameLen)
-}
-
 // writeFrame writes a frame header and payload to bw.
-func writeFrame(w *bufio.Writer, b []byte) (int, error) {
+func writeFrame(data []byte, b []byte) (int, error) {
 
 	if len(b) > MAX_PACKET_SIZE {
 		return 0, fmt.Errorf("unreasonably large frame write")
 	}
 
-	n, err := w.Write(b)
-	if err != nil {
-		return 0, err
-	}
-	return n, nil
+	copy(data[1:5], b[:4])
+	return len(b), nil
 }
 
 var bin = binary.BigEndian
 
-func writeUint32(w *bufio.Writer, frameLen uint32) error {
+func writeUint32(data []byte, frameLen uint32) int {
 	var b [4]byte
 	bin.PutUint32(b[:], frameLen)
-	_, err := w.Write(b[0:4])
-	return err
+	copy(data[0:4], b[:])
+	return 4
 }
 
 func ReadFrameHeader(br *bufio.Reader, b []byte) (t internal.FrameType, frameLen uint32, err error) {

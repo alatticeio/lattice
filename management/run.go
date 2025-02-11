@@ -9,7 +9,9 @@ import (
 )
 
 func Start(listen string) error {
-	viper.SetConfigFile("conf/control.yaml")
+	viper.AddConfigPath("/app/")
+	viper.AddConfigPath("conf/")
+	viper.SetConfigName("control")
 	viper.SetConfigType("yaml")
 	if err := viper.ReadInConfig(); err != nil {
 		return err
@@ -21,7 +23,7 @@ func Start(listen string) error {
 	}
 	dbService := mapper.NewDatabaseService(&cfg.Database)
 	gServer := grpcserver.NewServer(&grpcserver.ServerConfig{
-		Port:            50051,
+		Port:            32051,
 		DataBaseService: dbService,
 	})
 	// go run a grpc server

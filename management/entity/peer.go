@@ -4,12 +4,13 @@ import "gorm.io/gorm"
 
 type Peer struct {
 	gorm.Model
-	Endpoint   string
-	Address    string
-	AllowedIPs string
-	PublicKey  string
-	PrivateKey string
-	Online     int // 0: offline 1: online
+	Endpoint            string
+	Address             string
+	AllowedIPs          string
+	PublicKey           string
+	PrivateKey          string
+	Status              int
+	PersistentKeepalive int
 }
 
 // TableName returns the table name of the model

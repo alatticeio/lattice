@@ -12,10 +12,10 @@ type signalerOptions struct {
 func drpCmd() *cobra.Command {
 	var opts signalerOptions
 	var cmd = &cobra.Command{
-		Use:          "signaler [command]",
+		Use:          "signaling [command]",
 		SilenceUsage: true,
-		Short:        "signaler is a signaling server",
-		Long:         `signaler used for signaling`,
+		Short:        "signaling is a signaling server",
+		Long:         `signaling used for signaling`,
 
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			return nil
@@ -30,7 +30,7 @@ func drpCmd() *cobra.Command {
 	return cmd
 }
 
-// run drp
+// run signaling server
 func runSignaling(opts signalerOptions) error {
 	return signaling.Start(opts.Listen)
 }

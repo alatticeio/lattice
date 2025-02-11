@@ -6,9 +6,14 @@ import (
 
 func Start(listen string) error {
 	// Create a new server
-	s := server.NewServer(&server.ServerConfig{
+	s, err := server.NewServer(&server.ServerConfig{
 		Listen: listen,
 	})
+
+	if err != nil {
+		return err
+
+	}
 	// Start the server
 	return s.Start()
 }

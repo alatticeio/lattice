@@ -1,7 +1,6 @@
 package wrapper
 
 import (
-	"bufio"
 	"context"
 	"errors"
 	"github.com/linkanyio/ice"
@@ -9,6 +8,7 @@ import (
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 	"k8s.io/klog/v2"
 	"linkany/pkg/drp"
+	signalingclient "linkany/signaling/client"
 	"net"
 	"net/netip"
 	"runtime"
@@ -34,9 +34,7 @@ type NetBind struct {
 	universalUdpMux *ice.UniversalUDPMuxDefault
 	conn            net.Conn // drp client conn
 	node            *drp.Node
-	br              *bufio.Reader // easy to read
-	bw              *bufio.Writer // easy to write
-	drpClient       *drp.Client
+	signalingClient *signalingclient.Client
 	Publikey        wgtypes.Key
 	relayConn       net.PacketConn                   // current relay conn
 	dstConns        map[conn.Endpoint]net.PacketConn // destination conn
@@ -62,7 +60,7 @@ type NetBind struct {
 }
 
 type BindConfig struct {
-	DrpClient       *drp.Client
+	SignalingClient *signalingclient.Client
 	V4Conn          *net.UDPConn
 	UniversalUDPMux *ice.UniversalUDPMuxDefault
 	RelayConn       net.PacketConn
@@ -72,9 +70,7 @@ func NewBind(config *BindConfig) *NetBind {
 	return &NetBind{
 		relayConn:       config.RelayConn,
 		dstConns:        make(map[conn.Endpoint]net.PacketConn),
-		drpClient:       config.DrpClient,
-		br:              config.DrpClient.ReadWriter().Reader,
-		bw:              config.DrpClient.ReadWriter().Writer,
+		signalingClient: config.SignalingClient,
 		v4conn:          config.V4Conn,
 		universalUdpMux: config.UniversalUDPMux,
 		udpAddrPool: sync.Pool{
@@ -184,10 +180,6 @@ func (b *NetBind) Open(uport uint16) ([]conn.ReceiveFunc, uint16, error) {
 		return nil, 0, syscall.EAFNOSUPPORT
 	}
 
-	if b.drpClient != nil {
-		fns = append(fns, b.makeReceiveDrp())
-	}
-
 	if b.relayConn != nil {
 		fns = append(fns, b.makeReceiveRelay())
 	}
@@ -293,11 +285,6 @@ func (b *NetBind) makeReceiveIPv6(pc *ipv6.PacketConn, udpConn *net.UDPConn) con
 	}
 }
 
-// makeReceiveDrp will read packets from drp server,then write to tun
-func (b *NetBind) makeReceiveDrp() conn.ReceiveFunc {
-	return b.drpClient.ReceiveDetail()
-}
-
 // TODO: When all Binds handle IdealBatchSize, remove this dynamic function and
 // rename the IdealBatchSize constant to BatchSize.
 func (b *NetBind) BatchSize() int {
@@ -312,21 +299,22 @@ func (b *NetBind) Close() error {
 	defer b.mu.Unlock()
 
 	var err1, err2, err3 error
-	//if b.ipv4 != nil {
-	//	err1 = b.ipv4.Close()
-	//	b.ipv4 = nil
-	//	b.ipv4PC = nil
-	//}
-	//if b.ipv6 != nil {
-	//	err2 = b.ipv6.Close()
-	//	b.ipv6 = nil
-	//	b.ipv6PC = nil
-	//}
+	if b.ipv4 != nil {
+		err1 = b.ipv4.Close()
+		b.ipv4 = nil
+		b.ipv4PC = nil
+	}
+	if b.ipv6 != nil {
+		err2 = b.ipv6.Close()
+		b.ipv6 = nil
+		b.ipv6PC = nil
+	}
 
-	//if b.drpClient != nil {
-	//	err3 = b.drpClient.Close()
-	//	b.drpClient = nil
-	//}
+	if b.relayConn != nil {
+		err3 = b.relayConn.Close()
+		b.relayConn = nil
+	}
+
 	b.blackhole4 = false
 	b.blackhole6 = false
 	if err1 != nil {
@@ -457,13 +445,6 @@ func (b *NetBind) send6(conn *net.UDPConn, pc *ipv6.PacketConn, ep conn.Endpoint
 	b.udpAddrPool.Put(ua)
 	b.ipv6MsgsPool.Put(msgs)
 	return err
-}
-
-// sendDrp send drp message to drp server
-func (b *NetBind) sendDrp(bufs [][]byte) error {
-	// send drp message to drp server
-	// send frame type
-	return b.drpClient.Send(bufs)
 }
 
 func (b *NetBind) SetEndpoint(addr net.Addr, conn net.PacketConn) error {

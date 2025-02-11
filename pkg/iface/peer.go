@@ -11,9 +11,9 @@ import (
 )
 
 type SetPeer struct {
-	PrivateKey           wgtypes.Key
-	PublicKey            wgtypes.Key
-	PresharedKey         wgtypes.Key
+	PrivateKey           string
+	PublicKey            string
+	PresharedKey         string
 	Endpoint             string
 	AllowedIPs           string
 	PersistentKeepalived int
@@ -44,8 +44,8 @@ func (p *SetPeer) String() string {
 	}
 
 	var sb strings.Builder
-	printf(&sb, "public_key", p.PublicKey.String(), keyf)
-	printf(&sb, "preshared_key", p.PresharedKey.String(), keyf)
+	printf(&sb, "public_key", p.PublicKey, keyf)
+	printf(&sb, "preshared_key", p.PresharedKey, keyf)
 	printf(&sb, "replace_allowed_ips", strconv.FormatBool(true), nil)
 	printf(&sb, "persistent_keepalive_interval", strconv.Itoa(p.PersistentKeepalived), nil)
 	printf(&sb, "allowed_ip", p.AllowedIPs, nil)
@@ -55,25 +55,25 @@ func (p *SetPeer) String() string {
 }
 
 var (
-	_ WGConfigure = (*WGConfiger)(nil)
+	_ WGConfigureInterface = (*WGConfigure)(nil)
 )
 
-type WGConfiger struct {
+type WGConfigure struct {
 	device       *wg.Device
 	address      string
 	ifaceName    string
 	peersManager *config.PeersManager
 }
 
-func (w *WGConfiger) GetAddress() string {
+func (w *WGConfigure) GetAddress() string {
 	return w.address
 }
 
-func (w *WGConfiger) GetIfaceName() string {
+func (w *WGConfigure) GetIfaceName() string {
 	return w.ifaceName
 }
 
-func (w *WGConfiger) GetPeersManager() *config.PeersManager {
+func (w *WGConfigure) GetPeersManager() *config.PeersManager {
 	return w.peersManager
 }
 
@@ -84,16 +84,16 @@ type WGConfigerParams struct {
 	PeersManager *config.PeersManager
 }
 
-func (w *WGConfiger) ConfigureWG() error {
+func (w *WGConfigure) ConfigureWG() error {
 	return nil
 }
 
-func (w *WGConfiger) AddPeer(peer *SetPeer) error {
+func (w *WGConfigure) AddPeer(peer *SetPeer) error {
 	return w.device.IpcSet(peer.String())
 }
 
-func NewWgConfiger(config *WGConfigerParams) *WGConfiger {
-	return &WGConfiger{
+func NewWgConfigure(config *WGConfigerParams) *WGConfigure {
+	return &WGConfigure{
 		device:       config.Device,
 		address:      config.Address,
 		ifaceName:    config.IfaceName,

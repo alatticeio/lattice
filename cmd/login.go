@@ -74,7 +74,7 @@ func runLogin(opts loginOptions) error {
 		}
 	}
 
-	grpcClient, err := grpcclient.NewGrpcClient(&grpcclient.GrpcConfig{Addr: internal.ManagementDomain + ":50051"})
+	grpcClient, err := grpcclient.NewClient(&grpcclient.GrpcConfig{Addr: internal.ManagementDomain + ":32051"})
 	if err != nil {
 		return err
 	}

@@ -17,7 +17,7 @@ type UserInterface interface {
 type QueryParams struct {
 	PubKey   *string
 	UserId   *string
-	Online   *int
+	Status   *int
 	Total    *int
 	PageNo   *int
 	PageSize *int
@@ -41,10 +41,10 @@ func (qp *QueryParams) Generate() []*kv {
 		result = append(result, v)
 	}
 
-	if qp.Online != nil {
+	if qp.Status != nil {
 		v := &kv{
-			Key:   "online",
-			Value: qp.Online,
+			Key:   "status",
+			Value: qp.Status,
 		}
 
 		result = append(result, v)

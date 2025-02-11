@@ -7,27 +7,31 @@ import (
 
 type KeyManager struct {
 	lock       sync.Mutex
-	privateKey wgtypes.Key
+	privateKey string
 }
 
-func NewKeyManager(privateKey wgtypes.Key) *KeyManager {
+func NewKeyManager(privateKey string) *KeyManager {
 	return &KeyManager{privateKey: privateKey}
 }
 
-func (km *KeyManager) UpdateKey(privateKey wgtypes.Key) {
+func (km *KeyManager) UpdateKey(privateKey string) {
 	km.lock.Lock()
 	defer km.lock.Unlock()
 	km.privateKey = privateKey
 }
 
-func (km *KeyManager) GetKey() wgtypes.Key {
+func (km *KeyManager) GetKey() string {
 	km.lock.Lock()
 	defer km.lock.Unlock()
 	return km.privateKey
 }
 
-func (km *KeyManager) GetPublicKey() wgtypes.Key {
+func (km *KeyManager) GetPublicKey() string {
 	km.lock.Lock()
 	defer km.lock.Unlock()
-	return km.privateKey.PublicKey()
+	key, err := wgtypes.ParseKey(km.privateKey)
+	if err != nil {
+		return ""
+	}
+	return key.PublicKey().String()
 }

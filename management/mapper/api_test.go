@@ -9,12 +9,12 @@ func TestQueryParams_Generate(t *testing.T) {
 	t.Run("test query params", func(t *testing.T) {
 		var pubKey = "qwqasxzdfdsa"
 		var userId = "123455"
-		var online = 1
+		var status = 1
 
 		params := &QueryParams{
 			PubKey: &pubKey,
 			UserId: &userId,
-			Online: &online,
+			Status: &status,
 		}
 
 		sql, filters := Generate(params)

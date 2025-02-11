@@ -2,11 +2,11 @@ package probe
 
 import (
 	"context"
-	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 	"k8s.io/klog/v2"
-	internal2 "linkany/internal"
+	"linkany/internal"
 	"linkany/pkg/iface"
-	client2 "linkany/turn/client"
+	"linkany/signaling/grpc/signaling"
+	turnclient "linkany/turn/client"
 	"net"
 	"time"
 )
@@ -20,24 +20,24 @@ type RelayChecker struct {
 	startTime       time.Time
 	isControlling   bool
 	startCh         chan struct{}
-	key             wgtypes.Key // publickey of the peer
-	dstKey          wgtypes.Key // publickey of the destination peer
+	key             string // publickey of the peer
+	dstKey          string // publickey of the destination peer
 	relayConn       net.PacketConn
-	client          *client2.Client
+	client          *turnclient.Client
 	outBound        chan RelayMessage
 	inBound         chan RelayMessage
 	permissionAddrs []net.Addr // addrs will be added to the permission list
 	wgConfiger      iface.WGConfigure
 	prober          *Prober
-	agentManager    *internal2.AgentManager
+	agentManager    *internal.AgentManager
 }
 
 type RelayCheckerConfig struct {
-	Client       *client2.Client
+	Client       *turnclient.Client
 	WgConfiger   iface.WGConfigure
-	AgentManager *internal2.AgentManager
-	DstKey       wgtypes.Key
-	SrcKey       wgtypes.Key
+	AgentManager *internal.AgentManager
+	DstKey       string
+	SrcKey       string
 }
 
 func NewRelayChecker(config *RelayCheckerConfig) *RelayChecker {
@@ -53,7 +53,7 @@ func (c *RelayChecker) OnSuccess(addr string) error {
 	return c.prober.ProbeSuccess(c.dstKey, addr)
 }
 
-func (c *RelayChecker) OnFailure(offer internal2.Offer) error {
+func (c *RelayChecker) OnFailure(offer internal.Offer) error {
 	return c.prober.ProbeFailed(c, offer)
 }
 
@@ -92,7 +92,7 @@ func (c *RelayChecker) ProbeConnect(ctx context.Context, isControlling bool, off
 	return c.OnFailure(offer)
 }
 
-func (c *RelayChecker) handleOffer(offer internal2.Offer) error {
+func (c *RelayChecker) handleOffer(offer internal.Offer) error {
 	// set the destination permission
 	relayOffer := offer.(*RelayOffer)
 
@@ -111,7 +111,7 @@ func (c *RelayChecker) handleOffer(offer internal2.Offer) error {
 			OfferType:  OfferTypeRelayOfferAnswer,
 		}
 
-		if err = c.prober.SendOffer(internal2.MessageRelayOfferResponseType, c.key, c.dstKey, newOffer); err != nil {
+		if err = c.prober.SendOffer(signaling.MessageType_MessageRelayOfferType, c.key, c.dstKey, newOffer); err != nil {
 			return err
 		}
 		return c.OnSuccess(relayOffer.RelayConn.String())

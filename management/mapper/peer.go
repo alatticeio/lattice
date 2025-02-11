@@ -51,7 +51,7 @@ func (p *PeerMapper) Update(e *dto.PeerDto) (*entity.Peer, error) {
 		return nil, err
 	}
 
-	peer.Online = e.Online
+	peer.Status = e.Status
 
 	p.Save(peer)
 
@@ -129,11 +129,11 @@ func (p *PeerMapper) GetNetworkMap(appId, userId string) (*entity.NetworkMap, er
 		return nil, err
 	}
 
-	var online = 1
+	var status = 1
 	peers, err := p.List(&QueryParams{
 		PubKey: &current.PublicKey,
 		UserId: &userId,
-		Online: &online,
+		Status: &status,
 	})
 
 	if err != nil {

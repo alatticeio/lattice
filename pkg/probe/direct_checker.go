@@ -3,7 +3,6 @@ package probe
 import (
 	"context"
 	"github.com/linkanyio/ice"
-	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 	"k8s.io/klog/v2"
 	internal2 "linkany/internal"
 	"linkany/pkg/iface"
@@ -28,7 +27,7 @@ type DirectChecker struct {
 	ufrag        string
 	pwd          string
 	agent        *ice.Agent // agent should gather local candidates before connect, also should add remote candidates
-	remoteKey    wgtypes.Key
+	remoteKey    string
 	addr         *net.UDPAddr
 	addPeer      func(key string, addr *net.UDPAddr) error
 	offerManager internal2.OfferManager
@@ -73,7 +72,7 @@ type DirectCheckerConfig struct {
 	Pwd           string
 	IsControlling bool
 	Agent         *ice.Agent
-	Key           wgtypes.Key
+	Key           string
 	WgConfiger    iface.WGConfigure
 	LocalKey      uint32
 }

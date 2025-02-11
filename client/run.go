@@ -1,6 +1,3 @@
-//go:build !windows
-// +build !windows
-
 package client
 
 import (
@@ -8,10 +5,9 @@ import (
 	wg "golang.zx2c4.com/wireguard/device"
 	"golang.zx2c4.com/wireguard/ipc"
 	"k8s.io/klog/v2"
-	"linkany/management/client"
+	"linkany/internal"
 	"linkany/pkg/config"
 	"os"
-	"time"
 )
 
 func Start(interfaceName string, isRelay bool) error {
@@ -43,37 +39,35 @@ func Start(interfaceName string, isRelay bool) error {
 
 	// peers config to wireguard
 	engine, err := NewEngine(&EngineParams{
-		Conf:          conf,
-		Port:          51820,
-		InterfaceName: interfaceName,
-		Logger:        logger,
-		ForceRelay:    isRelay,
+		Conf:           conf,
+		Port:           51820,
+		InterfaceName:  interfaceName,
+		Logger:         logger,
+		ForceRelay:     isRelay,
+		ManagementAddr: fmt.Sprintf("%s:%d", internal.ManagementDomain, internal.DefaultManagementPort),
+		SignalingAddr:  fmt.Sprintf("%s:%d", internal.SignalingDomain, internal.DefaultSignalingPort),
 	})
 	if err != nil {
 		return err
 	}
 
-	engine.GetNetworkMap = func(c client.ClientInterface) (*config.DeviceConf, error) {
-		// control plane fetch config from origin server
-		// update config
-		conf, err := c.List()
+	engine.GetNetworkMap = func() (*config.DeviceConf, error) {
+		// get network map from list
+		conf, err := engine.client.List()
 		if err != nil {
-			klog.Errorf("sync peers failed: %v", err)
+			klog.Errorf("get networkmap failed: %v", err)
+			return nil, err
 		}
 
-		klog.Infof("success synced!!!")
+		klog.Infof("success get networkmap")
 
 		return conf, err
 	}
 
-	ticker := time.NewTicker(10 * time.Second) //30 seconds will sync config a time
-	quit := make(chan struct{})
-	defer close(quit)
-	// start device
-	err = engine.Start(ticker, quit)
+	err = engine.Start()
 
 	// open UAPI file (or use supplied fd)
-	klog.Infof("got device name: %s", engine.Name)
+	klog.Infof("device name: %s", engine.Name)
 	fileUAPI, err := func() (*os.File, error) {
 		return ipc.UAPIOpen(engine.Name)
 	}()
@@ -93,11 +87,12 @@ func Start(interfaceName string, isRelay bool) error {
 			go engine.IpcHandle(conn)
 		}
 	}()
-	klog.Infof("UAPI listener started")
+	klog.Infof("Linkany started")
 
 	<-ctx.Done()
 	uapi.Close()
 
+	engine.close()
 	klog.Infof("linkany shutting down")
 	return err
 }

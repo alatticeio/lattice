@@ -15,13 +15,13 @@ import (
 type TurnServer struct {
 	port     int
 	publicIP string
-	client   client.ClientInterface
+	client   *client.Client
 }
 
 type TurnServerConfig struct {
 	PublicIP string
 	Port     int
-	Client   client.ClientInterface
+	Client   *client.Client
 }
 
 func NewTurnServer(cfg *TurnServerConfig) *TurnServer {
