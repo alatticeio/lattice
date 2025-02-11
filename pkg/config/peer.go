@@ -16,9 +16,9 @@ type Config struct {
 
 // DeviceConf will used to fetchPeers,then config to the device
 type DeviceConf struct {
-	DrpUrl string       `json:"drpUrl,omitempty"` // a drp server user created.
-	Device DeviceConfig `json:"device,omitempty"`
-	Peers  []*Peer      `json:"list,omitempty"`
+	DrpUrl string        `json:"drpUrl,omitempty"` // a drp server user created.
+	Device *DeviceConfig `json:"device,omitempty"`
+	Peers  []*Peer       `json:"list,omitempty"`
 }
 
 // Peer peers sync from linkany server will be transfered to
@@ -184,7 +184,7 @@ func (d *DeviceConf) Parse(str string) (*DeviceConf, error) {
 	deviceConfig := true
 
 	conf := &DeviceConf{
-		Device: DeviceConfig{},
+		Device: &DeviceConfig{},
 		Peers:  make([]*Peer, 0),
 	}
 	setPeer := new(setPeer)

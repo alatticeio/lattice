@@ -470,6 +470,10 @@ func (c *Client) probeConn(agent *ice.Agent, peer *config.Peer, gatherCh chan in
 			err := directContact(agent, peer)
 			if err != nil {
 				klog.Errorf("directContact failed: %v", err)
+				// use relay
+				if err = relayContact(peer); err != nil {
+					klog.Errorf("relayContact failed, unavaiable connect to peer: %v, %v", err, peer.PublicKey)
+				}
 			}
 		}()
 	}

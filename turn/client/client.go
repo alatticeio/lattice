@@ -3,6 +3,7 @@ package client
 import (
 	"github.com/pion/logging"
 	"github.com/pion/turn/v4"
+	"k8s.io/klog/v2"
 	"linkany/pkg/config"
 	"net"
 	"sync"
@@ -94,6 +95,8 @@ func (c *Client) GetRelayInfo(allocated bool) (*RelayInfo, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	klog.Infof("get from turn relayed-address=%s", mappedAddr.String())
 
 	mapAddr, _ := AddrToUdpAddr(mappedAddr)
 	c.relayInfo.MappedAddr = *mapAddr

@@ -108,6 +108,7 @@ func NewEngine(cfg *EngineParams) (*Engine, error) {
 	}
 
 	relayInfo, err := turnClient.GetRelayInfo(true)
+	klog.Infof("relay conn addr: %s", relayInfo.RelayConn.LocalAddr().String())
 
 	if err != nil {
 		return nil, err
@@ -218,16 +219,6 @@ func NewEngine(cfg *EngineParams) (*Engine, error) {
 
 	proberManager.SetWgConfiger(wgConfigure)
 
-	// set device config
-	deviceConfig := &config.DeviceConfig{
-		PrivateKey: engine.keyManager.GetKey(),
-		//ListenPort: cfg.Port,
-	}
-
-	if err = engine.DeviceConfigure(deviceConfig); err != nil {
-		return nil, err
-	}
-
 	return engine, err
 }
 
@@ -240,7 +231,15 @@ func (e *Engine) Start() error {
 	}
 
 	//TODO set device config
-	klog.Infof("networkmap: %s", conf)
+	klog.Infof("networkmap: %v", conf)
+	// set device config
+	deviceConfig := &config.DeviceConfig{
+		PrivateKey: e.keyManager.GetKey(),
+	}
+
+	if err = e.DeviceConfigure(deviceConfig); err != nil {
+		return err
+	}
 
 	// watch
 	go func() {

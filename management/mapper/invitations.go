@@ -52,3 +52,11 @@ func (im *InvitationMapper) Update(dto *dto.InviteDto) error {
 	im.Save(&inv)
 	return nil
 }
+
+func (im *InvitationMapper) List(params *QueryParams) ([]*entity.Invitations, error) {
+	var invs []*entity.Invitations
+	if err := im.Where("invitation_id = ?", params.UserId).Find(&invs).Error; err != nil {
+		return nil, err
+	}
+	return invs, nil
+}
