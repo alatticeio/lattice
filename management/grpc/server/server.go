@@ -301,6 +301,7 @@ func (s *Server) sendWatchMessage(eventType mgt.EventType, current *entity.Peer,
 
 	// update peer online status
 	dtoParam := &dto.PeerDto{PubKey: pubKey, Status: status}
+	klog.Infof("update peer status ,publicKey: %v, status: %v", pubKey, status)
 	_, err = s.peerController.Update(dtoParam)
 	return err
 }

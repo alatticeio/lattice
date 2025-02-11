@@ -2,7 +2,6 @@ package client
 
 import (
 	"context"
-	"fmt"
 	"github.com/golang/protobuf/proto"
 	"github.com/vishvananda/netlink"
 	wg "golang.zx2c4.com/wireguard/device"
@@ -241,11 +240,18 @@ func (e *Engine) Start() error {
 	}
 
 	//TODO set device config
-	fmt.Println(conf)
+	klog.Infof("networkmap: %s", conf)
+
+	// watch
+	go func() {
+		if err := e.client.Watch(context.Background(), e.client.WatchMessage); err != nil {
+			klog.Errorf("watch failed: %v", err)
+		}
+	}()
 
 	go func() {
-		if err := e.client.Watch(context.Background(), e.callback); err != nil {
-			klog.Errorf("watch failed: %v", err)
+		if err := e.client.Keepalive(context.Background()); err != nil {
+			klog.Errorf("keepalive failed: %v", err)
 		}
 	}()
 

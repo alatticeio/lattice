@@ -15,7 +15,7 @@ type WGConfigureInterface interface {
 
 	GetPeersManager() *config.PeersManager
 
-	//RemovePeer(peer *SetPeer) error
+	RemovePeer(peer *SetPeer) error
 	//
 	//AddAllowedIPs(peer *SetPeer) error
 	//
