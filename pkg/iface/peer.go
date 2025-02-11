@@ -92,6 +92,10 @@ func (w *WGConfigure) AddPeer(peer *SetPeer) error {
 	return w.device.IpcSet(peer.String())
 }
 
+func (w *WGConfigure) RemovePeer(peer *SetPeer) error {
+	return w.device.IpcSet(peer.String())
+}
+
 func NewWgConfigure(config *WGConfigerParams) *WGConfigure {
 	return &WGConfigure{
 		device:       config.Device,

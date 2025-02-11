@@ -132,14 +132,14 @@ func (c *Client) Keepalive(ctx context.Context, in *mgt.ManagementMessage) error
 			klog.Errorf("failed unmarshal check packet: %v", err)
 			return err
 		}
-		klog.Infof("got check packet from server: %v", &req)
+		klog.Infof("receive check living packet from server: %v", &req)
 
 		if err = stream.Send(in); err != nil {
 			if errors.Is(err, io.EOF) {
 				klog.Warningf("server closed the stream")
 				return nil
 			}
-			klog.Errorf("send check packet failed: %v", err)
+			klog.Errorf("send check living packet failed: %v", err)
 		}
 
 	}

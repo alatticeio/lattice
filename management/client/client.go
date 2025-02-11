@@ -211,85 +211,123 @@ func (c *Client) List() (*config.DeviceConf, error) {
 
 	conf = &config.DeviceConf{}
 
-	for _, nPeer := range networkMap.Peers {
-		if nPeer.PublicKey == c.keyManager.GetPublicKey() {
-			klog.Warningf("self peer, skip")
-			continue
+	for _, p := range networkMap.Peers {
+		if err := c.AddPeer(p); err != nil {
+			klog.Errorf("add peer failed: %v", err)
 		}
-		peer := &config.Peer{
-			PublicKey:           nPeer.PublicKey,
-			Endpoint:            nPeer.Endpoint,
-			Address:             nPeer.Address,
-			AllowedIps:          nPeer.AllowedIPs,
-			PersistentKeepalive: int(nPeer.PersistentKeepalive),
-		}
-		mappedPeer := c.peersManager.GetPeer(peer.PublicKey)
-		if mappedPeer == nil {
-			mappedPeer = peer
-			c.peersManager.AddPeer(peer.PublicKey, peer)
-			klog.Infof("add peer to local cache, key: %s, peer: %v", peer.PublicKey, peer)
-		} else if mappedPeer.Connected.Load() {
-			continue
-		}
-		agent, ok := c.agentManager.Get(peer.PublicKey)
-		gatherCh := make(chan interface{})
-
-		if agent == nil || !ok {
-			l := logging.NewDefaultLoggerFactory()
-			l.DefaultLogLevel = logging.LogLevelDebug
-			agent, err = internal.NewAgent(&internal.AgentParams{
-				LoggerFacotry:   l,
-				StunUrl:         "stun:81.68.109.143:3478",
-				UdpMux:          c.universalUdpMux.UDPMuxDefault,
-				UniversalUdpMux: c.universalUdpMux,
-				Ufrag:           c.ufrag,
-				Pwd:             c.pwd,
-				OnCandidate: func(c ice.Candidate) {
-					if c != nil {
-						klog.Infof("new candidate: %v", c.Marshal())
-					} else {
-						klog.Infof("all candidates has been gathered.")
-						close(gatherCh)
-					}
-				},
-			})
-
-			klog.Infof("creating agent for peer: %s", peer.PublicKey)
-			if err := agent.OnConnectionStateChange(func(connectionState ice.ConnectionState) {
-				switch connectionState {
-				case ice.ConnectionStateDisconnected:
-					peer.Connected.Store(false)
-					c.agentManager.Remove(peer.PublicKey)
-					klog.Infof("agent disconnected, remove agent")
-					break
-				case ice.ConnectionStateFailed:
-					peer.P2PFlag.Store(true)
-					peer.Connected.Store(true)
-					peer.Endpoint = "relay"
-					c.agentManager.Remove(peer.PublicKey)
-					klog.Infof("check connection failed, will use relay, remove agent")
-					break
-				default:
-					c.peersManager.AddPeer(peer.PublicKey, peer)
-				}
-			}); err != nil {
-				return nil, err
-			}
-
-			c.agentManager.Add(peer.PublicKey, agent)
-		}
-
-		// start probeConn
-		go func() {
-			err := c.probeConn(agent, peer, gatherCh)
-			if err != nil {
-				klog.Errorf("probeConn failed: %v", err)
-			}
-		}()
-
 	}
 
 	return conf, nil
+}
+
+func (c *Client) ToConfigPeer(peer *entity.Peer) *config.Peer {
+
+	return &config.Peer{
+		PublicKey:           peer.PublicKey,
+		Endpoint:            peer.Endpoint,
+		Address:             peer.Address,
+		AllowedIps:          peer.AllowedIPs,
+		PersistentKeepalive: peer.PersistentKeepalive,
+	}
+}
+
+func (c *Client) WatchMessage(msg *mgt.WatchMessage) error {
+	var err error
+	var peers []entity.Peer
+	if err = json.Unmarshal(msg.Body, &peers); err != nil {
+		return err
+	}
+
+	for _, peer := range peers {
+		switch msg.Type {
+		case mgt.EventType_DELETE:
+			//TODO remove peer from local cache & agentManager
+			c.peersManager.Remove(peer.PublicKey)
+		case mgt.EventType_ADD:
+			if err = c.AddPeer(&peer); err != nil {
+				klog.Errorf("add peer failed: %v", err)
+			}
+		}
+	}
+
+	return nil
+
+}
+
+func (c *Client) AddPeer(p *entity.Peer) error {
+	var err error
+	if p.PublicKey == c.keyManager.GetPublicKey() {
+		klog.Warningf("self peer, skip")
+		err = errors.New("self peer, skip")
+		return err
+	}
+	peer := c.ToConfigPeer(p)
+	mappedPeer := c.peersManager.GetPeer(peer.PublicKey)
+	if mappedPeer == nil {
+		mappedPeer = peer
+		c.peersManager.AddPeer(peer.PublicKey, peer)
+		klog.Infof("add peer to local cache, key: %s, peer: %v", peer.PublicKey, peer)
+	} else if mappedPeer.Connected.Load() {
+		return nil
+	}
+
+	agent, ok := c.agentManager.Get(peer.PublicKey)
+	gatherCh := make(chan interface{})
+
+	if agent == nil || !ok {
+		l := logging.NewDefaultLoggerFactory()
+		l.DefaultLogLevel = logging.LogLevelDebug
+		agent, err = internal.NewAgent(&internal.AgentParams{
+			LoggerFacotry:   l,
+			StunUrl:         "stun:81.68.109.143:3478",
+			UdpMux:          c.universalUdpMux.UDPMuxDefault,
+			UniversalUdpMux: c.universalUdpMux,
+			Ufrag:           c.ufrag,
+			Pwd:             c.pwd,
+			OnCandidate: func(c ice.Candidate) {
+				if c != nil {
+					klog.Infof("new candidate: %v", c.Marshal())
+				} else {
+					klog.Infof("all candidates has been gathered.")
+					close(gatherCh)
+				}
+			},
+		})
+
+		klog.Infof("creating agent for peer: %s", peer.PublicKey)
+		if err := agent.OnConnectionStateChange(func(connectionState ice.ConnectionState) {
+			switch connectionState {
+			case ice.ConnectionStateDisconnected:
+				peer.Connected.Store(false)
+				c.agentManager.Remove(peer.PublicKey)
+				klog.Infof("agent disconnected, remove agent")
+				break
+			case ice.ConnectionStateFailed:
+				peer.P2PFlag.Store(true)
+				peer.Connected.Store(true)
+				peer.Endpoint = "relay"
+				c.agentManager.Remove(peer.PublicKey)
+				klog.Infof("check connection failed, will use relay, remove agent")
+				break
+			default:
+				c.peersManager.AddPeer(peer.PublicKey, peer)
+			}
+		}); err != nil {
+			return err
+		}
+
+		c.agentManager.Add(peer.PublicKey, agent)
+	}
+
+	// start probeConn
+	go func() {
+		err := c.probeConn(agent, peer, gatherCh)
+		if err != nil {
+			klog.Errorf("probeConn failed: %v", err)
+		}
+	}()
+
+	return nil
 }
 
 func GetCandidates(agent *ice.Agent, gatherCh chan interface{}) string {
@@ -480,4 +518,18 @@ func (c *Client) Watch(ctx context.Context, callback func(msg *mgt.WatchMessage)
 	}
 
 	return c.grpcClient.Watch(ctx, &mgt.ManagementMessage{Body: body}, callback)
+}
+
+func (c *Client) Keepalive(ctx context.Context) error {
+	req := &mgt.Request{
+		PubKey: c.keyManager.GetPublicKey(),
+		Token:  c.conf.Token,
+	}
+
+	body, err := proto.Marshal(req)
+	if err != nil {
+		return err
+	}
+
+	return c.grpcClient.Keepalive(ctx, &mgt.ManagementMessage{Body: body})
 }
