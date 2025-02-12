@@ -17,6 +17,7 @@ import (
 	"linkany/management/grpc/mgt"
 	"linkany/management/mapper"
 	"linkany/management/utils"
+	"linkany/pkg/redis"
 	"net"
 	"strconv"
 	"time"
@@ -35,12 +36,13 @@ type ServerConfig struct {
 	Port            int
 	Database        mapper.DatabaseConfig
 	DataBaseService *mapper.DatabaseService
+	Rdb             *redis.Client
 }
 
 func NewServer(cfg *ServerConfig) *Server {
 	return &Server{
 		port:           cfg.Port,
-		userController: controller.NewUserController(mapper.NewUserMapper(cfg.DataBaseService)),
+		userController: controller.NewUserController(mapper.NewUserMapper(cfg.DataBaseService, cfg.Rdb)),
 		peerController: controller.NewPeerController(mapper.NewPeerMapper(cfg.DataBaseService)),
 	}
 }

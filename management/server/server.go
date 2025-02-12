@@ -8,6 +8,7 @@ import (
 	"linkany/management/entity"
 	"linkany/management/mapper"
 	"linkany/management/utils"
+	"linkany/pkg/redis"
 )
 
 // Server is the main server struct
@@ -25,8 +26,8 @@ type Server struct {
 type ServerConfig struct {
 	Listen          string                `mapstructure: "listen,omitempty"`
 	Database        mapper.DatabaseConfig `mapstructure: "database,omitempty"`
-	UserController  mapper.UserInterface
 	DatabaseService *mapper.DatabaseService
+	Rdb             *redis.Client
 }
 
 // NewServer creates a new server
@@ -35,7 +36,7 @@ func NewServer(cfg *ServerConfig) *Server {
 	s := &Server{
 		Engine:            e,
 		listen:            cfg.Listen,
-		userController:    controller.NewUserController(mapper.NewUserMapper(cfg.DatabaseService)),
+		userController:    controller.NewUserController(mapper.NewUserMapper(cfg.DatabaseService, cfg.Rdb)),
 		peerControlloer:   controller.NewPeerController(mapper.NewPeerMapper(cfg.DatabaseService)),
 		planController:    controller.NewPlanController(mapper.NewPlanMapper(cfg.DatabaseService)),
 		supportController: controller.NewSupportController(mapper.NewSupportMapper(cfg.DatabaseService)),

@@ -6,6 +6,7 @@ import (
 	grpcserver "linkany/management/grpc/server"
 	"linkany/management/mapper"
 	"linkany/management/server"
+	"linkany/pkg/redis"
 )
 
 func Start(listen string) error {
@@ -21,10 +22,22 @@ func Start(listen string) error {
 	if err := viper.Unmarshal(&cfg); err != nil {
 		return err
 	}
+
+	redisClient, err := redis.NewClient(&redis.ClientConfig{
+		Addr:     viper.GetString("redis.addr"),
+		Password: viper.GetString("redis.password"),
+	})
+
+	if err != nil {
+		return err
+	}
+
+	cfg.Rdb = redisClient
 	dbService := mapper.NewDatabaseService(&cfg.Database)
 	gServer := grpcserver.NewServer(&grpcserver.ServerConfig{
 		Port:            32051,
 		DataBaseService: dbService,
+		Rdb:             redisClient,
 	})
 	// go run a grpc server
 	go func() {

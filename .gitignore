@@ -1,3 +1,4 @@
 .idea
 bin
 conf/control.yaml
+conf/control-deployment.yaml

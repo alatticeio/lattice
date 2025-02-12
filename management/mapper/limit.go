@@ -23,7 +23,7 @@ type UserConfigMapper struct {
 }
 
 func NewUserConfigMapper(dataBaseService *DatabaseService) *UserConfigMapper {
-	return &UserConfigMapper{DatabaseService: dataBaseService, tokener: utils.NewTokener(), userMapper: NewUserMapper(dataBaseService)}
+	return &UserConfigMapper{DatabaseService: dataBaseService, tokener: utils.NewTokener(), userMapper: NewUserMapper(dataBaseService, nil)}
 }
 
 func (ucm *UserConfigMapper) Get(token string) (*entity.UserConfig, error) {

@@ -11,6 +11,7 @@ type InvitationInterface interface {
 	Invite(dto *dto.InviteDto) error
 	Get(userId, email string) (*entity.Invitations, error)
 	Update(dto *dto.InviteDto) error
+	List(paras *QueryParams) ([]*entity.Invitations, error)
 }
 
 type InvitationMapper struct {

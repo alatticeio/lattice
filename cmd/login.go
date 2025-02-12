@@ -2,21 +2,26 @@ package cmd
 
 import (
 	"bufio"
+	"context"
 	"errors"
 	"fmt"
 	"github.com/moby/term"
+	"github.com/pion/turn/v4"
 	"github.com/spf13/cobra"
 	"k8s.io/klog/v2"
 	"linkany/internal"
 	"linkany/management/client"
 	grpcclient "linkany/management/grpc/client"
 	"linkany/pkg/config"
+	"linkany/pkg/redis"
 	"os"
 )
 
 type loginOptions struct {
-	Username string
-	Password string
+	Username  string
+	Password  string
+	RedisAddr string
+	RedisPass string
 }
 
 func loginCmd() *cobra.Command {
@@ -38,6 +43,8 @@ func loginCmd() *cobra.Command {
 	fs := cmd.Flags()
 	fs.StringVarP(&opts.Username, "username", "u", "", "username for up")
 	fs.StringVarP(&opts.Password, "password", "p", "", "username for up")
+	fs.StringVarP(&opts.RedisAddr, "redis-addr", "", "", "username for up")
+	fs.StringVarP(&opts.RedisPass, "redis-password", "", "", "username for up")
 
 	return cmd
 }
@@ -88,6 +95,30 @@ func runLogin(opts loginOptions) error {
 		Password: opts.Password,
 	}
 	err = client.Login(user)
+
+	if err != nil {
+		return err
+	}
+
+	//set turn key to redis
+	if opts.RedisAddr != "" && opts.RedisPass != "" {
+		// set user to redis
+		client, err := redis.NewClient(&redis.ClientConfig{
+			Addr:     opts.RedisAddr,
+			Password: opts.RedisPass,
+		})
+
+		if err != nil {
+			return fmt.Errorf("failed to connect redis: %v", err)
+		}
+
+		key := turn.GenerateAuthKey(opts.Username, "linkany.io", opts.Password)
+		if err = client.Set(context.Background(), opts.Username, string(key)); err != nil {
+			return fmt.Errorf("failed to set user turnKey to redis: %v", err)
+		}
+
+	}
+
 	return err
 }
 

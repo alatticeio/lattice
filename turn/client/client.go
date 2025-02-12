@@ -4,7 +4,7 @@ import (
 	"github.com/pion/logging"
 	"github.com/pion/turn/v4"
 	"k8s.io/klog/v2"
-	"linkany/pkg/config"
+	configlocal "linkany/pkg/config"
 	"net"
 	"sync"
 )
@@ -12,7 +12,7 @@ import (
 type Client struct {
 	lock       sync.Mutex
 	realm      string
-	conf       *config.LocalConfig
+	conf       *configlocal.LocalConfig
 	turnClient *turn.Client
 	relayConn  net.PacketConn
 	mappedAddr net.Addr
@@ -27,7 +27,7 @@ type RelayInfo struct {
 type ClientConfig struct {
 	ServerUrl string // stun.linkany.io:3478
 	Realm     string
-	Conf      *config.LocalConfig
+	Conf      *configlocal.LocalConfig
 }
 
 func NewClient(config *ClientConfig) (*Client, error) {
@@ -36,17 +36,12 @@ func NewClient(config *ClientConfig) (*Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	/*addr, err := net.ResolveUDPAddr("udp", config.ServerUrl)
+	var username, password string
+	username, password, err = configlocal.DecodeAuth(config.Conf.Auth)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
-	conn, err := net.DialUDP("udp", &net.UDPAddr{IP: net.IPv4zero, Port: 51820}, addr)
-	if err != nil {
-		panic(err)
-	}*/
 
-	username := "linkany"
-	password := "123456"
 	cfg := &turn.ClientConfig{
 		STUNServerAddr: config.ServerUrl,
 		TURNServerAddr: config.ServerUrl,
