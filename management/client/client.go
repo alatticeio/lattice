@@ -14,6 +14,7 @@ import (
 	"linkany/management/entity"
 	grpcclient "linkany/management/grpc/client"
 	"linkany/management/grpc/mgt"
+	grpcserver "linkany/management/grpc/server"
 	"linkany/pkg/config"
 	"linkany/pkg/drp"
 	"linkany/pkg/probe"
@@ -536,4 +537,52 @@ func (c *Client) Keepalive(ctx context.Context) error {
 	}
 
 	return c.grpcClient.Keepalive(ctx, &mgt.ManagementMessage{Body: body})
+}
+
+// Register will register device to linkany center
+func (c *Client) Register(privateKey, publicKey, token string) (*config.DeviceConf, error) {
+	var err error
+	ctx := context.Background()
+
+	hostname, err := os.Hostname()
+	if err != nil {
+		klog.Errorf("get hostname failed: %v", err)
+		return nil, err
+	}
+
+	homeDir, err := os.UserHomeDir()
+	path := filepath.Join(homeDir, ".linkany/config.json")
+	file, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE, 0755)
+
+	defer file.Close()
+	var local config.LocalConfig
+	decoder := json.NewDecoder(file)
+	err = decoder.Decode(&local)
+	if err != nil && err != io.EOF {
+		return nil, err
+	}
+	registryRequest := &grpcserver.RegistryRequest{
+		Token:               token,
+		Hostname:            hostname,
+		AppID:               local.AppId,
+		PersistentKeepalive: 25,
+		PrivateKey:          privateKey,
+		PublicKey:           publicKey,
+		Ufrag:               c.ufrag,
+		Pwd:                 c.pwd,
+		Port:                51820,
+		Status:              1,
+	}
+	body, err := json.Marshal(registryRequest)
+	if err != nil {
+		return nil, err
+	}
+	_, err = c.grpcClient.Registry(ctx, &mgt.ManagementMessage{
+		Body: body,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+	return &config.DeviceConf{}, nil
 }

@@ -11,6 +11,7 @@ import (
 	"linkany/pkg/config"
 	"sync"
 	"testing"
+	"time"
 )
 
 var group sync.WaitGroup
@@ -31,6 +32,8 @@ func TestNewGrpcClient(t *testing.T) {
 	group.Wait()
 
 	t.Run("TestGrpcClient_Keepalive", TestGrpcClient_Keepalive)
+
+	t.Run("TestGrpcClient_Register", TestGrpcClient_Register)
 }
 
 func TestGrpcClient_List(t *testing.T) {
@@ -114,6 +117,7 @@ func TestGrpcClient_Watch(t *testing.T) {
 
 func TestGrpcClient_Keepalive(t *testing.T) {
 	client, err := NewClient(&GrpcConfig{Addr: internal.ManagementDomain + ":32051"})
+
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -179,4 +183,50 @@ func TestClient_Get(t *testing.T) {
 
 	fmt.Println(peer)
 
+}
+
+func TestGrpcClient_Register(t *testing.T) {
+	client, err := NewClient(&GrpcConfig{Addr: internal.ManagementDomain + ":32051"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	requset := &pb.RegistryRequest{
+		Hostname:            "test",
+		Address:             "test",
+		PersistentKeepalive: 25,
+		PublicKey:           "test",
+		PrivateKey:          "test",
+		TieBreaker:          1,
+		UpdatedAt:           time.Now().String(),
+		CreatedAt:           time.Now().String(),
+		Ufrag:               "test",
+		Pwd:                 "test",
+		Status:              1,
+	}
+
+	ctx := context.Background()
+	body, err := proto.Marshal(requset)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := client.Registry(ctx, &pb.ManagementMessage{
+		Body: body,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	resp, err := client.Get(ctx, &pb.ManagementMessage{Body: body})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var peer config.Peer
+	if err = json.Unmarshal(resp.Body, &peer); err != nil {
+		t.Fatal(err)
+	}
+
+	fmt.Println(peer)
 }

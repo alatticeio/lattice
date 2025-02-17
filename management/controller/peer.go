@@ -29,3 +29,7 @@ func (p *PeerController) Update(dto *dto.PeerDto) (*entity.Peer, error) {
 func (p *PeerController) GetNetworkMap(appId, userId string) (*entity.NetworkMap, error) {
 	return p.peerMapper.GetNetworkMap(appId, userId)
 }
+
+func (p *PeerController) Registry(peer *dto.PeerDto) (*entity.Peer, error) {
+	return p.peerMapper.Register(peer)
+}

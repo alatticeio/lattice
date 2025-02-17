@@ -26,24 +26,26 @@ type Peer struct {
 	Lock                sync.Mutex
 	Connected           atomic.Bool
 	P2PFlag             atomic.Bool
-	ConnectionState     atomic.Bool `json:"checkingStatue,omitempty"`
+	ConnectionState     atomic.Bool `json:"checking_statue,omitempty"`
 	Name                string      `json:"name,omitempty"`
-	PrivateKey          string      `json:"privateKey,omitempty"`
-	PublicKey           string      `json:"publicKey,omitempty"`
+	Hostname            string      `json:"hostname,omitempty"`
+	AppID               string      `json:"app_id,omitempty"`
+	PrivateKey          string      `json:"private_key,omitempty"`
+	PublicKey           string      `json:"public_key,omitempty"`
 	Address             string      `json:"address,omitempty"`
 	Remove              bool        `json:"remove,omitempty"`
 	Endpoint            string      `json:"endpoint,omitempty"`
-	TieBreaker          uint32      `json:"tieBreaker,omitempty"`
-	PersistentKeepalive int         `json:"persistentKeepalive,omitempty"`
-	AllowedIps          string      `json:"allowedIps,omitempty"`
-	PresharedKey        string      `json:"presharedKey,omitempty"`
-	ReplacePeers        bool        `json:"replacePeers,omitempty"`
+	TieBreaker          uint32      `json:"tie_breaker,omitempty"`
+	PersistentKeepalive int         `json:"persistent_keepalive,omitempty"`
+	AllowedIps          string      `json:"allowed_ips,omitempty"`
+	PresharedKey        string      `json:"preshared_key,omitempty"`
+	ReplacePeers        bool        `json:"replace_peers,omitempty"`
 	Port                int         `json:"port,omitempty"`
 	Ufrag               string      `json:"ufrag,omitempty"`
 	Pwd                 string      `json:"pwd,omitempty"`
 	HostIP              string      `json:"hostIP,omitempty"`
 	SrflxIP             string      `json:"srflxIP,omitempty"`
-	RelayIP             string      `json:"relayIP,omitempty"`
+	RelayIP             string      `json:"relay_ip,omitempty"`
 	Status              int         `json:"status,omitempty"` // 1: online 0: offline
 }
 

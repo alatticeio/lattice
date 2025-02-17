@@ -176,20 +176,27 @@ func NewEngine(cfg *EngineParams) (*Engine, error) {
 	})
 
 	//fetconf
-	// TODO use real register
-	current, err := engine.client.Get(context.Background())
+	var current *config.Peer
+	current, err = engine.client.Get(context.Background())
 	if err != nil {
 		return nil, err
 	}
 
 	var privateKey string
-
-	if current == nil {
+	var publicKey string
+	if current.AppID != cfg.Conf.AppId {
 		key, err := wgtypes.GeneratePrivateKey()
 		if err != nil {
 			return nil, err
 		}
 		privateKey = key.String()
+		publicKey = key.PublicKey().String()
+		_, err = engine.client.Register(privateKey, publicKey, cfg.Conf.Token)
+		if err != nil {
+			klog.Errorf("register failed, with err: %s\n", err.Error())
+			return nil, err
+		}
+		klog.Infof("register to manager success")
 	} else {
 		privateKey = current.PrivateKey
 	}

@@ -15,6 +15,8 @@ service ManagementService {
 
   rpc Keepalive(stream ManagementMessage) returns (stream ManagementMessage) {}
 
+  rpc Registry (ManagementMessage) returns (ManagementMessage) {}
+
   // valid token for service
   rpc VerifyToken(ManagementMessage) returns (ManagementMessage) {}
 }

@@ -169,3 +169,7 @@ func (c *Client) VerifyToken(token string) (*mgt.LoginResponse, error) {
 
 	return &loginResp, nil
 }
+
+func (c *Client) Registry(ctx context.Context, in *mgt.ManagementMessage) (*mgt.ManagementMessage, error) {
+	return c.client.Registry(ctx, in)
+}

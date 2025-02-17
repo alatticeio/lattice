@@ -39,6 +39,31 @@ type ServerConfig struct {
 	Rdb             *redis.Client
 }
 
+type RegistryRequest struct {
+	ID                  int64      `json:"id"`
+	InstanceID          int64      `json:"instance_id"`
+	UserID              int64      `json:"user_id"`
+	Name                string     `json:"name"`
+	Hostname            string     `json:"hostname"`
+	AppID               string     `json:"app_id"`
+	Address             string     `json:"address"`
+	Endpoint            string     `json:"endpoint"`
+	PersistentKeepalive int        `json:"persistent_keepalive"`
+	PublicKey           string     `json:"public_key"`
+	PrivateKey          string     `json:"private_key"`
+	AllowedIPs          string     `json:"allowed_ips"`
+	RelayIP             string     `json:"relay_ip"`
+	TieBreaker          uint64     `json:"tie_breaker"`
+	UpdatedAt           time.Time  `json:"updated_at"`
+	DeletedAt           *time.Time `json:"deleted_at"`
+	CreatedAt           time.Time  `json:"created_at"`
+	Ufrag               string     `json:"ufrag"`
+	Pwd                 string     `json:"pwd"`
+	Port                int        `json:"port"`
+	Status              int        `json:"status"`
+	Token               string     `json:"token"`
+}
+
 func NewServer(cfg *ServerConfig) *Server {
 	return &Server{
 		port:           cfg.Port,
@@ -71,6 +96,48 @@ func (s *Server) Login(ctx context.Context, in *mgt.ManagementMessage) (*mgt.Man
 	return &mgt.ManagementMessage{
 		Body: b,
 	}, nil
+}
+
+// Registry, will return a list of response
+func (s *Server) Registry(ctx context.Context, in *mgt.ManagementMessage) (*mgt.ManagementMessage, error) {
+	var req RegistryRequest
+	if err := json.Unmarshal(in.Body, &req); err != nil {
+		return nil, err
+	}
+	klog.Infof("Received peer info: %+v", req)
+	user, err := s.userController.Get(req.Token)
+	if err != nil {
+		klog.Errorf("get user info err: %s\n", err.Error())
+		return nil, err
+	}
+
+	peer, err := s.peerController.Registry(&dto.PeerDto{
+		Hostname:            req.Hostname,
+		UserID:              int64(user.ID),
+		AppID:               req.AppID,
+		Address:             req.Address,
+		PersistentKeepalive: req.PersistentKeepalive,
+		PublicKey:           req.PublicKey,
+		PrivateKey:          req.PrivateKey,
+		AllowedIPs:          req.AllowedIPs,
+		TieBreaker:          int64(req.TieBreaker),
+		UpdatedAt:           time.Now(),
+		CreatedAt:           time.Now(),
+		Ufrag:               req.Ufrag,
+		Pwd:                 req.Pwd,
+		Port:                req.Port,
+		Status:              req.Status,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	bs, err := json.Marshal(peer)
+	if err != nil {
+		return nil, err
+	}
+
+	return &mgt.ManagementMessage{Body: bs}, nil
 }
 
 func (s *Server) Get(ctx context.Context, in *mgt.ManagementMessage) (*mgt.ManagementMessage, error) {
@@ -302,7 +369,7 @@ func (s *Server) sendWatchMessage(eventType mgt.EventType, current *entity.Peer,
 	}
 
 	// update peer online status
-	dtoParam := &dto.PeerDto{PubKey: pubKey, Status: status}
+	dtoParam := &dto.PeerDto{PublicKey: pubKey, Status: status}
 	klog.Infof("update peer status ,publicKey: %v, status: %v", pubKey, status)
 	_, err = s.peerController.Update(dtoParam)
 	return err
