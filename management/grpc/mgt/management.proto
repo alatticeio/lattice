@@ -44,21 +44,6 @@ message Request {
   string token = 3;
 }
 
-//message Peer {
-//  string privateKey = 1;
-//  string publicKey = 2;
-//  string endpoint = 3;
-//  string address = 4;
-//  string allowedIps = 5;
-//  int32  persistentKeepalive = 6;
-//}
-
-//message NetworkMap {
-//  string userId = 1;
-//  Peer peer = 2;
-//  repeated Peer peers = 3;
-//}
-
 message WatchMessage {
   EventType type = 1;
   bytes body = 2;

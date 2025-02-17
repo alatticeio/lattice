@@ -550,14 +550,7 @@ func (c *Client) Register(privateKey, publicKey, token string) (*config.DeviceCo
 		return nil, err
 	}
 
-	homeDir, err := os.UserHomeDir()
-	path := filepath.Join(homeDir, ".linkany/config.json")
-	file, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE, 0755)
-
-	defer file.Close()
-	var local config.LocalConfig
-	decoder := json.NewDecoder(file)
-	err = decoder.Decode(&local)
+	local, err := config.GetLocalConfig()
 	if err != nil && err != io.EOF {
 		return nil, err
 	}
