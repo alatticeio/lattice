@@ -35,7 +35,7 @@ func NewProberManager(isForceRelay bool, relayer internal.Relay) *NetProber {
 	}
 }
 
-func (pm *NetProber) RemoveProber(key string) {
+func (pm *NetProber) Remove(key string) {
 	pm.lock.Lock()
 	defer pm.lock.Unlock()
 	delete(pm.probers, key)

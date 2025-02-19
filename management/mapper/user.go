@@ -2,11 +2,11 @@ package mapper
 
 import (
 	"context"
-	"errors"
 	"github.com/pion/turn/v4"
 	"linkany/management/dto"
 	"linkany/management/entity"
 	"linkany/management/utils"
+	"linkany/pkg/linkerrors"
 	"linkany/pkg/redis"
 )
 
@@ -29,11 +29,11 @@ func (u *UserMapper) Login(dto *dto.UserDto) (*entity.Token, error) {
 
 	var user entity.User
 	if err := u.Where("username = ?", dto.Username).First(&user).Error; err != nil {
-		return nil, errors.New("user not found")
+		return nil, linkerrors.ErrUserNotFound
 	}
 
 	if err := utils.ComparePassword(user.Password, dto.Password); err != nil {
-		return nil, errors.New("invalid password")
+		return nil, linkerrors.ErrInvalidPassword
 	}
 
 	token, err := u.tokener.Generate(user.Username, user.Password)

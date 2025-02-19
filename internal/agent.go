@@ -40,7 +40,12 @@ func (m *AgentManager) Remove(key string) {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 	agent := m.agents[key]
-	agent.Close()
+	if agent != nil {
+		err := agent.Close()
+		if err != nil {
+			return
+		}
+	}
 	delete(m.agents, key)
 }
 
@@ -64,15 +69,16 @@ func NewUdpMux(conn net.PacketConn) *ice.UniversalUDPMuxDefault {
 }
 
 type AgentParams struct {
-	LoggerFacotry     logging.LoggerFactory
-	StunUrl           string
-	UdpMux            *ice.UDPMuxDefault
-	UniversalUdpMux   *ice.UniversalUDPMuxDefault
-	OnCandidate       func(c ice.Candidate)
-	TieBreaker        uint32
-	Ufrag             string
-	Pwd               string
-	KeepaliveInterval time.Duration
+	LoggerFacotry           logging.LoggerFactory
+	StunUrl                 string
+	UdpMux                  *ice.UDPMuxDefault
+	UniversalUdpMux         *ice.UniversalUDPMuxDefault
+	OnCandidate             func(c ice.Candidate)
+	TieBreaker              uint32
+	Ufrag                   string
+	Pwd                     string
+	KeepaliveInterval       time.Duration
+	OnConnectionStateChange func(state ice.ConnectionState)
 }
 
 func NewAgentParams(stunUri, ufrag, pwd string, univeralUdpMux *ice.UniversalUDPMuxDefault, tieBreaker uint32) *AgentParams {
@@ -132,6 +138,12 @@ func NewAgent(params *AgentParams) (*ice.Agent, error) {
 		}
 
 		if err = agent.GatherCandidates(); err != nil {
+			return nil, err
+		}
+	}
+
+	if params.OnConnectionStateChange != nil {
+		if err = agent.OnConnectionStateChange(params.OnConnectionStateChange); err != nil {
 			return nil, err
 		}
 	}

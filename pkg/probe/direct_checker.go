@@ -5,6 +5,7 @@ import (
 	"github.com/linkanyio/ice"
 	"k8s.io/klog/v2"
 	internal2 "linkany/internal"
+	"linkany/internal/direct"
 	"linkany/pkg/iface"
 	"net"
 	"strings"
@@ -38,11 +39,11 @@ type DirectChecker struct {
 }
 
 func (dt *DirectChecker) handleOffer(offer internal2.Offer) error {
-	o := offer.(*internal2.DirectOffer)
+	o := offer.(*direct.DirectOffer)
 	return dt.handleDirectOffer(o)
 }
 
-func (dt *DirectChecker) handleDirectOffer(offer *internal2.DirectOffer) error {
+func (dt *DirectChecker) handleDirectOffer(offer *direct.DirectOffer) error {
 	// add remote candidate
 	candidates := strings.Split(offer.Candidate, ";")
 	for _, candString := range candidates {
@@ -101,7 +102,7 @@ func (dt *DirectChecker) ProbeConnect(ctx context.Context, isControlling bool, r
 	var err error
 	candidates, _ := dt.agent.GetRemoteCandidates()
 
-	offer := remoteOffer.(*internal2.DirectOffer)
+	offer := remoteOffer.(*direct.DirectOffer)
 
 	klog.Infof("remote candidates: %v, current node is controlling: %v", candidates, isControlling)
 	if isControlling {

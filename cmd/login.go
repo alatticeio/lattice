@@ -3,7 +3,6 @@ package cmd
 import (
 	"bufio"
 	"context"
-	"errors"
 	"fmt"
 	"github.com/moby/term"
 	"github.com/pion/turn/v4"
@@ -13,6 +12,7 @@ import (
 	"linkany/management/client"
 	grpcclient "linkany/management/grpc/client"
 	"linkany/pkg/config"
+	"linkany/pkg/linkerrors"
 	"linkany/pkg/redis"
 	"os"
 )
@@ -74,7 +74,7 @@ func runLogin(opts loginOptions) error {
 			//	}
 			//} else {
 			if password, err := readLine("password: ", false); err != nil {
-				return errors.New("password required")
+				return linkerrors.ErrPasswordRequired
 			} else {
 				opts.Password = password
 			}

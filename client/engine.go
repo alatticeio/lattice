@@ -152,7 +152,7 @@ func NewEngine(cfg *EngineParams) (*Engine, error) {
 	})
 
 	go func() {
-		if err = engine.signalingClient.Forward(context.Background(), engine.signalChannel, drpclient.ReceiveDetail); err != nil {
+		if err = engine.signalingClient.Forward(context.Background(), engine.signalChannel, drpclient.ReceiveOffer); err != nil {
 			klog.Errorf("forward failed: %v", err)
 		}
 	}()

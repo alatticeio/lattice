@@ -1,4 +1,4 @@
-package probe
+package relay
 
 import (
 	"encoding/json"
@@ -28,12 +28,19 @@ type RelayOffer struct {
 	RelayConn  net.UDPAddr `json:"relayConn,omitempty"`
 }
 
-func NewOffer(mappedAddr, relayConn net.UDPAddr, localKey uint32, offerType OfferType) *RelayOffer {
+type RelayOfferConfig struct {
+	LocalKey   uint32
+	OfferType  OfferType
+	MappedAddr net.UDPAddr
+	RelayConn  net.UDPAddr
+}
+
+func NewOffer(cfg *RelayOfferConfig) *RelayOffer {
 	return &RelayOffer{
-		LocalKey:   localKey,
-		MappedAddr: mappedAddr,
-		RelayConn:  relayConn,
-		OfferType:  offerType,
+		LocalKey:   cfg.LocalKey,
+		MappedAddr: cfg.MappedAddr,
+		RelayConn:  cfg.RelayConn,
+		OfferType:  cfg.OfferType,
 	}
 }
 

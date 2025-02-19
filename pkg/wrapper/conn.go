@@ -232,12 +232,12 @@ func (b *NetBind) makeReceiveIPv4(pc *ipv4.PacketConn, udpConn *net.UDPConn) con
 			msg := &(*msgs)[i]
 			//here should hand stun message
 
-			klog.Infof("got remote bytes: %v", msg.Buffers[0][:msg.N])
 			ok, err := b.universalUdpMux.FilterMessage(msg.Buffers[0], msg.N, msg.Addr.(*net.UDPAddr))
 			if err != nil {
 				klog.Errorf("handle stun message error: %v", err)
-				return 0, err
+				return 0, nil
 			}
+
 			if ok {
 				return 0, nil
 			}

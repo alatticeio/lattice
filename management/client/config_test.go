@@ -8,7 +8,7 @@ import (
 
 func TestDeviceConf_String(t *testing.T) {
 	d := &config.DeviceConf{
-		Device: config.DeviceConfig{
+		Device: &config.DeviceConfig{
 			PrivateKey:   "vVqSz6YQor7p//Shkgu7aHj6HoosXyrx9UlPhbwoDzs=",
 			ListenPort:   51820,
 			Fwmark:       0,

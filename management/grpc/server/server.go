@@ -17,6 +17,7 @@ import (
 	"linkany/management/grpc/mgt"
 	"linkany/management/mapper"
 	"linkany/management/utils"
+	"linkany/pkg/linkerrors"
 	"linkany/pkg/redis"
 	"net"
 	"strconv"
@@ -359,6 +360,10 @@ func (s *Server) sendWatchMessage(eventType mgt.EventType, current *entity.Peer,
 
 	manager := utils.NewWatchManager()
 	for _, peer := range peers {
+		if peer.PublicKey == pubKey {
+			// self skip
+			continue
+		}
 		wc := manager.Get(peer.PublicKey)
 		klog.Infof("fetch the actual channel: %v", wc)
 		message := utils.NewWatchMessage(eventType, []*entity.Peer{current})
@@ -413,5 +418,5 @@ func (s *Server) VerifyToken(ctx context.Context, in *mgt.ManagementMessage) (*m
 		}, nil
 	}
 
-	return nil, errors.New("invalid token")
+	return nil, linkerrors.ErrInvalidToken
 }

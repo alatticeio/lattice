@@ -2,7 +2,7 @@ package probe
 
 import (
 	"fmt"
-	"linkany/internal"
+	"linkany/internal/direct"
 	"testing"
 )
 
@@ -11,7 +11,7 @@ func TestGenerateRandomUfragPwd(t *testing.T) {
 	ufrag, pwd := GenerateRandomUfragPwd()
 	t.Logf("ufrag: %s, pwd: %s", ufrag, pwd)
 
-	offer := &internal.DirectOffer{
+	offer := &direct.DirectOffer{
 		WgPort:    51820,
 		Ufrag:     ufrag,
 		Pwd:       pwd,
@@ -22,7 +22,7 @@ func TestGenerateRandomUfragPwd(t *testing.T) {
 	_, b, _ := offer.Marshal()
 	fmt.Println(b, string(b))
 
-	offer2, err := internal.UnmarshalOfferAnswer(b)
+	offer2, err := direct.UnmarshalOfferAnswer(b)
 	if err != nil {
 		panic(err)
 	}

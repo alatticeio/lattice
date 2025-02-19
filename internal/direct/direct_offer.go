@@ -1,11 +1,12 @@
-package internal
+package direct
 
 import (
 	"encoding/binary"
+	"linkany/internal"
 )
 
 var (
-	_ Offer = (*DirectOffer)(nil)
+	_ internal.Offer = (*DirectOffer)(nil)
 )
 
 type DirectOffer struct {
@@ -24,7 +25,7 @@ type DirectOfferConfig struct {
 	Candidates string
 }
 
-func NewDirectOffer(config *DirectOfferConfig) *DirectOffer {
+func NewOffer(config *DirectOfferConfig) *DirectOffer {
 	return &DirectOffer{
 		WgPort:    config.WgPort,
 		Candidate: config.Candidates,

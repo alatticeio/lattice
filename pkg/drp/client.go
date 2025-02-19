@@ -10,7 +10,10 @@ import (
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 	"k8s.io/klog/v2"
 	"linkany/internal"
+	"linkany/internal/direct"
+	"linkany/internal/relay"
 	"linkany/pkg/iface"
+	"linkany/pkg/linkerrors"
 	"linkany/pkg/probe"
 	signalingclient "linkany/signaling/client"
 	"linkany/signaling/grpc/signaling"
@@ -71,9 +74,39 @@ func (c *Client) SendOffer(messageType signaling.MessageType, srcKey, dstKey str
 	return nil
 }
 
-func (c *Client) ReceiveOffer() (internal.Offer, error) {
-	//TODO implement me
-	panic("implement me")
+func (c *Client) ReceiveOffer(msg *signaling.EncryptMessage) error {
+	var resp signaling.EncryptMessageReqAndResp
+	var err error
+
+	if err = proto.Unmarshal(msg.Body, &resp); err != nil {
+		return err
+	}
+
+	klog.Infof("receive from signaling, pubkey: %v, userId: %v", resp.SrcPublicKey, resp.DstPublicKey)
+
+	switch resp.Type {
+	case signaling.MessageType_MessageForwardType:
+
+	case signaling.MessageType_MessageDirectOfferType:
+		go func() {
+			err := c.handleResponse(&resp)
+			if err != nil {
+				klog.Errorf("handle response failed: %v", err)
+			}
+		}()
+	case signaling.MessageType_MessageRelayOfferType:
+		// handle relay offer
+		go func() {
+			err := c.handleRelayOffer(&resp)
+			if err != nil {
+				klog.Errorf("handle relay offer failed: %v", err)
+			}
+		}()
+		//case internal.MessageRelayOfferResponseType:
+		//	go c.handleRelayOfferResponse(ft, int(fl+5), b)
+	}
+
+	return nil
 }
 
 type ClientConfig struct {
@@ -109,56 +142,29 @@ type IndexTable struct {
 	Clients map[string]*Clientset
 }
 
-// ReceiveDetail receive data from drp server
-func (c *Client) ReceiveDetail(msg *signaling.EncryptMessage) error {
-
-	var resp signaling.EncryptMessageReqAndResp
-	var err error
-
-	if err = proto.Unmarshal(msg.Body, &resp); err != nil {
-		return err
-	}
-
-	klog.Infof("receive from signaling, pubkey: %v, userId: %v", resp.SrcPublicKey, resp.DstPublicKey)
-
-	switch resp.Type {
-	case signaling.MessageType_MessageForwardType:
-
-	case signaling.MessageType_MessageDirectOfferType:
-		go c.handleNodeInfo(&resp)
-	case signaling.MessageType_MessageRelayOfferType:
-		// handle relay offer
-		go c.handleRelayOffer(&resp)
-		//case internal.MessageRelayOfferResponseType:
-		//	go c.handleRelayOfferResponse(ft, int(fl+5), b)
-	}
-
-	return nil
-}
-
-func (c *Client) handleNodeInfo(msg *signaling.EncryptMessageReqAndResp) error {
+func (c *Client) handleResponse(msg *signaling.EncryptMessageReqAndResp) error {
 	var err error
 	remoteKey := msg.SrcPublicKey
 	dstKey := msg.DstPublicKey
 
 	klog.Infof("remoteKey: %v, dstKey: %v", remoteKey, dstKey)
 
-	offerAnswer, err := internal.UnmarshalOfferAnswer(msg.Body)
+	offerAnswer, err := direct.UnmarshalOfferAnswer(msg.Body)
 	if err != nil {
 		klog.Errorf("unmarshal offer answer failed: %v", err)
 		return err
 	}
-	klog.Infof("got offer answer info, remote wgPort:%d,  remoteUfrag: %s, remotePwd: %s, remote localKey: %v, candidate: %v", offerAnswer.WgPort, offerAnswer.Ufrag, offerAnswer.Pwd, offerAnswer.LocalKey, offerAnswer.Candidate)
+	klog.Infof("receive offer answer info, remote wgPort:%d,  remoteUfrag: %s, remotePwd: %s, remote localKey: %v, candidate: %v", offerAnswer.WgPort, offerAnswer.Ufrag, offerAnswer.Pwd, offerAnswer.LocalKey, offerAnswer.Candidate)
 
 	agent, ok := c.agentManager.Get(remoteKey) // agent have created when fetch peers start working
 	if !ok {
 		klog.Errorf("agent not found")
-		return errors.New("agent not found")
+		return linkerrors.ErrAgentNotFound
 	}
 
 	prober := c.probers.GetProber(remoteKey)
 	if prober == nil {
-		return errors.New("prober not found")
+		return linkerrors.ErrProberNotFound
 	}
 
 	if prober.IsForceRelay() {
@@ -189,7 +195,7 @@ func (c *Client) handleRelayOffer(msg *signaling.EncryptMessageReqAndResp) error
 
 	klog.Infof("remoteKey: %v, dstKey: %v", remoteKey, dstKey)
 
-	offerAnswer, err := probe.UnmarshalOffer(msg.Body)
+	offerAnswer, err := relay.UnmarshalOffer(msg.Body)
 	if err != nil {
 		klog.Errorf("unmarshal offer answer failed: %v", err)
 		return err
@@ -197,7 +203,7 @@ func (c *Client) handleRelayOffer(msg *signaling.EncryptMessageReqAndResp) error
 
 	prober := c.probers.GetProber(remoteKey)
 	if prober == nil {
-		return errors.New("prober not found")
+		return linkerrors.ErrProberNotFound
 	}
 	if prober.GetRelayChecker() == nil {
 		rc := probe.NewRelayChecker(&probe.RelayCheckerConfig{
@@ -220,7 +226,7 @@ func (c *Client) handleRelayOfferResponse(resp *signaling.EncryptMessageReqAndRe
 
 	klog.Infof("handle remoteKey: %v, srcKey: %v", remoteKey, srcKey)
 
-	offerAnswer, err := probe.UnmarshalOffer(resp.Body)
+	offerAnswer, err := relay.UnmarshalOffer(resp.Body)
 	if err != nil {
 		klog.Errorf("unmarshal offer answer failed: %v", err)
 		return err

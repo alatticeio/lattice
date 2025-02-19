@@ -3,7 +3,6 @@ package client
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"github.com/golang/protobuf/proto"
 	"github.com/linkanyio/ice"
@@ -17,6 +16,7 @@ import (
 	grpcserver "linkany/management/grpc/server"
 	"linkany/pkg/config"
 	"linkany/pkg/drp"
+	"linkany/pkg/linkerrors"
 	"linkany/pkg/probe"
 	"linkany/signaling/grpc/signaling"
 	turnclient "linkany/turn/client"
@@ -242,9 +242,11 @@ func (c *Client) WatchMessage(msg *mgt.WatchMessage) error {
 	for _, peer := range peers {
 		switch msg.Type {
 		case mgt.EventType_DELETE:
+			klog.Infof("watching type: %v >>> delete peer: %v", mgt.EventType_DELETE, peer)
 			//TODO remove peer from local cache & agentManager
 			c.peersManager.Remove(peer.PublicKey)
 		case mgt.EventType_ADD:
+			klog.Infof("watching type: %v >>> add peer: %v", mgt.EventType_ADD, peer)
 			if err = c.AddPeer(&peer); err != nil {
 				klog.Errorf("add peer failed: %v", err)
 			}
@@ -257,11 +259,26 @@ func (c *Client) WatchMessage(msg *mgt.WatchMessage) error {
 
 func (c *Client) AddPeer(p *entity.Peer) error {
 	var err error
+	defer func() {
+		if err != nil {
+			c.clear(p.PublicKey)
+		}
+	}()
 	if p.PublicKey == c.keyManager.GetPublicKey() {
 		klog.Warningf("self peer, skip")
-		err = errors.New("self peer, skip")
-		return err
+		return nil
 	}
+
+	prober := c.GetProber(p.PublicKey)
+	if prober != nil {
+		switch prober.ConnectionState {
+		case internal.ConnectionStateConnected:
+			return nil
+		case internal.ConnectionStateChecking:
+			return nil
+		}
+	}
+
 	peer := c.ToConfigPeer(p)
 	mappedPeer := c.peersManager.GetPeer(peer.PublicKey)
 	if mappedPeer == nil {
@@ -295,191 +312,120 @@ func (c *Client) AddPeer(p *entity.Peer) error {
 			},
 		})
 
-		klog.Infof("creating agent for peer: %s", peer.PublicKey)
-		if err := agent.OnConnectionStateChange(func(connectionState ice.ConnectionState) {
-			switch connectionState {
-			case ice.ConnectionStateDisconnected:
-				peer.Connected.Store(false)
-				c.agentManager.Remove(peer.PublicKey)
-				klog.Infof("agent disconnected, remove agent")
-				break
-			case ice.ConnectionStateFailed:
-				peer.P2PFlag.Store(true)
-				peer.Connected.Store(true)
-				peer.Endpoint = "relay"
-				c.agentManager.Remove(peer.PublicKey)
-				klog.Infof("check connection failed, will use relay, remove agent")
-				break
-			default:
-				c.peersManager.AddPeer(peer.PublicKey, peer)
-			}
-		}); err != nil {
+		if err != nil {
 			return err
 		}
+
+		klog.Infof("creating agent for peer: %s", peer.PublicKey)
 
 		c.agentManager.Add(peer.PublicKey, agent)
 	}
 
-	// start probeConn
-	go func() {
-		err := c.probeConn(agent, peer, gatherCh)
-		if err != nil {
-			klog.Errorf("probeConn failed: %v", err)
-		}
-	}()
-
-	return nil
+	// start probe
+	return c.probe(agent, peer, gatherCh)
 }
 
-func GetCandidates(agent *ice.Agent, gatherCh chan interface{}) string {
-	<-gatherCh
-	var err error
-	var ch = make(chan struct{})
-	var candidates []ice.Candidate
-	go func() {
-		for {
-			candidates, err = agent.GetLocalCandidates()
-			if err != nil || len(candidates) == 0 {
-				continue
-			}
-
-			close(ch)
-			break
-		}
-	}()
-
-	select {
-	case <-ch:
-	}
-
-	var candString string
-	for i, candidate := range candidates {
-		candString = candidate.Marshal()
-		if i != len(candidates)-1 {
-			candString += ";"
-		}
-	}
-
-	klog.Infof("gathered candidates >>>: %v", candString)
-	return candString
-}
-
-func (c *Client) probeConn(agent *ice.Agent, peer *config.Peer, gatherCh chan interface{}) error {
-	peer.ConnectionState.Store(true)
-	directContact := func(agent *ice.Agent, peer *config.Peer) error {
-		//send NodeInfo
-		candidates := GetCandidates(agent, gatherCh)
-		directOffer := internal.NewDirectOffer(&internal.DirectOfferConfig{
-			WgPort:     51820,
-			Ufrag:      c.ufrag,
-			Pwd:        c.pwd,
-			LocalKey:   c.agentManager.GetLocalKey(),
-			Candidates: candidates,
+func (c *Client) probe(agent *ice.Agent, peer *config.Peer, gatherCh chan interface{}) error {
+	prober := c.proberManager.GetProber(peer.PublicKey)
+	if prober == nil {
+		c.proberMux.Lock()
+		defer c.proberMux.Unlock()
+		prober = probe.NewProber(&probe.ProberConfig{
+			OfferManager:     c.drpClient,
+			AgentManager:     c.agentManager,
+			WGConfiger:       c.proberManager.GetWgConfiger(),
+			SrcKey:           c.keyManager.GetPublicKey(),
+			Key:              peer.PublicKey,
+			ProberManager:    c.proberManager,
+			IsForceRelay:     c.proberManager.IsForceRelay(),
+			TurnClient:       c.turnClient,
+			SignalingChannel: c.signalChannel,
+			Ufrag:            c.ufrag,
+			Pwd:              c.pwd,
+			GatherChan:       gatherCh,
+			ProberDone:       make(chan interface{}),
 		})
-
-		prober := c.proberManager.GetProber(peer.PublicKey)
-		if prober == nil {
-			c.proberMux.Lock()
-			defer c.proberMux.Unlock()
-			prober = probe.NewProber(&probe.ProberConfig{
-				DirectOfferManager: c.drpClient,
-				RelayOfferManager:  c.drpClient,
-				AgentManager:       c.agentManager,
-				WGConfiger:         c.proberManager.GetWgConfiger(),
-				Key:                peer.PublicKey,
-				ProberManager:      c.proberManager,
-				IsForceRelay:       c.proberManager.IsForceRelay(),
-				TurnClient:         c.turnClient,
-				SignalingChannel:   c.signalChannel,
-			})
-			c.proberManager.AddProber(peer.PublicKey, prober)
-		}
-
-		limitRetries := 7
-		retries := 0
-		timer := time.NewTimer(1 * time.Second)
-		for {
-			if retries > limitRetries {
-				return errors.New("direct check until limit times")
-			}
-
-			select {
-			case <-timer.C:
-				if prober.ConnectionState != internal.ConnectionStateConnected {
-					if err := prober.Start(c.keyManager.GetPublicKey(), peer.PublicKey, directOffer); err != nil {
-						klog.Errorf("send directOffer failed: %v", err)
-					}
-				}
-				retries++
-				timer.Reset(10 * time.Second)
-			}
-
-		}
-
-		return nil
+		c.proberManager.AddProber(peer.PublicKey, prober)
 	}
 
-	relayContact := func(peer *config.Peer) error {
-		//send NodeInfo
-		var err error
-
-		relayInfo, err := c.turnClient.GetRelayInfo(true)
-		if err != nil {
-			return errors.New("get relay info failed")
-		}
-
-		relayAddr, err := turnclient.AddrToUdpAddr(relayInfo.RelayConn.LocalAddr())
-
-		relayOffer := probe.NewOffer(relayInfo.MappedAddr, *relayAddr, c.agentManager.GetLocalKey(), probe.OfferTypeRelayOffer)
-
-		dstPubKey := peer.PublicKey
-
-		prober := c.proberManager.GetProber(dstPubKey)
-		if prober == nil {
-			c.proberMux.Lock()
-			defer c.proberMux.Unlock()
-			prober = probe.NewProber(&probe.ProberConfig{
-				DirectOfferManager: c.drpClient,
-				RelayOfferManager:  c.drpClient,
-				AgentManager:       c.agentManager,
-				WGConfiger:         c.proberManager.GetWgConfiger(),
-				Key:                dstPubKey,
-				ProberManager:      c.proberManager,
-				IsForceRelay:       c.proberManager.IsForceRelay(),
-				TurnClient:         c.turnClient,
-			})
-			c.proberManager.AddProber(dstPubKey, prober)
-		}
-
-		if err := prober.Start(c.keyManager.GetPublicKey(), dstPubKey, relayOffer); err != nil {
-			klog.Errorf("send relayOffer failed: %v", err)
-			return err
-		}
-
-		return nil
+	if prober == nil {
+		return linkerrors.ErrProberNotFound
 	}
 
-	if c.proberManager.IsForceRelay() {
-		go func() {
-			err := relayContact(peer)
-			if err != nil {
-
-			}
-		}()
-	} else {
-		go func() {
-			err := directContact(agent, peer)
-			if err != nil {
-				klog.Errorf("directContact failed: %v", err)
-				// use relay
-				if err = relayContact(peer); err != nil {
-					klog.Errorf("relayContact failed, unavaiable connect to peer: %v, %v", err, peer.PublicKey)
-				}
-			}
-		}()
+	prober.OnConnectionStateChange = func(state internal.ConnectionState) {
+		switch state {
+		case internal.ConnectionStateFailed:
+			prober.Clear(peer.PublicKey)
+			c.clear(peer.PublicKey) // TODO combine together
+			peer.Connected.Store(false)
+		case internal.ConnectionStateConnected:
+			peer.Connected.Store(true)
+		case internal.ConnectionStateChecking:
+		default:
+			peer.Connected.Store(false)
+		}
 	}
 
+	if err := agent.OnConnectionStateChange(func(connectionState ice.ConnectionState) {
+		klog.Infof("connection state changed: %v", connectionState)
+		switch connectionState {
+		case ice.ConnectionStateConnected:
+			prober.UpdateConnectionState(internal.ConnectionStateConnected)
+		case ice.ConnectionStateChecking:
+			prober.UpdateConnectionState(internal.ConnectionStateChecking)
+		case ice.ConnectionStateFailed, ice.ConnectionStateClosed, ice.ConnectionStateDisconnected:
+			prober.UpdateConnectionState(internal.ConnectionStateFailed)
+		default:
+			prober.UpdateConnectionState(internal.ConnectionStateNew)
+		}
+	}); err != nil {
+		return err
+	}
+
+	go c.doProbe(prober, peer)
 	return nil
+}
+
+func (c *Client) doProbe(prober *probe.Prober, peer *config.Peer) {
+
+	var err error
+	defer func() {
+		if err != nil {
+			klog.Errorf("probe failed: %v", err)
+			prober.UpdateConnectionState(internal.ConnectionStateFailed)
+		}
+	}()
+	limitRetries := 7
+	retries := 0
+	timer := time.NewTimer(1 * time.Second)
+	for {
+		if retries > limitRetries {
+			klog.Errorf("direct check until limit times")
+			err = linkerrors.ErrProbeFailed
+			return
+		}
+
+		select {
+		case <-timer.C:
+			switch prober.ConnectionState {
+			case internal.ConnectionStateConnected, internal.ConnectionStateFailed:
+				return
+			default:
+				klog.Infof("direct checking, retry %d times for peer: %s", retries, peer.PublicKey)
+				if err := prober.Start(c.keyManager.GetPublicKey(), peer.PublicKey); err != nil {
+					klog.Errorf("send directOffer failed: %v", err)
+					err = linkerrors.ErrProbeFailed
+					return
+				} else if prober.ConnectionState != internal.ConnectionStateConnected {
+					retries++
+					timer.Reset(10 * time.Second)
+				}
+			}
+		case <-prober.ProberDone:
+			err = linkerrors.ErrProbeFailed
+			return
+		}
+	}
 }
 
 // TODO implement this function
@@ -578,4 +524,18 @@ func (c *Client) Register(privateKey, publicKey, token string) (*config.DeviceCo
 		return nil, err
 	}
 	return &config.DeviceConf{}, nil
+}
+
+func (c *Client) clear(pubKey string) {
+	defer func() {
+		klog.Warningf("clear unconnected peer: %s", pubKey)
+	}()
+	//c.peersManager.Remove(pubKey)
+	c.agentManager.Remove(pubKey)
+	c.proberManager.Remove(pubKey)
+}
+
+func (c *Client) GetProber(pubKey string) *probe.Prober {
+	return c.proberManager.GetProber(pubKey)
+
 }

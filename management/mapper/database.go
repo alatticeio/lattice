@@ -4,7 +4,11 @@ import (
 	"fmt"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
+	"log"
+	"os"
 	"sync"
+	"time"
 )
 
 type DatabaseConfig struct {
@@ -39,11 +43,18 @@ func NewDatabaseService(cfg *DatabaseConfig) *DatabaseService {
 }
 
 func connect(cfg *DatabaseConfig) (*gorm.DB, error) {
-	// refer https://github.com/go-sql-driver/mysql#dsn-data-source-name for details
-	//dsn := "user:pass@tcp(127.0.0.1:3306)/dbname?charset=utf8mb4&parseTime=True&loc=Local"
+
+	newLogger := logger.New(log.New(os.Stdout, "\r\n", log.LstdFlags), logger.Config{
+		SlowThreshold: time.Second,
+		LogLevel:      logger.Info,
+		Colorful:      true,
+	})
+
 	dsn :=
 		fmt.Sprintf("%s:%s@tcp(%s)/%s?charset=utf8mb4&parseTime=True&loc=Local", cfg.User, cfg.Password, fmt.Sprintf("%s:%d", cfg.Host, cfg.Port), cfg.Name)
-	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{})
+	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{
+		Logger: newLogger,
+	})
 	if err != nil {
 		return nil, err
 	}

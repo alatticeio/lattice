@@ -2,8 +2,8 @@ package probe
 
 import (
 	"context"
-	"k8s.io/klog/v2"
 	"linkany/internal"
+	"linkany/internal/relay"
 	"linkany/pkg/iface"
 	"linkany/signaling/grpc/signaling"
 	turnclient "linkany/turn/client"
@@ -62,7 +62,7 @@ type RelayMessage struct {
 	relayAddr net.Addr
 }
 
-func (c *RelayChecker) ProbeConnect(ctx context.Context, isControlling bool, offer *RelayOffer) error {
+func (c *RelayChecker) ProbeConnect(ctx context.Context, isControlling bool, offer *relay.RelayOffer) error {
 	c.startCh = make(chan struct{})
 	c.startTime = time.Now()
 
@@ -83,9 +83,9 @@ func (c *RelayChecker) ProbeConnect(ctx context.Context, isControlling bool, off
 
 	offerType := offer.OfferType
 	switch offerType {
-	case OfferTypeRelayOffer:
+	case relay.OfferTypeRelayOffer:
 		return c.OnSuccess(offer.RelayConn.String())
-	case OfferTypeRelayOfferAnswer:
+	case relay.OfferTypeRelayOfferAnswer:
 		return c.OnSuccess(offer.MappedAddr.String())
 	}
 
@@ -94,28 +94,16 @@ func (c *RelayChecker) ProbeConnect(ctx context.Context, isControlling bool, off
 
 func (c *RelayChecker) handleOffer(offer internal.Offer) error {
 	// set the destination permission
-	relayOffer := offer.(*RelayOffer)
+	relayOffer := offer.(*relay.RelayOffer)
 
 	switch relayOffer.OfferType {
-	case OfferTypeRelayOffer:
-		// write back a response
-		info, err := c.prober.turnClient.GetRelayInfo(false)
-		if err != nil {
-			return err
-		}
-		klog.Infof(">>>>>>relay offer: %v", info.MappedAddr.String())
+	case relay.OfferTypeRelayOffer:
 
-		newOffer := &RelayOffer{
-			LocalKey:   c.agentManager.GetLocalKey(),
-			MappedAddr: info.MappedAddr,
-			OfferType:  OfferTypeRelayOfferAnswer,
-		}
-
-		if err = c.prober.SendOffer(signaling.MessageType_MessageRelayOfferType, c.key, c.dstKey, newOffer); err != nil {
+		if err := c.prober.SendOffer(signaling.MessageType_MessageRelayAnswerType, c.key, c.dstKey); err != nil {
 			return err
 		}
 		return c.OnSuccess(relayOffer.RelayConn.String())
-	case OfferTypeRelayOfferAnswer:
+	case relay.OfferTypeRelayOfferAnswer:
 		if err := c.prober.turnClient.CreatePermission(&relayOffer.MappedAddr); err != nil {
 			return err
 		}

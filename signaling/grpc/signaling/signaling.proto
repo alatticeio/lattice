@@ -28,5 +28,6 @@ message EncryptMessageReqAndResp {
 enum MessageType {
   MessageDirectOfferType = 0;
   MessageRelayOfferType = 1;
-  MessageForwardType = 2;
+  MessageRelayAnswerType = 2;
+  MessageForwardType = 3;
 }

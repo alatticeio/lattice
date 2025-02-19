@@ -36,7 +36,6 @@ func (f *ForwardManager) GetChannel(pubKey string) (chan *ForwardMessage, bool) 
 	f.lock.Lock()
 	defer f.lock.Unlock()
 	ch, ok := f.m[pubKey]
-	klog.Infof("get channel for %v:%v", pubKey, ok)
 	return ch, ok
 }
 

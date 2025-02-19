@@ -82,11 +82,10 @@ func (s *Server) Forward(stream grpc.BidiStreamingServer[signaling.EncryptMessag
 	}
 
 	go func() {
-		klog.Infof("start forward signaling stream, publicKey : %v", req.DstPublicKey)
 		for {
 			select {
 			case forwardMsg := <-channel:
-				klog.Infof("forward message to client: %v, streak: %v", forwardMsg, stream)
+				klog.Infof("forward message to client: %v", req.SrcPublicKey)
 				if err := stream.Send(&signaling.EncryptMessage{Body: forwardMsg.Body}); err != nil {
 					s, ok := status.FromError(err)
 					if ok && s.Code() == codes.Canceled {
@@ -99,8 +98,8 @@ func (s *Server) Forward(stream grpc.BidiStreamingServer[signaling.EncryptMessag
 					return
 				}
 			case <-done:
-				s.forwardManager.DeleteChannel(req.DstPublicKey) // because client closed
-				klog.Infof("close forward signaling stream")
+				s.forwardManager.DeleteChannel(req.SrcPublicKey) // because client closed
+				klog.Infof("close forward signaling stream, delete channel: %v", req.SrcPublicKey)
 				return
 			}
 		}
@@ -143,10 +142,10 @@ func (s *Server) recv(stream grpc.BidiStreamingServer[signaling.EncryptMessage, 
 		s, ok := status.FromError(err)
 		if ok && s.Code() == codes.Canceled {
 			klog.Infof("client canceled")
-			return signaling.EncryptMessageReqAndResp{}, linkerrors.ErrorClientCanceled, nil
+			return signaling.EncryptMessageReqAndResp{}, linkerrors.ErrClientCanceled, nil
 		} else if err == io.EOF {
 			klog.Infof("client closed")
-			return signaling.EncryptMessageReqAndResp{}, linkerrors.ErrorClientClosed, nil
+			return signaling.EncryptMessageReqAndResp{}, linkerrors.ErrClientClosed, nil
 		}
 
 		klog.Errorf("recv msg failed: %v", err)

@@ -8,5 +8,5 @@ type Offer interface {
 
 type OfferManager interface {
 	SendOffer(signaling.MessageType, string, string, Offer) error
-	ReceiveOffer() (Offer, error)
+	ReceiveOffer(message *signaling.EncryptMessage) error
 }
