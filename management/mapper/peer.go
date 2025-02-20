@@ -51,7 +51,6 @@ func (p *PeerMapper) Register(e *dto.PeerDto) (*entity.Peer, error) {
 	addressIP := fmt.Sprintf("10.0.%d.%d", (count-1)/254, ((count-1)%254)+1)
 
 	peer := &entity.Peer{
-		ID:                  e.ID,
 		InstanceID:          e.InstanceID,
 		UserID:              e.UserID,
 		Name:                e.Name,
@@ -65,9 +64,6 @@ func (p *PeerMapper) Register(e *dto.PeerDto) (*entity.Peer, error) {
 		AllowedIPs:          addressIP + "/32",
 		RelayIP:             e.RelayIP,
 		TieBreaker:          e.TieBreaker,
-		UpdatedAt:           e.UpdatedAt,
-		DeletedAt:           e.DeletedAt,
-		CreatedAt:           e.CreatedAt,
 		Ufrag:               e.Ufrag,
 		Pwd:                 e.Pwd,
 		Port:                e.Port,

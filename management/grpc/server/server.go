@@ -231,18 +231,14 @@ func (s *Server) Watch(server mgt.ManagementService_WatchServer) error {
 
 // Keepalive acts as a client is living， server will send 'ping' packet to client
 // client will response packet to server with in 10 seconds, if not, client is offline, otherwise onlie.
-func (s *Server) Keepalive(server mgt.ManagementService_KeepaliveServer) error {
+func (s *Server) Keepalive(stream mgt.ManagementService_KeepaliveServer) error {
 	var err error
-	var msg *mgt.ManagementMessage
+	var req *mgt.Request
 	var pubKey string
 	var userId string
 
 	ctx := context.Background()
-	msg, err = server.Recv()
-	var req mgt.Request
-	if err = proto.Unmarshal(msg.Body, &req); err != nil {
-		return err
-	}
+	req, err = s.recv(stream)
 	pubKey = req.PubKey
 
 	user, err := s.userController.Get(req.Token)
@@ -266,27 +262,20 @@ func (s *Server) Keepalive(server mgt.ManagementService_KeepaliveServer) error {
 	k := NewWatchKeeper()
 
 	check := func(ctx context.Context) error {
-		msg, err = server.Recv()
+		req, err := s.recv(stream)
 		if err != nil {
 			return err
 		}
-
-		var req mgt.Request
-		if err = proto.Unmarshal(msg.Body, &req); err != nil {
-			return err
-		}
-
-		klog.Infof("got keepalive resp packet from client: %v", &req)
+		klog.Infof("got keepalive resp packet from client: %s", req.PubKey)
 		return nil
 	}
 
 	timer := time.NewTimer(10 * time.Second)
 	for {
-		timer.Reset(10 * time.Second)
 		select {
 		case <-timer.C:
 			// check 10s receive the response
-			newCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+			newCtx, cancel := context.WithTimeout(ctx, 20*time.Second)
 
 			checkReq := &mgt.Request{PubKey: pubKey}
 			body, err := proto.Marshal(checkReq)
@@ -295,33 +284,37 @@ func (s *Server) Keepalive(server mgt.ManagementService_KeepaliveServer) error {
 				cancel()
 				return err
 			}
-			if err = server.Send(&mgt.ManagementMessage{Body: body}); err != nil {
-				s, ok := status.FromError(err)
-				if ok && s.Code() == codes.Canceled {
-					klog.Infof("send canceled")
-					cancel()
-					return nil
-				} else if errors.Is(err, io.EOF) {
-					// client exit
-					klog.Infof("peer %s is disconnected", pubKey)
-					cancel()
-					return nil
-				}
-
-				cancel()
-				return err
-			}
 
 			checkChannel := make(chan interface{})
 
 			// work
 			go func() {
+				// got resp, check success
+				var err error
+				defer func() {
+					if err != nil {
+						cancel()
+					}
+				}()
+
+				if err = stream.Send(&mgt.ManagementMessage{Body: body}); err != nil {
+					s, ok := status.FromError(err)
+					if ok && s.Code() == codes.Canceled {
+						klog.Infof("send canceled")
+					} else if errors.Is(err, io.EOF) {
+						// client exit
+						klog.Infof("peer %s is disconnected", pubKey)
+					}
+				}
+
 				if err = check(newCtx); err != nil {
 					klog.Errorf("check failed: %v", err)
-					cancel()
 					return
 				}
+
 				close(checkChannel)
+				timer.Reset(10 * time.Second)
+
 			}()
 
 			select {
@@ -332,6 +325,7 @@ func (s *Server) Keepalive(server mgt.ManagementService_KeepaliveServer) error {
 					klog.Errorf("send watch message failed: %v", err)
 				}
 				k.Online.Store(false)
+				return fmt.Errorf("exit stream: %v", stream)
 			case <-checkChannel:
 				klog.Infof("peer %s is online", pubKey)
 				//if !k.Status.Load() {
@@ -339,11 +333,33 @@ func (s *Server) Keepalive(server mgt.ManagementService_KeepaliveServer) error {
 					return err
 				}
 				k.Online.Store(true)
-				//}
 
 			}
 		}
 	}
+}
+
+func (s *Server) recv(stream mgt.ManagementService_KeepaliveServer) (*mgt.Request, error) {
+	msg, err := stream.Recv()
+	if err != nil {
+		s, ok := status.FromError(err)
+		if ok && s.Code() == codes.Canceled {
+			klog.Infof("receive canceled")
+			return nil, err
+		} else if errors.Is(err, io.EOF) {
+			// client exit
+			klog.Infof("client closed")
+			return nil, err
+		}
+		return nil, err
+	}
+	var req mgt.Request
+	if err = proto.Unmarshal(msg.Body, &req); err != nil {
+		return nil, err
+	}
+
+	return &req, nil
+
 }
 
 func (s *Server) sendWatchMessage(eventType mgt.EventType, current *entity.Peer, pubKey, userId string, status int) error {

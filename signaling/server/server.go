@@ -75,8 +75,8 @@ func (s *Server) Forward(stream grpc.BidiStreamingServer[signaling.EncryptMessag
 		return err
 	}
 
-	channel, bool := s.forwardManager.GetChannel(req.SrcPublicKey)
-	if !bool {
+	channel, b := s.forwardManager.GetChannel(req.SrcPublicKey)
+	if !b {
 		klog.Errorf("channel not exists: %v", req.SrcPublicKey)
 		return errors.New("channel not exists")
 	}

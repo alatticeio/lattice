@@ -82,7 +82,7 @@ func (c *Client) ReceiveOffer(msg *signaling.EncryptMessage) error {
 		return err
 	}
 
-	klog.Infof("receive from signaling, pubkey: %v, userId: %v", resp.SrcPublicKey, resp.DstPublicKey)
+	klog.Infof("receive from signaling service, srcPubKey: %v, dstPubKey: %v", resp.SrcPublicKey, resp.DstPublicKey)
 
 	switch resp.Type {
 	case signaling.MessageType_MessageForwardType:
@@ -145,9 +145,9 @@ type IndexTable struct {
 func (c *Client) handleResponse(msg *signaling.EncryptMessageReqAndResp) error {
 	var err error
 	remoteKey := msg.SrcPublicKey
-	dstKey := msg.DstPublicKey
+	//dstKey := msg.DstPublicKey
 
-	klog.Infof("remoteKey: %v, dstKey: %v", remoteKey, dstKey)
+	//klog.Infof("remoteKey: %v, dstKey: %v", remoteKey, dstKey)
 
 	offerAnswer, err := direct.UnmarshalOfferAnswer(msg.Body)
 	if err != nil {
@@ -156,12 +156,6 @@ func (c *Client) handleResponse(msg *signaling.EncryptMessageReqAndResp) error {
 	}
 	klog.Infof("receive offer answer info, remote wgPort:%d,  remoteUfrag: %s, remotePwd: %s, remote localKey: %v, candidate: %v", offerAnswer.WgPort, offerAnswer.Ufrag, offerAnswer.Pwd, offerAnswer.LocalKey, offerAnswer.Candidate)
 
-	agent, ok := c.agentManager.Get(remoteKey) // agent have created when fetch peers start working
-	if !ok {
-		klog.Errorf("agent not found")
-		return linkerrors.ErrAgentNotFound
-	}
-
 	prober := c.probers.GetProber(remoteKey)
 	if prober == nil {
 		return linkerrors.ErrProberNotFound
@@ -169,6 +163,12 @@ func (c *Client) handleResponse(msg *signaling.EncryptMessageReqAndResp) error {
 
 	if prober.IsForceRelay() {
 		return nil
+	}
+
+	agent, ok := c.agentManager.Get(remoteKey) // agent have created when fetch peers start working
+	if !ok {
+		klog.Errorf("agent not found")
+		return linkerrors.ErrAgentNotFound
 	}
 
 	if prober.GetDirectChecker() == nil {

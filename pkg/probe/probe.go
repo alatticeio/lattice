@@ -195,9 +195,9 @@ func (p *Prober) ProbeSuccess(publicKey, addr string) error {
 		klog.Infof("prober set to: %v", internal.ConnectionStateConnected)
 	}()
 	var err error
-	klog.Infof("peer remoteKey: %v, remote addr: %v", publicKey, addr)
 
 	peer := p.wgConfiger.GetPeersManager().GetPeer(publicKey)
+	klog.Infof("peer remoteKey: %v, allowIps: %v, remote addr: %v", publicKey, peer.AllowedIps, addr)
 	if err = p.wgConfiger.AddPeer(&iface.SetPeer{
 		PublicKey:            publicKey,
 		Endpoint:             addr,
