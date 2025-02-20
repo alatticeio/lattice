@@ -255,9 +255,20 @@ func (s *Server) Keepalive(stream mgt.ManagementService_KeepaliveServer) error {
 		return fmt.Errorf("peer has not connected to managent server")
 	}
 
-	currentPeer := &entity.Peer{
-		PublicKey: pubKey,
+	peers, err := s.peerController.List(&mapper.QueryParams{
+		PubKey: &pubKey,
+	})
+
+	if err != nil {
+		klog.Errorf("list peers failed: %v", err)
+		return err
 	}
+
+	if len(peers) == 0 {
+		return fmt.Errorf("peer not found")
+	}
+
+	currentPeer := peers[0]
 
 	k := NewWatchKeeper()
 
@@ -363,10 +374,11 @@ func (s *Server) recv(stream mgt.ManagementService_KeepaliveServer) (*mgt.Reques
 }
 
 func (s *Server) sendWatchMessage(eventType mgt.EventType, current *entity.Peer, pubKey, userId string, status int) error {
+	state := 1
 	peers, err := s.peerController.List(&mapper.QueryParams{
 		PubKey: &pubKey,
 		UserId: &userId,
-		Status: &status,
+		Status: &state,
 	})
 
 	if err != nil {
@@ -381,7 +393,7 @@ func (s *Server) sendWatchMessage(eventType mgt.EventType, current *entity.Peer,
 			continue
 		}
 		wc := manager.Get(peer.PublicKey)
-		klog.Infof("fetch the actual channel: %v", wc)
+		klog.Infof("fetch actual channel %v for peer: %v", wc, peer.PublicKey)
 		message := utils.NewWatchMessage(eventType, []*entity.Peer{current})
 		// add to channel, will send to client
 		if wc != nil {

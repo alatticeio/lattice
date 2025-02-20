@@ -78,6 +78,9 @@ func (c *Client) ReceiveOffer(msg *signaling.EncryptMessage) error {
 	var resp signaling.EncryptMessageReqAndResp
 	var err error
 
+	if msg.Body == nil {
+		return errors.New("body is nil")
+	}
 	if err = proto.Unmarshal(msg.Body, &resp); err != nil {
 		return err
 	}

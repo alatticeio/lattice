@@ -17,6 +17,7 @@ type SetPeer struct {
 	Endpoint             string
 	AllowedIPs           string
 	PersistentKeepalived int
+	Remove               bool
 }
 
 func (p *SetPeer) String() string {
@@ -50,6 +51,9 @@ func (p *SetPeer) String() string {
 	printf(&sb, "persistent_keepalive_interval", strconv.Itoa(p.PersistentKeepalived), nil)
 	printf(&sb, "allowed_ip", p.AllowedIPs, nil)
 	printf(&sb, "endpoint", p.Endpoint, nil)
+	if p.Remove {
+		printf(&sb, "remove", strconv.FormatBool(p.Remove), nil)
+	}
 
 	return sb.String()
 }

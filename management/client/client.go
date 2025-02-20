@@ -16,6 +16,7 @@ import (
 	grpcserver "linkany/management/grpc/server"
 	"linkany/pkg/config"
 	"linkany/pkg/drp"
+	"linkany/pkg/iface"
 	"linkany/pkg/linkerrors"
 	"linkany/pkg/probe"
 	"linkany/signaling/grpc/signaling"
@@ -55,6 +56,7 @@ type Client struct {
 	proberManager   *probe.NetProber
 	proberMux       sync.Mutex
 	turnClient      *turnclient.Client
+	wgConfigure     iface.WGConfigureInterface
 }
 
 type ClientConfig struct {
@@ -243,8 +245,10 @@ func (c *Client) WatchMessage(msg *mgt.WatchMessage) error {
 		switch msg.Type {
 		case mgt.EventType_DELETE:
 			klog.Infof("watching type: %v >>> delete peer: %v", mgt.EventType_DELETE, peer)
-			//TODO remove peer from local cache & agentManager
-			c.peersManager.Remove(peer.PublicKey)
+			err := c.RemovePeer(&peer)
+			if err != nil {
+				klog.Errorf("remove peer failed: %v", err)
+			}
 		case mgt.EventType_ADD:
 			klog.Infof("watching type: %v >>> add peer: %v", mgt.EventType_ADD, peer)
 			if err = c.AddPeer(&peer); err != nil {
@@ -535,7 +539,21 @@ func (c *Client) clear(pubKey string) {
 	c.proberManager.Remove(pubKey)
 }
 
+func (c *Client) RemovePeer(peer *entity.Peer) error {
+	c.clear(peer.PublicKey)
+	wgConfigure := c.proberManager.GetWgConfiger()
+	if err := wgConfigure.RemovePeer(&iface.SetPeer{
+		PublicKey: peer.PublicKey,
+		Remove:    true,
+	}); err != nil {
+		return err
+	}
+
+	//TODO add check when no same network peers exists, then delete the route.
+	iface.SetRoute()("delete", wgConfigure.GetAddress(), wgConfigure.GetIfaceName())
+	return nil
+}
+
 func (c *Client) GetProber(pubKey string) *probe.Prober {
 	return c.proberManager.GetProber(pubKey)
-
 }
