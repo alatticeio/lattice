@@ -32,6 +32,16 @@ type kv struct {
 
 func (qp *QueryParams) Generate() []*kv {
 	var result []*kv
+
+	if qp.PubKey != nil {
+		v := &kv{
+			Key:   "public_key",
+			Value: qp.PubKey,
+		}
+
+		result = append(result, v)
+	}
+
 	if qp.UserId != nil {
 		v := &kv{
 			Key:   "user_id",

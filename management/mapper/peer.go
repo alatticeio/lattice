@@ -3,6 +3,7 @@ package mapper
 import (
 	"errors"
 	"fmt"
+	"k8s.io/klog/v2"
 	"linkany/management/dto"
 	"linkany/management/entity"
 	"linkany/management/grpc/mgt"
@@ -111,6 +112,7 @@ func (p *PeerMapper) List(params *QueryParams) ([]*entity.Peer, error) {
 
 	sql, wrappers = Generate(params)
 
+	klog.Infof("sql: %s, wrappers: %v", sql, wrappers)
 	if err := p.Where(sql, wrappers...).Find(&peers).Error; err != nil {
 		return nil, err
 	}

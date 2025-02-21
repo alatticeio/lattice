@@ -6,8 +6,10 @@ import (
 	"flag"
 	"github.com/golang/protobuf/proto"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/keepalive"
+	"google.golang.org/grpc/status"
 	"io"
 	"k8s.io/klog/v2"
 	"linkany/management/grpc/mgt"
@@ -118,12 +120,12 @@ func (c *Client) Keepalive(ctx context.Context, in *mgt.ManagementMessage) error
 
 	for {
 		msg, err := stream.Recv()
-		if errors.Is(err, io.EOF) {
-			klog.Warningf("server closed the stream")
-			return nil
-		} else if err != nil {
-			klog.Errorf("recv msg failed: %v", err)
-			errChan <- err
+		s, ok := status.FromError(err)
+		if ok && s.Code() == codes.Canceled {
+			klog.Infof("stream canceled")
+			return err
+		} else if err == io.EOF {
+			klog.Infof("stream EOF")
 			return err
 		}
 

@@ -269,6 +269,7 @@ func (s *Server) Keepalive(stream mgt.ManagementService_KeepaliveServer) error {
 	}
 
 	currentPeer := peers[0]
+	klog.Infof("current peer pubKey: %s, req pubKey: %s", currentPeer.PublicKey, pubKey)
 
 	k := NewWatchKeeper()
 
@@ -277,7 +278,7 @@ func (s *Server) Keepalive(stream mgt.ManagementService_KeepaliveServer) error {
 		if err != nil {
 			return err
 		}
-		klog.Infof("got keepalive resp packet from client: %s", req.PubKey)
+		klog.Infof("got keepalive resp packet from client,pubKey: %s", req.PubKey)
 		return nil
 	}
 
@@ -333,7 +334,7 @@ func (s *Server) Keepalive(stream mgt.ManagementService_KeepaliveServer) error {
 				klog.Infoln("timeout or cancel")
 				//timeout or cancel
 				if err = s.sendWatchMessage(mgt.EventType_DELETE, currentPeer, pubKey, userId, 0); err != nil {
-					klog.Errorf("send watch message failed: %v", err)
+					klog.Errorf("send watch message failed: %v, peer: %v", err, currentPeer.PublicKey)
 				}
 				k.Online.Store(false)
 				return fmt.Errorf("exit stream: %v", stream)
@@ -376,7 +377,6 @@ func (s *Server) recv(stream mgt.ManagementService_KeepaliveServer) (*mgt.Reques
 func (s *Server) sendWatchMessage(eventType mgt.EventType, current *entity.Peer, pubKey, userId string, status int) error {
 	state := 1
 	peers, err := s.peerController.List(&mapper.QueryParams{
-		PubKey: &pubKey,
 		UserId: &userId,
 		Status: &state,
 	})
@@ -388,12 +388,11 @@ func (s *Server) sendWatchMessage(eventType mgt.EventType, current *entity.Peer,
 
 	manager := utils.NewWatchManager()
 	for _, peer := range peers {
-		if peer.PublicKey == pubKey {
-			// self skip
+		if peer.PublicKey == current.PublicKey {
 			continue
 		}
 		wc := manager.Get(peer.PublicKey)
-		klog.Infof("fetch actual channel %v for peer: %v", wc, peer.PublicKey)
+		klog.Infof("fetch actual channel %v for peer: %v, current peer pubKey: %v", wc, peer.PublicKey, current.PublicKey)
 		message := utils.NewWatchMessage(eventType, []*entity.Peer{current})
 		// add to channel, will send to client
 		if wc != nil {

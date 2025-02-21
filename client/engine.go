@@ -258,7 +258,7 @@ func (e *Engine) Start() error {
 	go func() {
 		if err := e.client.Keepalive(context.Background()); err != nil {
 			klog.Errorf("keepalive failed: %v", err)
-		}
+		} //  TODO keepalive, should retry
 	}()
 
 	return nil
