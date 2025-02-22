@@ -2,11 +2,12 @@ package iface
 
 import (
 	"golang.zx2c4.com/wireguard/tun"
+	"linkany/pkg/log"
 	"math/rand"
 	"time"
 )
 
-func CreateTUN(mtu int) (string, tun.Device, error) {
+func CreateTUN(mtu int, logger *log.Logger) (string, tun.Device, error) {
 	name := getInterfaceName()
 	device, err := tun.CreateTUN(name, mtu)
 	return name, device, err

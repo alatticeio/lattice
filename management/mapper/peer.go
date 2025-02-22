@@ -183,7 +183,7 @@ func (p *PeerMapper) GetNetworkMap(appId, userId string) (*entity.NetworkMap, er
 func (p *PeerMapper) GetAddress() int64 {
 	var count int64
 	if err := p.Model(&entity.Peer{}).Count(&count).Error; err != nil {
-		log.Printf("err： %s", err.Error())
+		p.logger.Errorf("err： %s", err.Error())
 		return -1
 	}
 	if count > 253 {

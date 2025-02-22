@@ -84,7 +84,7 @@ func NewEngine(cfg *EngineParams) (*Engine, error) {
 	engine.signalChannel = make(chan *signaling.EncryptMessage, 1000)
 
 	once.Do(func() {
-		engine.Name, device, err = iface.CreateTUN(DefaultMTU)
+		engine.Name, device, err = iface.CreateTUN(DefaultMTU, cfg.Logger)
 	})
 
 	if err != nil {
@@ -97,7 +97,7 @@ func NewEngine(cfg *EngineParams) (*Engine, error) {
 		return nil, err
 	}
 
-	engine.signalingClient, err = signalingclient.NewClient(&signalingclient.ClientConfig{Addr: cfg.SignalingAddr, Logger: log.NewLogger(log.LogLevelVerbose, fmt.Sprintf("[%s] ", "signalingclient")})
+	engine.signalingClient, err = signalingclient.NewClient(&signalingclient.ClientConfig{Addr: cfg.SignalingAddr, Logger: log.NewLogger(log.LogLevelVerbose, fmt.Sprintf("[%s] ", "signalingclient"))})
 	if err != nil {
 		return nil, err
 	}
@@ -151,7 +151,7 @@ func NewEngine(cfg *EngineParams) (*Engine, error) {
 	//}
 
 	drpclient := drp.NewClient(&drp.ClientConfig{
-		Logger: log.NewLogger(log.LogLevelVerbose, fmt.Sprintf("[%s] ", "drpclient")),
+		Logger:        log.NewLogger(log.LogLevelVerbose, fmt.Sprintf("[%s] ", "drpclient")),
 		Probers:       proberManager,
 		AgentManager:  engine.agentManager,
 		UdpMux:        universalUdpMuxDefault,
