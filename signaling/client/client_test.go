@@ -14,7 +14,7 @@ func TestClient_Register(t *testing.T) {
 
 	client, err := NewClient(&ClientConfig{
 		Addr:   "console.linkany.io:32132",
-		Logger: log.NewLogger(log.LogLevelVerbose, fmt.Sprintf("[%s] ", "signalingclient")),
+		Logger: log.NewLogger(log.Loglevel, fmt.Sprintf("[%s] ", "signalingclient")),
 	})
 
 	if err != nil {

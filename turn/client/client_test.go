@@ -11,7 +11,7 @@ func TestClient_GetRelayInfo(t *testing.T) {
 
 		client, err := NewClient(&ClientConfig{
 			ServerUrl: "stun.linkany.io:3478",
-			Logger:    log.NewLogger(log.LogLevelVerbose, fmt.Sprintf("[%s] ", "turnclient")),
+			Logger:    log.NewLogger(log.Loglevel, fmt.Sprintf("[%s] ", "turnclient")),
 		})
 
 		if err != nil {

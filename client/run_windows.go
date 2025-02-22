@@ -31,7 +31,7 @@ func Start(interfaceName string, isRelay bool) error {
 	//	}
 	//	return wg.LogLevelError
 	//}()
-	logger := log.NewLogger(log.LogLevelVerbose, "linkany")
+	logger := log.NewLogger(log.Loglevel, "linkany")
 
 	conf, err := config.GetLocalConfig()
 	if err != nil {

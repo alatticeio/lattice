@@ -40,7 +40,7 @@ type PeerMapper struct {
 }
 
 func NewPeerMapper(db *DatabaseService) *PeerMapper {
-	return &PeerMapper{DatabaseService: db, logger: log.NewLogger(log.LogLevelVerbose, fmt.Sprintf("[%s] ", "peermapper"))}
+	return &PeerMapper{DatabaseService: db, logger: log.NewLogger(log.Loglevel, fmt.Sprintf("[%s] ", "peermapper"))}
 }
 
 func (p *PeerMapper) Register(e *dto.PeerDto) (*entity.Peer, error) {

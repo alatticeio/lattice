@@ -12,7 +12,7 @@ func TestVerifyToken(t *testing.T) {
 
 	client, err := client2.NewClient(&client2.GrpcConfig{
 		Addr:   "console.linkany.io:32051",
-		Logger: log.NewLogger(log.LogLevelVerbose, fmt.Sprintf("[%s] ", "grpcclient")),
+		Logger: log.NewLogger(log.Loglevel, fmt.Sprintf("[%s] ", "grpcclient")),
 	})
 
 	if err != nil {

@@ -10,7 +10,7 @@ import (
 )
 
 func Start(listen string) error {
-	logger := log.NewLogger(log.LogLevelVerbose, "management")
+	logger := log.NewLogger(log.Loglevel, "management")
 	viper.AddConfigPath("/app/")
 	viper.AddConfigPath("conf/")
 	viper.SetConfigName("control")

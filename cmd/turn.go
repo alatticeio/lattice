@@ -47,7 +47,7 @@ func runTurn(opts turnOptions) error {
 	})
 
 	return turn.Start(&server.TurnServerConfig{
-		Logger:   log.NewLogger(log.LogLevelVerbose, fmt.Sprintf("[%s] ", "turnserver")),
+		Logger:   log.NewLogger(log.Loglevel, fmt.Sprintf("[%s] ", "turnserver")),
 		PublicIP: opts.PublicIP,
 		Port:     opts.Port,
 		Client:   client,

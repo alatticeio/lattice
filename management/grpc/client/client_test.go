@@ -39,7 +39,7 @@ func TestNewGrpcClient(t *testing.T) {
 }
 
 func TestGrpcClient_List(t *testing.T) {
-	client, err := NewClient(&GrpcConfig{Addr: internal.ManagementDomain + ":32051", Logger: log.NewLogger(log.LogLevelVerbose, fmt.Sprintf("[%s] ", "grpcclient"))})
+	client, err := NewClient(&GrpcConfig{Addr: internal.ManagementDomain + ":32051", Logger: log.NewLogger(log.Loglevel, fmt.Sprintf("[%s] ", "grpcclient"))})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -81,7 +81,7 @@ func TestGrpcClient_List(t *testing.T) {
 }
 
 func TestGrpcClient_Watch(t *testing.T) {
-	client, err := NewClient(&GrpcConfig{Addr: internal.ManagementDomain + ":32051", Logger: log.NewLogger(log.LogLevelVerbose, fmt.Sprintf("[%s] ", "grpcclient"))})
+	client, err := NewClient(&GrpcConfig{Addr: internal.ManagementDomain + ":32051", Logger: log.NewLogger(log.Loglevel, fmt.Sprintf("[%s] ", "grpcclient"))})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -118,7 +118,7 @@ func TestGrpcClient_Watch(t *testing.T) {
 }
 
 func TestGrpcClient_Keepalive(t *testing.T) {
-	client, err := NewClient(&GrpcConfig{Addr: internal.ManagementDomain + ":32051", Logger: log.NewLogger(log.LogLevelVerbose, fmt.Sprintf("[%s] ", "grpcclient"))})
+	client, err := NewClient(&GrpcConfig{Addr: internal.ManagementDomain + ":32051", Logger: log.NewLogger(log.Loglevel, fmt.Sprintf("[%s] ", "grpcclient"))})
 
 	if err != nil {
 		t.Fatal(err)
@@ -151,7 +151,7 @@ func TestGrpcClient_Keepalive(t *testing.T) {
 }
 
 func TestClient_Get(t *testing.T) {
-	client, err := NewClient(&GrpcConfig{Addr: internal.ManagementDomain + ":32051", Logger: log.NewLogger(log.LogLevelVerbose, fmt.Sprintf("[%s] ", "grpcclient"))})
+	client, err := NewClient(&GrpcConfig{Addr: internal.ManagementDomain + ":32051", Logger: log.NewLogger(log.Loglevel, fmt.Sprintf("[%s] ", "grpcclient"))})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -188,7 +188,7 @@ func TestClient_Get(t *testing.T) {
 }
 
 func TestGrpcClient_Register(t *testing.T) {
-	client, err := NewClient(&GrpcConfig{Addr: internal.ManagementDomain + ":32051", Logger: log.NewLogger(log.LogLevelVerbose, fmt.Sprintf("[%s] ", "grpcclient"))})
+	client, err := NewClient(&GrpcConfig{Addr: internal.ManagementDomain + ":32051", Logger: log.NewLogger(log.Loglevel, fmt.Sprintf("[%s] ", "grpcclient"))})
 	if err != nil {
 		t.Fatal(err)
 	}

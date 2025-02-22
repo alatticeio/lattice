@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-type InvitationInterface interface {
+type InviteInterface interface {
 	// Invite a user join network
 	Invite(dto *dto.InviteDto) error
 	Get(userId, email string) (*entity.Invitations, error)
@@ -18,7 +18,7 @@ type InvitationMapper struct {
 	*DatabaseService
 }
 
-func NewInvitationMapper(dataBaseService *DatabaseService) *InvitationMapper {
+func NewInviteMapper(dataBaseService *DatabaseService) *InvitationMapper {
 	return &InvitationMapper{dataBaseService}
 }
 

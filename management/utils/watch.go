@@ -41,7 +41,7 @@ func NewWatchManager() *WatchManager {
 	once.Do(func() {
 		manager = &WatchManager{
 			m:      make(map[string]chan *mgt.WatchMessage),
-			logger: log.NewLogger(log.LogLevelVerbose, fmt.Sprintf("[%s] ", "watchmanager")),
+			logger: log.NewLogger(log.Loglevel, fmt.Sprintf("[%s] ", "watchmanager")),
 		}
 	})
 

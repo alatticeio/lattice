@@ -14,7 +14,7 @@ var rootCmd = &cobra.Command{
 }
 
 func Execute() {
-	logger := log.NewLogger(log.LogLevelVerbose, "linkany")
+	logger := log.NewLogger(log.Loglevel, "linkany")
 	rootCmd.AddCommand(up(), loginCmd(), drpCmd(), turnCmd(), managementCmd())
 	if err := rootCmd.Execute(); err != nil {
 		logger.Errorf("rootCmd execute failed: %v", err)

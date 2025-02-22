@@ -119,26 +119,31 @@ func (d *DeviceConf) String() string {
 	}
 
 	var sb strings.Builder
-	//sb.WriteString("set=1\n")
-	printf(&sb, "private_key", d.Device.PrivateKey, keyf)
-	printf(&sb, "listen_port", strconv.Itoa(d.Device.ListenPort), nil)
-	printf(&sb, "fwmark", strconv.Itoa(d.Device.Fwmark), nil)
+	if d.Device != nil {
+		//sb.WriteString("set=1\n")
+		printf(&sb, "private_key", d.Device.PrivateKey, keyf)
+		printf(&sb, "listen_port", strconv.Itoa(d.Device.ListenPort), nil)
+		printf(&sb, "fwmark", strconv.Itoa(d.Device.Fwmark), nil)
+	}
+
 	//sb.WriteString(fmt.Sprintf("private_key=%s\n", keyf(d.Device.privateKey)))
 	//sb.WriteString(fmt.Sprintf("listen_port=%d\n", 51820))
 	//sb.WriteString(fmt.Sprintf("fwmark=%d\n", d.Device.Fwmark))
 	//sb.WriteString(fmt.Sprintf("replace_peers=%t\n", d.Device.ReplacePeers))
 
-	for _, peer := range d.Peers {
-		printf(&sb, "public_key", peer.PublicKey, keyf)
-		printf(&sb, "preshared_key", peer.PresharedKey, keyf)
-		printf(&sb, "replace_allowed_ips", strconv.FormatBool(true), nil)
-		printf(&sb, "allowed_ip", peer.AllowedIps, nil)
-		printf(&sb, "endpoint", peer.Endpoint, nil)
-		//sb.WriteString(fmt.Sprintf("public_key=%s\n", keyf(peer.RemoteKey)))
-		//sb.WriteString(fmt.Sprintf("preshared_key=%s\n", keyf(peer.PresharedKey)))
-		//sb.WriteString(fmt.Sprintf("replace_allow_ips=%t\n", peer.ReplacePeers))
-		//sb.WriteString(fmt.Sprintf("allow_ips=%s\n", peer.AllowedIps))
-		//sb.WriteString(fmt.Sprintf("endpoint=%s\n", peer.Endpoint))
+	if d.Peers != nil {
+		for _, peer := range d.Peers {
+			printf(&sb, "public_key", peer.PublicKey, keyf)
+			printf(&sb, "preshared_key", peer.PresharedKey, keyf)
+			printf(&sb, "replace_allowed_ips", strconv.FormatBool(true), nil)
+			printf(&sb, "allowed_ip", peer.AllowedIps, nil)
+			printf(&sb, "endpoint", peer.Endpoint, nil)
+			//sb.WriteString(fmt.Sprintf("public_key=%s\n", keyf(peer.RemoteKey)))
+			//sb.WriteString(fmt.Sprintf("preshared_key=%s\n", keyf(peer.PresharedKey)))
+			//sb.WriteString(fmt.Sprintf("replace_allow_ips=%t\n", peer.ReplacePeers))
+			//sb.WriteString(fmt.Sprintf("allow_ips=%s\n", peer.AllowedIps))
+			//sb.WriteString(fmt.Sprintf("endpoint=%s\n", peer.Endpoint))
+		}
 	}
 
 	return sb.String()

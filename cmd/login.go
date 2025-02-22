@@ -51,7 +51,7 @@ func loginCmd() *cobra.Command {
 
 // runJoin join a network cmd
 func runLogin(opts loginOptions) error {
-	logger := log.NewLogger(log.LogLevelVerbose, "linkany")
+	logger := log.NewLogger(log.Loglevel, "linkany")
 	var err error
 	defer func() {
 		if err == nil {
@@ -82,7 +82,7 @@ func runLogin(opts loginOptions) error {
 		}
 	}
 
-	grpcClient, err := grpcclient.NewClient(&grpcclient.GrpcConfig{Addr: internal.ManagementDomain + ":32051", Logger: log.NewLogger(log.LogLevelVerbose, fmt.Sprintf("[%s] ", "grpcclient"))})
+	grpcClient, err := grpcclient.NewClient(&grpcclient.GrpcConfig{Addr: internal.ManagementDomain + ":32051", Logger: log.NewLogger(log.Loglevel, fmt.Sprintf("[%s] ", "grpcclient"))})
 	if err != nil {
 		return err
 	}

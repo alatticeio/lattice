@@ -98,7 +98,7 @@ func NewEngine(cfg *EngineParams) (*Engine, error) {
 		return nil, err
 	}
 
-	engine.signalingClient, err = signalingclient.NewClient(&signalingclient.ClientConfig{Addr: cfg.SignalingAddr, Logger: log.NewLogger(log.LogLevelVerbose, fmt.Sprintf("[%s] ", "signalingclient"))})
+	engine.signalingClient, err = signalingclient.NewClient(&signalingclient.ClientConfig{Addr: cfg.SignalingAddr, Logger: log.NewLogger(log.Loglevel, fmt.Sprintf("[%s] ", "signalingclient"))})
 	if err != nil {
 		return nil, err
 	}
@@ -107,7 +107,7 @@ func NewEngine(cfg *EngineParams) (*Engine, error) {
 	turnClient, err := turnclient.NewClient(&turnclient.ClientConfig{
 		ServerUrl: "stun.linkany.io:3478",
 		Conf:      cfg.Conf,
-		Logger:    log.NewLogger(log.LogLevelVerbose, fmt.Sprintf("[%s] ", "turnclient")),
+		Logger:    log.NewLogger(log.Loglevel, fmt.Sprintf("[%s] ", "turnclient")),
 	})
 
 	if err != nil {
@@ -138,7 +138,7 @@ func NewEngine(cfg *EngineParams) (*Engine, error) {
 	proberManager := probe.NewProberManager(cfg.ForceRelay, relayer)
 
 	// controlclient
-	grpcClient, err := mgtclient.NewClient(&mgtclient.GrpcConfig{Addr: cfg.ManagementAddr, Logger: log.NewLogger(log.LogLevelVerbose, fmt.Sprintf("[%s] ", "grpcclient"))})
+	grpcClient, err := mgtclient.NewClient(&mgtclient.GrpcConfig{Addr: cfg.ManagementAddr, Logger: log.NewLogger(log.Loglevel, fmt.Sprintf("[%s] ", "grpcclient"))})
 	if err != nil {
 		return nil, err
 	}
@@ -152,7 +152,7 @@ func NewEngine(cfg *EngineParams) (*Engine, error) {
 	//}
 
 	drpclient := drp.NewClient(&drp.ClientConfig{
-		Logger:        log.NewLogger(log.LogLevelVerbose, fmt.Sprintf("[%s] ", "drpclient")),
+		Logger:        log.NewLogger(log.Loglevel, fmt.Sprintf("[%s] ", "drpclient")),
 		Probers:       proberManager,
 		AgentManager:  engine.agentManager,
 		UdpMux:        universalUdpMuxDefault,
@@ -175,7 +175,7 @@ func NewEngine(cfg *EngineParams) (*Engine, error) {
 	ufrag, pwd := probe.GenerateRandomUfragPwd()
 
 	engine.client = controlclient.NewClient(&controlclient.ClientConfig{
-		Logger:          log.NewLogger(log.LogLevelVerbose, fmt.Sprintf("[%s] ", "controlclient")),
+		Logger:          log.NewLogger(log.Loglevel, fmt.Sprintf("[%s] ", "controlclient")),
 		PeersManager:    engine.peersManager,
 		Conf:            cfg.Conf,
 		UdpMux:          universalUdpMuxDefault.UDPMuxDefault,

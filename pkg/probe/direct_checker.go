@@ -52,7 +52,7 @@ type DirectCheckerConfig struct {
 
 func NewDirectChecker(config *DirectCheckerConfig) *DirectChecker {
 	if config.Logger == nil {
-		config.Logger = log.NewLogger(log.LogLevelVerbose, "direct-checker")
+		config.Logger = log.NewLogger(log.Loglevel, "direct-checker")
 	}
 	pc := &DirectChecker{
 		logger:     config.Logger,

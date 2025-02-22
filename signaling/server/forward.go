@@ -21,7 +21,7 @@ func NewForwardManager() *ForwardManager {
 	return &ForwardManager{
 		lock:   &sync.Mutex{},
 		m:      make(map[string]chan *ForwardMessage),
-		logger: log.NewLogger(log.LogLevelVerbose, fmt.Sprintf("[%s] ", "forwardmanager")),
+		logger: log.NewLogger(log.Loglevel, fmt.Sprintf("[%s] ", "forwardmanager")),
 	}
 }
 
