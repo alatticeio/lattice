@@ -2,12 +2,12 @@ package client
 
 import (
 	"context"
+	"fmt"
 	"github.com/golang/protobuf/proto"
 	"github.com/vishvananda/netlink"
 	wg "golang.zx2c4.com/wireguard/device"
 	"golang.zx2c4.com/wireguard/tun"
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
-	"k8s.io/klog/v2"
 	"linkany/internal"
 	controlclient "linkany/management/client"
 	mgtclient "linkany/management/grpc/client"
@@ -15,6 +15,7 @@ import (
 	"linkany/pkg/config"
 	"linkany/pkg/drp"
 	"linkany/pkg/iface"
+	"linkany/pkg/log"
 	"linkany/pkg/probe"
 	"linkany/pkg/wrapper"
 	signalingclient "linkany/signaling/client"
@@ -36,6 +37,7 @@ const (
 
 // Engine is the daemon that manages the WireGuard device
 type Engine struct {
+	logger          *log.Logger
 	keyManager      *internal.KeyManager
 	Name            string
 	device          *wg.Device
@@ -54,17 +56,19 @@ type Engine struct {
 }
 
 type EngineParams struct {
+	Logger          *log.Logger
 	Conf            *config.LocalConfig
 	Port            int
 	UdpConn         *net.UDPConn
 	InterfaceName   string
 	client          *controlclient.Client
 	signalingClient *signalingclient.Client
-	Logger          *wg.Logger
+	WgLogger        *wg.Logger
 	StunUri         string
 	ForceRelay      bool
 	ManagementAddr  string
 	SignalingAddr   string
+	ShowWgLog       bool
 }
 
 func (e *Engine) IpcHandle(conn net.Conn) {
@@ -76,6 +80,7 @@ func NewEngine(cfg *EngineParams) (*Engine, error) {
 	var device tun.Device
 	var err error
 	engine := new(Engine)
+	engine.logger = cfg.Logger
 	engine.signalChannel = make(chan *signaling.EncryptMessage, 1000)
 
 	once.Do(func() {
@@ -92,7 +97,7 @@ func NewEngine(cfg *EngineParams) (*Engine, error) {
 		return nil, err
 	}
 
-	engine.signalingClient, err = signalingclient.NewClient(&signalingclient.ClientConfig{Addr: cfg.SignalingAddr})
+	engine.signalingClient, err = signalingclient.NewClient(&signalingclient.ClientConfig{Addr: cfg.SignalingAddr, Logger: log.NewLogger(log.LogLevelVerbose, fmt.Sprintf("[%s] ", "signalingclient")})
 	if err != nil {
 		return nil, err
 	}
@@ -101,6 +106,7 @@ func NewEngine(cfg *EngineParams) (*Engine, error) {
 	turnClient, err := turnclient.NewClient(&turnclient.ClientConfig{
 		ServerUrl: "stun.linkany.io:3478",
 		Conf:      cfg.Conf,
+		Logger:    log.NewLogger(log.LogLevelVerbose, fmt.Sprintf("[%s] ", "turnclient")),
 	})
 
 	if err != nil {
@@ -108,7 +114,7 @@ func NewEngine(cfg *EngineParams) (*Engine, error) {
 	}
 
 	relayInfo, err := turnClient.GetRelayInfo(true)
-	klog.Infof("relay conn addr: %s", relayInfo.RelayConn.LocalAddr().String())
+	engine.logger.Infof("relay conn addr: %s", relayInfo.RelayConn.LocalAddr().String())
 
 	if err != nil {
 		return nil, err
@@ -131,7 +137,7 @@ func NewEngine(cfg *EngineParams) (*Engine, error) {
 	proberManager := probe.NewProberManager(cfg.ForceRelay, relayer)
 
 	// controlclient
-	grpcClient, err := mgtclient.NewClient(&mgtclient.GrpcConfig{Addr: cfg.ManagementAddr})
+	grpcClient, err := mgtclient.NewClient(&mgtclient.GrpcConfig{Addr: cfg.ManagementAddr, Logger: log.NewLogger(log.LogLevelVerbose, fmt.Sprintf("[%s] ", "grpcclient"))})
 	if err != nil {
 		return nil, err
 	}
@@ -145,6 +151,7 @@ func NewEngine(cfg *EngineParams) (*Engine, error) {
 	//}
 
 	drpclient := drp.NewClient(&drp.ClientConfig{
+		Logger: log.NewLogger(log.LogLevelVerbose, fmt.Sprintf("[%s] ", "drpclient")),
 		Probers:       proberManager,
 		AgentManager:  engine.agentManager,
 		UdpMux:        universalUdpMuxDefault,
@@ -153,13 +160,14 @@ func NewEngine(cfg *EngineParams) (*Engine, error) {
 
 	go func() {
 		if err = engine.signalingClient.Forward(context.Background(), engine.signalChannel, drpclient.ReceiveOffer); err != nil {
-			klog.Errorf("forward failed: %v", err)
+			engine.logger.Errorf("forward failed: %v", err)
 		}
 	}()
 
 	ufrag, pwd := probe.GenerateRandomUfragPwd()
 
 	engine.client = controlclient.NewClient(&controlclient.ClientConfig{
+		Logger:          log.NewLogger(log.LogLevelVerbose, "ctrclient"),
 		PeersManager:    engine.peersManager,
 		Conf:            cfg.Conf,
 		UdpMux:          universalUdpMuxDefault.UDPMuxDefault,
@@ -193,10 +201,10 @@ func NewEngine(cfg *EngineParams) (*Engine, error) {
 		publicKey = key.PublicKey().String()
 		_, err = engine.client.Register(privateKey, publicKey, cfg.Conf.Token)
 		if err != nil {
-			klog.Errorf("register failed, with err: %s\n", err.Error())
+			engine.logger.Errorf("register failed, with err: %s\n", err.Error())
 			return nil, err
 		}
-		klog.Infof("register to manager success")
+		engine.logger.Infof("register to manager success")
 	} else {
 		privateKey = current.PrivateKey
 	}
@@ -207,9 +215,9 @@ func NewEngine(cfg *EngineParams) (*Engine, error) {
 	if err = engine.registerToSignaling(context.Background(), cfg.Conf); err != nil {
 		return nil, err
 	}
-	klog.Infof("register to signaling success")
+	engine.logger.Infof("register to signaling success")
 
-	engine.device = wg.NewDevice(device, engine.bind, cfg.Logger)
+	engine.device = wg.NewDevice(device, engine.bind, cfg.WgLogger)
 
 	// start engine, open udp port
 	if err := engine.device.Up(); err != nil {
@@ -234,11 +242,11 @@ func (e *Engine) Start() error {
 	// List peers from control plane first time, then use watch
 	conf, err := e.GetNetworkMap()
 	if err != nil {
-		klog.Errorf("sync peers failed: %v", err)
+		e.logger.Errorf("sync peers failed: %v", err)
 	}
 
 	//TODO set device config
-	klog.Infof("networkmap: %v", conf)
+	e.logger.Infof("networkmap: %v", conf)
 	// set device config
 	deviceConfig := &config.DeviceConfig{
 		PrivateKey: e.keyManager.GetKey(),
@@ -251,13 +259,13 @@ func (e *Engine) Start() error {
 	// watch
 	go func() {
 		if err := e.client.Watch(context.Background(), e.client.WatchMessage); err != nil {
-			klog.Errorf("watch failed: %v", err)
+			e.logger.Errorf("watch failed: %v", err)
 		}
 	}()
 
 	go func() {
 		if err := e.client.Keepalive(context.Background()); err != nil {
-			klog.Errorf("keepalive failed: %v", err)
+			e.logger.Errorf("keepalive failed: %v", err)
 		} //  TODO keepalive, should retry
 	}()
 
@@ -305,7 +313,7 @@ func (e *Engine) SetConfig(conf *config.DeviceConf) error {
 	}
 
 	if conf.String() == nowConf {
-		klog.Infof("config is same, no need to update")
+		e.logger.Infof("config is same, no need to update")
 		return nil
 	}
 

@@ -2,7 +2,7 @@ package cmd
 
 import (
 	"github.com/spf13/cobra"
-	"k8s.io/klog/v2"
+	"linkany/pkg/log"
 	"os"
 )
 
@@ -14,9 +14,10 @@ var rootCmd = &cobra.Command{
 }
 
 func Execute() {
+	logger := log.NewLogger(log.LogLevelVerbose, "linkany")
 	rootCmd.AddCommand(up(), loginCmd(), drpCmd(), turnCmd(), managementCmd())
 	if err := rootCmd.Execute(); err != nil {
-		klog.Errorf("rootCmd execute failed: %v", err)
+		logger.Errorf("rootCmd execute failed: %v", err)
 		os.Exit(-1)
 	}
 }

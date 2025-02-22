@@ -3,12 +3,12 @@ package probe
 import (
 	"context"
 	"errors"
-	"k8s.io/klog/v2"
 	"linkany/internal"
 	"linkany/internal/direct"
 	"linkany/internal/relay"
 	"linkany/pkg/iface"
 	"linkany/pkg/linkerrors"
+	"linkany/pkg/log"
 	"linkany/signaling/grpc/signaling"
 	"linkany/turn/client"
 	turnclient "linkany/turn/client"
@@ -38,25 +38,17 @@ var (
 
 // Prober is a wrapper directchecker & relaychecker
 type Prober struct {
-	closeMux sync.Mutex
-
-	proberClosed atomic.Bool
-
-	ProberDone chan interface{}
-
+	logger          *log.Logger
+	closeMux        sync.Mutex
+	proberClosed    atomic.Bool
+	ProberDone      chan interface{}
 	ConnectionState internal.ConnectionState
-
-	isStarted atomic.Bool
-
-	isForceRelay bool
-
-	agentManager *internal.AgentManager
-
-	proberManager *NetProber
-
-	srcKey string
-	key    string
-
+	isStarted       atomic.Bool
+	isForceRelay    bool
+	agentManager    *internal.AgentManager
+	proberManager   *NetProber
+	srcKey          string
+	key             string
 	// isController == true, will send a relay offer, otherwise, will wait for the relay offer
 	isControlling bool
 
@@ -82,6 +74,59 @@ type Prober struct {
 	pwd                     string
 	gatherCh                chan interface{}
 	OnConnectionStateChange func(state internal.ConnectionState)
+}
+
+type ProberConfig struct {
+	Logger                  *log.Logger
+	IsControlling           bool
+	IsForceRelay            bool
+	IsP2P                   bool
+	DirectChecker           *DirectChecker
+	RelayChecker            *RelayChecker
+	AgentManager            *internal.AgentManager
+	OfferManager            internal.OfferManager
+	WGConfiger              *iface.WGConfigure
+	ProberManager           *NetProber
+	SrcKey                  string
+	Key                     string
+	TurnClient              *client.Client
+	Relayer                 internal.Relay
+	SignalingChannel        chan *signaling.EncryptMessage
+	Ufrag                   string
+	Pwd                     string
+	GatherChan              chan interface{}
+	OnConnectionStateChange func(state internal.ConnectionState)
+	ProberDone              chan interface{}
+}
+
+// NewProber creates a new Prober
+func NewProber(cfg *ProberConfig) *Prober {
+	prober := &Prober{
+		logger:                  cfg.Logger,
+		ConnectionState:         internal.ConnectionStateNew,
+		isControlling:           cfg.IsControlling,
+		isP2P:                   cfg.IsP2P,
+		directChecker:           cfg.DirectChecker,
+		relayChecker:            cfg.RelayChecker,
+		agentManager:            cfg.AgentManager,
+		offerManager:            cfg.OfferManager,
+		wgConfiger:              cfg.WGConfiger,
+		proberManager:           cfg.ProberManager,
+		isForceRelay:            cfg.IsForceRelay,
+		turnClient:              cfg.TurnClient,
+		signalingChannel:        cfg.SignalingChannel,
+		gatherCh:                cfg.GatherChan,
+		ufrag:                   cfg.Ufrag,
+		pwd:                     cfg.Pwd,
+		key:                     cfg.Key,
+		srcKey:                  cfg.SrcKey,
+		OnConnectionStateChange: cfg.OnConnectionStateChange,
+		ProberDone:              make(chan interface{}),
+	}
+
+	prober.localKey = cfg.AgentManager.GetLocalKey()
+	prober.proberClosed.Store(false)
+	return prober
 }
 
 func (p *Prober) UpdateConnectionState(state internal.ConnectionState) {
@@ -117,57 +162,6 @@ func (p *Prober) HandleOffer(offer internal.Offer) error {
 	return p.ProbeConnect(context.Background(), offer)
 }
 
-type ProberConfig struct {
-	IsControlling           bool
-	IsForceRelay            bool
-	IsP2P                   bool
-	DirectChecker           *DirectChecker
-	RelayChecker            *RelayChecker
-	AgentManager            *internal.AgentManager
-	OfferManager            internal.OfferManager
-	WGConfiger              *iface.WGConfigure
-	ProberManager           *NetProber
-	SrcKey                  string
-	Key                     string
-	TurnClient              *client.Client
-	Relayer                 internal.Relay
-	SignalingChannel        chan *signaling.EncryptMessage
-	Ufrag                   string
-	Pwd                     string
-	GatherChan              chan interface{}
-	OnConnectionStateChange func(state internal.ConnectionState)
-	ProberDone              chan interface{}
-}
-
-// NewProber creates a new Prober
-func NewProber(config *ProberConfig) *Prober {
-	prober := &Prober{
-		ConnectionState:         internal.ConnectionStateNew,
-		isControlling:           config.IsControlling,
-		isP2P:                   config.IsP2P,
-		directChecker:           config.DirectChecker,
-		relayChecker:            config.RelayChecker,
-		agentManager:            config.AgentManager,
-		offerManager:            config.OfferManager,
-		wgConfiger:              config.WGConfiger,
-		proberManager:           config.ProberManager,
-		isForceRelay:            config.IsForceRelay,
-		turnClient:              config.TurnClient,
-		signalingChannel:        config.SignalingChannel,
-		gatherCh:                config.GatherChan,
-		ufrag:                   config.Ufrag,
-		pwd:                     config.Pwd,
-		key:                     config.Key,
-		srcKey:                  config.SrcKey,
-		OnConnectionStateChange: config.OnConnectionStateChange,
-		ProberDone:              make(chan interface{}),
-	}
-
-	prober.localKey = config.AgentManager.GetLocalKey()
-	prober.proberClosed.Store(false)
-	return prober
-}
-
 // ProbeConnect probes the connection, if isForceRelay, will start the relayChecker, otherwise, will start the directChecker
 // when direct failed, we will start the relayChecker
 func (p *Prober) ProbeConnect(ctx context.Context, offer internal.Offer) error {
@@ -192,12 +186,12 @@ func (p *Prober) ProbeConnect(ctx context.Context, offer internal.Offer) error {
 func (p *Prober) ProbeSuccess(publicKey, addr string) error {
 	defer func() {
 		p.UpdateConnectionState(internal.ConnectionStateConnected)
-		klog.Infof("prober set to: %v", internal.ConnectionStateConnected)
+		p.logger.Infof("prober set to: %v", internal.ConnectionStateConnected)
 	}()
 	var err error
 
 	peer := p.wgConfiger.GetPeersManager().GetPeer(publicKey)
-	klog.Infof("peer remoteKey: %v, allowIps: %v, remote addr: %v", publicKey, peer.AllowedIps, addr)
+	p.logger.Infof("peer remoteKey: %v, allowIps: %v, remote addr: %v", publicKey, peer.AllowedIps, addr)
 	if err = p.wgConfiger.AddPeer(&iface.SetPeer{
 		PublicKey:            publicKey,
 		Endpoint:             addr,
@@ -207,8 +201,8 @@ func (p *Prober) ProbeSuccess(publicKey, addr string) error {
 		return err
 	}
 
-	klog.Infof("peer connection to %s success", addr)
-	iface.SetRoute()("add", p.wgConfiger.GetAddress(), p.wgConfiger.GetIfaceName())
+	p.logger.Infof("peer connection to %s success", addr)
+	iface.SetRoute(p.logger)("add", p.wgConfiger.GetAddress(), p.wgConfiger.GetIfaceName())
 
 	if p.isForceRelay {
 		endpoint, err := net.ResolveUDPAddr("udp", addr)
@@ -247,7 +241,7 @@ func (p *Prober) IsForceRelay() bool {
 
 func (p *Prober) Start(srcKey, dstKey string) error {
 
-	klog.Infof("prober start, srcKey: %v, dstKey: %v, isForceRelay: %v,  connection state: %v", srcKey, dstKey, p.isForceRelay, p.ConnectionState)
+	p.logger.Infof("prober start, srcKey: %v, dstKey: %v, isForceRelay: %v,  connection state: %v", srcKey, dstKey, p.isForceRelay, p.ConnectionState)
 	switch p.ConnectionState {
 	case internal.ConnectionStateConnected:
 		return nil
@@ -282,7 +276,7 @@ func (p *Prober) SendOffer(msgType signaling.MessageType, srcKey, dstKey string)
 		if !b {
 			return linkerrors.ErrAgentNotFound
 		}
-		candidates := GetCandidates(agent, p.gatherCh)
+		candidates := p.GetCandidates(agent, p.gatherCh)
 		offer = direct.NewOffer(&direct.DirectOfferConfig{
 			WgPort:     51820,
 			Ufrag:      p.ufrag,
@@ -311,7 +305,7 @@ func (p *Prober) SendOffer(msgType signaling.MessageType, srcKey, dstKey string)
 		if err != nil {
 			return err
 		}
-		klog.Infof(">>>>>>relay offer: %v", info.MappedAddr.String())
+		p.logger.Infof(">>>>>>relay offer: %v", info.MappedAddr.String())
 
 		offer = relay.NewOffer(&relay.RelayOfferConfig{
 			LocalKey:   p.agentManager.GetLocalKey(),
@@ -342,7 +336,7 @@ func (p *Prober) SetIsControlling(b bool) {
 func (p *Prober) Clear(pubKey string) {
 	p.closeMux.Lock()
 	defer func() {
-		klog.Infof("prober clearing: %v, remove agent and prober success", pubKey)
+		p.logger.Infof("prober clearing: %v, remove agent and prober success", pubKey)
 		p.proberClosed.Store(true)
 		p.closeMux.Unlock()
 	}()

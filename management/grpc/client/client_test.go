@@ -8,7 +8,9 @@ import (
 	"linkany/internal"
 	"linkany/management/entity"
 	pb "linkany/management/grpc/mgt"
+	"linkany/management/grpc/server"
 	"linkany/pkg/config"
+	"linkany/pkg/log"
 	"sync"
 	"testing"
 	"time"
@@ -37,7 +39,7 @@ func TestNewGrpcClient(t *testing.T) {
 }
 
 func TestGrpcClient_List(t *testing.T) {
-	client, err := NewClient(&GrpcConfig{Addr: internal.ManagementDomain + ":32051"})
+	client, err := NewClient(&GrpcConfig{Addr: internal.ManagementDomain + ":32051", Logger: log.NewLogger(log.LogLevelVerbose, fmt.Sprintf("[%s] ", "grpcclient"))})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -79,7 +81,7 @@ func TestGrpcClient_List(t *testing.T) {
 }
 
 func TestGrpcClient_Watch(t *testing.T) {
-	client, err := NewClient(&GrpcConfig{Addr: internal.ManagementDomain + ":32051"})
+	client, err := NewClient(&GrpcConfig{Addr: internal.ManagementDomain + ":32051", Logger: log.NewLogger(log.LogLevelVerbose, fmt.Sprintf("[%s] ", "grpcclient"))})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -116,7 +118,7 @@ func TestGrpcClient_Watch(t *testing.T) {
 }
 
 func TestGrpcClient_Keepalive(t *testing.T) {
-	client, err := NewClient(&GrpcConfig{Addr: internal.ManagementDomain + ":32051"})
+	client, err := NewClient(&GrpcConfig{Addr: internal.ManagementDomain + ":32051", Logger: log.NewLogger(log.LogLevelVerbose, fmt.Sprintf("[%s] ", "grpcclient"))})
 
 	if err != nil {
 		t.Fatal(err)
@@ -149,7 +151,7 @@ func TestGrpcClient_Keepalive(t *testing.T) {
 }
 
 func TestClient_Get(t *testing.T) {
-	client, err := NewClient(&GrpcConfig{Addr: internal.ManagementDomain + ":32051"})
+	client, err := NewClient(&GrpcConfig{Addr: internal.ManagementDomain + ":32051", Logger: log.NewLogger(log.LogLevelVerbose, fmt.Sprintf("[%s] ", "grpcclient"))})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -186,27 +188,27 @@ func TestClient_Get(t *testing.T) {
 }
 
 func TestGrpcClient_Register(t *testing.T) {
-	client, err := NewClient(&GrpcConfig{Addr: internal.ManagementDomain + ":32051"})
+	client, err := NewClient(&GrpcConfig{Addr: internal.ManagementDomain + ":32051", Logger: log.NewLogger(log.LogLevelVerbose, fmt.Sprintf("[%s] ", "grpcclient"))})
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	requset := &pb.RegistryRequest{
+	requset := &server.RegistryRequest{
 		Hostname:            "test",
 		Address:             "test",
 		PersistentKeepalive: 25,
 		PublicKey:           "test",
 		PrivateKey:          "test",
 		TieBreaker:          1,
-		UpdatedAt:           time.Now().String(),
-		CreatedAt:           time.Now().String(),
+		UpdatedAt:           time.Now(),
+		CreatedAt:           time.Now(),
 		Ufrag:               "test",
 		Pwd:                 "test",
 		Status:              1,
 	}
 
 	ctx := context.Background()
-	body, err := proto.Marshal(requset)
+	body, err := json.Marshal(requset)
 
 	if err != nil {
 		t.Fatal(err)

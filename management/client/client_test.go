@@ -8,6 +8,7 @@ import (
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 	mgtclient "linkany/management/grpc/client"
 	"linkany/pkg/config"
+	"linkany/pkg/log"
 	"os"
 	"testing"
 )
@@ -32,7 +33,7 @@ func TestClient_Login(t *testing.T) {
 func TestClient_Get(t *testing.T) {
 
 	// controlclient
-	grpcClient, err := mgtclient.NewClient(&mgtclient.GrpcConfig{Addr: "console.linkany.io:32051"})
+	grpcClient, err := mgtclient.NewClient(&mgtclient.GrpcConfig{Addr: "console.linkany.io:32051", Logger: log.NewLogger(log.LogLevelVerbose, fmt.Sprintf("[%s] ", "grpcclient"))})
 	if err != nil {
 		t.Fatal(err)
 	}

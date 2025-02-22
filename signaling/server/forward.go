@@ -1,14 +1,16 @@
 package server
 
 import (
-	"k8s.io/klog/v2"
+	"fmt"
 	"linkany/pkg/linkerrors"
+	"linkany/pkg/log"
 	"sync"
 )
 
 type ForwardManager struct {
-	lock sync.Locker
-	m    map[string]chan *ForwardMessage
+	lock   sync.Locker
+	m      map[string]chan *ForwardMessage
+	logger *log.Logger
 }
 
 type ForwardMessage struct {
@@ -17,8 +19,9 @@ type ForwardMessage struct {
 
 func NewForwardManager() *ForwardManager {
 	return &ForwardManager{
-		lock: &sync.Mutex{},
-		m:    make(map[string]chan *ForwardMessage),
+		lock:   &sync.Mutex{},
+		m:      make(map[string]chan *ForwardMessage),
+		logger: log.NewLogger(log.LogLevelVerbose, fmt.Sprintf("[%s] ", "forwardmanager")),
 	}
 }
 
@@ -28,7 +31,7 @@ func (f *ForwardManager) CreateChannel(pubKey string) chan *ForwardMessage {
 	if _, ok := f.m[pubKey]; !ok {
 		f.m[pubKey] = make(chan *ForwardMessage, 1000)
 	}
-	klog.Infof("create channel for %v success", pubKey)
+	f.logger.Infof("create channel for %v success", pubKey)
 	return f.m[pubKey]
 }
 

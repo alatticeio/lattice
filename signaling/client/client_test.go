@@ -2,8 +2,10 @@ package client
 
 import (
 	"context"
+	"fmt"
 	"github.com/golang/protobuf/proto"
 	"linkany/pkg/config"
+	"linkany/pkg/log"
 	"linkany/signaling/grpc/signaling"
 	"testing"
 )
@@ -11,7 +13,8 @@ import (
 func TestClient_Register(t *testing.T) {
 
 	client, err := NewClient(&ClientConfig{
-		Addr: "console.linkany.io:32132",
+		Addr:   "console.linkany.io:32132",
+		Logger: log.NewLogger(log.LogLevelVerbose, fmt.Sprintf("[%s] ", "signalingclient")),
 	})
 
 	if err != nil {
@@ -25,7 +28,7 @@ func TestClient_Register(t *testing.T) {
 
 	publicKey := "123456"
 	ctx := context.Background()
-	req := &signaling.EncryptMessageRequest{
+	req := &signaling.EncryptMessageReqAndResp{
 		SrcPublicKey: publicKey,
 		Token:        cfg.Token,
 	}

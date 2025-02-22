@@ -2,9 +2,9 @@ package server
 
 import (
 	"github.com/pion/turn/v4"
-	"k8s.io/klog/v2"
 	"linkany/management/client"
 	"linkany/pkg/config"
+	"linkany/pkg/log"
 	"net"
 	"os"
 	"os/signal"
@@ -13,19 +13,21 @@ import (
 )
 
 type TurnServer struct {
+	logger   *log.Logger
 	port     int
 	publicIP string
 	client   *client.Client
 }
 
 type TurnServerConfig struct {
+	Logger   *log.Logger
 	PublicIP string
 	Port     int
 	Client   *client.Client
 }
 
 func NewTurnServer(cfg *TurnServerConfig) *TurnServer {
-	return &TurnServer{client: cfg.Client, port: cfg.Port, publicIP: cfg.PublicIP}
+	return &TurnServer{client: cfg.Client, port: cfg.Port, publicIP: cfg.PublicIP, logger: cfg.Logger}
 }
 
 func (ts *TurnServer) Start() error {
@@ -33,7 +35,7 @@ func (ts *TurnServer) Start() error {
 }
 
 func (ts *TurnServer) start(publicIP string, port int) error {
-	klog.Infof("Starting turn server on %s:%d", publicIP, port)
+	ts.logger.Verbosef("Starting turn server on %s:%d", publicIP, port)
 
 	// Create a UDP listener to pass into pion/turn
 	// pion/turn itself doesn't allocate any UDP sockets, but lets the user pass them in
@@ -84,7 +86,7 @@ func (ts *TurnServer) start(publicIP string, port int) error {
 	<-sigs
 
 	if err = s.Close(); err != nil {
-		klog.Errorf("Failed to close turn server: %v", err)
+		ts.logger.Errorf("Failed to close turn server: %v", err)
 	}
 
 	return nil

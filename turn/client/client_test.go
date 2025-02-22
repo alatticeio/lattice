@@ -1,12 +1,17 @@
 package client
 
-import "testing"
+import (
+	"fmt"
+	"linkany/pkg/log"
+	"testing"
+)
 
 func TestClient_GetRelayInfo(t *testing.T) {
 	t.Run("TestClient_GetRelayInfo", func(t *testing.T) {
 
 		client, err := NewClient(&ClientConfig{
 			ServerUrl: "stun.linkany.io:3478",
+			Logger:    log.NewLogger(log.LogLevelVerbose, fmt.Sprintf("[%s] ", "turnclient")),
 		})
 
 		if err != nil {

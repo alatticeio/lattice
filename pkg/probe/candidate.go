@@ -2,10 +2,9 @@ package probe
 
 import (
 	"github.com/linkanyio/ice"
-	"k8s.io/klog/v2"
 )
 
-func GetCandidates(agent *ice.Agent, gatherCh chan interface{}) string {
+func (p *Prober) GetCandidates(agent *ice.Agent, gatherCh chan interface{}) string {
 	<-gatherCh
 	var err error
 	var ch = make(chan struct{})
@@ -34,6 +33,6 @@ func GetCandidates(agent *ice.Agent, gatherCh chan interface{}) string {
 		}
 	}
 
-	klog.Infof("gathered candidates >>>: %v", candString)
+	p.logger.Verbosef("gathered candidates >>>: %v", candString)
 	return candString
 }

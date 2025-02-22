@@ -8,7 +8,6 @@ import (
 	"github.com/linkanyio/ice"
 	"github.com/pion/logging"
 	"io"
-	"k8s.io/klog/v2"
 	"linkany/internal"
 	"linkany/management/entity"
 	grpcclient "linkany/management/grpc/client"
@@ -18,6 +17,7 @@ import (
 	"linkany/pkg/drp"
 	"linkany/pkg/iface"
 	"linkany/pkg/linkerrors"
+	"linkany/pkg/log"
 	"linkany/pkg/probe"
 	"linkany/signaling/grpc/signaling"
 	turnclient "linkany/turn/client"
@@ -35,6 +35,7 @@ type PeerMap struct {
 
 // Client is client of linkany, will fetch config from origin server interval
 type Client struct {
+	logger          *log.Logger
 	keyManager      *internal.KeyManager
 	signalChannel   chan *signaling.EncryptMessage
 	ch              chan *probe.DirectChecker
@@ -60,6 +61,7 @@ type Client struct {
 }
 
 type ClientConfig struct {
+	Logger          *log.Logger
 	PeersManager    *config.PeersManager
 	Conf            *config.LocalConfig
 	PeerCh          chan *probe.DirectChecker
@@ -77,23 +79,24 @@ type ClientConfig struct {
 	DrpClient       *drp.Client
 }
 
-func NewClient(config *ClientConfig) *Client {
+func NewClient(cfg *ClientConfig) *Client {
 	client := &Client{
-		drpClient:       config.DrpClient,
-		keyManager:      config.KeyManager,
+		logger:          cfg.Logger,
+		drpClient:       cfg.DrpClient,
+		keyManager:      cfg.KeyManager,
 		TieBreaker:      ice.NewTieBreaker(),
-		ch:              config.PeerCh,
-		conf:            config.Conf,
-		peersManager:    config.PeersManager,
-		udpMux:          config.UdpMux,
-		universalUdpMux: config.UniversalUdpMux,
-		agentManager:    config.AgentManager,
-		ufrag:           config.Ufrag,
-		pwd:             config.Pwd,
-		proberManager:   config.ProberManager,
-		turnClient:      config.TurnClient,
-		grpcClient:      config.GrpcClient,
-		signalChannel:   config.SignalChannel,
+		ch:              cfg.PeerCh,
+		conf:            cfg.Conf,
+		peersManager:    cfg.PeersManager,
+		udpMux:          cfg.UdpMux,
+		universalUdpMux: cfg.UniversalUdpMux,
+		agentManager:    cfg.AgentManager,
+		ufrag:           cfg.Ufrag,
+		pwd:             cfg.Pwd,
+		proberManager:   cfg.ProberManager,
+		turnClient:      cfg.TurnClient,
+		grpcClient:      cfg.GrpcClient,
+		signalChannel:   cfg.SignalChannel,
 	}
 
 	return client
@@ -216,7 +219,7 @@ func (c *Client) List() (*config.DeviceConf, error) {
 
 	for _, p := range networkMap.Peers {
 		if err := c.AddPeer(p); err != nil {
-			klog.Errorf("add peer failed: %v", err)
+			c.logger.Errorf("add peer failed: %v", err)
 		}
 	}
 
@@ -244,15 +247,15 @@ func (c *Client) WatchMessage(msg *mgt.WatchMessage) error {
 	for _, peer := range peers {
 		switch msg.Type {
 		case mgt.EventType_DELETE:
-			klog.Infof("watching type: %v >>> delete peer: %v", mgt.EventType_DELETE, peer)
+			c.logger.Infof("watching type: %v >>> delete peer: %v", mgt.EventType_DELETE, peer)
 			err := c.RemovePeer(&peer)
 			if err != nil {
-				klog.Errorf("remove peer failed: %v", err)
+				c.logger.Errorf("remove peer failed: %v", err)
 			}
 		case mgt.EventType_ADD:
-			klog.Infof("watching type: %v >>> add peer: %v", mgt.EventType_ADD, peer)
+			c.logger.Infof("watching type: %v >>> add peer: %v", mgt.EventType_ADD, peer)
 			if err = c.AddPeer(&peer); err != nil {
-				klog.Errorf("add peer failed: %v", err)
+				c.logger.Errorf("add peer failed: %v", err)
 			}
 		}
 	}
@@ -269,7 +272,7 @@ func (c *Client) AddPeer(p *entity.Peer) error {
 		}
 	}()
 	if p.PublicKey == c.keyManager.GetPublicKey() {
-		klog.Warningf("self peer, skip")
+		c.logger.Verbosef("self peer, skip")
 		return nil
 	}
 
@@ -288,7 +291,7 @@ func (c *Client) AddPeer(p *entity.Peer) error {
 	if mappedPeer == nil {
 		mappedPeer = peer
 		c.peersManager.AddPeer(peer.PublicKey, peer)
-		klog.Infof("add peer to local cache, key: %s, peer: %v", peer.PublicKey, peer)
+		c.logger.Verbosef("add peer to local cache, key: %s, peer: %v", peer.PublicKey, peer)
 	} else if mappedPeer.Connected.Load() {
 		return nil
 	}
@@ -306,11 +309,11 @@ func (c *Client) AddPeer(p *entity.Peer) error {
 			UniversalUdpMux: c.universalUdpMux,
 			Ufrag:           c.ufrag,
 			Pwd:             c.pwd,
-			OnCandidate: func(c ice.Candidate) {
-				if c != nil {
-					klog.Infof("new candidate: %v", c.Marshal())
+			OnCandidate: func(candidate ice.Candidate) {
+				if candidate != nil {
+					c.logger.Verbosef("new candidate: %v", candidate.Marshal())
 				} else {
-					klog.Infof("all candidates has been gathered.")
+					c.logger.Verbosef("all candidates has been gathered.")
 					close(gatherCh)
 				}
 			},
@@ -320,7 +323,7 @@ func (c *Client) AddPeer(p *entity.Peer) error {
 			return err
 		}
 
-		klog.Infof("creating agent for peer: %s", peer.PublicKey)
+		c.logger.Verbosef("creating agent for peer: %s", peer.PublicKey)
 
 		c.agentManager.Add(peer.PublicKey, agent)
 	}
@@ -371,7 +374,7 @@ func (c *Client) probe(agent *ice.Agent, peer *config.Peer, gatherCh chan interf
 	}
 
 	if err := agent.OnConnectionStateChange(func(connectionState ice.ConnectionState) {
-		klog.Infof("connection state changed: %v", connectionState)
+		c.logger.Verbosef("connection state changed: %v", connectionState)
 		switch connectionState {
 		case ice.ConnectionStateConnected:
 			prober.UpdateConnectionState(internal.ConnectionStateConnected)
@@ -395,7 +398,7 @@ func (c *Client) doProbe(prober *probe.Prober, peer *config.Peer) {
 	var err error
 	defer func() {
 		if err != nil {
-			klog.Errorf("probe failed: %v", err)
+			c.logger.Errorf("probe failed: %v", err)
 			prober.UpdateConnectionState(internal.ConnectionStateFailed)
 		}
 	}()
@@ -404,7 +407,7 @@ func (c *Client) doProbe(prober *probe.Prober, peer *config.Peer) {
 	timer := time.NewTimer(1 * time.Second)
 	for {
 		if retries > limitRetries {
-			klog.Errorf("direct check until limit times")
+			c.logger.Errorf("direct check until limit times")
 			err = linkerrors.ErrProbeFailed
 			return
 		}
@@ -415,9 +418,9 @@ func (c *Client) doProbe(prober *probe.Prober, peer *config.Peer) {
 			case internal.ConnectionStateConnected, internal.ConnectionStateFailed:
 				return
 			default:
-				klog.Infof("direct checking, retry %d times for peer: %s", retries, peer.PublicKey)
+				c.logger.Verbosef("direct checking, retry %d times for peer: %s", retries, peer.PublicKey)
 				if err := prober.Start(c.keyManager.GetPublicKey(), peer.PublicKey); err != nil {
-					klog.Errorf("send directOffer failed: %v", err)
+					c.logger.Errorf("send directOffer failed: %v", err)
 					err = linkerrors.ErrProbeFailed
 					return
 				} else if prober.ConnectionState != internal.ConnectionStateConnected {
@@ -496,7 +499,7 @@ func (c *Client) Register(privateKey, publicKey, token string) (*config.DeviceCo
 
 	hostname, err := os.Hostname()
 	if err != nil {
-		klog.Errorf("get hostname failed: %v", err)
+		c.logger.Errorf("get hostname failed: %v", err)
 		return nil, err
 	}
 
@@ -532,7 +535,7 @@ func (c *Client) Register(privateKey, publicKey, token string) (*config.DeviceCo
 
 func (c *Client) clear(pubKey string) {
 	defer func() {
-		klog.Warningf("clear unconnected peer: %s", pubKey)
+		c.logger.Infof("clear unconnected peer: %s", pubKey)
 	}()
 	//c.peersManager.Remove(pubKey)
 	c.agentManager.Remove(pubKey)
@@ -550,7 +553,7 @@ func (c *Client) RemovePeer(peer *entity.Peer) error {
 	}
 
 	//TODO add check when no same network peers exists, then delete the route.
-	iface.SetRoute()("delete", wgConfigure.GetAddress(), wgConfigure.GetIfaceName())
+	iface.SetRoute(c.logger)("delete", wgConfigure.GetAddress(), wgConfigure.GetIfaceName())
 	return nil
 }
 

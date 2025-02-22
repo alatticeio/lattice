@@ -3,11 +3,10 @@ package mapper
 import (
 	"errors"
 	"fmt"
-	"k8s.io/klog/v2"
 	"linkany/management/dto"
 	"linkany/management/entity"
 	"linkany/management/grpc/mgt"
-	"log"
+	"linkany/pkg/log"
 	"reflect"
 	"strings"
 )
@@ -36,11 +35,12 @@ var (
 )
 
 type PeerMapper struct {
+	logger *log.Logger
 	*DatabaseService
 }
 
 func NewPeerMapper(db *DatabaseService) *PeerMapper {
-	return &PeerMapper{DatabaseService: db}
+	return &PeerMapper{DatabaseService: db, logger: log.NewLogger(log.LogLevelVerbose, fmt.Sprintf("[%s] ", "peermapper"))}
 }
 
 func (p *PeerMapper) Register(e *dto.PeerDto) (*entity.Peer, error) {
@@ -112,7 +112,7 @@ func (p *PeerMapper) List(params *QueryParams) ([]*entity.Peer, error) {
 
 	sql, wrappers = Generate(params)
 
-	klog.Infof("sql: %s, wrappers: %v", sql, wrappers)
+	p.logger.Verbosef("sql: %s, wrappers: %v", sql, wrappers)
 	if err := p.Where(sql, wrappers...).Find(&peers).Error; err != nil {
 		return nil, err
 	}

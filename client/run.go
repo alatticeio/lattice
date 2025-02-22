@@ -7,9 +7,9 @@ import (
 	"fmt"
 	wg "golang.zx2c4.com/wireguard/device"
 	"golang.zx2c4.com/wireguard/ipc"
-	"k8s.io/klog/v2"
 	"linkany/internal"
 	"linkany/pkg/config"
+	"linkany/pkg/log"
 	"os"
 )
 
@@ -18,22 +18,7 @@ func Start(interfaceName string, isRelay bool) error {
 	var err error
 	ctx := SetupSignalHandler()
 
-	// new device
-	//logLevel := func() int {
-	//	switch os.Getenv("LOG_LEVEL") {
-	//	case "verbose", "debug":
-	//		return wg.LogLevelVerbose
-	//	case "error":
-	//		return wg.LogLevelError
-	//	case "silent":
-	//		return wg.LogLevelSilent
-	//	}
-	//	return wg.LogLevelError
-	//}()
-	logger := wg.NewLogger(
-		wg.LogLevelVerbose,
-		fmt.Sprintf("(%s) ", interfaceName),
-	)
+	logger := log.NewLogger(log.LogLevelVerbose, fmt.Sprintf("[%s] ", "linkany"))
 
 	conf, err := config.GetLocalConfig()
 	if err != nil {
@@ -42,10 +27,14 @@ func Start(interfaceName string, isRelay bool) error {
 
 	// peers config to wireguard
 	engine, err := NewEngine(&EngineParams{
-		Conf:           conf,
-		Port:           51820,
-		InterfaceName:  interfaceName,
-		Logger:         logger,
+		Logger:        logger,
+		Conf:          conf,
+		Port:          51820,
+		InterfaceName: interfaceName,
+		WgLogger: wg.NewLogger(
+			wg.LogLevelError,
+			fmt.Sprintf("(%s) ", interfaceName),
+		),
 		ForceRelay:     isRelay,
 		ManagementAddr: fmt.Sprintf("%s:%d", internal.ManagementDomain, internal.DefaultManagementPort),
 		SignalingAddr:  fmt.Sprintf("%s:%d", internal.SignalingDomain, internal.DefaultSignalingPort),
@@ -58,11 +47,11 @@ func Start(interfaceName string, isRelay bool) error {
 		// get network map from list
 		conf, err := engine.client.List()
 		if err != nil {
-			klog.Errorf("get networkmap failed: %v", err)
+			logger.Errorf("get networkmap failed: %v", err)
 			return nil, err
 		}
 
-		klog.Infof("success get networkmap")
+		logger.Infof("success get networkmap")
 
 		return conf, err
 	}
@@ -70,14 +59,14 @@ func Start(interfaceName string, isRelay bool) error {
 	err = engine.Start()
 
 	// open UAPI file (or use supplied fd)
-	klog.Infof("device name: %s", engine.Name)
+	logger.Infof("device name: %s", engine.Name)
 	fileUAPI, err := func() (*os.File, error) {
 		return ipc.UAPIOpen(engine.Name)
 	}()
 
 	uapi, err := ipc.UAPIListen(engine.Name, fileUAPI)
 	if err != nil {
-		klog.Errorf("Failed to listen on uapi socket: %v", err)
+		logger.Errorf("Failed to listen on uapi socket: %v", err)
 		os.Exit(-1)
 	}
 
@@ -90,12 +79,12 @@ func Start(interfaceName string, isRelay bool) error {
 			go engine.IpcHandle(conn)
 		}
 	}()
-	klog.Infof("Linkany started")
+	logger.Infof("Linkany started")
 
 	<-ctx.Done()
 	uapi.Close()
 
 	engine.close()
-	klog.Infof("linkany shutting down")
+	logger.Infof("linkany shutting down")
 	return err
 }

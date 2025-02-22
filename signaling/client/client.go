@@ -8,18 +8,20 @@ import (
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/status"
 	"io"
-	"k8s.io/klog/v2"
+	"linkany/pkg/log"
 	"linkany/signaling/grpc/signaling"
 	"time"
 )
 
 type Client struct {
+	logger *log.Logger
 	conn   *grpc.ClientConn
 	client signaling.SignalingServiceClient
 }
 
 type ClientConfig struct {
-	Addr string
+	Logger *log.Logger
+	Addr   string
 }
 
 func NewClient(cfg *ClientConfig) (*Client, error) {
@@ -31,7 +33,7 @@ func NewClient(cfg *ClientConfig) (*Client, error) {
 	// Set up a connection to the server.
 	conn, err := grpc.NewClient(cfg.Addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
-		klog.Errorf("connect failed: %v", err)
+		cfg.Logger.Errorf("connect failed: %v", err)
 		return nil, err
 	}
 	grpc.WithKeepaliveParams(keepAliveArgs)
@@ -39,6 +41,7 @@ func NewClient(cfg *ClientConfig) (*Client, error) {
 	return &Client{
 		conn:   conn,
 		client: c,
+		logger: cfg.Logger,
 	}, nil
 }
 
@@ -53,9 +56,9 @@ func (c *Client) Forward(ctx context.Context, ch chan *signaling.EncryptMessage,
 	}
 
 	defer func() {
-		klog.Infof("close signaling stream")
+		c.logger.Infof("close signaling stream")
 		if err = stream.CloseSend(); err != nil {
-			klog.Errorf("close send failed: %v", err)
+			c.logger.Errorf("close send failed: %v", err)
 		}
 	}()
 
@@ -66,14 +69,14 @@ func (c *Client) Forward(ctx context.Context, ch chan *signaling.EncryptMessage,
 				if err := stream.Send(msg); err != nil {
 					s, ok := status.FromError(err)
 					if ok && s.Code() == codes.Canceled {
-						klog.Infof("stream canceled")
+						c.logger.Infof("stream canceled")
 						return
 					} else if err == io.EOF {
-						klog.Infof("stream EOF")
+						c.logger.Infof("stream EOF")
 						return
 					}
 
-					klog.Errorf("send message failed: %v", err)
+					c.logger.Errorf("send message failed: %v", err)
 					return
 				}
 			}
@@ -85,18 +88,18 @@ func (c *Client) Forward(ctx context.Context, ch chan *signaling.EncryptMessage,
 		if err != nil {
 			s, ok := status.FromError(err)
 			if ok && s.Code() == codes.Canceled {
-				klog.Infof("client canceled")
+				c.logger.Infof("client canceled")
 				return nil
 			} else if err == io.EOF {
-				klog.Infof("client closed")
+				c.logger.Infof("client closed")
 				return nil
 			}
 
-			klog.Errorf("recv msg failed: %v", err)
+			c.logger.Errorf("recv msg failed: %v", err)
 		}
 
 		if err = callback(msg); err != nil {
-			klog.Errorf("callback failed: %v", err)
+			c.logger.Errorf("callback failed: %v", err)
 		}
 
 	}
@@ -104,6 +107,6 @@ func (c *Client) Forward(ctx context.Context, ch chan *signaling.EncryptMessage,
 }
 
 func (c *Client) Close() error {
-	klog.Infof("close signaling client connection")
+	c.logger.Infof("close signaling client connection")
 	return c.conn.Close()
 }

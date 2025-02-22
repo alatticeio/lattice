@@ -7,9 +7,9 @@ import (
 	"fmt"
 	wg "golang.zx2c4.com/wireguard/device"
 	"golang.zx2c4.com/wireguard/ipc"
-	"k8s.io/klog/v2"
 	"linkany/management/client"
 	"linkany/pkg/config"
+	"linkany/pkg/log"
 	"os"
 	"time"
 )
@@ -31,10 +31,7 @@ func Start(interfaceName string, isRelay bool) error {
 	//	}
 	//	return wg.LogLevelError
 	//}()
-	logger := wg.NewLogger(
-		wg.LogLevelVerbose,
-		fmt.Sprintf("(%s) ", interfaceName),
-	)
+	logger := log.NewLogger(log.LogLevelVerbose, "linkany")
 
 	conf, err := config.GetLocalConfig()
 	if err != nil {
@@ -46,8 +43,11 @@ func Start(interfaceName string, isRelay bool) error {
 		Conf:          conf,
 		Port:          51820,
 		InterfaceName: interfaceName,
-		Logger:        logger,
-		ForceRelay:    isRelay,
+		Logger: wg.NewLogger(
+			wg.LogLevelVerbose,
+			fmt.Sprintf("(%s) ", interfaceName),
+		),
+		ForceRelay: isRelay,
 	})
 	if err != nil {
 		return err
@@ -58,9 +58,9 @@ func Start(interfaceName string, isRelay bool) error {
 		// update config
 		conf, err := c.List()
 		if err != nil {
-			klog.Errorf("sync peers failed: %v", err)
+			logger.Errorf("sync peers failed: %v", err)
 		}
-		klog.Infof("success synced!!!")
+		logger.Infof("success synced!!!")
 
 		return conf, err
 	}
@@ -72,11 +72,11 @@ func Start(interfaceName string, isRelay bool) error {
 	err = engine.Start(ticker, quit)
 
 	// open UAPI file (or use supplied fd)
-	klog.Infof("got device name: %s", engine.Name)
+	logger.Infof("got device name: %s", engine.Name)
 
 	uapi, err := ipc.UAPIListen(engine.Name)
 	if err != nil {
-		logger.Errorf("Failed to listen on uapi socket: %v", err)
+		wgLogger.Errorf("Failed to listen on uapi socket: %v", err)
 		os.Exit(-1)
 	}
 
@@ -89,11 +89,11 @@ func Start(interfaceName string, isRelay bool) error {
 			go engine.IpcHandle(conn)
 		}
 	}()
-	klog.Infof("UAPI listener started")
+	logger.Infof("UAPI listener started")
 
 	<-ctx.Done()
 	uapi.Close()
 
-	klog.Infof("linkany shutting down")
+	logger.Infof("linkany shutting down")
 	return err
 }

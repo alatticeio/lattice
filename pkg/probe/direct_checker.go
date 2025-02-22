@@ -3,10 +3,10 @@ package probe
 import (
 	"context"
 	"github.com/linkanyio/ice"
-	"k8s.io/klog/v2"
-	internal2 "linkany/internal"
+	"linkany/internal"
 	"linkany/internal/direct"
 	"linkany/pkg/iface"
+	"linkany/pkg/log"
 	"net"
 	"strings"
 	"sync/atomic"
@@ -24,6 +24,7 @@ var (
 
 // DirectChecker represents present node's connection to remote peer which fetch from control server
 type DirectChecker struct {
+	logger       *log.Logger
 	isStarted    atomic.Bool
 	ufrag        string
 	pwd          string
@@ -31,14 +32,42 @@ type DirectChecker struct {
 	remoteKey    string
 	addr         *net.UDPAddr
 	addPeer      func(key string, addr *net.UDPAddr) error
-	offerManager internal2.OfferManager
-	km           *internal2.KeyManager
+	offerManager internal.OfferManager
+	km           *internal.KeyManager
 	localKey     uint32
 	wgConfiger   iface.WGConfigure
 	prober       *Prober
 }
 
-func (dt *DirectChecker) handleOffer(offer internal2.Offer) error {
+type DirectCheckerConfig struct {
+	Logger        *log.Logger
+	Ufrag         string // local
+	Pwd           string
+	IsControlling bool
+	Agent         *ice.Agent
+	Key           string
+	WgConfiger    iface.WGConfigure
+	LocalKey      uint32
+}
+
+func NewDirectChecker(config *DirectCheckerConfig) *DirectChecker {
+	if config.Logger == nil {
+		config.Logger = log.NewLogger(log.LogLevelVerbose, "direct-checker")
+	}
+	pc := &DirectChecker{
+		logger:     config.Logger,
+		agent:      config.Agent,
+		ufrag:      "",
+		pwd:        "",
+		remoteKey:  config.Key,
+		wgConfiger: config.WgConfiger,
+		localKey:   config.LocalKey,
+	}
+
+	return pc
+}
+
+func (dt *DirectChecker) handleOffer(offer internal.Offer) error {
 	o := offer.(*direct.DirectOffer)
 	return dt.handleDirectOffer(o)
 }
@@ -53,46 +82,23 @@ func (dt *DirectChecker) handleDirectOffer(offer *direct.DirectOffer) error {
 		candidate, err := ice.UnmarshalCandidate(candString)
 
 		if err != nil {
-			klog.Errorf("unmarshal candidate failed: %v", err)
+			dt.logger.Errorf("unmarshal candidate failed: %v", err)
 			continue
 		}
 
 		if err = dt.agent.AddRemoteCandidate(candidate); err != nil {
-			klog.Errorf("add remote candidate failed: %v", err)
+			dt.logger.Errorf("add remote candidate failed: %v", err)
 			continue
 		}
 
-		klog.Infof("add remote candidate success:%v", candidate.Marshal())
+		dt.logger.Infof("add remote candidate success:%v", candidate.Marshal())
 	}
 
 	return nil
 }
 
-type DirectCheckerConfig struct {
-	Ufrag         string // local
-	Pwd           string
-	IsControlling bool
-	Agent         *ice.Agent
-	Key           string
-	WgConfiger    iface.WGConfigure
-	LocalKey      uint32
-}
-
-func NewDirectChecker(config *DirectCheckerConfig) *DirectChecker {
-	pc := &DirectChecker{
-		agent:      config.Agent,
-		ufrag:      "",
-		pwd:        "",
-		remoteKey:  config.Key,
-		wgConfiger: config.WgConfiger,
-		localKey:   config.LocalKey,
-	}
-
-	return pc
-}
-
 // ProbeConnect probes the connection
-func (dt *DirectChecker) ProbeConnect(ctx context.Context, isControlling bool, remoteOffer internal2.Offer) error {
+func (dt *DirectChecker) ProbeConnect(ctx context.Context, isControlling bool, remoteOffer internal.Offer) error {
 	if dt.isStarted.Load() {
 		return nil
 	}
@@ -104,7 +110,7 @@ func (dt *DirectChecker) ProbeConnect(ctx context.Context, isControlling bool, r
 
 	offer := remoteOffer.(*direct.DirectOffer)
 
-	klog.Infof("remote candidates: %v, current node is controlling: %v", candidates, isControlling)
+	dt.logger.Infof("remote candidates: %v, current node is controlling: %v", candidates, isControlling)
 	if isControlling {
 		conn, err = dt.agent.Dial(ctx, offer.Ufrag, offer.Pwd)
 	} else {
@@ -112,7 +118,7 @@ func (dt *DirectChecker) ProbeConnect(ctx context.Context, isControlling bool, r
 	}
 
 	if err != nil {
-		klog.Errorf("peer p2p connection to %s failed: %v", dt.addr.String(), err)
+		dt.logger.Errorf("peer p2p connection to %s failed: %v", dt.addr.String(), err)
 		return dt.OnFailure(remoteOffer) // TODO will set relay checker
 	}
 
@@ -123,7 +129,7 @@ func (dt *DirectChecker) OnSuccess(conn string) error {
 	return dt.prober.ProbeSuccess(dt.remoteKey, conn)
 }
 
-func (dt *DirectChecker) OnFailure(offer internal2.Offer) error {
+func (dt *DirectChecker) OnFailure(offer internal.Offer) error {
 	return dt.prober.ProbeFailed(dt, offer)
 }
 

@@ -3,13 +3,14 @@ package client
 import (
 	"github.com/pion/logging"
 	"github.com/pion/turn/v4"
-	"k8s.io/klog/v2"
 	configlocal "linkany/pkg/config"
+	"linkany/pkg/log"
 	"net"
 	"sync"
 )
 
 type Client struct {
+	logger     *log.Logger
 	lock       sync.Mutex
 	realm      string
 	conf       *configlocal.LocalConfig
@@ -25,26 +26,27 @@ type RelayInfo struct {
 }
 
 type ClientConfig struct {
+	Logger    *log.Logger
 	ServerUrl string // stun.linkany.io:3478
 	Realm     string
 	Conf      *configlocal.LocalConfig
 }
 
-func NewClient(config *ClientConfig) (*Client, error) {
+func NewClient(cfg *ClientConfig) (*Client, error) {
 	//Dial TURN Server
-	conn, err := net.Dial("udp", config.ServerUrl)
+	conn, err := net.Dial("udp", cfg.ServerUrl)
 	if err != nil {
 		return nil, err
 	}
 	var username, password string
-	username, password, err = configlocal.DecodeAuth(config.Conf.Auth)
+	username, password, err = configlocal.DecodeAuth(cfg.Conf.Auth)
 	if err != nil {
 		return nil, err
 	}
 
-	cfg := &turn.ClientConfig{
-		STUNServerAddr: config.ServerUrl,
-		TURNServerAddr: config.ServerUrl,
+	turnCfg := &turn.ClientConfig{
+		STUNServerAddr: cfg.ServerUrl,
+		TURNServerAddr: cfg.ServerUrl,
 		Conn:           turn.NewSTUNConn(conn),
 		Username:       username,
 		Password:       password,
@@ -52,12 +54,12 @@ func NewClient(config *ClientConfig) (*Client, error) {
 		LoggerFactory:  logging.NewDefaultLoggerFactory(),
 	}
 
-	client, err := turn.NewClient(cfg)
+	client, err := turn.NewClient(turnCfg)
 	if err != nil {
 		return nil, err
 	}
 
-	c := &Client{realm: cfg.Realm, conf: config.Conf, turnClient: client}
+	c := &Client{realm: turnCfg.Realm, conf: cfg.Conf, turnClient: client, logger: cfg.Logger}
 	return c, nil
 }
 
@@ -91,7 +93,7 @@ func (c *Client) GetRelayInfo(allocated bool) (*RelayInfo, error) {
 		return nil, err
 	}
 
-	klog.Infof("get from turn relayed-address=%s", mappedAddr.String())
+	c.logger.Verbosef("get from turn relayed-address=%s", mappedAddr.String())
 
 	mapAddr, _ := AddrToUdpAddr(mappedAddr)
 	c.relayInfo.MappedAddr = *mapAddr

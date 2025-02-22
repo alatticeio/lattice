@@ -2,9 +2,10 @@ package utils
 
 import (
 	"encoding/json"
-	"k8s.io/klog/v2"
+	"fmt"
 	"linkany/management/entity"
 	"linkany/management/grpc/mgt"
+	"linkany/pkg/log"
 	"sync"
 )
 
@@ -25,8 +26,9 @@ func NewWatchMessage(eventType mgt.EventType, peers []*entity.Peer) *mgt.WatchMe
 }
 
 type WatchManager struct {
-	lock sync.Mutex
-	m    map[string]chan *mgt.WatchMessage
+	lock   sync.Mutex
+	m      map[string]chan *mgt.WatchMessage
+	logger *log.Logger
 }
 
 // NewWatchManager create a whole manager for connected peers
@@ -38,7 +40,8 @@ func NewWatchManager() *WatchManager {
 	}
 	once.Do(func() {
 		manager = &WatchManager{
-			m: make(map[string]chan *mgt.WatchMessage),
+			m:      make(map[string]chan *mgt.WatchMessage),
+			logger: log.NewLogger(log.LogLevelVerbose, fmt.Sprintf("[%s] ", "watchmanager")),
 		}
 	})
 
@@ -50,7 +53,7 @@ func (w *WatchManager) Add(key string, ch chan *mgt.WatchMessage) {
 	w.lock.Lock()
 	defer w.lock.Unlock()
 
-	klog.Infof("manager: %v, ch: %v", w, ch)
+	w.logger.Verbosef("manager: %v, ch: %v", w, ch)
 	w.m[key] = ch
 }
 
@@ -76,6 +79,6 @@ func (w *WatchManager) Get(key string) chan *mgt.WatchMessage {
 	w.lock.Lock()
 	defer w.lock.Unlock()
 	ch := w.m[key]
-	klog.Infof("Get channel: %v, manager: %v", ch, w)
+	w.logger.Verbosef("Get channel: %v, manager: %v", ch, w)
 	return ch
 }

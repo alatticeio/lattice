@@ -10,7 +10,6 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"io"
-	"k8s.io/klog/v2"
 	"linkany/management/controller"
 	"linkany/management/dto"
 	"linkany/management/entity"
@@ -18,6 +17,7 @@ import (
 	"linkany/management/mapper"
 	"linkany/management/utils"
 	"linkany/pkg/linkerrors"
+	"linkany/pkg/log"
 	"linkany/pkg/redis"
 	"net"
 	"strconv"
@@ -26,6 +26,7 @@ import (
 
 // Server is used to implement helloworld.GreeterServer.
 type Server struct {
+	logger *log.Logger
 	mgt.UnimplementedManagementServiceServer
 	userController *controller.UserController
 	peerController *controller.PeerController
@@ -34,6 +35,7 @@ type Server struct {
 }
 
 type ServerConfig struct {
+	Logger          *log.Logger
 	Port            int
 	Database        mapper.DatabaseConfig
 	DataBaseService *mapper.DatabaseService
@@ -67,6 +69,7 @@ type RegistryRequest struct {
 
 func NewServer(cfg *ServerConfig) *Server {
 	return &Server{
+		logger:         cfg.Logger,
 		port:           cfg.Port,
 		userController: controller.NewUserController(mapper.NewUserMapper(cfg.DataBaseService, cfg.Rdb)),
 		peerController: controller.NewPeerController(mapper.NewPeerMapper(cfg.DataBaseService)),
@@ -78,7 +81,7 @@ func (s *Server) Login(ctx context.Context, in *mgt.ManagementMessage) (*mgt.Man
 	if err := proto.Unmarshal(in.Body, &req); err != nil {
 		return nil, err
 	}
-	klog.Infof("Received username: %s, password: %s", req.Username, req.Password)
+	s.logger.Infof("Received username: %s, password: %s", req.Username, req.Password)
 
 	token, err := s.userController.Login(&dto.UserDto{
 		Username: req.Username,
@@ -105,10 +108,10 @@ func (s *Server) Registry(ctx context.Context, in *mgt.ManagementMessage) (*mgt.
 	if err := json.Unmarshal(in.Body, &req); err != nil {
 		return nil, err
 	}
-	klog.Infof("Received peer info: %+v", req)
+	s.logger.Infof("Received peer info: %+v", req)
 	user, err := s.userController.Get(req.Token)
 	if err != nil {
-		klog.Errorf("get user info err: %s\n", err.Error())
+		s.logger.Errorf("get user info err: %s\n", err.Error())
 		return nil, err
 	}
 
@@ -170,7 +173,7 @@ func (s *Server) List(ctx context.Context, in *mgt.ManagementMessage) (*mgt.Mana
 	if err != nil {
 		return nil, err
 	}
-	klog.Infoln(user)
+	s.logger.Infof("%v", user)
 	networkMap, err := s.peerController.GetNetworkMap(req.AppId, strconv.Itoa(int(user.ID)))
 	if err != nil {
 		return nil, err
@@ -202,12 +205,12 @@ func (s *Server) Watch(server mgt.ManagementService_WatchServer) error {
 
 	// create a chan for the peer
 	watchChannel := CreateChannel(req.PubKey)
-	klog.Infof("peer %v is now watching, channel: %v", req.PubKey, watchChannel)
+	s.logger.Infof("peer %v is now watching, channel: %v", req.PubKey, watchChannel)
 	go func() {
 		for {
 			select {
 			case wm := <-watchChannel:
-				klog.Infof("sending watch message to peer: %v", req.PubKey)
+				s.logger.Infof("sending watch message to peer: %v", req.PubKey)
 				bs, err := proto.Marshal(wm)
 				if err != nil {
 					errChan <- err
@@ -240,14 +243,15 @@ func (s *Server) Keepalive(stream mgt.ManagementService_KeepaliveServer) error {
 	ctx := context.Background()
 	req, err = s.recv(stream)
 	pubKey = req.PubKey
+	logger := s.logger
 
 	user, err := s.userController.Get(req.Token)
 	if err != nil {
-		klog.Errorf("invalid token")
+		s.logger.Errorf("invalid token")
 		return err
 	}
 	userId = fmt.Sprintf("%v", user.ID)
-	klog.Infof("receive from client, pubkey: %v, userId: %v", pubKey, userId)
+	s.logger.Verbosef("receive from client, pubkey: %v, userId: %v", pubKey, userId)
 	// record
 	var wc chan *mgt.WatchMessage
 	wc = utils.NewWatchManager().Get(pubKey)
@@ -260,7 +264,7 @@ func (s *Server) Keepalive(stream mgt.ManagementService_KeepaliveServer) error {
 	})
 
 	if err != nil {
-		klog.Errorf("list peers failed: %v", err)
+		s.logger.Errorf("list peers failed: %v", err)
 		return err
 	}
 
@@ -269,7 +273,7 @@ func (s *Server) Keepalive(stream mgt.ManagementService_KeepaliveServer) error {
 	}
 
 	currentPeer := peers[0]
-	klog.Infof("current peer pubKey: %s, req pubKey: %s", currentPeer.PublicKey, pubKey)
+	s.logger.Verbosef("current peer pubKey: %s, req pubKey: %s", currentPeer.PublicKey, pubKey)
 
 	k := NewWatchKeeper()
 
@@ -278,7 +282,7 @@ func (s *Server) Keepalive(stream mgt.ManagementService_KeepaliveServer) error {
 		if err != nil {
 			return err
 		}
-		klog.Infof("got keepalive resp packet from client,pubKey: %s", req.PubKey)
+		s.logger.Verbosef("got keepalive resp packet from client,pubKey: %s", req.PubKey)
 		return nil
 	}
 
@@ -292,7 +296,7 @@ func (s *Server) Keepalive(stream mgt.ManagementService_KeepaliveServer) error {
 			checkReq := &mgt.Request{PubKey: pubKey}
 			body, err := proto.Marshal(checkReq)
 			if err != nil {
-				klog.Errorf("marshal check request failed: %v", err)
+				s.logger.Errorf("marshal check request failed: %v", err)
 				cancel()
 				return err
 			}
@@ -312,15 +316,15 @@ func (s *Server) Keepalive(stream mgt.ManagementService_KeepaliveServer) error {
 				if err = stream.Send(&mgt.ManagementMessage{Body: body}); err != nil {
 					s, ok := status.FromError(err)
 					if ok && s.Code() == codes.Canceled {
-						klog.Infof("send canceled")
+						logger.Verbosef("send canceled")
 					} else if errors.Is(err, io.EOF) {
 						// client exit
-						klog.Infof("peer %s is disconnected", pubKey)
+						logger.Verbosef("peer %s is disconnected", pubKey)
 					}
 				}
 
 				if err = check(newCtx); err != nil {
-					klog.Errorf("check failed: %v", err)
+					logger.Errorf("check failed: %v", err)
 					return
 				}
 
@@ -331,15 +335,15 @@ func (s *Server) Keepalive(stream mgt.ManagementService_KeepaliveServer) error {
 
 			select {
 			case <-newCtx.Done():
-				klog.Infoln("timeout or cancel")
+				logger.Infof("timeout or cancel")
 				//timeout or cancel
 				if err = s.sendWatchMessage(mgt.EventType_DELETE, currentPeer, pubKey, userId, 0); err != nil {
-					klog.Errorf("send watch message failed: %v, peer: %v", err, currentPeer.PublicKey)
+					logger.Errorf("send watch message failed: %v, peer: %v", err, currentPeer.PublicKey)
 				}
 				k.Online.Store(false)
 				return fmt.Errorf("exit stream: %v", stream)
 			case <-checkChannel:
-				klog.Infof("peer %s is online", pubKey)
+				s.logger.Verbosef("peer %s is online", pubKey)
 				//if !k.Status.Load() {
 				if err = s.sendWatchMessage(mgt.EventType_ADD, currentPeer, pubKey, userId, 1); err != nil {
 					return err
@@ -354,13 +358,13 @@ func (s *Server) Keepalive(stream mgt.ManagementService_KeepaliveServer) error {
 func (s *Server) recv(stream mgt.ManagementService_KeepaliveServer) (*mgt.Request, error) {
 	msg, err := stream.Recv()
 	if err != nil {
-		s, ok := status.FromError(err)
-		if ok && s.Code() == codes.Canceled {
-			klog.Infof("receive canceled")
+		state, ok := status.FromError(err)
+		if ok && state.Code() == codes.Canceled {
+			s.logger.Infof("receive canceled")
 			return nil, err
 		} else if errors.Is(err, io.EOF) {
 			// client exit
-			klog.Infof("client closed")
+			s.logger.Infof("client closed")
 			return nil, err
 		}
 		return nil, err
@@ -382,7 +386,7 @@ func (s *Server) sendWatchMessage(eventType mgt.EventType, current *entity.Peer,
 	})
 
 	if err != nil {
-		klog.Errorf("list peers failed: %v", err)
+		s.logger.Errorf("list peers failed: %v", err)
 		return err
 	}
 
@@ -392,7 +396,7 @@ func (s *Server) sendWatchMessage(eventType mgt.EventType, current *entity.Peer,
 			continue
 		}
 		wc := manager.Get(peer.PublicKey)
-		klog.Infof("fetch actual channel %v for peer: %v, current peer pubKey: %v", wc, peer.PublicKey, current.PublicKey)
+		s.logger.Verbosef("fetch actual channel %v for peer: %v, current peer pubKey: %v", wc, peer.PublicKey, current.PublicKey)
 		message := utils.NewWatchMessage(eventType, []*entity.Peer{current})
 		// add to channel, will send to client
 		if wc != nil {
@@ -402,7 +406,7 @@ func (s *Server) sendWatchMessage(eventType mgt.EventType, current *entity.Peer,
 
 	// update peer online status
 	dtoParam := &dto.PeerDto{PublicKey: pubKey, Status: status}
-	klog.Infof("update peer status ,publicKey: %v, status: %v", pubKey, status)
+	s.logger.Verbosef("update peer status ,publicKey: %v, status: %v", pubKey, status)
 	_, err = s.peerController.Update(dtoParam)
 	return err
 }
@@ -414,7 +418,7 @@ func (s *Server) Start() error {
 	}
 	grpcServer := grpc.NewServer()
 	mgt.RegisterManagementServiceServer(grpcServer, s)
-	klog.Infof("Grpc server listening at %v", listen.Addr())
+	s.logger.Verbosef("Grpc server listening at %v", listen.Addr())
 	return grpcServer.Serve(listen)
 }
 

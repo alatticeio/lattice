@@ -7,12 +7,12 @@ import (
 	"github.com/moby/term"
 	"github.com/pion/turn/v4"
 	"github.com/spf13/cobra"
-	"k8s.io/klog/v2"
 	"linkany/internal"
 	"linkany/management/client"
 	grpcclient "linkany/management/grpc/client"
 	"linkany/pkg/config"
 	"linkany/pkg/linkerrors"
+	"linkany/pkg/log"
 	"linkany/pkg/redis"
 	"os"
 )
@@ -51,10 +51,11 @@ func loginCmd() *cobra.Command {
 
 // runJoin join a network cmd
 func runLogin(opts loginOptions) error {
+	logger := log.NewLogger(log.LogLevelVerbose, "linkany")
 	var err error
 	defer func() {
 		if err == nil {
-			klog.Infof("login success")
+			logger.Infof("login success")
 		}
 	}()
 	conf, err := config.InitConfig()
@@ -81,7 +82,7 @@ func runLogin(opts loginOptions) error {
 		}
 	}
 
-	grpcClient, err := grpcclient.NewClient(&grpcclient.GrpcConfig{Addr: internal.ManagementDomain + ":32051"})
+	grpcClient, err := grpcclient.NewClient(&grpcclient.GrpcConfig{Addr: internal.ManagementDomain + ":32051", Logger: log.NewLogger(log.LogLevelVerbose, fmt.Sprintf("[%s] ", "grpcclient"))})
 	if err != nil {
 		return err
 	}

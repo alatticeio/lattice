@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"golang.org/x/sys/unix"
 	"golang.zx2c4.com/wireguard/tun"
-	"k8s.io/klog/v2"
+	"linkany/pkg/log"
 	"os"
 	"syscall"
 )
@@ -15,7 +15,7 @@ const (
 	utunPrefix      = "utun"
 )
 
-func CreateTUN(mtu int) (string, tun.Device, error) {
+func CreateTUN(mtu int, logger *log.Logger) (string, tun.Device, error) {
 	ifIndex := 0
 	var name string
 	var fd int
@@ -47,7 +47,7 @@ func CreateTUN(mtu int) (string, tun.Device, error) {
 		err = unix.Connect(fd, sc)
 		if err != nil {
 			unix.Close(fd)
-			klog.Infof("connect fd failed: %v, index: %d", err, sc.Unit)
+			logger.Errorf("connect fd failed: %v, index: %d", err, sc.Unit)
 			ifIndex++
 			continue
 		}
@@ -55,7 +55,7 @@ func CreateTUN(mtu int) (string, tun.Device, error) {
 		err = unix.SetNonblock(fd, true)
 		if err != nil {
 			unix.Close(fd)
-			klog.Infof("set non block failed:%v", err)
+			logger.Infof("set non block failed:%v", err)
 			ifIndex++
 			continue
 		}
@@ -72,7 +72,7 @@ func CreateTUN(mtu int) (string, tun.Device, error) {
 	if err != nil {
 		return "", nil, err
 	}
-	klog.Infof("create tun %s success", name)
+	logger.Verbosef("create tun %s success", name)
 	return name, tun, nil
 }
 

@@ -2,14 +2,15 @@ package management
 
 import (
 	"github.com/spf13/viper"
-	"k8s.io/klog/v2"
 	grpcserver "linkany/management/grpc/server"
 	"linkany/management/mapper"
 	"linkany/management/server"
+	"linkany/pkg/log"
 	"linkany/pkg/redis"
 )
 
 func Start(listen string) error {
+	logger := log.NewLogger(log.LogLevelVerbose, "management")
 	viper.AddConfigPath("/app/")
 	viper.AddConfigPath("conf/")
 	viper.SetConfigName("control")
@@ -35,6 +36,7 @@ func Start(listen string) error {
 	cfg.Rdb = redisClient
 	dbService := mapper.NewDatabaseService(&cfg.Database)
 	gServer := grpcserver.NewServer(&grpcserver.ServerConfig{
+		Logger:          logger,
 		Port:            32051,
 		DataBaseService: dbService,
 		Rdb:             redisClient,
@@ -42,7 +44,7 @@ func Start(listen string) error {
 	// go run a grpc server
 	go func() {
 		if err := gServer.Start(); err != nil {
-			klog.Errorf("grpc server start failed: %v", err)
+			logger.Errorf("grpc server start failed: %v", err)
 		}
 	}()
 

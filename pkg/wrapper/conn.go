@@ -6,8 +6,8 @@ import (
 	"github.com/linkanyio/ice"
 	"golang.zx2c4.com/wireguard/conn"
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
-	"k8s.io/klog/v2"
 	"linkany/pkg/drp"
+	"linkany/pkg/log"
 	signalingclient "linkany/signaling/client"
 	"net"
 	"net/netip"
@@ -30,6 +30,7 @@ var (
 // methods for sending and receiving multiple datagrams per-syscall. See the
 // proposal in https://github.com/golang/go/issues/45886#issuecomment-1218301564.
 type NetBind struct {
+	logger          *log.Logger
 	agent           *ice.Agent
 	universalUdpMux *ice.UniversalUDPMuxDefault
 	conn            net.Conn // drp client conn
@@ -60,6 +61,7 @@ type NetBind struct {
 }
 
 type BindConfig struct {
+	Logger          *log.Logger
 	SignalingClient *signalingclient.Client
 	V4Conn          *net.UDPConn
 	UniversalUDPMux *ice.UniversalUDPMuxDefault
@@ -234,7 +236,7 @@ func (b *NetBind) makeReceiveIPv4(pc *ipv4.PacketConn, udpConn *net.UDPConn) con
 
 			ok, err := b.universalUdpMux.FilterMessage(msg.Buffers[0], msg.N, msg.Addr.(*net.UDPAddr))
 			if err != nil {
-				klog.Errorf("handle stun message error: %v", err)
+				b.logger.Errorf("handle stun message error: %v", err)
 				return 0, nil
 			}
 
