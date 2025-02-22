@@ -25,6 +25,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 )
 
 var (
@@ -159,15 +160,22 @@ func NewEngine(cfg *EngineParams) (*Engine, error) {
 	})
 
 	go func() {
-		if err = engine.signalingClient.Forward(context.Background(), engine.signalChannel, drpclient.ReceiveOffer); err != nil {
-			engine.logger.Errorf("forward failed: %v", err)
+		timer := time.NewTicker(20 * time.Second)
+		defer timer.Stop()
+		for {
+			if err = engine.signalingClient.Forward(context.Background(), engine.signalChannel, drpclient.ReceiveOffer); err != nil {
+				engine.logger.Errorf("forward failed: %v", err)
+				cfg.Logger.Errorf("forward is retrying in 20s")
+				timer.Reset(20 * time.Second)
+			}
 		}
+
 	}()
 
 	ufrag, pwd := probe.GenerateRandomUfragPwd()
 
 	engine.client = controlclient.NewClient(&controlclient.ClientConfig{
-		Logger:          log.NewLogger(log.LogLevelVerbose, "ctrclient"),
+		Logger:          log.NewLogger(log.LogLevelVerbose, fmt.Sprintf("[%s] ", "controlclient")),
 		PeersManager:    engine.peersManager,
 		Conf:            cfg.Conf,
 		UdpMux:          universalUdpMuxDefault.UDPMuxDefault,

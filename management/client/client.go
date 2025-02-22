@@ -338,6 +338,7 @@ func (c *Client) probe(agent *ice.Agent, peer *config.Peer, gatherCh chan interf
 		c.proberMux.Lock()
 		defer c.proberMux.Unlock()
 		prober = probe.NewProber(&probe.ProberConfig{
+			Logger:           log.NewLogger(log.LogLevelVerbose, fmt.Sprintf("[%s] ", "prober")),
 			OfferManager:     c.drpClient,
 			AgentManager:     c.agentManager,
 			WGConfiger:       c.proberManager.GetWgConfiger(),

@@ -96,6 +96,7 @@ func (c *Client) Forward(ctx context.Context, ch chan *signaling.EncryptMessage,
 			}
 
 			c.logger.Errorf("recv msg failed: %v", err)
+			return err
 		}
 
 		if err = callback(msg); err != nil {
