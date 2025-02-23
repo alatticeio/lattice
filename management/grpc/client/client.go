@@ -95,7 +95,9 @@ func (c *Client) Watch(ctx context.Context, in *mgt.ManagementMessage, callback 
 		}
 	}()
 
+	c.logger.Verbosef("client watching peers events")
 	<-ch
+	c.logger.Verbosef("client break watching peers events")
 	return nil
 }
 

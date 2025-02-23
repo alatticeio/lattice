@@ -68,13 +68,14 @@ type BindConfig struct {
 	RelayConn       net.PacketConn
 }
 
-func NewBind(config *BindConfig) *NetBind {
+func NewBind(cfg *BindConfig) *NetBind {
 	return &NetBind{
-		relayConn:       config.RelayConn,
+		logger:          cfg.Logger,
+		relayConn:       cfg.RelayConn,
 		dstConns:        make(map[conn.Endpoint]net.PacketConn),
-		signalingClient: config.SignalingClient,
-		v4conn:          config.V4Conn,
-		universalUdpMux: config.UniversalUDPMux,
+		signalingClient: cfg.SignalingClient,
+		v4conn:          cfg.V4Conn,
+		universalUdpMux: cfg.UniversalUDPMux,
 		udpAddrPool: sync.Pool{
 			New: func() any {
 				return &net.UDPAddr{

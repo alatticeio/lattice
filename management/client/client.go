@@ -466,7 +466,6 @@ func (c *Client) Get(ctx context.Context) (*config.Peer, error) {
 }
 
 func (c *Client) Watch(ctx context.Context, callback func(msg *mgt.WatchMessage) error) error {
-
 	req := &mgt.Request{
 		PubKey: c.keyManager.GetPublicKey(),
 	}
