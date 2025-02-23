@@ -39,7 +39,7 @@ func Start(interfaceName string, isRelay bool) error {
 	}
 
 	// peers config to wireguard
-	engine, err := NewEngine(&EngineParams{
+	engine, err := NewEngine(&EngineConfig{
 		Conf:          conf,
 		Port:          51820,
 		InterfaceName: interfaceName,

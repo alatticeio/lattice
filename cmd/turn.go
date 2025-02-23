@@ -21,7 +21,7 @@ func turnCmd() *cobra.Command {
 		Use:          "turn",
 		SilenceUsage: true,
 		Short:        "start a turn server",
-		Long:         `a turn serer will provided stun service for up, you can use it to get public IP and port`,
+		Long:         `start a turn serer will provided stun service for you, you can use it to get public IP and port, also you can deploy you own turn server when direct(P2P) unavailable.`,
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			return nil
 		},

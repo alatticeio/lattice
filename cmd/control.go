@@ -15,7 +15,7 @@ func managementCmd() *cobra.Command {
 		Use:          "manager [command]",
 		SilenceUsage: true,
 		Short:        "manager is control server",
-		Long:         `manager used for`,
+		Long:         `manager used for starting management server, management providing our all control plance features.`,
 
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			return nil
@@ -26,8 +26,7 @@ func managementCmd() *cobra.Command {
 		},
 	}
 	fs := cmd.Flags()
-	fs.StringVarP(&opts.Listen, "", "l", "", "http port for drp over http")
-	//fs.BoolVarP(&opts.RunDrp, "", "b", true, "run drp")
+	fs.StringVarP(&opts.Listen, "", "l", "", "management server listen address")
 	return cmd
 }
 

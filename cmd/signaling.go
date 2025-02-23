@@ -15,7 +15,7 @@ func drpCmd() *cobra.Command {
 		Use:          "signaling [command]",
 		SilenceUsage: true,
 		Short:        "signaling is a signaling server",
-		Long:         `signaling used for signaling`,
+		Long:         `signaling will start a signaling server, signaling server is used to exchange the network information between the clients. which is our core feature.`,
 
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			return nil

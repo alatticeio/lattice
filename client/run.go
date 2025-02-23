@@ -1,6 +1,3 @@
-//go:build !windows
-// +build !windows
-
 package client
 
 import (
@@ -13,7 +10,8 @@ import (
 	"os"
 )
 
-func Start(interfaceName string, isRelay bool) error {
+// Start starts the linkany
+func Start(flags *ClientFlags) error {
 
 	var err error
 	ctx := SetupSignalHandler()
@@ -25,20 +23,31 @@ func Start(interfaceName string, isRelay bool) error {
 		return err
 	}
 
-	// peers config to wireguard
-	engine, err := NewEngine(&EngineParams{
+	engineCfg := &EngineConfig{
 		Logger:        logger,
 		Conf:          conf,
 		Port:          51820,
-		InterfaceName: interfaceName,
+		InterfaceName: flags.InterfaceName,
 		WgLogger: wg.NewLogger(
 			wg.LogLevelError,
-			fmt.Sprintf("(%s) ", interfaceName),
+			fmt.Sprintf("(%s) ", flags.InterfaceName),
 		),
-		ForceRelay:     isRelay,
-		ManagementAddr: fmt.Sprintf("%s:%d", internal.ManagementDomain, internal.DefaultManagementPort),
-		SignalingAddr:  fmt.Sprintf("%s:%d", internal.SignalingDomain, internal.DefaultSignalingPort),
-	})
+		ForceRelay: flags.ForceRelay,
+	}
+
+	if flags.ManagementUrl == "" {
+		engineCfg.ManagementUrl = fmt.Sprintf("%s:%d", internal.ManagementDomain, internal.DefaultManagementPort)
+	}
+
+	if flags.SignalingUrl == "" {
+		engineCfg.SignalingUrl = fmt.Sprintf("%s:%d", internal.SignalingDomain, internal.DefaultSignalingPort)
+	}
+
+	if flags.TurnServerUrl == "" {
+		engineCfg.TurnServerUrl = fmt.Sprintf("%s:%d", internal.TurnServerDomain, internal.DefaultTurnServerPort)
+	}
+
+	engine, err := NewEngine(engineCfg)
 	if err != nil {
 		return err
 	}
@@ -47,19 +56,19 @@ func Start(interfaceName string, isRelay bool) error {
 		// get network map from list
 		conf, err := engine.client.List()
 		if err != nil {
-			logger.Errorf("get networkmap failed: %v", err)
+			logger.Errorf("Get network map failed: %v", err)
 			return nil, err
 		}
 
-		logger.Infof("success get networkmap")
+		logger.Infof("Success get network map")
 
 		return conf, err
 	}
 
 	err = engine.Start()
 
-	// open UAPI file (or use supplied fd)
-	logger.Infof("device name: %s", engine.Name)
+	// open UAPI file
+	logger.Infof("Interface name is: [%s]", engine.Name)
 	fileUAPI, err := func() (*os.File, error) {
 		return ipc.UAPIOpen(engine.Name)
 	}()
@@ -85,6 +94,6 @@ func Start(interfaceName string, isRelay bool) error {
 	uapi.Close()
 
 	engine.close()
-	logger.Infof("linkany shutting down")
+	logger.Infof("Linkany shutting down")
 	return err
 }

@@ -56,7 +56,7 @@ type Engine struct {
 	callback func(message *mgt.WatchMessage) error
 }
 
-type EngineParams struct {
+type EngineConfig struct {
 	Logger          *log.Logger
 	Conf            *config.LocalConfig
 	Port            int
@@ -65,10 +65,10 @@ type EngineParams struct {
 	client          *controlclient.Client
 	signalingClient *signalingclient.Client
 	WgLogger        *wg.Logger
-	StunUri         string
+	TurnServerUrl   string
 	ForceRelay      bool
-	ManagementAddr  string
-	SignalingAddr   string
+	ManagementUrl   string
+	SignalingUrl    string
 	ShowWgLog       bool
 }
 
@@ -77,7 +77,7 @@ func (e *Engine) IpcHandle(conn net.Conn) {
 }
 
 // NewEngine create a tun auto
-func NewEngine(cfg *EngineParams) (*Engine, error) {
+func NewEngine(cfg *EngineConfig) (*Engine, error) {
 	var device tun.Device
 	var err error
 	engine := new(Engine)
@@ -98,14 +98,14 @@ func NewEngine(cfg *EngineParams) (*Engine, error) {
 		return nil, err
 	}
 
-	engine.signalingClient, err = signalingclient.NewClient(&signalingclient.ClientConfig{Addr: cfg.SignalingAddr, Logger: log.NewLogger(log.Loglevel, fmt.Sprintf("[%s] ", "signalingclient"))})
+	engine.signalingClient, err = signalingclient.NewClient(&signalingclient.ClientConfig{Addr: cfg.SignalingUrl, Logger: log.NewLogger(log.Loglevel, fmt.Sprintf("[%s] ", "signalingclient"))})
 	if err != nil {
 		return nil, err
 	}
 
 	// init stun
 	turnClient, err := turnclient.NewClient(&turnclient.ClientConfig{
-		ServerUrl: "stun.linkany.io:3478",
+		ServerUrl: cfg.TurnServerUrl,
 		Conf:      cfg.Conf,
 		Logger:    log.NewLogger(log.Loglevel, fmt.Sprintf("[%s] ", "turnclient")),
 	})
@@ -138,18 +138,13 @@ func NewEngine(cfg *EngineParams) (*Engine, error) {
 	proberManager := probe.NewProberManager(cfg.ForceRelay, relayer)
 
 	// controlclient
-	grpcClient, err := mgtclient.NewClient(&mgtclient.GrpcConfig{Addr: cfg.ManagementAddr, Logger: log.NewLogger(log.Loglevel, fmt.Sprintf("[%s] ", "grpcclient"))})
+	grpcClient, err := mgtclient.NewClient(&mgtclient.GrpcConfig{Addr: cfg.ManagementUrl, Logger: log.NewLogger(log.Loglevel, fmt.Sprintf("[%s] ", "grpcclient"))})
 	if err != nil {
 		return nil, err
 	}
 
 	// init key manager
 	engine.keyManager = internal.NewKeyManager("")
-
-	//callback := func(msg *signaling.EncryptMessage) error {
-	//	fmt.Println(msg)
-	//	return nil
-	//}
 
 	drpclient := drp.NewClient(&drp.ClientConfig{
 		Logger:        log.NewLogger(log.Loglevel, fmt.Sprintf("[%s] ", "drpclient")),

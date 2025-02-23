@@ -29,8 +29,8 @@ func loginCmd() *cobra.Command {
 	var cmd = &cobra.Command{
 		Use:          "login",
 		SilenceUsage: true,
-		Short:        "login up",
-		Long:         `when you are using up, you should logon first, login up use username and password which registered on our site, if you did not logon, you can not join any networks.`,
+		Short:        "logon to linkany",
+		Long:         `when you are using linkany, you should logon first,use username and password that registered on our site, once you logon, you can join your own created networks.`,
 
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			return nil
@@ -41,10 +41,10 @@ func loginCmd() *cobra.Command {
 		},
 	}
 	fs := cmd.Flags()
-	fs.StringVarP(&opts.Username, "username", "u", "", "username for up")
-	fs.StringVarP(&opts.Password, "password", "p", "", "username for up")
-	fs.StringVarP(&opts.RedisAddr, "redis-addr", "", "", "username for up")
-	fs.StringVarP(&opts.RedisPass, "redis-password", "", "", "username for up")
+	fs.StringVarP(&opts.Username, "username", "u", "", "username for login")
+	fs.StringVarP(&opts.Password, "password", "p", "", "username for login")
+	fs.StringVarP(&opts.RedisAddr, "redis-addr", "", "", "redis-addr for your custom turn server")
+	fs.StringVarP(&opts.RedisPass, "redis-password", "", "", "redis password for your custom turn server")
 
 	return cmd
 }
@@ -82,12 +82,12 @@ func runLogin(opts loginOptions) error {
 		}
 	}
 
-	grpcClient, err := grpcclient.NewClient(&grpcclient.GrpcConfig{Addr: internal.ManagementDomain + ":32051", Logger: log.NewLogger(log.Loglevel, fmt.Sprintf("[%s] ", "grpcclient"))})
+	grpcClient, err := grpcclient.NewClient(&grpcclient.GrpcConfig{Addr: fmt.Sprintf("%s:%d", internal.ManagementDomain, internal.DefaultManagementPort), Logger: log.NewLogger(log.Loglevel, fmt.Sprintf("[%s] ", "grpcclient"))})
 	if err != nil {
 		return err
 	}
 
-	client := client.NewClient(&client.ClientConfig{
+	mgtClient := client.NewClient(&client.ClientConfig{
 		GrpcClient: grpcClient,
 		Conf:       conf,
 	})
@@ -95,7 +95,7 @@ func runLogin(opts loginOptions) error {
 		Username: opts.Username,
 		Password: opts.Password,
 	}
-	err = client.Login(user)
+	err = mgtClient.Login(user)
 
 	if err != nil {
 		return err
@@ -104,7 +104,7 @@ func runLogin(opts loginOptions) error {
 	//set turn key to redis
 	if opts.RedisAddr != "" && opts.RedisPass != "" {
 		// set user to redis
-		client, err := redis.NewClient(&redis.ClientConfig{
+		rdbClient, err := redis.NewClient(&redis.ClientConfig{
 			Addr:     opts.RedisAddr,
 			Password: opts.RedisPass,
 		})
@@ -114,7 +114,7 @@ func runLogin(opts loginOptions) error {
 		}
 
 		key := turn.GenerateAuthKey(opts.Username, "linkany.io", opts.Password)
-		if err = client.Set(context.Background(), opts.Username, string(key)); err != nil {
+		if err = rdbClient.Set(context.Background(), opts.Username, string(key)); err != nil {
 			return fmt.Errorf("failed to set user turnKey to redis: %v", err)
 		}
 

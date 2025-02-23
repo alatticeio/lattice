@@ -10,7 +10,7 @@ var rootCmd = &cobra.Command{
 	Use:          "linkany [command]",
 	SilenceUsage: true,
 	Short:        "any",
-	Long:         `linkany up, login, logout, register and also so on`,
+	Long:         `linkany support up, login, logout, register, manager, turn command,`,
 }
 
 func Execute() {
