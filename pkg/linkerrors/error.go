@@ -15,4 +15,5 @@ var (
 	ErrInvalidPassword  = errors.New("invalid password")
 	ErrAgentNotFound    = errors.New("agent not found")
 	ErrProbeFailed      = errors.New("probe connect failed, need check the network you are in")
+	ErrorNotSameGroup   = errors.New("not in the same group")
 )

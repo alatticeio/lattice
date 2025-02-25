@@ -1,18 +1,8 @@
-package mapper
+package service
 
 import (
-	"linkany/management/dto"
 	"linkany/management/entity"
 )
-
-// UserInterface is an interface for user mapper
-type UserInterface interface {
-	Login(u *dto.UserDto) (*entity.Token, error)
-	Register(e *dto.UserDto) (*entity.User, error)
-
-	//Get returns a user by token
-	Get(token string) (*entity.User, error)
-}
 
 type QueryParams struct {
 	PubKey   *string
@@ -61,22 +51,6 @@ func (qp *QueryParams) Generate() []*kv {
 	}
 
 	return result
-}
-
-// PlanInterface is an interface for plan mapper
-type PlanInterface interface {
-	// List returns a list of plans
-	List() ([]*entity.Plan, error)
-	Get() (*entity.Plan, error)
-	Page() (*entity.Plan, error)
-}
-
-type SupportInterface interface {
-	// List returns a list of supports
-	List() ([]*entity.Support, error)
-	Get() (*entity.Support, error)
-	Page() (*entity.Support, error)
-	Create(e *dto.SupportDto) (*entity.Support, error)
 }
 
 // NetworkMapInterface user's network map

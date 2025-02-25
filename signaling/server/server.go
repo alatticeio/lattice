@@ -9,7 +9,7 @@ import (
 	"google.golang.org/grpc/status"
 	"io"
 	"linkany/management/grpc/client"
-	"linkany/management/mapper"
+	"linkany/management/service"
 	"linkany/pkg/drp"
 	"linkany/pkg/linkerrors"
 	"linkany/pkg/log"
@@ -21,7 +21,7 @@ type Server struct {
 	logger *log.Logger
 	signaling.UnimplementedSignalingServiceServer
 	listen      string
-	userService mapper.UserInterface
+	userService service.UserService
 	indexTable  *drp.IndexTable
 	mgtClient   *client.Client
 
@@ -32,7 +32,7 @@ type ServerConfig struct {
 	Logger      *log.Logger
 	Port        int
 	Listen      string
-	UserService mapper.UserInterface
+	UserService service.UserService
 	Table       *drp.IndexTable
 }
 

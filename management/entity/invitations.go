@@ -5,8 +5,8 @@ import (
 	"time"
 )
 
-// Invitations user invite other join its network
-type Invitations struct {
+// Invitation user invite other join its network
+type Invitation struct {
 	gorm.Model
 	InvitationId int64 // invitation user id
 	InviterId    int64 // inviter user id
@@ -18,8 +18,8 @@ type Invitations struct {
 	AcceptAt     time.Time
 }
 
-func (i *Invitations) TableName() string {
-	return "la_invitations"
+func (i *Invitation) TableName() string {
+	return "la_user_invitations"
 }
 
 type AcceptStatus int

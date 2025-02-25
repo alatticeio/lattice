@@ -3,8 +3,8 @@ package management
 import (
 	"github.com/spf13/viper"
 	grpcserver "linkany/management/grpc/server"
-	"linkany/management/mapper"
 	"linkany/management/server"
+	"linkany/management/service"
 	"linkany/pkg/log"
 	"linkany/pkg/redis"
 )
@@ -34,7 +34,7 @@ func Start(listen string) error {
 	}
 
 	cfg.Rdb = redisClient
-	dbService := mapper.NewDatabaseService(&cfg.Database)
+	dbService := service.NewDatabaseService(&cfg.Database)
 	gServer := grpcserver.NewServer(&grpcserver.ServerConfig{
 		Logger:          logger,
 		Port:            32051,

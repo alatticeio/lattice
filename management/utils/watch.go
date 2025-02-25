@@ -14,7 +14,7 @@ var once sync.Once
 var manager *WatchManager
 
 // NewWatchMessage creates a new WatchMessage, when a peer is added, updated or deleted
-func NewWatchMessage(eventType mgt.EventType, peers []*entity.Peer) *mgt.WatchMessage {
+func NewWatchMessage(eventType mgt.EventType, peers []*entity.Node) *mgt.WatchMessage {
 	body, err := json.Marshal(peers)
 	if err != nil {
 		return nil

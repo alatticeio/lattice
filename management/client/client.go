@@ -226,7 +226,7 @@ func (c *Client) List() (*config.DeviceConf, error) {
 	return conf, nil
 }
 
-func (c *Client) ToConfigPeer(peer *entity.Peer) *config.Peer {
+func (c *Client) ToConfigPeer(peer *entity.Node) *config.Peer {
 
 	return &config.Peer{
 		PublicKey:           peer.PublicKey,
@@ -239,7 +239,7 @@ func (c *Client) ToConfigPeer(peer *entity.Peer) *config.Peer {
 
 func (c *Client) WatchMessage(msg *mgt.WatchMessage) error {
 	var err error
-	var peers []entity.Peer
+	var peers []entity.Node
 	if err = json.Unmarshal(msg.Body, &peers); err != nil {
 		return err
 	}
@@ -264,7 +264,7 @@ func (c *Client) WatchMessage(msg *mgt.WatchMessage) error {
 
 }
 
-func (c *Client) AddPeer(p *entity.Peer) error {
+func (c *Client) AddPeer(p *entity.Node) error {
 	var err error
 	defer func() {
 		if err != nil {
@@ -542,7 +542,7 @@ func (c *Client) clear(pubKey string) {
 	c.proberManager.Remove(pubKey)
 }
 
-func (c *Client) RemovePeer(peer *entity.Peer) error {
+func (c *Client) RemovePeer(peer *entity.Node) error {
 	c.clear(peer.PublicKey)
 	wgConfigure := c.proberManager.GetWgConfiger()
 	if err := wgConfigure.RemovePeer(&iface.SetPeer{

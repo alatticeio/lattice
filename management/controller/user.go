@@ -1,17 +1,20 @@
 package controller
 
 import (
+	"fmt"
 	"linkany/management/dto"
 	"linkany/management/entity"
-	"linkany/management/mapper"
+	"linkany/management/service"
+	"linkany/pkg/log"
 )
 
 type UserController struct {
-	userMapper mapper.UserInterface
+	logger     *log.Logger
+	userMapper service.UserService
 }
 
-func NewUserController(userMapper mapper.UserInterface) *UserController {
-	return &UserController{userMapper: userMapper}
+func NewUserController(userMapper service.UserService) *UserController {
+	return &UserController{userMapper: userMapper, logger: log.NewLogger(log.Loglevel, fmt.Sprintf("[%s] ", "user-controller"))}
 }
 
 func (u *UserController) Login(dto *dto.UserDto) (*entity.Token, error) {

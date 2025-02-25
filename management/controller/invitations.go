@@ -1,34 +1,35 @@
 package controller
 
 import (
+	"fmt"
 	"linkany/management/dto"
 	"linkany/management/entity"
-	"linkany/management/mapper"
+	"linkany/management/service"
 	"linkany/pkg/log"
 )
 
 type InviteController struct {
-	logger         *log.Logger
-	invititeMapper mapper.InviteInterface
+	logger      *log.Logger
+	userService service.UserService
 }
 
-func NewInviteController(inviteMapper mapper.InviteInterface, logger *log.Logger) *InviteController {
-	return &InviteController{invititeMapper: inviteMapper, logger: logger}
+func NewInviteController(inviteMapper service.UserService) *InviteController {
+	return &InviteController{userService: inviteMapper, logger: log.NewLogger(log.Loglevel, fmt.Sprintf("[%s] ", "invite-controller"))}
 }
 
 func (i *InviteController) Invite(dto *dto.InviteDto) error {
-	return i.invititeMapper.Invite(dto)
+	return i.userService.Invite(dto)
 }
 
-func (i *InviteController) Get(userId, email string) (*entity.Invitations, error) {
+func (i *InviteController) Get(userId, email string) (*entity.Invitation, error) {
 	i.logger.Verbosef("Get invitation by userId: %s, email: %s", userId, email)
-	return i.invititeMapper.Get(userId, email)
+	return i.userService.GetInvitation(userId, email)
 }
 
 func (i *InviteController) Update(dto *dto.InviteDto) error {
-	return i.invititeMapper.Update(dto)
+	return i.userService.UpdateInvitation(dto)
 }
 
-func (i *InviteController) List(params *mapper.QueryParams) ([]*entity.Invitations, error) {
-	return i.invititeMapper.List(params)
+func (i *InviteController) List(params *service.QueryParams) ([]*entity.Invitation, error) {
+	return i.userService.ListInvitations(params)
 }

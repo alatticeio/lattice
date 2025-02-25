@@ -1,4 +1,4 @@
-package mapper
+package service
 
 import (
 	"errors"
@@ -11,39 +11,53 @@ import (
 	"strings"
 )
 
-// PeerInterface is an interface for peer mapper
-type PeerInterface interface {
-	Register(e *dto.PeerDto) (*entity.Peer, error)
-	Update(e *dto.PeerDto) (*entity.Peer, error)
+// NodeService is an interface for peer mapper
+type NodeService interface {
+	Register(e *dto.PeerDto) (*entity.Node, error)
+	Update(e *dto.PeerDto) (*entity.Node, error)
 	Delete(e *dto.PeerDto) error
 
 	// GetByAppId returns a peer by appId, every client has its own appId
-	GetByAppId(appId string) (*entity.Peer, error)
+	GetByAppId(appId string) (*entity.Node, error)
 
 	GetNetworkMap(appId, userId string) (*entity.NetworkMap, error)
 
 	// List returns a list of peers by userId，when client start up, it will call this method to get all the peers once
 	// after that, it will call Watch method to get the latest peers
-	List(params *QueryParams) ([]*entity.Peer, error)
+	List(params *QueryParams) ([]*entity.Node, error)
 
 	// Watch returns a channel that will be used to send the latest peers to the client
-	//Watch() (<-chan *entity.Peer, error)
+	//Watch() (<-chan *entity.Node, error)
+
+	//NodeGroup
+	GetNodeGroup(id string) (*entity.NodeGroup, error)
+	CreateNodeGroup(group *entity.NodeGroup) error
+	UpdateNodeGroup(id string, group *entity.NodeGroup) error
+	DeleteNodeGroup(id string) error
+	ListNodeGroups() ([]*entity.NodeGroup, error)
+
+	//Group memeber
+	//Group memeber
+	AddGroupMember(member *entity.GroupMember) error
+	RemoveGroupMember(memberID string) error
+	ListGroupMembers(groupID string) ([]*entity.GroupMember, error)
+	GetGroupMember(memberID string) (*entity.GroupMember, error)
 }
 
 var (
-	_ PeerInterface = (*PeerMapper)(nil)
+	_ NodeService = (*nodeServiceImpl)(nil)
 )
 
-type PeerMapper struct {
+type nodeServiceImpl struct {
 	logger *log.Logger
 	*DatabaseService
 }
 
-func NewPeerMapper(db *DatabaseService) *PeerMapper {
-	return &PeerMapper{DatabaseService: db, logger: log.NewLogger(log.Loglevel, fmt.Sprintf("[%s] ", "peermapper"))}
+func NewNodeService(db *DatabaseService) NodeService {
+	return &nodeServiceImpl{DatabaseService: db, logger: log.NewLogger(log.Loglevel, fmt.Sprintf("[%s] ", "peermapper"))}
 }
 
-func (p *PeerMapper) Register(e *dto.PeerDto) (*entity.Peer, error) {
+func (p *nodeServiceImpl) Register(e *dto.PeerDto) (*entity.Node, error) {
 	count := p.GetAddress() + 1
 	if count == -1 {
 		return nil, errors.New("the address can not be allocated")
@@ -51,7 +65,7 @@ func (p *PeerMapper) Register(e *dto.PeerDto) (*entity.Peer, error) {
 
 	addressIP := fmt.Sprintf("10.0.%d.%d", (count-1)/254, ((count-1)%254)+1)
 
-	peer := &entity.Peer{
+	peer := &entity.Node{
 		InstanceID:          e.InstanceID,
 		UserID:              e.UserID,
 		Name:                e.Name,
@@ -77,8 +91,8 @@ func (p *PeerMapper) Register(e *dto.PeerDto) (*entity.Peer, error) {
 	return peer, nil
 }
 
-func (p *PeerMapper) Update(e *dto.PeerDto) (*entity.Peer, error) {
-	var peer entity.Peer
+func (p *nodeServiceImpl) Update(e *dto.PeerDto) (*entity.Node, error) {
+	var peer entity.Node
 	if err := p.Where("public_key = ?", e.PublicKey).First(&peer).Error; err != nil {
 		return nil, err
 	}
@@ -89,13 +103,13 @@ func (p *PeerMapper) Update(e *dto.PeerDto) (*entity.Peer, error) {
 	return &peer, nil
 }
 
-func (p *PeerMapper) Delete(e *dto.PeerDto) error {
+func (p *nodeServiceImpl) Delete(e *dto.PeerDto) error {
 	//TODO implement me
 	panic("implement me")
 }
 
-func (p *PeerMapper) GetByAppId(appId string) (*entity.Peer, error) {
-	var peer entity.Peer
+func (p *nodeServiceImpl) GetByAppId(appId string) (*entity.Node, error) {
+	var peer entity.Node
 	if err := p.Where("app_id = ?", appId).Find(&peer).Error; err != nil {
 		return nil, err
 	}
@@ -104,8 +118,8 @@ func (p *PeerMapper) GetByAppId(appId string) (*entity.Peer, error) {
 }
 
 // List params will filter
-func (p *PeerMapper) List(params *QueryParams) ([]*entity.Peer, error) {
-	var peers []*entity.Peer
+func (p *nodeServiceImpl) List(params *QueryParams) ([]*entity.Node, error) {
+	var peers []*entity.Node
 
 	var sql string
 	var wrappers []interface{}
@@ -138,7 +152,7 @@ func Generate(params *QueryParams) (string, []interface{}) {
 }
 
 // Watch when register or update called, first call Watch
-func (p *PeerMapper) Watch(appId string) (<-chan *mgt.ManagementMessage, error) {
+func (p *nodeServiceImpl) Watch(appId string) (<-chan *mgt.ManagementMessage, error) {
 
 	peer, err := p.GetByAppId(appId)
 	if err != nil {
@@ -155,7 +169,7 @@ func (p *PeerMapper) Watch(appId string) (<-chan *mgt.ManagementMessage, error) 
 }
 
 // GetNetworkMap get user's network map
-func (p *PeerMapper) GetNetworkMap(appId, userId string) (*entity.NetworkMap, error) {
+func (p *nodeServiceImpl) GetNetworkMap(appId, userId string) (*entity.NetworkMap, error) {
 	current, err := p.GetByAppId(appId)
 	if err != nil {
 		return nil, err
@@ -180,9 +194,9 @@ func (p *PeerMapper) GetNetworkMap(appId, userId string) (*entity.NetworkMap, er
 }
 
 // GetAddress get peer address
-func (p *PeerMapper) GetAddress() int64 {
+func (p *nodeServiceImpl) GetAddress() int64 {
 	var count int64
-	if err := p.Model(&entity.Peer{}).Count(&count).Error; err != nil {
+	if err := p.Model(&entity.Node{}).Count(&count).Error; err != nil {
 		p.logger.Errorf("err： %s", err.Error())
 		return -1
 	}
@@ -190,4 +204,61 @@ func (p *PeerMapper) GetAddress() int64 {
 		return -1
 	}
 	return count
+}
+
+//NodeGroup
+
+func (p *nodeServiceImpl) GetNodeGroup(id string) (*entity.NodeGroup, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (p *nodeServiceImpl) CreateNodeGroup(group *entity.NodeGroup) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (p *nodeServiceImpl) UpdateNodeGroup(id string, group *entity.NodeGroup) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (p *nodeServiceImpl) DeleteNodeGroup(id string) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (p *nodeServiceImpl) ListNodeGroups() ([]*entity.NodeGroup, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (p *nodeServiceImpl) AddGroupMember(member *entity.GroupMember) error {
+	if err := p.Create(member).Error; err != nil {
+		return err
+	}
+	return nil
+}
+
+func (p *nodeServiceImpl) RemoveGroupMember(memberID string) error {
+	if err := p.Where("id = ?", memberID).Delete(&entity.GroupMember{}).Error; err != nil {
+		return err
+	}
+	return nil
+}
+
+func (p *nodeServiceImpl) ListGroupMembers(groupID string) ([]*entity.GroupMember, error) {
+	var members []*entity.GroupMember
+	if err := p.Where("group_id = ?", groupID).Find(&members).Error; err != nil {
+		return nil, err
+	}
+	return members, nil
+}
+
+func (p *nodeServiceImpl) GetGroupMember(memberID string) (*entity.GroupMember, error) {
+	var member entity.GroupMember
+	if err := p.Where("id = ?", memberID).First(&member).Error; err != nil {
+		return nil, err
+	}
+	return &member, nil
 }

@@ -6,7 +6,7 @@ import (
 	"linkany/management/controller"
 	"linkany/management/dto"
 	"linkany/management/entity"
-	"linkany/management/mapper"
+	"linkany/management/service"
 	"linkany/management/utils"
 	"linkany/pkg/redis"
 )
@@ -17,16 +17,16 @@ type Server struct {
 	listen            string
 	tokener           *utils.Tokener
 	userController    *controller.UserController
-	peerControlloer   *controller.PeerController
+	peerControlloer   *controller.NodeController
 	planController    *controller.PlanController
 	supportController *controller.SupportController
 }
 
 // ServerConfig is the server configuration
 type ServerConfig struct {
-	Listen          string                `mapstructure: "listen,omitempty"`
-	Database        mapper.DatabaseConfig `mapstructure: "database,omitempty"`
-	DatabaseService *mapper.DatabaseService
+	Listen          string                 `mapstructure: "listen,omitempty"`
+	Database        service.DatabaseConfig `mapstructure: "database,omitempty"`
+	DatabaseService *service.DatabaseService
 	Rdb             *redis.Client
 }
 
@@ -36,10 +36,10 @@ func NewServer(cfg *ServerConfig) *Server {
 	s := &Server{
 		Engine:            e,
 		listen:            cfg.Listen,
-		userController:    controller.NewUserController(mapper.NewUserMapper(cfg.DatabaseService, cfg.Rdb)),
-		peerControlloer:   controller.NewPeerController(mapper.NewPeerMapper(cfg.DatabaseService)),
-		planController:    controller.NewPlanController(mapper.NewPlanMapper(cfg.DatabaseService)),
-		supportController: controller.NewSupportController(mapper.NewSupportMapper(cfg.DatabaseService)),
+		userController:    controller.NewUserController(service.NewUserService(cfg.DatabaseService, cfg.Rdb)),
+		peerControlloer:   controller.NewPeerController(service.NewNodeService(cfg.DatabaseService)),
+		planController:    controller.NewPlanController(service.NewPlanService(cfg.DatabaseService)),
+		supportController: controller.NewSupportController(service.NewSupportMapper(cfg.DatabaseService)),
 		tokener:           utils.NewTokener(),
 	}
 	s.initRoute()
