@@ -5,6 +5,7 @@ import (
 	"linkany/management/client"
 	"linkany/management/dto"
 	"linkany/management/entity"
+	"strconv"
 )
 
 func (s *Server) RegisterAccessRoutes() {
@@ -61,7 +62,8 @@ func (s *Server) updateAccessPolicy() gin.HandlerFunc {
 func (s *Server) deleteAccessPolicy() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		policyID := c.Param("policyID")
-		err := s.accessController.DeletePolicy(policyID)
+		id, _ := strconv.Atoi(policyID)
+		err := s.accessController.DeletePolicy(uint(id))
 		if err != nil {
 			c.JSON(client.InternalServerError(err))
 			return
@@ -107,7 +109,8 @@ func (s *Server) updateAccessRule() gin.HandlerFunc {
 func (s *Server) deleteAccessRule() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		ruleID := c.Param("ruleID")
-		err := s.accessController.DeleteRule(ruleID)
+		id, _ := strconv.Atoi(ruleID)
+		err := s.accessController.DeleteRule(uint(id))
 		if err != nil {
 			c.JSON(client.InternalServerError(err))
 			return
@@ -119,7 +122,8 @@ func (s *Server) deleteAccessRule() gin.HandlerFunc {
 func (s *Server) listAccessRules() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		policyID := c.Param("policyID")
-		rules, err := s.accessController.ListRules(policyID)
+		id, _ := strconv.Atoi(policyID)
+		rules, err := s.accessController.ListPolicyRules(uint(id))
 		if err != nil {
 			c.JSON(client.InternalServerError(err))
 			return
@@ -131,8 +135,8 @@ func (s *Server) listAccessRules() gin.HandlerFunc {
 
 func (s *Server) checkAccess() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		sourceNodeID := c.Query("sourceNodeID")
-		targetNodeID := c.Query("targetNodeID")
+		sourceNodeID := c.GetUint("sourceNodeID")
+		targetNodeID := c.GetUint("targetNodeID")
 		action := c.Query("action")
 		allowed, err := s.accessController.CheckAccess(sourceNodeID, targetNodeID, action)
 		if err != nil {

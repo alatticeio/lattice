@@ -23,7 +23,7 @@ spec:
             - "console.linkany.io"
       containers:
         - name: linkany-signaling
-          image: registry.cn-hangzhou.aliyuncs.com/linkany-io/linkany
+          image: registry.cn-hangzhou.aliyuncs.com/linkany-io/linkany-sg:latest
           imagePullPolicy: Always
           command: [ "linkany", "signaling" ]
 ---

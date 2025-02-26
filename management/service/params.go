@@ -1,6 +1,7 @@
 package service
 
 import (
+	"linkany/management/dto"
 	"linkany/management/entity"
 )
 
@@ -11,43 +12,21 @@ type QueryParams struct {
 	Total    *int
 	PageNo   *int
 	PageSize *int
-
-	filters []*kv
 }
 
-type kv struct {
-	Key   string
-	Value interface{}
-}
-
-func (qp *QueryParams) Generate() []*kv {
-	var result []*kv
+func (qp *QueryParams) Generate() []*dto.KeyValue {
+	var result []*dto.KeyValue
 
 	if qp.PubKey != nil {
-		v := &kv{
-			Key:   "public_key",
-			Value: qp.PubKey,
-		}
-
-		result = append(result, v)
+		result = append(result, dto.NewKV("pub_key", qp.PubKey))
 	}
 
 	if qp.UserId != nil {
-		v := &kv{
-			Key:   "user_id",
-			Value: qp.UserId,
-		}
-
-		result = append(result, v)
+		result = append(result, dto.NewKV("user_id", qp.UserId))
 	}
 
 	if qp.Status != nil {
-		v := &kv{
-			Key:   "status",
-			Value: qp.Status,
-		}
-
-		result = append(result, v)
+		result = append(result, dto.NewKV("status", qp.Status))
 	}
 
 	return result

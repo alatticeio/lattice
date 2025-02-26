@@ -6,9 +6,8 @@ import (
 	"linkany/management/dto"
 	"linkany/management/entity"
 	"linkany/management/grpc/mgt"
+	"linkany/management/utils"
 	"linkany/pkg/log"
-	"reflect"
-	"strings"
 )
 
 // NodeService is an interface for peer mapper
@@ -123,7 +122,7 @@ func (p *nodeServiceImpl) List(params *QueryParams) ([]*entity.Node, error) {
 	var sql string
 	var wrappers []interface{}
 
-	sql, wrappers = Generate(params)
+	sql, wrappers = utils.Generate(params)
 
 	p.logger.Verbosef("sql: %s, wrappers: %v", sql, wrappers)
 	if err := p.Where(sql, wrappers...).Find(&peers).Error; err != nil {
@@ -131,23 +130,6 @@ func (p *nodeServiceImpl) List(params *QueryParams) ([]*entity.Node, error) {
 	}
 
 	return peers, nil
-}
-
-// Generate will generate dynamic sql
-func Generate(params *QueryParams) (string, []interface{}) {
-	var sb strings.Builder
-	var wrappers []interface{}
-	filters := params.Generate()
-	for i, filter := range filters {
-		if i < len(filters)-1 {
-			sb.WriteString(fmt.Sprintf("%s = ? and ", filter.Key))
-		} else {
-			sb.WriteString(fmt.Sprintf("%s = ?", filter.Key))
-		}
-		wrappers = append(wrappers, reflect.ValueOf(filter.Value).Elem().Interface())
-	}
-
-	return sb.String(), wrappers
 }
 
 // Watch when register or update called, first call Watch

@@ -1,4 +1,4 @@
-package cmd
+package command
 
 import (
 	"fmt"
@@ -15,7 +15,7 @@ type turnOptions struct {
 	Port     int
 }
 
-func turnCmd() *cobra.Command {
+func TurnCmd() *cobra.Command {
 	var opts turnOptions
 	var cmd = &cobra.Command{
 		Use:          "turn",

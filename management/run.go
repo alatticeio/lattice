@@ -3,7 +3,7 @@ package management
 import (
 	"github.com/spf13/viper"
 	grpcserver "linkany/management/grpc/server"
-	"linkany/management/server"
+	"linkany/management/http"
 	"linkany/management/service"
 	"linkany/pkg/log"
 	"linkany/pkg/redis"

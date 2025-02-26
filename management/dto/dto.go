@@ -44,6 +44,7 @@ type SupportDto struct {
 type InviteDto struct {
 	InvitationId int64
 	InviterId    int64
+	MobilePhone  string
 	Email        string
 	Network      string // 192.168.0.0/24
 }
