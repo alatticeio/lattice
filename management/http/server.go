@@ -1,4 +1,4 @@
-package server
+package http
 
 import (
 	"github.com/gin-gonic/gin"
@@ -11,15 +11,20 @@ import (
 	"linkany/pkg/redis"
 )
 
+const (
+	PREFIX = "/api/v1/"
+)
+
 // Server is the main server struct
 type Server struct {
 	*gin.Engine
 	listen            string
 	tokener           *utils.Tokener
 	userController    *controller.UserController
-	peerControlloer   *controller.NodeController
+	nodeController    *controller.NodeController
 	planController    *controller.PlanController
 	supportController *controller.SupportController
+	accessController  *controller.AccessController
 }
 
 // ServerConfig is the server configuration
@@ -37,7 +42,7 @@ func NewServer(cfg *ServerConfig) *Server {
 		Engine:            e,
 		listen:            cfg.Listen,
 		userController:    controller.NewUserController(service.NewUserService(cfg.DatabaseService, cfg.Rdb)),
-		peerControlloer:   controller.NewPeerController(service.NewNodeService(cfg.DatabaseService)),
+		nodeController:    controller.NewPeerController(service.NewNodeService(cfg.DatabaseService)),
 		planController:    controller.NewPlanController(service.NewPlanService(cfg.DatabaseService)),
 		supportController: controller.NewSupportController(service.NewSupportMapper(cfg.DatabaseService)),
 		tokener:           utils.NewTokener(),
@@ -54,11 +59,6 @@ func (s *Server) initRoute() {
 			"message": "pong",
 		})
 	})
-
-	s.POST("/api/v1/user/register", s.register())
-	s.POST("/api/v1/user/login", s.login())
-	s.GET("/api/v1/users", s.authCheck(), s.getUsers())
-	s.GET("/api/v1/peer/:appId", s.authCheck(), s.getPeerByAppId())
 
 	s.GET("/api/v1/plans", s.authCheck(), s.listPlans())
 
@@ -113,19 +113,6 @@ func (s *Server) login() gin.HandlerFunc {
 func (s *Server) getUsers() gin.HandlerFunc {
 	return func(context *gin.Context) {
 
-	}
-}
-
-func (s *Server) getPeerByAppId() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		appId := c.Param("appId")
-		peer, err := s.peerControlloer.GetByAppId(appId)
-		if err != nil {
-			c.JSON(client.InternalServerError(err))
-			return
-		}
-
-		c.JSON(client.Success(peer))
 	}
 }
 

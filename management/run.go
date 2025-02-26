@@ -19,7 +19,7 @@ func Start(listen string) error {
 		return err
 	}
 
-	var cfg server.ServerConfig
+	var cfg http.ServerConfig
 	if err := viper.Unmarshal(&cfg); err != nil {
 		return err
 	}
@@ -50,7 +50,7 @@ func Start(listen string) error {
 
 	cfg.DatabaseService = dbService
 	// Create a new server
-	s := server.NewServer(&cfg)
+	s := http.NewServer(&cfg)
 	// Start the server
 	return s.Start()
 }

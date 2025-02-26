@@ -47,3 +47,13 @@ type InviteDto struct {
 	Email        string
 	Network      string // 192.168.0.0/24
 }
+
+type NodeGroupDto struct {
+}
+
+type GroupMember struct {
+}
+
+type AccessPolicyDto struct{}
+
+type AccessRuleDto struct{}

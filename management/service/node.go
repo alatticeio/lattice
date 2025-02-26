@@ -37,7 +37,6 @@ type NodeService interface {
 	ListNodeGroups() ([]*entity.NodeGroup, error)
 
 	//Group memeber
-	//Group memeber
 	AddGroupMember(member *entity.GroupMember) error
 	RemoveGroupMember(memberID string) error
 	ListGroupMembers(groupID string) ([]*entity.GroupMember, error)
