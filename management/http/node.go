@@ -4,7 +4,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"linkany/management/client"
 	"linkany/management/dto"
-	"linkany/management/service"
 )
 
 func (s *Server) RegisterNodeRoutes() {
@@ -60,7 +59,7 @@ func (s *Server) createNode() gin.HandlerFunc {
 
 func (s *Server) listNodes() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		params := &service.QueryParams{}
+		params := &dto.QueryParams{}
 		if err := c.ShouldBindQuery(params); err != nil {
 			c.JSON(client.BadRequest(err))
 			return

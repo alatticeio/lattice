@@ -1,5 +1,12 @@
 package dto
 
+const (
+	// PageNo default page number
+	PageNo = 1
+	// PageSize default page size
+	PageSize = 10
+)
+
 type PageModel struct {
 	Total    int
 	PageNo   int
@@ -20,7 +27,7 @@ type KeyValue struct {
 	Value interface{}
 }
 
-func NewKV(k string, v interface{}) *KeyValue {
+func newKeyValue(k string, v interface{}) *KeyValue {
 	return &KeyValue{
 		Key:   k,
 		Value: v,

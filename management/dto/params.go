@@ -1,7 +1,6 @@
-package service
+package dto
 
 import (
-	"linkany/management/dto"
 	"linkany/management/entity"
 )
 
@@ -14,19 +13,19 @@ type QueryParams struct {
 	PageSize *int
 }
 
-func (qp *QueryParams) Generate() []*dto.KeyValue {
-	var result []*dto.KeyValue
+func (qp *QueryParams) Generate() []*KeyValue {
+	var result []*KeyValue
 
 	if qp.PubKey != nil {
-		result = append(result, dto.NewKV("pub_key", qp.PubKey))
+		result = append(result, newKeyValue("pub_key", qp.PubKey))
 	}
 
 	if qp.UserId != nil {
-		result = append(result, dto.NewKV("user_id", qp.UserId))
+		result = append(result, newKeyValue("user_id", qp.UserId))
 	}
 
 	if qp.Status != nil {
-		result = append(result, dto.NewKV("status", qp.Status))
+		result = append(result, newKeyValue("status", qp.Status))
 	}
 
 	return result

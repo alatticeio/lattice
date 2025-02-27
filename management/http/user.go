@@ -15,7 +15,9 @@ func (s *Server) RegisterUserRoutes() {
 	userGroup.POST("/invite", s.authCheck(), s.invite())
 	userGroup.PUT("/invite/update", s.authCheck(), s.updateInvitation())
 	userGroup.GET("/invite", s.authCheck(), s.getInvitation())
-	userGroup.GET("/invitations", s.authCheck(), s.listInvitations())
+	userGroup.GET("/invitation/list", s.authCheck(), s.listInvitations())
+	userGroup.GET("/invite/list", s.authCheck(), s.listInvites())
+
 }
 
 // user invite
@@ -26,7 +28,7 @@ func (s *Server) invite() gin.HandlerFunc {
 
 		// 解析JSON请求体
 		if err := c.ShouldBindJSON(&req); err != nil {
-			c.JSON(400, gin.H{"error": "Invalid email address or missing field"})
+			WriteError(c.JSON, err.Error())
 			return
 		}
 
@@ -71,11 +73,22 @@ func (s *Server) updateInvitation() gin.HandlerFunc {
 // list invitations
 func (s *Server) listInvitations() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		invitations, err := s.userController.ListInvitations()
+		invitations, err := s.userController.ListInvitations(&dto.InvitationParams{})
 		if err != nil {
 			WriteError(c.JSON, err.Error())
 			return
 		}
 		WriteOK(c.JSON, invitations)
+	}
+}
+
+func (s *Server) listInvites() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		invites, err := s.userController.ListInvites(&dto.InvitationParams{})
+		if err != nil {
+			WriteError(c.JSON, err.Error())
+			return
+		}
+		WriteOK(c.JSON, invites)
 	}
 }

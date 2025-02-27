@@ -23,7 +23,7 @@ type NodeService interface {
 
 	// List returns a list of peers by userId，when client start up, it will call this method to get all the peers once
 	// after that, it will call Watch method to get the latest peers
-	List(params *QueryParams) ([]*entity.Node, error)
+	List(params *dto.QueryParams) ([]*entity.Node, error)
 
 	// Watch returns a channel that will be used to send the latest peers to the client
 	//Watch() (<-chan *entity.Node, error)
@@ -116,7 +116,7 @@ func (p *nodeServiceImpl) GetByAppId(appId string) (*entity.Node, error) {
 }
 
 // List params will filter
-func (p *nodeServiceImpl) List(params *QueryParams) ([]*entity.Node, error) {
+func (p *nodeServiceImpl) List(params *dto.QueryParams) ([]*entity.Node, error) {
 	var peers []*entity.Node
 
 	var sql string
@@ -157,7 +157,7 @@ func (p *nodeServiceImpl) GetNetworkMap(appId, userId string) (*entity.NetworkMa
 	}
 
 	var status = 1
-	peers, err := p.List(&QueryParams{
+	peers, err := p.List(&dto.QueryParams{
 		PubKey: &current.PublicKey,
 		UserId: &userId,
 		Status: &status,

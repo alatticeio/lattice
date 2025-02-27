@@ -54,6 +54,12 @@ func NewServer(cfg *ServerConfig) *Server {
 
 // authCheck checks if the user is authenticated
 func (s *Server) initRoute() {
+
+	// register user router
+	s.RegisterUserRoutes()
+	s.RegisterNodeRoutes()
+	s.RegisterAccessRoutes()
+
 	s.GET("/ping", func(c *gin.Context) {
 		c.JSON(200, gin.H{
 			"message": "pong",

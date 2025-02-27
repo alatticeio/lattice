@@ -17,7 +17,14 @@ func (s *Server) authCheck() gin.HandlerFunc {
 			return
 		}
 
-		b, err := s.tokener.Verify("linkany", "linkany.io", token)
+		user, err := s.tokener.Parse(token)
+		if err != nil {
+			WriteError(c.JSON, "Invalid token")
+			c.Abort()
+			return
+		}
+
+		b, err := s.tokener.Verify(user.Username, user.Password, token)
 		if err != nil {
 			c.JSON(client.InternalServerError(err))
 			c.Abort()

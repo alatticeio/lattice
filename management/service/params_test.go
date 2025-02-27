@@ -2,6 +2,7 @@ package service
 
 import (
 	"fmt"
+	"linkany/management/dto"
 	"testing"
 )
 
@@ -11,7 +12,7 @@ func TestQueryParams_Generate(t *testing.T) {
 		var userId = "123455"
 		var status = 1
 
-		params := &QueryParams{
+		params := &dto.QueryParams{
 			PubKey: &pubKey,
 			UserId: &userId,
 			Status: &status,

@@ -3,7 +3,6 @@ package utils
 import (
 	"fmt"
 	"linkany/management/dto"
-	"reflect"
 	"strings"
 )
 
@@ -18,7 +17,7 @@ func Generate(params dto.ParamBuilder) (string, []interface{}) {
 		} else {
 			sb.WriteString(fmt.Sprintf("%s = ?", filter.Key))
 		}
-		wrappers = append(wrappers, reflect.ValueOf(filter.Value).Elem().Interface())
+		wrappers = append(wrappers, filter.Value)
 	}
 
 	return sb.String(), wrappers

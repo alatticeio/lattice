@@ -43,8 +43,12 @@ func (u *UserController) UpdateInvitation(dto *dto.InviteDto) error {
 	return u.userService.UpdateInvitation(dto)
 }
 
-func (u *UserController) ListInvitations() ([]*entity.Invitation, error) {
-	return u.userService.ListInvitations(&service.InvitationParams{})
+func (u *UserController) ListInvites(params *dto.InvitationParams) ([]*entity.Invites, error) {
+	return u.userService.ListInvites(params)
+}
+
+func (u *UserController) ListInvitations(params *dto.InvitationParams) ([]*entity.Invitation, error) {
+	return u.userService.ListInvitations(params)
 }
 
 // Permit module

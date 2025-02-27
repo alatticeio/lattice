@@ -46,6 +46,8 @@ type InviteDto struct {
 	InviterId    int64
 	MobilePhone  string
 	Email        string
+	Permissions  string
+	Group        string
 	Network      string // 192.168.0.0/24
 }
 

@@ -23,7 +23,7 @@ func (p *NodeController) GetByAppId(appId string) (*entity.Node, error) {
 	return p.nodeService.GetByAppId(appId)
 }
 
-func (p *NodeController) List(params *service.QueryParams) ([]*entity.Node, error) {
+func (p *NodeController) List(params *dto.QueryParams) ([]*entity.Node, error) {
 	return p.nodeService.List(params)
 }
 

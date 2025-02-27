@@ -262,7 +262,7 @@ func (s *Server) Keepalive(stream mgt.ManagementService_KeepaliveServer) error {
 		return fmt.Errorf("peer has not connected to managent server")
 	}
 
-	peers, err := s.peerController.List(&service.QueryParams{
+	peers, err := s.peerController.List(&dto.QueryParams{
 		PubKey: &pubKey,
 	})
 
@@ -383,7 +383,7 @@ func (s *Server) recv(stream mgt.ManagementService_KeepaliveServer) (*mgt.Reques
 
 func (s *Server) sendWatchMessage(eventType mgt.EventType, current *entity.Node, pubKey, userId string, status int) error {
 	state := 1
-	peers, err := s.peerController.List(&service.QueryParams{
+	peers, err := s.peerController.List(&dto.QueryParams{
 		UserId: &userId,
 		Status: &state,
 	})
