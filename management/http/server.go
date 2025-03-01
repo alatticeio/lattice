@@ -7,7 +7,6 @@ import (
 	"linkany/management/dto"
 	"linkany/management/entity"
 	"linkany/management/service"
-	"linkany/management/utils"
 	"linkany/pkg/redis"
 )
 
@@ -19,7 +18,7 @@ const (
 type Server struct {
 	*gin.Engine
 	listen            string
-	tokener           *utils.Tokener
+	tokener           *service.TokenService
 	userController    *controller.UserController
 	nodeController    *controller.NodeController
 	planController    *controller.PlanController
@@ -45,7 +44,7 @@ func NewServer(cfg *ServerConfig) *Server {
 		nodeController:    controller.NewPeerController(service.NewNodeService(cfg.DatabaseService)),
 		planController:    controller.NewPlanController(service.NewPlanService(cfg.DatabaseService)),
 		supportController: controller.NewSupportController(service.NewSupportMapper(cfg.DatabaseService)),
-		tokener:           utils.NewTokener(),
+		tokener:           service.NewTokenService(cfg.DatabaseService),
 	}
 	s.initRoute()
 

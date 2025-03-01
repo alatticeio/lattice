@@ -2,33 +2,31 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"linkany/management/dto"
 	"linkany/management/entity"
+	"linkany/management/utils"
 	"linkany/pkg/log"
 )
 
 type AccessPolicyService interface {
 	// Policy manage
-	CreatePolicy(ctx context.Context, policy *entity.AccessPolicy) error
-	UpdatePolicy(ctx context.Context, policy *entity.AccessPolicy) error
+	CreatePolicy(ctx context.Context, policyDto *dto.AccessPolicyDto) error
+	UpdatePolicy(ctx context.Context, policyDto *dto.AccessPolicyDto) error
 	DeletePolicy(ctx context.Context, policyID uint) error
 	GetPolicy(ctx context.Context, policyID uint) (*entity.AccessPolicy, error)
-	ListGroupPolicies(ctx context.Context, groupID uint) ([]entity.AccessPolicy, error)
+	ListGroupPolicies(ctx context.Context, params *dto.AccessPolicyParams) ([]entity.AccessPolicy, error)
 
 	// Rule manage
-	AddRule(ctx context.Context, rule *entity.AccessRule) error
-	UpdateRule(ctx context.Context, rule *entity.AccessRule) error
+	AddRule(ctx context.Context, ruleDto *dto.AccessRuleDto) error
+	UpdateRule(ctx context.Context, ruleDto *dto.AccessRuleDto) error
 	DeleteRule(ctx context.Context, ruleID uint) error
-	ListPolicyRules(ctx context.Context, policyID uint) ([]entity.AccessRule, error)
+	ListPolicyRules(ctx context.Context, params *dto.AccessPolicyRuleParams) ([]entity.AccessRule, error)
 
 	// Access control
 	CheckAccess(ctx context.Context, sourceNodeID, targetNodeID uint, action string) (bool, error)
 	BatchCheckAccess(ctx context.Context, requests []AccessRequest) ([]AccessResult, error)
-
-	// Tag manage
-	AddNodeTag(ctx context.Context, nodeID uint, tag string) error
-	RemoveNodeTag(ctx context.Context, nodeID uint, tag string) error
-	GetNodeTags(ctx context.Context, nodeID uint) ([]string, error)
 
 	// Audit log
 	GetAccessLogs(ctx context.Context, filter AccessLogFilter) ([]entity.AccessLog, error)
@@ -62,49 +60,88 @@ type accessPolicyServiceImpl struct {
 	*DatabaseService
 }
 
-func (a accessPolicyServiceImpl) CreatePolicy(ctx context.Context, policy *entity.AccessPolicy) error {
-	//TODO implement me
-	panic("implement me")
+func (a accessPolicyServiceImpl) CreatePolicy(ctx context.Context, policyDto *dto.AccessPolicyDto) error {
+	return a.Create(&entity.AccessPolicy{
+		Name:        policyDto.Name,
+		GroupID:     policyDto.GroupID,
+		Priority:    policyDto.Priority,
+		Effect:      policyDto.Effect,
+		Description: policyDto.Description,
+		Status:      policyDto.Status,
+		CreatedBy:   policyDto.CreatedBy,
+		UpdatedBy:   policyDto.UpdatedBy,
+	}).Error
 }
 
-func (a accessPolicyServiceImpl) UpdatePolicy(ctx context.Context, policy *entity.AccessPolicy) error {
-	//TODO implement me
-	panic("implement me")
+func (a accessPolicyServiceImpl) UpdatePolicy(ctx context.Context, policyDto *dto.AccessPolicyDto) error {
+	return a.Where("id = ?", policyDto.ID).Save(&entity.AccessPolicy{
+		Name:        policyDto.Name,
+		GroupID:     policyDto.GroupID,
+		Priority:    policyDto.Priority,
+		Effect:      policyDto.Effect,
+		Description: policyDto.Description,
+		Status:      policyDto.Status,
+		CreatedBy:   policyDto.CreatedBy,
+		UpdatedBy:   policyDto.UpdatedBy,
+	}).Error
 }
 
 func (a accessPolicyServiceImpl) DeletePolicy(ctx context.Context, policyID uint) error {
-	//TODO implement me
-	panic("implement me")
+	return a.Where("id = ?", policyID).Delete(&entity.AccessPolicy{}).Error
 }
 
 func (a accessPolicyServiceImpl) GetPolicy(ctx context.Context, policyID uint) (*entity.AccessPolicy, error) {
+	var policy entity.AccessPolicy
+	err := a.Where("id = ?", policyID).Find(&policy).Error
+	return &policy, err
+}
+
+func (a accessPolicyServiceImpl) ListGroupPolicies(ctx context.Context, params *dto.AccessPolicyParams) ([]entity.AccessPolicy, error) {
+	var policies []entity.AccessPolicy
+	sql, wrappers := utils.Generate(params)
+	db := a.DB
+	if sql != "" {
+		db = db.Where(sql, wrappers)
+	}
+	err := db.Find(&policies).Error
+	return policies, err
+}
+
+func (a accessPolicyServiceImpl) AddRule(ctx context.Context, ruleDto *dto.AccessRuleDto) error {
 	//TODO implement me
 	panic("implement me")
 }
 
-func (a accessPolicyServiceImpl) ListGroupPolicies(ctx context.Context, groupID uint) ([]entity.AccessPolicy, error) {
-	//TODO implement me
-	panic("implement me")
-}
+func (a accessPolicyServiceImpl) UpdateRule(ctx context.Context, ruleDto *dto.AccessRuleDto) error {
+	data, err := json.Marshal(ruleDto.Conditions)
+	if err != nil {
+		return err
+	}
+	return a.Where("id = ?", ruleDto.ID).Save(&entity.AccessRule{
+		PolicyID:   ruleDto.PolicyID,
+		SourceType: ruleDto.SourceType,
+		SourceID:   ruleDto.SourceID,
+		TargetType: ruleDto.TargetType,
+		TargetID:   ruleDto.TargetID,
+		Actions:    ruleDto.Actions,
+		Conditions: string(data),
+	}).Error
 
-func (a accessPolicyServiceImpl) AddRule(ctx context.Context, rule *entity.AccessRule) error {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (a accessPolicyServiceImpl) UpdateRule(ctx context.Context, rule *entity.AccessRule) error {
-	//TODO implement me
-	panic("implement me")
 }
 
 func (a accessPolicyServiceImpl) DeleteRule(ctx context.Context, ruleID uint) error {
-	//TODO implement me
-	panic("implement me")
+	return a.Where("id = ?", ruleID).Delete(&entity.AccessRule{}).Error
 }
 
-func (a accessPolicyServiceImpl) ListPolicyRules(ctx context.Context, policyID uint) ([]entity.AccessRule, error) {
-	//TODO implement me
-	panic("implement me")
+func (a accessPolicyServiceImpl) ListPolicyRules(ctx context.Context, params *dto.AccessPolicyRuleParams) ([]entity.AccessRule, error) {
+	var rules []entity.AccessRule
+	sql, wrappers := utils.Generate(params)
+	db := a.DB
+	if sql != "" {
+		db = db.Where(sql, wrappers)
+	}
+	err := db.Find(&rules).Error
+	return rules, err
 }
 
 func (a accessPolicyServiceImpl) CheckAccess(ctx context.Context, sourceNodeID, targetNodeID uint, action string) (bool, error) {
@@ -113,21 +150,6 @@ func (a accessPolicyServiceImpl) CheckAccess(ctx context.Context, sourceNodeID, 
 }
 
 func (a accessPolicyServiceImpl) BatchCheckAccess(ctx context.Context, requests []AccessRequest) ([]AccessResult, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (a accessPolicyServiceImpl) AddNodeTag(ctx context.Context, nodeID uint, tag string) error {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (a accessPolicyServiceImpl) RemoveNodeTag(ctx context.Context, nodeID uint, tag string) error {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (a accessPolicyServiceImpl) GetNodeTags(ctx context.Context, nodeID uint) ([]string, error) {
 	//TODO implement me
 	panic("implement me")
 }

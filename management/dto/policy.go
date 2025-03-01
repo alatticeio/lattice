@@ -1,0 +1,82 @@
+package dto
+
+type AccessPolicyParams struct {
+	PageModel
+	GroupId   uint64
+	Effect    string
+	CreatedBy string
+	UpdatedBy string
+}
+
+type AccessPolicyRuleParams struct {
+	PageModel
+	PolicyId   uint64
+	SourceId   string
+	TargetId   string
+	SourceType string
+	TargetType string
+}
+
+func (p *AccessPolicyParams) Generate() []*KeyValue {
+	var result []*KeyValue
+
+	if p.GroupId != 0 {
+		result = append(result, newKeyValue("group_id", p.GroupId))
+	}
+
+	if p.Effect != "" {
+		result = append(result, newKeyValue("effect", p.Effect))
+	}
+
+	if p.CreatedBy != "" {
+		result = append(result, newKeyValue("created_by", p.CreatedBy))
+	}
+
+	if p.UpdatedBy != "" {
+		result = append(result, newKeyValue("updated_by", p.UpdatedBy))
+	}
+
+	if p.PageNo == 0 {
+		p.PageNo = PageNo
+	}
+
+	if p.PageSize == 0 {
+		p.PageSize = PageSize
+	}
+
+	return result
+}
+
+func (p *AccessPolicyRuleParams) Generate() []*KeyValue {
+	var result []*KeyValue
+
+	if p.PolicyId != 0 {
+		result = append(result, newKeyValue("policy_id", p.PolicyId))
+	}
+
+	if p.SourceId != "" {
+		result = append(result, newKeyValue("source_id", p.SourceId))
+	}
+
+	if p.TargetId != "" {
+		result = append(result, newKeyValue("target_id", p.TargetId))
+	}
+
+	if p.SourceType != "" {
+		result = append(result, newKeyValue("source_type", p.SourceType))
+	}
+
+	if p.TargetType != "" {
+		result = append(result, newKeyValue("target_type", p.TargetType))
+	}
+
+	if p.PageNo == 0 {
+		p.PageNo = PageNo
+	}
+
+	if p.PageSize == 0 {
+		p.PageSize = PageSize
+	}
+
+	return result
+}

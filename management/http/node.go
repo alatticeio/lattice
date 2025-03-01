@@ -8,7 +8,7 @@ import (
 
 func (s *Server) RegisterNodeRoutes() {
 	nodeGroup := s.RouterGroup.Group(PREFIX + "/node")
-	nodeGroup.GET("/:appId", s.authCheck(), s.getNodeByAppId())
+	nodeGroup.GET("/appId/:appId", s.authCheck(), s.getNodeByAppId())
 	nodeGroup.POST("/", s.authCheck(), s.createNode())
 	nodeGroup.PUT("/", s.authCheck(), s.updateNode())
 	nodeGroup.DELETE("/", s.authCheck(), s.deleteNode())
@@ -25,6 +25,12 @@ func (s *Server) RegisterNodeRoutes() {
 	nodeGroup.DELETE("/group/member/:memberID", s.authCheck(), s.removeGroupMember())
 	nodeGroup.GET("/group/member/:memberID", s.authCheck(), s.getGroupMember())
 	nodeGroup.GET("/group/member/list/:groupID", s.authCheck(), s.listGroupMembers())
+
+	// Node Label
+	nodeGroup.POST("/label", s.authCheck(), s.createNodeTag())
+	nodeGroup.PUT("/label", s.authCheck(), s.updateNodeTag())
+	nodeGroup.DELETE("/label", s.authCheck(), s.deleteNodeTag())
+	nodeGroup.GET("/label/list", s.authCheck(), s.listNodeTags())
 
 }
 
@@ -216,5 +222,78 @@ func (s *Server) getGroupMember() gin.HandlerFunc {
 			return
 		}
 		c.JSON(client.Success(member))
+	}
+}
+
+// Node Label
+func (s *Server) createNodeTag() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var tagDto dto.TagDto
+		if err := c.ShouldBindJSON(&tagDto); err != nil {
+			WriteBadRequest(c.JSON, err.Error())
+			return
+		}
+
+		tagDto.Username = c.GetHeader("username")
+
+		tag, err := s.nodeController.CreateTag(c, &tagDto)
+		if err != nil {
+			WriteError(c.JSON, err.Error())
+			return
+		}
+		WriteOK(c.JSON, tag)
+	}
+}
+
+func (s *Server) updateNodeTag() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var tagDto dto.TagDto
+		if err := c.ShouldBindJSON(&tagDto); err != nil {
+			c.JSON(client.BadRequest(err))
+			return
+		}
+
+		err := s.nodeController.UpdateTag(c, &tagDto)
+		if err != nil {
+			WriteError(c.JSON, err.Error())
+			return
+		}
+
+		WriteOK(c.JSON, nil)
+	}
+}
+
+func (s *Server) deleteNodeTag() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var tagDto dto.TagDto
+		if err := c.ShouldBindJSON(&tagDto); err != nil {
+			c.JSON(client.BadRequest(err))
+			return
+		}
+
+		err := s.nodeController.DeleteTag(c, uint64(tagDto.ID))
+		if err != nil {
+			WriteError(c.JSON, err.Error())
+			return
+		}
+		WriteOK(c.JSON, err.Error())
+	}
+}
+
+func (s *Server) listNodeTags() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var params dto.LabelParams
+		if err := c.ShouldBindJSON(&params); err != nil {
+			c.JSON(client.BadRequest(err))
+			return
+		}
+
+		vo, err := s.nodeController.ListTags(c, &params)
+		if err != nil {
+			WriteError(c.JSON, err.Error())
+			return
+		}
+
+		WriteOK(c.JSON, vo)
 	}
 }

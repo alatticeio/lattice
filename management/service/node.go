@@ -1,12 +1,14 @@
 package service
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"linkany/management/dto"
 	"linkany/management/entity"
 	"linkany/management/grpc/mgt"
 	"linkany/management/utils"
+	"linkany/management/vo"
 	"linkany/pkg/log"
 )
 
@@ -40,6 +42,12 @@ type NodeService interface {
 	RemoveGroupMember(memberID string) error
 	ListGroupMembers(groupID string) ([]*entity.GroupMember, error)
 	GetGroupMember(memberID string) (*entity.GroupMember, error)
+
+	//Node Label
+	AddNodeTag(ctx context.Context, dto *dto.TagDto) error
+	UpdateNodeTag(ctx context.Context, dto *dto.TagDto) error
+	RemoveNodeTag(ctx context.Context, tagId uint64) error
+	ListNodeTags(ctx context.Context, params *dto.LabelParams) (*dto.PageVo, error)
 }
 
 var (
@@ -90,15 +98,15 @@ func (p *nodeServiceImpl) Register(e *dto.PeerDto) (*entity.Node, error) {
 }
 
 func (p *nodeServiceImpl) Update(e *dto.PeerDto) (*entity.Node, error) {
-	var peer entity.Node
-	if err := p.Where("public_key = ?", e.PublicKey).First(&peer).Error; err != nil {
+	var node entity.Node
+	if err := p.Where("public_key = ?", e.PublicKey).First(&node).Error; err != nil {
 		return nil, err
 	}
-	peer.Status = e.Status
+	node.Status = e.Status
 
-	p.Save(peer)
+	p.Save(node)
 
-	return &peer, nil
+	return &node, nil
 }
 
 func (p *nodeServiceImpl) Delete(e *dto.PeerDto) error {
@@ -242,4 +250,50 @@ func (p *nodeServiceImpl) GetGroupMember(memberID string) (*entity.GroupMember, 
 		return nil, err
 	}
 	return &member, nil
+}
+
+// Node Tags
+func (p *nodeServiceImpl) AddNodeTag(ctx context.Context, dto *dto.TagDto) error {
+	return p.Create(&entity.Label{
+		Label:     dto.Label,
+		CreatedBy: dto.Username,
+	}).Error
+}
+
+func (p *nodeServiceImpl) UpdateNodeTag(ctx context.Context, dto *dto.TagDto) error {
+	var tag entity.Label
+	if err := p.Where("id = ?", dto.ID).Find(&tag).Error; err != nil {
+		return err
+	}
+
+	tag.Label = dto.Label
+	tag.UpdatedBy = dto.Username
+	p.Save(tag)
+	return nil
+}
+
+func (p *nodeServiceImpl) RemoveNodeTag(ctx context.Context, tagId uint64) error {
+	return p.Where("id = ?", tagId).Delete(&entity.Label{}).Error
+}
+
+func (p *nodeServiceImpl) ListNodeTags(ctx context.Context, params *dto.LabelParams) (*dto.PageVo, error) {
+	var labels []vo.LabelVo
+	result := new(dto.PageVo)
+	sql, wrappers := utils.Generate(params)
+	db := p.DB
+	if sql != "" {
+		db = db.Where(sql, wrappers)
+	}
+
+	if err := db.Model(&entity.Label{}).Count(&result.Total).Error; err != nil {
+		return nil, err
+	}
+
+	if err := db.Model(&entity.Label{}).Offset((params.PageNo - 1) * params.PageSize).Limit(params.PageSize).Find(&labels).Error; err != nil {
+		return nil, err
+	}
+
+	result.Data = labels
+
+	return result, nil
 }

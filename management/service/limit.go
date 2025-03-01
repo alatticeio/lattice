@@ -2,7 +2,6 @@ package service
 
 import (
 	"linkany/management/entity"
-	"linkany/management/utils"
 )
 
 type UserConfigInterface interface {
@@ -18,12 +17,12 @@ type UserConfigInterface interface {
 
 type UserConfigMapper struct {
 	*DatabaseService
-	tokener    *utils.Tokener
+	tokener    *TokenService
 	userMapper UserService
 }
 
 func NewUserConfigMapper(dataBaseService *DatabaseService) *UserConfigMapper {
-	return &UserConfigMapper{DatabaseService: dataBaseService, tokener: utils.NewTokener(), userMapper: NewUserService(dataBaseService, nil)}
+	return &UserConfigMapper{DatabaseService: dataBaseService, tokener: NewTokenService(dataBaseService), userMapper: NewUserService(dataBaseService, nil)}
 }
 
 func (ucm *UserConfigMapper) Get(token string) (*entity.UserConfig, error) {

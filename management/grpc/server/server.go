@@ -31,7 +31,7 @@ type Server struct {
 	userController *controller.UserController
 	peerController *controller.NodeController
 	port           int
-	tokenr         *utils.Tokener
+	tokenService   *service.TokenService
 }
 
 type ServerConfig struct {
@@ -431,12 +431,12 @@ func (s *Server) VerifyToken(ctx context.Context, in *mgt.ManagementMessage) (*m
 		return nil, err
 	}
 
-	user, err := s.tokenr.Parse(req.Token)
+	user, err := s.tokenService.Parse(req.Token)
 	if err != nil {
 		return nil, err
 	}
 
-	b, err := s.tokenr.Verify(user.Username, user.Password, req.Token)
+	b, err := s.tokenService.Verify(user.Username, user.Password)
 	if err != nil {
 		return nil, err
 	}

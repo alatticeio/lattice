@@ -36,7 +36,7 @@ func (p *InvitationParams) Generate() []*KeyValue {
 	}
 
 	if p.PageSize == 0 {
-		p.PageSize = 10
+		p.PageSize = PageSize
 	}
 
 	return result

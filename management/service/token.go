@@ -1,9 +1,10 @@
-package utils
+package service
 
 import (
 	"fmt"
 	"github.com/golang-jwt/jwt/v5"
 	"linkany/management/entity"
+	"linkany/pkg/log"
 	"time"
 )
 
@@ -16,14 +17,18 @@ type TokenInterface interface {
 
 var haSalt = []byte("linkany.io")
 
-type Tokener struct {
+type TokenService struct {
+	logger *log.Logger
+	*DatabaseService
 }
 
-func NewTokener() *Tokener {
-	return &Tokener{}
+func NewTokenService(db *DatabaseService) *TokenService {
+	return &TokenService{
+		DatabaseService: db, logger: log.NewLogger(log.Loglevel, fmt.Sprintf("[%s] ", "token-service")),
+	}
 }
 
-func (t *Tokener) Generate(username, password string) (string, error) {
+func (t *TokenService) Generate(username, password string) (string, error) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"username": username,
 		"password": password,
@@ -34,20 +39,25 @@ func (t *Tokener) Generate(username, password string) (string, error) {
 	return token.SignedString(haSalt)
 }
 
-func (t *Tokener) Verify(username, password, token string) (bool, error) {
-	u, err := t.Parse(token)
-	if err != nil {
-		return false, err
+func (t *TokenService) Verify(username, password string) (bool, error) {
+
+	var user entity.User
+	if err := t.Where("username = ?", username).Find(&user).Error; err != nil {
+		return false, fmt.Errorf("user not found")
 	}
 
-	if u.Username != username || u.Password != password {
-		return false, fmt.Errorf("username or password is incorrect")
+	if user.Username != username {
+		return false, fmt.Errorf("user %s not found", username)
+	}
+
+	if user.Password != password {
+		return false, fmt.Errorf("password not match")
 	}
 
 	return true, nil
 }
 
-func (t *Tokener) Parse(tokenString string) (*entity.User, error) {
+func (t *TokenService) Parse(tokenString string) (*entity.User, error) {
 	// Parse takes the token string and a function for looking up the key. The latter is especially
 	// useful if you use multiple keys for your application.  The standard is to use 'kid' in the
 	// head of the token to identify which key to use, but the parsed token (head and claims) is provided

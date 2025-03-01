@@ -8,9 +8,10 @@ const (
 )
 
 type PageModel struct {
-	Total    int
-	PageNo   int
-	PageSize int
+	Total    int64 `json:"total"`
+	PageNo   int   `json:"pageNo"`
+	Current  int   `json:"current"`
+	PageSize int   `json:"pageSize"`
 }
 
 type AcceptType string

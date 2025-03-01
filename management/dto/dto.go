@@ -1,6 +1,9 @@
 package dto
 
-import "time"
+import (
+	"gorm.io/gorm"
+	"time"
+)
 
 // UserDto is a data transfer object for User entity
 type UserDto struct {
@@ -57,6 +60,33 @@ type NodeGroupDto struct {
 type GroupMember struct {
 }
 
-type AccessPolicyDto struct{}
+type AccessPolicyDto struct {
+	gorm.Model
+	Name        string `json:"name"`       // 策略名称
+	GroupID     uint   `json:"group_id"`   // 所属分组
+	Priority    int    `json:"priority"`   // 策略优先级（数字越大优先级越高）
+	Effect      string `json:"effect"`     // 效果：allow/deny
+	Status      bool   `json:"status"`     // 策略状态：启用/禁用
+	CreatedBy   string `json:"created_by"` // 创建者
+	UpdatedBy   string
+	Rule        AccessRuleDto `json:"rule"`
+	Description string
+}
 
-type AccessRuleDto struct{}
+type AccessRuleDto struct {
+	gorm.Model
+	PolicyID   uint      `json:"policy_id"`            // 所属策略ID
+	SourceType string    `json:"source_type"`          // 源类型：node/label/all
+	SourceID   string    `json:"source_id"`            // 源标识（节点ID或标签）
+	TargetType string    `json:"target_type"`          // 目标类型：node/label/all
+	TargetID   string    `json:"target_id"`            // 目标标识（节点ID或标签）
+	Actions    string    `json:"actions"`              // 允许的操作列表
+	Conditions Condition `json:"conditions,omitempty"` // 额外条件（如时间限制、带宽限制等）
+}
+
+type TagDto struct {
+	gorm.Model
+	NodeID   uint64 `json:"node_id"`
+	Label    string `json:"label"`
+	Username string
+}

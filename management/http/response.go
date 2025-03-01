@@ -23,3 +23,7 @@ func WriteOK(fn func(code int, obj any), data interface{}) {
 func WriteError(fn func(code int, obj any), msg string) {
 	fn(http.StatusOK, NewResponse(http.StatusInternalServerError, msg, nil))
 }
+
+func WriteBadRequest(fn func(code int, obj any), msg string) {
+	fn(http.StatusOK, NewResponse(http.StatusBadRequest, msg, nil))
+}

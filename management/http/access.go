@@ -4,7 +4,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"linkany/management/client"
 	"linkany/management/dto"
-	"linkany/management/entity"
 	"strconv"
 )
 
@@ -17,13 +16,13 @@ func (s *Server) createAccessPolicy() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var req dto.AccessPolicyDto
 		if err := c.ShouldBindJSON(&req); err != nil {
-			c.JSON(client.BadRequest(err))
+			WriteBadRequest(c.JSON, err.Error())
 			return
 		}
 
-		err := s.accessController.CreatePolicy(&entity.AccessPolicy{})
+		err := s.accessController.CreatePolicy(c, &req)
 		if err != nil {
-			c.JSON(client.InternalServerError(err))
+			WriteError(c.JSON, err.Error())
 			return
 		}
 		WriteOK(c.JSON, nil)
@@ -32,7 +31,11 @@ func (s *Server) createAccessPolicy() gin.HandlerFunc {
 
 func (s *Server) listAccessPolicies() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		policies, err := s.accessController.ListPolicies()
+		var params dto.AccessPolicyParams
+		if err := c.ShouldBind(&params); err != nil {
+			return
+		}
+		policies, err := s.accessController.ListPolicies(c, &params)
 		if err != nil {
 			c.JSON(client.InternalServerError(err))
 			return
@@ -50,7 +53,7 @@ func (s *Server) updateAccessPolicy() gin.HandlerFunc {
 			return
 		}
 
-		err := s.accessController.UpdatePolicy(&entity.AccessPolicy{})
+		err := s.accessController.UpdatePolicy(c, &req)
 		if err != nil {
 			c.JSON(client.InternalServerError(err))
 			return
@@ -63,7 +66,7 @@ func (s *Server) deleteAccessPolicy() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		policyID := c.Param("policyID")
 		id, _ := strconv.Atoi(policyID)
-		err := s.accessController.DeletePolicy(uint(id))
+		err := s.accessController.DeletePolicy(c, uint(id))
 		if err != nil {
 			c.JSON(client.InternalServerError(err))
 			return
@@ -80,7 +83,7 @@ func (s *Server) addAccessRule() gin.HandlerFunc {
 			return
 		}
 
-		err := s.accessController.AddRule(&entity.AccessRule{})
+		err := s.accessController.AddRule(c, &req)
 		if err != nil {
 			c.JSON(client.InternalServerError(err))
 			return
@@ -97,7 +100,7 @@ func (s *Server) updateAccessRule() gin.HandlerFunc {
 			return
 		}
 
-		err := s.accessController.UpdateRule(&entity.AccessRule{})
+		err := s.accessController.UpdateRule(c, &req)
 		if err != nil {
 			c.JSON(client.InternalServerError(err))
 			return
@@ -121,9 +124,12 @@ func (s *Server) deleteAccessRule() gin.HandlerFunc {
 
 func (s *Server) listAccessRules() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		policyID := c.Param("policyID")
-		id, _ := strconv.Atoi(policyID)
-		rules, err := s.accessController.ListPolicyRules(uint(id))
+		var params dto.AccessPolicyRuleParams
+		if err := c.ShouldBind(&params); err != nil {
+			WriteBadRequest(c.JSON, err.Error())
+			return
+		}
+		rules, err := s.accessController.ListPolicyRules(c, &params)
 		if err != nil {
 			c.JSON(client.InternalServerError(err))
 			return

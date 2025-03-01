@@ -51,12 +51,12 @@ var (
 
 type userServiceImpl struct {
 	*DatabaseService
-	tokener *utils.Tokener
+	tokener *TokenService
 	rdb     *redis.Client
 }
 
 func NewUserService(db *DatabaseService, rdb *redis.Client) UserService {
-	return &userServiceImpl{DatabaseService: db, tokener: utils.NewTokener(), rdb: rdb}
+	return &userServiceImpl{DatabaseService: db, tokener: NewTokenService(dataBaseService), rdb: rdb}
 }
 
 // Login checks if the user exists and returns a token

@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"context"
 	"fmt"
 	"linkany/management/dto"
 	"linkany/management/entity"
@@ -75,4 +76,21 @@ func (p *NodeController) ListGroupMembers(groupID string) ([]*entity.GroupMember
 
 func (p *NodeController) GetGroupMember(memberID string) (*entity.GroupMember, error) {
 	return p.nodeService.GetGroupMember(memberID)
+}
+
+// Node tag
+func (p *NodeController) CreateTag(ctx context.Context, dto *dto.TagDto) (*entity.Label, error) {
+	return nil, p.nodeService.AddNodeTag(ctx, dto)
+}
+
+func (p *NodeController) UpdateTag(ctx context.Context, dto *dto.TagDto) error {
+	return p.nodeService.UpdateNodeTag(ctx, dto)
+}
+
+func (p *NodeController) DeleteTag(ctx context.Context, tagId uint64) error {
+	return p.nodeService.RemoveNodeTag(ctx, tagId)
+}
+
+func (p *NodeController) ListTags(ctx context.Context, params *dto.LabelParams) (*dto.PageVo, error) {
+	return p.nodeService.ListNodeTags(ctx, params)
 }

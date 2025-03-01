@@ -3,6 +3,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"linkany/management/dto"
 	"linkany/management/entity"
 	"linkany/management/service"
 	"linkany/pkg/log"
@@ -18,20 +19,20 @@ func NewAccessController(accessService service.AccessPolicyService) *AccessContr
 }
 
 // AccessRule module
-func (a *AccessController) AddRule(rule *entity.AccessRule) error {
-	return a.accessService.AddRule(context.Background(), rule)
+func (a *AccessController) AddRule(ctx context.Context, ruleDto *dto.AccessRuleDto) error {
+	return a.accessService.AddRule(ctx, ruleDto)
 }
 
-func (a *AccessController) UpdateRule(rule *entity.AccessRule) error {
-	return a.accessService.UpdateRule(context.Background(), rule)
+func (a *AccessController) UpdateRule(ctx context.Context, ruleDto *dto.AccessRuleDto) error {
+	return a.accessService.UpdateRule(ctx, ruleDto)
 }
 
 func (a *AccessController) DeleteRule(ruleID uint) error {
 	return a.accessService.DeleteRule(context.Background(), ruleID)
 }
 
-func (a *AccessController) ListPolicyRules(policyID uint) ([]entity.AccessRule, error) {
-	return a.accessService.ListPolicyRules(context.Background(), policyID)
+func (a *AccessController) ListPolicyRules(ctx context.Context, params *dto.AccessPolicyRuleParams) ([]entity.AccessRule, error) {
+	return a.accessService.ListPolicyRules(ctx, params)
 }
 
 // AccessControl module
@@ -43,40 +44,27 @@ func (a *AccessController) BatchCheckAccess(requests []service.AccessRequest) ([
 	return a.accessService.BatchCheckAccess(context.Background(), requests)
 }
 
-func (a *AccessController) AddNodeTag(nodeID uint, tag string) error {
-	return a.accessService.AddNodeTag(context.Background(), nodeID, tag)
-}
-
-func (a *AccessController) RemoveNodeTag(nodeID uint, tag string) error {
-	return a.accessService.RemoveNodeTag(context.Background(), nodeID, tag)
-}
-
-func (a *AccessController) GetNodeTags(nodeID uint) ([]string, error) {
-	return a.accessService.GetNodeTags(context.Background(), nodeID)
-}
-
 func (a *AccessController) GetAccessLogs(filter service.AccessLogFilter) ([]entity.AccessLog, error) {
 	return a.accessService.GetAccessLogs(context.Background(), filter)
 }
 
 // AccessPolicy module
-func (a *AccessController) CreatePolicy(policy *entity.AccessPolicy) error {
-	return a.accessService.CreatePolicy(context.Background(), policy)
+func (a *AccessController) CreatePolicy(ctx context.Context, dto *dto.AccessPolicyDto) error {
+	return a.accessService.CreatePolicy(ctx, dto)
 }
 
-func (a *AccessController) UpdatePolicy(policy *entity.AccessPolicy) error {
-	return a.accessService.UpdatePolicy(context.Background(), policy)
+func (a *AccessController) UpdatePolicy(ctx context.Context, policyDto *dto.AccessPolicyDto) error {
+	return a.accessService.UpdatePolicy(ctx, policyDto)
 }
 
-func (a *AccessController) DeletePolicy(policyID uint) error {
-	return a.accessService.DeletePolicy(context.Background(), policyID)
+func (a *AccessController) DeletePolicy(ctx context.Context, policyID uint) error {
+	return a.accessService.DeletePolicy(ctx, policyID)
 }
 
-func (a *AccessController) ListPolicies() ([]entity.AccessPolicy, error) {
-	//return a.accessService.ListPolicyRules(context.Background())
-	return nil, nil
+func (a *AccessController) ListPolicies(ctx context.Context, params *dto.AccessPolicyParams) ([]entity.AccessPolicy, error) {
+	return a.accessService.ListGroupPolicies(ctx, params)
 }
 
-func (a *AccessController) GetPolicy(policyID uint) (*entity.AccessPolicy, error) {
-	return a.accessService.GetPolicy(context.Background(), policyID)
+func (a *AccessController) GetPolicy(ctx context.Context, policyID uint) (*entity.AccessPolicy, error) {
+	return a.accessService.GetPolicy(ctx, policyID)
 }
