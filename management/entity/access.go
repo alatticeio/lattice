@@ -38,14 +38,6 @@ func (a *AccessRule) TableName() string {
 	return "la_access_rule"
 }
 
-type Condition struct {
-	MaxBandwidth string `json:"max_bandwidth"`
-	TimeWindow   struct {
-		Start string `json:"start"`
-		End   string `json:"end"`
-	}
-}
-
 // Label node label
 type Label struct {
 	gorm.Model

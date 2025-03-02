@@ -6,6 +6,7 @@ import (
 	"linkany/management/dto"
 	"linkany/management/entity"
 	"linkany/management/service"
+	"linkany/management/vo"
 	"linkany/pkg/log"
 )
 
@@ -31,7 +32,7 @@ func (a *AccessController) DeleteRule(ruleID uint) error {
 	return a.accessService.DeleteRule(context.Background(), ruleID)
 }
 
-func (a *AccessController) ListPolicyRules(ctx context.Context, params *dto.AccessPolicyRuleParams) ([]entity.AccessRule, error) {
+func (a *AccessController) ListPolicyRules(ctx context.Context, params *dto.AccessPolicyRuleParams) (*vo.PageVo, error) {
 	return a.accessService.ListPolicyRules(ctx, params)
 }
 
@@ -61,7 +62,7 @@ func (a *AccessController) DeletePolicy(ctx context.Context, policyID uint) erro
 	return a.accessService.DeletePolicy(ctx, policyID)
 }
 
-func (a *AccessController) ListPolicies(ctx context.Context, params *dto.AccessPolicyParams) ([]entity.AccessPolicy, error) {
+func (a *AccessController) ListPolicies(ctx context.Context, params *dto.AccessPolicyParams) (*vo.PageVo, error) {
 	return a.accessService.ListGroupPolicies(ctx, params)
 }
 

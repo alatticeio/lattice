@@ -6,6 +6,7 @@ import (
 	"linkany/management/dto"
 	"linkany/management/entity"
 	"linkany/management/service"
+	"linkany/management/vo"
 	"linkany/pkg/log"
 )
 
@@ -91,6 +92,6 @@ func (p *NodeController) DeleteTag(ctx context.Context, tagId uint64) error {
 	return p.nodeService.RemoveNodeTag(ctx, tagId)
 }
 
-func (p *NodeController) ListTags(ctx context.Context, params *dto.LabelParams) (*dto.PageVo, error) {
+func (p *NodeController) ListTags(ctx context.Context, params *dto.LabelParams) (*vo.PageVo, error) {
 	return p.nodeService.ListNodeTags(ctx, params)
 }

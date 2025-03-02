@@ -10,6 +10,15 @@ import (
 func (s *Server) RegisterAccessRoutes() {
 	routes := s.RouterGroup.Group(PREFIX + "/access")
 	routes.POST("/policy", s.authCheck(), s.createAccessPolicy())
+	routes.PUT("/policy", s.authCheck(), s.updateAccessPolicy())
+	routes.DELETE("/policy/:policyID", s.authCheck(), s.deleteAccessPolicy())
+	routes.GET("/policy/list", s.authCheck(), s.listAccessPolicies())
+
+	// rule
+	routes.POST("/rule", s.authCheck(), s.addAccessRule())
+	routes.PUT("/rule", s.authCheck(), s.updateAccessRule())
+	routes.DELETE("/rule/:ruleID", s.authCheck(), s.deleteAccessRule())
+	routes.GET("/rule/list", s.authCheck(), s.listAccessRules())
 }
 
 func (s *Server) createAccessPolicy() gin.HandlerFunc {

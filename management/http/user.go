@@ -84,7 +84,8 @@ func (s *Server) listInvitations() gin.HandlerFunc {
 
 func (s *Server) listInvites() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		invites, err := s.userController.ListInvites(&dto.InvitationParams{})
+		var params dto.InvitationParams
+		invites, err := s.userController.ListInvites(&params)
 		if err != nil {
 			WriteError(c.JSON, err.Error())
 			return

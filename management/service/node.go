@@ -47,7 +47,7 @@ type NodeService interface {
 	AddNodeTag(ctx context.Context, dto *dto.TagDto) error
 	UpdateNodeTag(ctx context.Context, dto *dto.TagDto) error
 	RemoveNodeTag(ctx context.Context, tagId uint64) error
-	ListNodeTags(ctx context.Context, params *dto.LabelParams) (*dto.PageVo, error)
+	ListNodeTags(ctx context.Context, params *dto.LabelParams) (*vo.PageVo, error)
 }
 
 var (
@@ -276,9 +276,9 @@ func (p *nodeServiceImpl) RemoveNodeTag(ctx context.Context, tagId uint64) error
 	return p.Where("id = ?", tagId).Delete(&entity.Label{}).Error
 }
 
-func (p *nodeServiceImpl) ListNodeTags(ctx context.Context, params *dto.LabelParams) (*dto.PageVo, error) {
+func (p *nodeServiceImpl) ListNodeTags(ctx context.Context, params *dto.LabelParams) (*vo.PageVo, error) {
 	var labels []vo.LabelVo
-	result := new(dto.PageVo)
+	result := new(vo.PageVo)
 	sql, wrappers := utils.Generate(params)
 	db := p.DB
 	if sql != "" {

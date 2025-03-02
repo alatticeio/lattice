@@ -12,9 +12,11 @@ type Invites struct {
 	InviterId    int64 // inviter user id
 	MobilePhone  string
 	Email        string
+	Avatar       string
 	GroupId      uint64
 	Group        string
-	Permission   string
+	Role         string
+	Permissions  string
 	AcceptStatus AcceptStatus
 	InvitedAt    time.Time
 	CanceledAt   NullTime
@@ -55,13 +57,13 @@ const (
 func (a AcceptStatus) String() string {
 	switch a {
 	case NewInvite:
-		return "待处理"
+		return "pending"
 	case Accept:
-		return "已接受"
+		return "accepted"
 	case Rejected:
-		return "已拒绝"
+		return "rejected"
 	case Canceled:
-		return "已取消"
+		return "canceled"
 	default:
 		return "unknown"
 	}

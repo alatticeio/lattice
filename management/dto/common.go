@@ -21,8 +21,6 @@ const (
 	REJECT AcceptType = "rejected"
 )
 
-type Condition string
-
 type KeyValue struct {
 	Key   string
 	Value interface{}

@@ -6,6 +6,7 @@ import (
 	"linkany/management/dto"
 	"linkany/management/entity"
 	"linkany/management/utils"
+	"linkany/management/vo"
 	"linkany/pkg/linkerrors"
 	"linkany/pkg/redis"
 	"time"
@@ -29,7 +30,7 @@ type UserService interface {
 	ListInvitations(params *dto.InvitationParams) ([]*entity.Invitation, error)
 
 	//listInvites user invite others list
-	ListInvites(params *dto.InvitationParams) ([]*entity.Invites, error)
+	ListInvites(params *dto.InvitationParams) (*vo.PageVo, error)
 
 	// User Permit
 	//Permission grants a user permission to access a resource
@@ -138,7 +139,7 @@ func (u *userServiceImpl) Invite(dto *dto.InviteDto) error {
 		MobilePhone:  dto.MobilePhone,
 		Email:        dto.Email,
 		Group:        dto.Group,
-		Permission:   dto.Permissions,
+		Permissions:  dto.Permissions,
 		AcceptStatus: entity.NewInvite,
 		InvitedAt:    time.Now(),
 	}).Error; err != nil {
@@ -177,17 +178,59 @@ func (u *userServiceImpl) UpdateInvitation(dto *dto.InviteDto) error {
 	return nil
 }
 
-func (u *userServiceImpl) ListInvites(params *dto.InvitationParams) ([]*entity.Invites, error) {
+func (u *userServiceImpl) ListInvites(params *dto.InvitationParams) (*vo.PageVo, error) {
+
 	var invs []*entity.Invites
+	result := new(vo.PageVo)
 	sql, wrappers := utils.Generate(params)
 	db := u.DB
 	if sql != "" {
-		db = u.Where(sql, wrappers)
+		db = u.Model(&entity.Invites{}).Where(sql, wrappers)
 	}
-	if err := db.Offset((params.PageNo - 1) * params.PageSize).Limit(params.PageSize).Find(&invs).Error; err != nil {
+
+	if err := db.Model(&entity.Invites{}).Count(&result.Total).Error; err != nil {
 		return nil, err
 	}
-	return invs, nil
+
+	if err := db.Model(&entity.Invites{}).Offset((params.PageNo - 1) * params.PageSize).Limit(params.PageSize).Find(&invs).Error; err != nil {
+		return nil, err
+	}
+
+	var insVos []*vo.InviteVo
+	for _, inv := range invs {
+		var inviteUser entity.User
+		var invitationUser entity.User
+		var err error
+		if err = db.Model(&entity.User{}).Where("id = ?", inv.InviterId).First(&inviteUser).Error; err != nil {
+			return nil, err
+		}
+
+		if err = db.Model(&entity.User{}).Where("id = ?", inv.InvitationId).First(&invitationUser).Error; err != nil {
+			return nil, err
+		}
+
+		insVo := &vo.InviteVo{
+			ID:           uint64(inv.ID),
+			InviteeName:  inviteUser.Username,
+			InviterName:  invitationUser.Username,
+			MobilePhone:  invitationUser.Mobile,
+			Email:        invitationUser.Email,
+			Avatar:       invitationUser.Avatar,
+			Role:         inv.Role,
+			GroupName:    inv.Group,
+			Permissions:  inv.Permissions,
+			AcceptStatus: inv.AcceptStatus.String(),
+			InvitedAt:    inv.InvitedAt,
+		}
+
+		insVos = append(insVos, insVo)
+	}
+
+	result.Data = insVos
+	result.Current = params.PageNo
+	result.PageNo = params.PageNo
+	result.PageSize = params.PageSize
+	return result, nil
 }
 
 func (u *userServiceImpl) ListInvitations(params *dto.InvitationParams) ([]*entity.Invitation, error) {

@@ -5,6 +5,7 @@ import (
 	"linkany/management/dto"
 	"linkany/management/entity"
 	"linkany/management/service"
+	"linkany/management/vo"
 	"linkany/pkg/log"
 )
 
@@ -43,7 +44,7 @@ func (u *UserController) UpdateInvitation(dto *dto.InviteDto) error {
 	return u.userService.UpdateInvitation(dto)
 }
 
-func (u *UserController) ListInvites(params *dto.InvitationParams) ([]*entity.Invites, error) {
+func (u *UserController) ListInvites(params *dto.InvitationParams) (*vo.PageVo, error) {
 	return u.userService.ListInvites(params)
 }
 

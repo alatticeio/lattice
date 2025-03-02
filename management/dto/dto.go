@@ -69,19 +69,26 @@ type AccessPolicyDto struct {
 	Status      bool   `json:"status"`     // 策略状态：启用/禁用
 	CreatedBy   string `json:"created_by"` // 创建者
 	UpdatedBy   string
-	Rule        AccessRuleDto `json:"rule"`
 	Description string
 }
 
 type AccessRuleDto struct {
 	gorm.Model
-	PolicyID   uint      `json:"policy_id"`            // 所属策略ID
-	SourceType string    `json:"source_type"`          // 源类型：node/label/all
-	SourceID   string    `json:"source_id"`            // 源标识（节点ID或标签）
-	TargetType string    `json:"target_type"`          // 目标类型：node/label/all
-	TargetID   string    `json:"target_id"`            // 目标标识（节点ID或标签）
+	PolicyID   uint      `json:"policyId"`             // 所属策略ID
+	SourceType string    `json:"sourceType"`           // 源类型：node/label/all
+	SourceID   string    `json:"sourceId"`             // 源标识（节点ID或标签）
+	TargetType string    `json:"targetType"`           // 目标类型：node/label/all
+	TargetID   string    `json:"targetId"`             // 目标标识（节点ID或标签）
 	Actions    string    `json:"actions"`              // 允许的操作列表
 	Conditions Condition `json:"conditions,omitempty"` // 额外条件（如时间限制、带宽限制等）
+}
+
+type Condition struct {
+	MaxBandwidth string `json:"maxBandwidth"`
+	TimeWindow   struct {
+		Start string `json:"start"`
+		End   string `json:"end"`
+	}
 }
 
 type TagDto struct {

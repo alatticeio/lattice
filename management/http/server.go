@@ -44,6 +44,7 @@ func NewServer(cfg *ServerConfig) *Server {
 		nodeController:    controller.NewPeerController(service.NewNodeService(cfg.DatabaseService)),
 		planController:    controller.NewPlanController(service.NewPlanService(cfg.DatabaseService)),
 		supportController: controller.NewSupportController(service.NewSupportMapper(cfg.DatabaseService)),
+		accessController:  controller.NewAccessController(service.NewAccessPolicyService(cfg.DatabaseService)),
 		tokener:           service.NewTokenService(cfg.DatabaseService),
 	}
 	s.initRoute()
