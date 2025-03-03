@@ -3,3 +3,6 @@ bin
 conf/control.yaml
 conf/control-deployment.yaml
 .vscode
+.DS_Store
+cmd/management/conf/control.yaml
+cmd/management/conf/signaling-deployment.yaml

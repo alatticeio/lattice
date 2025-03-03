@@ -55,9 +55,21 @@ type InviteDto struct {
 }
 
 type NodeGroupDto struct {
+	gorm.Model
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Owner       uint   `json:"ownerId"`
+	IsPublic    bool   `json:"isPublic"`
+	CreatedBy   string `json:"createdBy"`
+	UpdatedBy   string `json:"updatedBy"`
 }
 
-type GroupMember struct {
+type GroupMemberDto struct {
+	ID      int64  `json:"id"`
+	GroupID uint   `json:"groupID"`
+	NodeID  uint   `json:"nodeID"`
+	Role    string `json:"role"`
+	Status  int    `json:"status"`
 }
 
 type AccessPolicyDto struct {

@@ -1,6 +1,9 @@
 package entity
 
-import "gorm.io/gorm"
+import (
+	"gorm.io/gorm"
+	"time"
+)
 
 type GroupRoleType string
 
@@ -13,9 +16,9 @@ const (
 func handleRole(role GroupRoleType) {
 	switch role {
 	case AdminRole:
-		// 处理管理员角色
+		// deal admin role
 	case MemberRole:
-		// 处理成员角色
+		// deal member role
 	}
 }
 
@@ -53,17 +56,30 @@ func (Node) TableName() string {
 // NodeGroup a node may be in multi groups
 type NodeGroup struct {
 	gorm.Model
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	OwnerID     uint   `json:"owner_id"`  // 分组所有者ID
-	IsPublic    bool   `json:"is_public"` // 是否公开
+	ID          string    `gorm:"column:id;size:64" json:"id"`
+	Name        string    `gorm:"column:name;size:64" json:"name"`
+	Description string    `gorm:"column:description;size:255" json:"description"`
+	OwnerID     uint      `gorm:"column:owner_id;size:20" json:"ownerId"`
+	IsPublic    bool      `gorm:"column:is_public" json:"isPublic"`
+	CreatedBy   string    `json:"column:created_by;size:64" json:"createdBy"`
+	UpdatedBy   string    `json:"column:updated_by;size:64" json:"updatedBy"`
+	CreatedAt   time.Time `json:"column:created_at" json:"createdAt"`
+	UpdatedAt   time.Time `json:"column:updated_at" json:"updatedAt"`
 }
 
-// 分组成员关系
+func (NodeGroup) TableName() string {
+	return "la_group"
+}
+
+// GroupMember relationship between Group and Node
 type GroupMember struct {
 	gorm.Model
-	GroupID uint   `json:"group_id"`
-	NodeID  uint   `json:"node_id"`
-	Role    string `json:"role"`   // 成员角色：owner, admin, member
-	Status  int    `json:"status"` // 状态：待审核、已通过、已拒绝
+	GroupID uint   `gorm:"column:group_id;size:20" json:"groupId"`
+	NodeID  uint   `gorm:"column:node_id;size:20" json:"nodeId"`
+	Role    string `gorm:"column:role;size:20" json:"role"` // role：owner, admin, member
+	Status  int    `gorm:"column:status" json:"status"`     // status：Pending review, approved, rejected
+}
+
+func (GroupMember) TableName() string {
+	return "la_group_member"
 }

@@ -5,6 +5,7 @@ import (
 )
 
 type QueryParams struct {
+	PageModel
 	PubKey   *string
 	UserId   *string
 	Status   *int

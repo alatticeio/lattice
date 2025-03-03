@@ -4,6 +4,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"linkany/management/client"
 	"linkany/management/dto"
+	"strconv"
 )
 
 func (s *Server) RegisterNodeRoutes() {
@@ -122,7 +123,7 @@ func (s *Server) createNodeGroup() gin.HandlerFunc {
 			return
 		}
 
-		nodeGroup, err := s.nodeController.CreateGroup(&nodeGroupDto)
+		nodeGroup, err := s.nodeController.CreateGroup(c, &nodeGroupDto)
 		if err != nil {
 			c.JSON(client.InternalServerError(err))
 			return
@@ -139,8 +140,9 @@ func (s *Server) updateNodeGroup() gin.HandlerFunc {
 			c.JSON(client.BadRequest(err))
 			return
 		}
-
-		err := s.nodeController.UpdateGroup(id, &nodeGroupDto)
+		idInt, _ := strconv.Atoi(id)
+		nodeGroupDto.ID = uint(idInt)
+		err := s.nodeController.UpdateGroup(c, &nodeGroupDto)
 		if err != nil {
 			c.JSON(client.InternalServerError(err))
 			return
@@ -152,7 +154,7 @@ func (s *Server) updateNodeGroup() gin.HandlerFunc {
 func (s *Server) deleteNodeGroup() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id := c.Param("id")
-		err := s.nodeController.DeleteGroup(id)
+		err := s.nodeController.DeleteGroup(c, id)
 		if err != nil {
 			c.JSON(client.InternalServerError(err))
 			return
@@ -163,7 +165,12 @@ func (s *Server) deleteNodeGroup() gin.HandlerFunc {
 
 func (s *Server) listNodeGroups() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		nodeGroups, err := s.nodeController.ListGroups()
+		var params dto.GroupParams
+		if err := c.ShouldBindQuery(params); err != nil {
+			c.JSON(client.BadRequest(err))
+			return
+		}
+		nodeGroups, err := s.nodeController.ListGroups(c, &params)
 		if err != nil {
 			c.JSON(client.InternalServerError(err))
 			return
@@ -174,7 +181,7 @@ func (s *Server) listNodeGroups() gin.HandlerFunc {
 
 func (s *Server) addGroupMember() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		var groupMember dto.GroupMember
+		var groupMember dto.GroupMemberDto
 		if err := c.ShouldBindJSON(&groupMember); err != nil {
 			c.JSON(client.BadRequest(err))
 			return
@@ -203,8 +210,12 @@ func (s *Server) removeGroupMember() gin.HandlerFunc {
 
 func (s *Server) listGroupMembers() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		groupID := c.Param("groupID")
-		members, err := s.nodeController.ListGroupMembers(groupID)
+		var params dto.GroupMemberParams
+		if err := c.ShouldBindQuery(&params); err != nil {
+			c.JSON(client.BadRequest(err))
+			return
+		}
+		members, err := s.nodeController.ListGroupMembers(c, &params)
 		if err != nil {
 			c.JSON(client.InternalServerError(err))
 			return
@@ -218,10 +229,10 @@ func (s *Server) getGroupMember() gin.HandlerFunc {
 		memberID := c.Param("memberID")
 		member, err := s.nodeController.GetGroupMember(memberID)
 		if err != nil {
-			c.JSON(client.InternalServerError(err))
+			WriteBadRequest(c.JSON, err.Error())
 			return
 		}
-		c.JSON(client.Success(member))
+		WriteOK(c.JSON, member)
 	}
 }
 

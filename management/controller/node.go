@@ -45,34 +45,34 @@ func (p *NodeController) Registry(peer *dto.PeerDto) (*entity.Node, error) {
 	return p.nodeService.Register(peer)
 }
 
-// NodeGroup module
-func (p *NodeController) CreateGroup(dto *dto.NodeGroupDto) (*entity.NodeGroup, error) {
-	return nil, p.nodeService.CreateNodeGroup(&entity.NodeGroup{})
+// CreateGroup NodeGroup module
+func (p *NodeController) CreateGroup(ctx context.Context, dto *dto.NodeGroupDto) (*entity.NodeGroup, error) {
+	return nil, p.nodeService.CreateNodeGroup(ctx, dto)
 }
 
-func (p *NodeController) UpdateGroup(id string, dto *dto.NodeGroupDto) error {
-	return p.nodeService.UpdateNodeGroup(id, &entity.NodeGroup{})
+func (p *NodeController) UpdateGroup(ctx context.Context, dto *dto.NodeGroupDto) error {
+	return p.nodeService.UpdateNodeGroup(ctx, dto)
 }
 
-func (p *NodeController) DeleteGroup(id string) error {
-	return p.nodeService.DeleteNodeGroup(id)
+func (p *NodeController) DeleteGroup(ctx context.Context, id string) error {
+	return p.nodeService.DeleteNodeGroup(ctx, id)
 }
 
-func (p *NodeController) ListGroups() ([]*entity.NodeGroup, error) {
-	return p.nodeService.ListNodeGroups()
+func (p *NodeController) ListGroups(ctx context.Context, params *dto.GroupParams) (*vo.PageVo, error) {
+	return p.nodeService.ListNodeGroups(ctx, params)
 }
 
-// Group member
-func (p *NodeController) AddGroupMember(dto *dto.GroupMember) error {
-	return p.nodeService.AddGroupMember(&entity.GroupMember{})
+// AddGroupMember Add Group Member
+func (p *NodeController) AddGroupMember(ctx context.Context, dto *dto.GroupMemberDto) error {
+	return p.nodeService.AddGroupMember(ctx, dto)
 }
 
 func (p *NodeController) RemoveGroupMember(memberID string) error {
 	return p.nodeService.RemoveGroupMember(memberID)
 }
 
-func (p *NodeController) ListGroupMembers(groupID string) ([]*entity.GroupMember, error) {
-	return p.nodeService.ListGroupMembers(groupID)
+func (p *NodeController) ListGroupMembers(ctx context.Context, params *dto.GroupMemberParams) (*vo.PageVo, error) {
+	return p.nodeService.ListGroupMembers(ctx, params)
 }
 
 func (p *NodeController) GetGroupMember(memberID string) (*entity.GroupMember, error) {

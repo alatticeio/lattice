@@ -31,3 +31,79 @@ func (l *LabelParams) Generate() []*KeyValue {
 
 	return result
 }
+
+type GroupParams struct {
+	PageModel
+	Name        *string
+	Description *string
+	OwnerID     *uint
+	IsPublic    *bool
+}
+
+func (p *GroupParams) Generate() []*KeyValue {
+	var result []*KeyValue
+
+	if p.Name != nil {
+		result = append(result, newKeyValue("name", p.Name))
+	}
+
+	if p.Description != nil {
+		result = append(result, newKeyValue("description", p.Description))
+	}
+
+	if p.OwnerID != nil {
+		result = append(result, newKeyValue("owner_id", p.OwnerID))
+	}
+
+	if p.IsPublic != nil {
+		result = append(result, newKeyValue("is_public", p.IsPublic))
+	}
+
+	if p.PageNo == 0 {
+		p.PageNo = PageNo
+	}
+
+	if p.PageSize == 0 {
+		p.PageSize = PageSize
+	}
+
+	return result
+}
+
+type GroupMemberParams struct {
+	PageModel
+	GroupID *uint
+	NodeId  *uint
+	Role    *string
+	Status  *int
+}
+
+func (p *GroupMemberParams) Generate() []*KeyValue {
+	var result []*KeyValue
+
+	if p.GroupID != nil {
+		result = append(result, newKeyValue("group_id", p.GroupID))
+	}
+
+	if p.NodeId != nil {
+		result = append(result, newKeyValue("node_id", p.NodeId))
+	}
+
+	if p.Role != nil {
+		result = append(result, newKeyValue("role", p.Role))
+	}
+
+	if p.Status != nil {
+		result = append(result, newKeyValue("status", p.Status))
+	}
+
+	if p.PageNo == 0 {
+		p.PageNo = PageNo
+	}
+
+	if p.PageSize == 0 {
+		p.PageSize = PageSize
+	}
+
+	return result
+}
