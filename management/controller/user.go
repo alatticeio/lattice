@@ -44,11 +44,11 @@ func (u *UserController) UpdateInvitation(dto *dto.InviteDto) error {
 	return u.userService.UpdateInvitation(dto)
 }
 
-func (u *UserController) ListInvites(params *dto.InvitationParams) (*vo.PageVo, error) {
+func (u *UserController) ListUserInvites(params *dto.InvitationParams) (*vo.PageVo, error) {
 	return u.userService.ListInvites(params)
 }
 
-func (u *UserController) ListInvitations(params *dto.InvitationParams) ([]*entity.Invitation, error) {
+func (u *UserController) ListUserInvitations(params *dto.InvitationParams) (*vo.PageVo, error) {
 	return u.userService.ListInvitations(params)
 }
 

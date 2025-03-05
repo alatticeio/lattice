@@ -423,7 +423,7 @@ func (p *nodeServiceImpl) ListNodeTags(ctx context.Context, params *dto.LabelPar
 		return nil, err
 	}
 
-	if err := db.Model(&entity.Label{}).Offset((params.PageNo - 1) * params.PageSize).Limit(params.PageSize).Find(&labels).Error; err != nil {
+	if err := db.Model(&entity.Label{}).Offset((params.Page - 1) * params.Size).Limit(params.Size).Find(&labels).Error; err != nil {
 		return nil, err
 	}
 

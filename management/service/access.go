@@ -63,8 +63,8 @@ type accessPolicyServiceImpl struct {
 
 func (a accessPolicyServiceImpl) CreatePolicy(ctx context.Context, policyDto *dto.AccessPolicyDto) error {
 	var count int64
-	if err := a.Model(&entity.AccessPolicy{}).Where("name = ? and groupd_id = ?", policyDto.Name, policyDto.GroupID).First(&entity.AccessPolicy{}).Count(&count).Error; err != nil {
-		return nil
+	if err := a.Model(&entity.AccessPolicy{}).Where("name = ? and group_id = ?", policyDto.Name, policyDto.GroupID).Count(&count).Error; err != nil {
+		return err
 	}
 
 	if count > 0 {
@@ -119,12 +119,12 @@ func (a accessPolicyServiceImpl) ListGroupPolicies(ctx context.Context, params *
 		return nil, err
 	}
 
-	err := db.Model(&entity.AccessPolicy{}).Offset((params.PageNo - 1) * params.PageSize).Limit(params.PageSize).Find(&policies).Error
+	err := db.Model(&entity.AccessPolicy{}).Offset((params.Page - 1) * params.Size).Limit(params.Size).Find(&policies).Error
 
 	result.Data = policies
-	result.Current = params.PageNo
-	result.PageNo = params.PageNo
-	result.PageSize = params.PageSize
+	result.Current = params.Page
+	result.Page = params.Page
+	result.Size = params.Size
 	return result, err
 }
 
@@ -162,7 +162,7 @@ func (a accessPolicyServiceImpl) UpdateRule(ctx context.Context, ruleDto *dto.Ac
 }
 
 func (a accessPolicyServiceImpl) DeleteRule(ctx context.Context, ruleID uint) error {
-	return a.Where("id = ?", ruleID).Delete(&entity.AccessRule{}).Error
+	return a.Model(&entity.AccessRule{}).Where("id = ?", ruleID).Delete(&entity.AccessRule{}).Error
 }
 
 func (a accessPolicyServiceImpl) ListPolicyRules(ctx context.Context, params *dto.AccessPolicyRuleParams) (*vo.PageVo, error) {
@@ -178,14 +178,14 @@ func (a accessPolicyServiceImpl) ListPolicyRules(ctx context.Context, params *dt
 		return nil, err
 	}
 
-	if err := db.Model(&entity.AccessRule{}).Offset((params.PageNo - 1) * params.PageSize).Limit(params.PageSize).Find(&policies).Error; err != nil {
+	if err := db.Model(&entity.AccessRule{}).Offset((params.Page - 1) * params.Size).Limit(params.Size).Find(&policies).Error; err != nil {
 		return nil, err
 	}
 
 	result.Data = policies
-	result.Current = params.PageNo
-	result.PageNo = params.PageNo
-	result.PageSize = params.PageSize
+	result.Current = params.Page
+	result.Page = params.Page
+	result.Size = params.Size
 	return result, nil
 }
 

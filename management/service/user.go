@@ -27,7 +27,7 @@ type UserService interface {
 	UpdateInvitation(dto *dto.InviteDto) error
 
 	//ListInvitations list user invite from others
-	ListInvitations(params *dto.InvitationParams) ([]*entity.Invitation, error)
+	ListInvitations(params *dto.InvitationParams) (*vo.PageVo, error)
 
 	//listInvites user invite others list
 	ListInvites(params *dto.InvitationParams) (*vo.PageVo, error)
@@ -192,7 +192,7 @@ func (u *userServiceImpl) ListInvites(params *dto.InvitationParams) (*vo.PageVo,
 		return nil, err
 	}
 
-	if err := db.Model(&entity.Invites{}).Offset((params.PageNo - 1) * params.PageSize).Limit(params.PageSize).Find(&invs).Error; err != nil {
+	if err := db.Model(&entity.Invites{}).Offset((params.Page - 1) * params.Size).Limit(params.Size).Find(&invs).Error; err != nil {
 		return nil, err
 	}
 
@@ -227,23 +227,58 @@ func (u *userServiceImpl) ListInvites(params *dto.InvitationParams) (*vo.PageVo,
 	}
 
 	result.Data = insVos
-	result.Current = params.PageNo
-	result.PageNo = params.PageNo
-	result.PageSize = params.PageSize
+	result.Current = params.Page
+	result.Page = params.Page
+	result.Size = params.Size
 	return result, nil
 }
 
-func (u *userServiceImpl) ListInvitations(params *dto.InvitationParams) ([]*entity.Invitation, error) {
+func (u *userServiceImpl) ListInvitations(params *dto.InvitationParams) (*vo.PageVo, error) {
 	var invs []*entity.Invitation
+	result := new(vo.PageVo)
 	db := u.DB
 	sql, wrappers := utils.Generate(params)
 	if sql != "" {
-		db = u.Where(sql, wrappers)
+		db = u.Model(&entity.Invitation{}).Where(sql, wrappers)
 	}
-	if err := db.Offset((params.PageNo - 1) * params.PageSize).Limit(params.PageSize).Find(&invs).Error; err != nil {
+
+	if err := db.Model(&entity.Invitation{}).Count(&result.Total).Error; err != nil {
 		return nil, err
 	}
-	return invs, nil
+
+	if err := u.Model(&entity.Invitation{}).Offset((params.Page - 1) * params.Size).Limit(params.Size).Find(&invs).Error; err != nil {
+		return nil, err
+	}
+
+	var insVos []*vo.InvitationVo
+	for _, inv := range invs {
+		var inviteUser entity.User
+		var err error
+		if err = db.Model(&entity.User{}).Where("id = ?", inv.InviterId).First(&inviteUser).Error; err != nil {
+			return nil, err
+		}
+
+		insVo := &vo.InvitationVo{
+			ID:            uint64(inv.ID),
+			Group:         inv.Group,
+			InviterName:   inviteUser.Username,
+			InviterAvatar: inviteUser.Avatar,
+			Role:          inv.Role,
+			AcceptStatus:  inv.AcceptStatus.String(),
+			Permissions:   inv.Permissions,
+
+			InvitedAt: inv.InvitedAt,
+		}
+
+		insVos = append(insVos, insVo)
+	}
+
+	result.Data = insVos
+	result.Current = params.Page
+	result.Page = params.Page
+	result.Size = params.Size
+
+	return result, nil
 }
 
 func (u *userServiceImpl) Permit(userID uint, resource string, permission string) error {

@@ -10,7 +10,7 @@ type AccessPolicyParams struct {
 
 type AccessPolicyRuleParams struct {
 	PageModel
-	PolicyId   uint64
+	PolicyId   int64
 	SourceId   string
 	TargetId   string
 	SourceType string
@@ -36,12 +36,12 @@ func (p *AccessPolicyParams) Generate() []*KeyValue {
 		result = append(result, newKeyValue("updated_by", p.UpdatedBy))
 	}
 
-	if p.PageNo == 0 {
-		p.PageNo = PageNo
+	if p.Page == 0 {
+		p.Page = PageNo
 	}
 
-	if p.PageSize == 0 {
-		p.PageSize = PageSize
+	if p.Size == 0 {
+		p.Size = PageSize
 	}
 
 	return result
@@ -70,12 +70,12 @@ func (p *AccessPolicyRuleParams) Generate() []*KeyValue {
 		result = append(result, newKeyValue("target_type", p.TargetType))
 	}
 
-	if p.PageNo == 0 {
-		p.PageNo = PageNo
+	if p.Page == 0 {
+		p.Page = PageNo
 	}
 
-	if p.PageSize == 0 {
-		p.PageSize = PageSize
+	if p.Size == 0 {
+		p.Size = PageSize
 	}
 
 	return result

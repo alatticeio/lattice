@@ -2,6 +2,7 @@ package dto
 
 import (
 	"gorm.io/gorm"
+	"linkany/management/entity"
 	"time"
 )
 
@@ -88,12 +89,12 @@ type GroupNodeDto struct {
 
 type AccessPolicyDto struct {
 	gorm.Model
-	Name        string `json:"name"`       // 策略名称
-	GroupID     uint   `json:"group_id"`   // 所属分组
-	Priority    int    `json:"priority"`   // 策略优先级（数字越大优先级越高）
-	Effect      string `json:"effect"`     // 效果：allow/deny
-	Status      bool   `json:"status"`     // 策略状态：启用/禁用
-	CreatedBy   string `json:"created_by"` // 创建者
+	Name        string        `json:"name"`       // 策略名称
+	GroupID     uint          `json:"group_id"`   // 所属分组
+	Priority    int           `json:"priority"`   // 策略优先级（数字越大优先级越高）
+	Effect      string        `json:"effect"`     // 效果：allow/deny
+	Status      entity.Status `json:"status"`     // 策略状态：启用/禁用
+	CreatedBy   string        `json:"created_by"` // 创建者
 	UpdatedBy   string
 	Description string
 }

@@ -73,7 +73,8 @@ func (s *Server) updateInvitation() gin.HandlerFunc {
 // list invitations
 func (s *Server) listInvitations() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		invitations, err := s.userController.ListInvitations(&dto.InvitationParams{})
+		var params dto.InvitationParams
+		invitations, err := s.userController.ListUserInvitations(&params)
 		if err != nil {
 			WriteError(c.JSON, err.Error())
 			return
@@ -85,7 +86,7 @@ func (s *Server) listInvitations() gin.HandlerFunc {
 func (s *Server) listInvites() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var params dto.InvitationParams
-		invites, err := s.userController.ListInvites(&params)
+		invites, err := s.userController.ListUserInvites(&params)
 		if err != nil {
 			WriteError(c.JSON, err.Error())
 			return

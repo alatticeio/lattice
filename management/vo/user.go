@@ -20,3 +20,14 @@ type InviteVo struct {
 	InvitedAt    time.Time       `json:"invitedAt,omitempty"`
 	CanceledAt   entity.NullTime `json:"canceledAt,omitempty"`
 }
+
+type InvitationVo struct {
+	ID            uint64          `json:"id" :"id"`
+	Group         string          `json:"group,omitempty" :"group"`
+	InviterName   string          `json:"inviterName,omitempty" :"inviter_name"`
+	InviterAvatar string          `json:"inviterAvatar,omitempty"`
+	Role          string          `json:"role,omitempty"`
+	Permissions   string          `json:"permissions,omitempty"`
+	AcceptStatus  string          `json:"acceptStatus,omitempty"`
+	InvitedAt     entity.NullTime `json:"invitedAt,omitempty"`
+}

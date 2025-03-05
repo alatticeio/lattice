@@ -31,6 +31,8 @@ type Invitation struct {
 	Permission   string
 	GroupId      uint64
 	Group        string
+	Role         string
+	Permissions  string
 	Network      string //192.168.0.0/24
 	InvitedAt    NullTime
 	AcceptAt     NullTime

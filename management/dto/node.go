@@ -17,12 +17,12 @@ func (l *LabelParams) Generate() []*KeyValue {
 		result = append(result, newKeyValue("updated_by", l.UpdatedBy))
 	}
 
-	if l.PageNo == 0 {
-		l.PageNo = PageNo
+	if l.Page == 0 {
+		l.Page = PageNo
 	}
 
-	if l.PageSize == 0 {
-		l.PageSize = PageSize
+	if l.Size == 0 {
+		l.Size = PageSize
 	}
 
 	if l.Current == 0 {

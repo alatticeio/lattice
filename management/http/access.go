@@ -18,7 +18,8 @@ func (s *Server) RegisterAccessRoutes() {
 	routes.POST("/rule", s.authCheck(), s.addAccessRule())
 	routes.PUT("/rule", s.authCheck(), s.updateAccessRule())
 	routes.DELETE("/rule/:ruleID", s.authCheck(), s.deleteAccessRule())
-	routes.GET("/rule/list", s.authCheck(), s.listAccessRules())
+	// policy rule
+	routes.GET("/policy/:policyID/rules", s.authCheck(), s.listAccessRules())
 }
 
 func (s *Server) createAccessPolicy() gin.HandlerFunc {
@@ -41,16 +42,21 @@ func (s *Server) createAccessPolicy() gin.HandlerFunc {
 func (s *Server) listAccessPolicies() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var params dto.AccessPolicyParams
-		if err := c.ShouldBind(&params); err != nil {
-			return
-		}
-		policies, err := s.accessController.ListPolicies(c, &params)
-		if err != nil {
-			c.JSON(client.InternalServerError(err))
+		var err error
+
+		s.logger.Infof("url params: %s", c.Request.URL.Query())
+		if err = c.ShouldBindQuery(&params); err != nil {
+			WriteError(c.JSON, err.Error())
 			return
 		}
 
-		c.JSON(client.Success(policies))
+		policies, err := s.accessController.ListPolicies(c, &params)
+		if err != nil {
+			WriteError(c.JSON, err.Error())
+			return
+		}
+
+		WriteOK(c.JSON, policies)
 	}
 }
 
@@ -134,17 +140,22 @@ func (s *Server) deleteAccessRule() gin.HandlerFunc {
 func (s *Server) listAccessRules() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var params dto.AccessPolicyRuleParams
-		if err := c.ShouldBind(&params); err != nil {
-			WriteBadRequest(c.JSON, err.Error())
+		var err error
+
+		policyId := c.Param("policyID")
+		params.PolicyId, err = strconv.ParseInt(policyId, 10, 64)
+
+		if err != nil {
+			WriteError(c.JSON, err.Error())
 			return
 		}
 		rules, err := s.accessController.ListPolicyRules(c, &params)
 		if err != nil {
-			c.JSON(client.InternalServerError(err))
+			WriteError(c.JSON, err.Error())
 			return
 		}
 
-		c.JSON(client.Success(rules))
+		WriteOK(c.JSON, rules)
 	}
 }
 

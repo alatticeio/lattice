@@ -1,12 +1,14 @@
 package http
 
 import (
+	"fmt"
 	"github.com/gin-gonic/gin"
 	"linkany/management/client"
 	"linkany/management/controller"
 	"linkany/management/dto"
 	"linkany/management/entity"
 	"linkany/management/service"
+	"linkany/pkg/log"
 	"linkany/pkg/redis"
 )
 
@@ -17,6 +19,7 @@ const (
 // Server is the main server struct
 type Server struct {
 	*gin.Engine
+	logger            *log.Logger
 	listen            string
 	tokener           *service.TokenService
 	userController    *controller.UserController
@@ -38,6 +41,7 @@ type ServerConfig struct {
 func NewServer(cfg *ServerConfig) *Server {
 	e := gin.Default()
 	s := &Server{
+		logger:            log.NewLogger(log.Loglevel, fmt.Sprintf("[%s ]", "mgt-server")),
 		Engine:            e,
 		listen:            cfg.Listen,
 		userController:    controller.NewUserController(service.NewUserService(cfg.DatabaseService, cfg.Rdb)),
