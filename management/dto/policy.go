@@ -10,11 +10,11 @@ type AccessPolicyParams struct {
 
 type AccessPolicyRuleParams struct {
 	PageModel
-	PolicyId   int64
-	SourceId   string
-	TargetId   string
-	SourceType string
-	TargetType string
+	PolicyId   int64  `json:"policyId" form:"policyId"`
+	SourceId   string `json:"sourceId" form:"sourceId"`
+	TargetId   string `json:"targetId" form:"targetId"`
+	SourceType string `json:"sourceType" form:"sourceType"`
+	TargetType string `json:"targetType" form:"targetType"`
 }
 
 func (p *AccessPolicyParams) Generate() []*KeyValue {

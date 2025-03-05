@@ -29,6 +29,7 @@ type AccessRuleVo struct {
 	TargetType string          `json:"targetType"`           // 目标类型：node/tag/all
 	TargetID   string          `json:"targetId"`             // 目标标识（节点ID或标签）
 	Actions    string          `json:"actions"`              // 允许的操作列表
+	TimeType   string          `json:"timeType"`             // 时间类型
 	Conditions string          `json:"conditions,omitempty"` // 额外条件（如时间限制、带宽限制等）
 	CreatedAt  time.Time       `json:"createdAt"`
 	UpdatedAt  time.Time       `json:"updatedAt"`

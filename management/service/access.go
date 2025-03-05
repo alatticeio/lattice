@@ -21,6 +21,7 @@ type AccessPolicyService interface {
 
 	// Rule manage
 	AddRule(ctx context.Context, ruleDto *dto.AccessRuleDto) error
+	GetRule(ctx context.Context, id int64) (vo.AccessRuleVo, error)
 	UpdateRule(ctx context.Context, ruleDto *dto.AccessRuleDto) error
 	DeleteRule(ctx context.Context, ruleID uint) error
 	ListPolicyRules(ctx context.Context, params *dto.AccessPolicyRuleParams) (*vo.PageVo, error)
@@ -142,6 +143,25 @@ func (a accessPolicyServiceImpl) AddRule(ctx context.Context, ruleDto *dto.Acces
 		Actions:    ruleDto.Actions,
 		Conditions: string(data),
 	}).Error
+}
+
+func (a accessPolicyServiceImpl) GetRule(ctx context.Context, ruleId int64) (vo.AccessRuleVo, error) {
+	var rule entity.AccessRule
+	err := a.Where("id = ?", ruleId).Find(&rule).Error
+	return vo.AccessRuleVo{
+		ID:         rule.ID,
+		RuleType:   rule.RuleType,
+		PolicyID:   rule.PolicyID,
+		SourceType: rule.SourceType,
+		SourceID:   rule.SourceID,
+		TargetType: rule.TargetType,
+		TargetID:   rule.TargetID,
+		Actions:    rule.Actions,
+		TimeType:   rule.TimeType,
+		Conditions: rule.Conditions,
+		CreatedAt:  rule.CreatedAt,
+		UpdatedAt:  rule.UpdatedAt,
+	}, err
 }
 
 func (a accessPolicyServiceImpl) UpdateRule(ctx context.Context, ruleDto *dto.AccessRuleDto) error {

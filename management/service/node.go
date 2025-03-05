@@ -308,7 +308,7 @@ func (p *nodeServiceImpl) ListGroups(ctx context.Context, params *dto.GroupParam
 	}
 
 	p.logger.Verbosef("sql: %s, wrappers: %v", sql, wrappers)
-	if err := db.Model(&entity.NodeGroup{}).Offset((params.PageNo - 1) * params.PageSize).Limit(params.PageSize).Find(&nodeGroups).Error; err != nil {
+	if err := db.Model(&entity.NodeGroup{}).Offset((params.Page - 1) * params.Size).Limit(params.Size).Find(&nodeGroups).Error; err != nil {
 		return nil, err
 	}
 	result.Data = nodeGroups
@@ -363,7 +363,7 @@ func (p *nodeServiceImpl) ListGroupMembers(ctx context.Context, params *dto.Grou
 	}
 
 	p.logger.Verbosef("sql: %s, wrappers: %v", sql, wrappers)
-	if err := db.Model(&entity.GroupMember{}).Offset((params.PageNo - 1) * params.PageSize).Limit(params.PageSize).Find(&groupMember).Error; err != nil {
+	if err := db.Model(&entity.GroupMember{}).Offset((params.Page - 1) * params.Size).Limit(params.Size).Find(&groupMember).Error; err != nil {
 		return nil, err
 	}
 	result.Data = groupMember
@@ -470,7 +470,7 @@ func (p *nodeServiceImpl) ListGroupNodes(ctx context.Context, params *dto.GroupN
 	}
 
 	p.logger.Verbosef("sql: %s, wrappers: %v", sql, wrappers)
-	if err := db.Model(&entity.GroupNode{}).Offset((params.PageNo - 1) * params.PageSize).Limit(params.PageSize).Find(&groupNodes).Error; err != nil {
+	if err := db.Model(&entity.GroupNode{}).Offset((params.Page - 1) * params.Size).Limit(params.Size).Find(&groupNodes).Error; err != nil {
 		return nil, err
 	}
 	result.Data = groupNodes

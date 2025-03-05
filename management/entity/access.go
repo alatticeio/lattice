@@ -27,15 +27,16 @@ func (a *AccessPolicy) TableName() string {
 // AccessRule rule for access policy
 type AccessRule struct {
 	gorm.Model
-	RuleType   int    `json:"rule_type"`            // 规则类型
-	PolicyID   uint   `json:"policy_id"`            // 所属策略ID
-	SourceType string `json:"source_type"`          // 源类型：node/tag/all
-	SourceID   string `json:"source_id"`            // 源标识（节点ID或标签）
-	TargetType string `json:"target_type"`          // 目标类型：node/tag/all
-	TargetID   string `json:"target_id"`            // 目标标识（节点ID或标签）
-	Actions    string `json:"actions"`              // 允许的操作列表
-	Conditions string `json:"conditions,omitempty"` // 额外条件（如时间限制、带宽限制等）
-	Status     Status `json:"status"`
+	RuleType   RuleType `json:"rule_type"`            // 规则类型
+	PolicyID   uint     `json:"policy_id"`            // 所属策略ID
+	SourceType string   `json:"source_type"`          // 源类型：node/tag/all
+	SourceID   string   `json:"source_id"`            // 源标识（节点ID或标签）
+	TargetType string   `json:"target_type"`          // 目标类型：node/tag/all
+	TargetID   string   `json:"target_id"`            // 目标标识（节点ID或标签）
+	Actions    string   `json:"actions"`              // 允许的操作列表
+	TimeType   string   `json:"time_type"`            // 时间类型
+	Conditions string   `json:"conditions,omitempty"` // 额外条件（如时间限制、带宽限制等）
+	Status     Status   `json:"status"`
 }
 
 type RuleType int
@@ -50,15 +51,15 @@ const (
 func (a RuleType) String() string {
 	switch a {
 	case NodeToNode:
-		return "NodeToNode"
+		return "节点到节点"
 	case NodeToTag:
-		return "NodeToTag"
+		return "节点到标签"
 	case TagToNode:
-		return "TagToNode"
+		return "标签到节点"
 	case TagToTag:
-		return "TagToTag"
+		return "标签到标签"
 	default:
-		return "unknown"
+		return "未知"
 	}
 }
 

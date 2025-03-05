@@ -24,6 +24,10 @@ func (a *AccessController) AddRule(ctx context.Context, ruleDto *dto.AccessRuleD
 	return a.accessService.AddRule(ctx, ruleDto)
 }
 
+func (a *AccessController) GetRule(ctx context.Context, id int64) (vo.AccessRuleVo, error) {
+	return a.accessService.GetRule(ctx, id)
+}
+
 func (a *AccessController) UpdateRule(ctx context.Context, ruleDto *dto.AccessRuleDto) error {
 	return a.accessService.UpdateRule(ctx, ruleDto)
 }

@@ -59,12 +59,12 @@ func (p *GroupParams) Generate() []*KeyValue {
 		result = append(result, newKeyValue("is_public", p.IsPublic))
 	}
 
-	if p.PageNo == 0 {
-		p.PageNo = PageNo
+	if p.Page == 0 {
+		p.Page = PageNo
 	}
 
-	if p.PageSize == 0 {
-		p.PageSize = PageSize
+	if p.Size == 0 {
+		p.Size = PageSize
 	}
 
 	return result
@@ -107,12 +107,12 @@ func (p *GroupMemberParams) Generate() []*KeyValue {
 		result = append(result, newKeyValue("status", p.Status))
 	}
 
-	if p.PageNo == 0 {
-		p.PageNo = PageNo
+	if p.Page == 0 {
+		p.Page = PageNo
 	}
 
-	if p.PageSize == 0 {
-		p.PageSize = PageSize
+	if p.Size == 0 {
+		p.Size = PageSize
 	}
 
 	return result
@@ -146,12 +146,12 @@ func (p *GroupNodeParams) Generate() []*KeyValue {
 		result = append(result, newKeyValue("created_by", p.CreatedBy))
 	}
 
-	if p.PageNo == 0 {
-		p.PageNo = PageNo
+	if p.Page == 0 {
+		p.Page = PageNo
 	}
 
-	if p.PageSize == 0 {
-		p.PageSize = PageSize
+	if p.Size == 0 {
+		p.Size = PageSize
 	}
 
 	return result
