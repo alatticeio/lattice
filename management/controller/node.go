@@ -45,21 +45,25 @@ func (p *NodeController) Registry(peer *dto.PeerDto) (*entity.Node, error) {
 	return p.nodeService.Register(peer)
 }
 
+func (p *NodeController) GetNodeGroup(ctx context.Context, id string) (*entity.NodeGroup, error) {
+	return p.nodeService.GetNodeGroup(ctx, id)
+}
+
 // CreateGroup NodeGroup module
 func (p *NodeController) CreateGroup(ctx context.Context, dto *dto.NodeGroupDto) (*entity.NodeGroup, error) {
-	return nil, p.nodeService.CreateNodeGroup(ctx, dto)
+	return nil, p.nodeService.CreateGroup(ctx, dto)
 }
 
 func (p *NodeController) UpdateGroup(ctx context.Context, dto *dto.NodeGroupDto) error {
-	return p.nodeService.UpdateNodeGroup(ctx, dto)
+	return p.nodeService.UpdateGroup(ctx, dto)
 }
 
 func (p *NodeController) DeleteGroup(ctx context.Context, id string) error {
-	return p.nodeService.DeleteNodeGroup(ctx, id)
+	return p.nodeService.DeleteGroup(ctx, id)
 }
 
 func (p *NodeController) ListGroups(ctx context.Context, params *dto.GroupParams) (*vo.PageVo, error) {
-	return p.nodeService.ListNodeGroups(ctx, params)
+	return p.nodeService.ListGroups(ctx, params)
 }
 
 // AddGroupMember Add Group Member
@@ -67,16 +71,16 @@ func (p *NodeController) AddGroupMember(ctx context.Context, dto *dto.GroupMembe
 	return p.nodeService.AddGroupMember(ctx, dto)
 }
 
-func (p *NodeController) RemoveGroupMember(memberID string) error {
-	return p.nodeService.RemoveGroupMember(memberID)
+func (p *NodeController) RemoveGroupMember(ctx context.Context, ID string) error {
+	return p.nodeService.RemoveGroupMember(ctx, ID)
+}
+
+func (p *NodeController) UpdateGroupMember(ctx context.Context, dto *dto.GroupMemberDto) error {
+	return p.nodeService.UpdateGroupMember(ctx, dto)
 }
 
 func (p *NodeController) ListGroupMembers(ctx context.Context, params *dto.GroupMemberParams) (*vo.PageVo, error) {
 	return p.nodeService.ListGroupMembers(ctx, params)
-}
-
-func (p *NodeController) GetGroupMember(memberID string) (*entity.GroupMember, error) {
-	return p.nodeService.GetGroupMember(memberID)
 }
 
 // Node tag
@@ -94,4 +98,21 @@ func (p *NodeController) DeleteTag(ctx context.Context, tagId uint64) error {
 
 func (p *NodeController) ListTags(ctx context.Context, params *dto.LabelParams) (*vo.PageVo, error) {
 	return p.nodeService.ListNodeTags(ctx, params)
+}
+
+// Group node
+func (p *NodeController) AddGroupNode(ctx context.Context, dto *dto.GroupNodeDto) error {
+	return p.nodeService.AddGroupNode(ctx, dto)
+}
+
+func (p *NodeController) RemoveGroupNode(ctx context.Context, ID string) error {
+	return p.nodeService.RemoveGroupNode(ctx, ID)
+}
+
+func (p *NodeController) ListGroupNodes(ctx context.Context, params *dto.GroupNodeParams) (*vo.PageVo, error) {
+	return p.nodeService.ListGroupNodes(ctx, params)
+}
+
+func (p *NodeController) GetGroupNode(ctx context.Context, ID string) (*entity.GroupNode, error) {
+	return p.nodeService.GetGroupNode(ctx, ID)
 }

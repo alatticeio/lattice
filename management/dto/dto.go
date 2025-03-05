@@ -65,11 +65,25 @@ type NodeGroupDto struct {
 }
 
 type GroupMemberDto struct {
-	ID      int64  `json:"id"`
-	GroupID uint   `json:"groupID"`
-	NodeID  uint   `json:"nodeID"`
-	Role    string `json:"role"`
-	Status  int    `json:"status"`
+	gorm.Model
+	ID        int64  `json:"id"`
+	GroupID   uint   `json:"groupID"`
+	GroupName string `json:"groupName"`
+	UserID    uint   `json:"userID"`
+	Username  string `json:"username"`
+	Role      string `json:"role"`
+	Status    string `json:"status"`
+	CreatedBy string `json:"createdBy"`
+	UpdatedBy string `json:"updatedBy"`
+}
+
+type GroupNodeDto struct {
+	gorm.Model
+	GroupID   uint   `json:"groupID"`
+	GroupName string `json:"groupName"`
+	NodeID    uint   `json:"nodeID"`
+	NodeName  string `json:"nodeName"`
+	CreatedBy string `json:"createdBy"`
 }
 
 type AccessPolicyDto struct {

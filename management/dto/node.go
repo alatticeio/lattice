@@ -72,29 +72,78 @@ func (p *GroupParams) Generate() []*KeyValue {
 
 type GroupMemberParams struct {
 	PageModel
-	GroupID *uint
-	NodeId  *uint
-	Role    *string
-	Status  *int
+	GroupID   uint   `json:"groupID"`
+	UserID    uint   `json:"userID"`
+	Role      string `json:"role"`
+	Status    string `json:"status"`
+	GroupName string `json:"groupName"`
+	Username  string `json:"username"`
 }
 
 func (p *GroupMemberParams) Generate() []*KeyValue {
 	var result []*KeyValue
 
-	if p.GroupID != nil {
+	if p.GroupID != 0 {
 		result = append(result, newKeyValue("group_id", p.GroupID))
 	}
 
-	if p.NodeId != nil {
-		result = append(result, newKeyValue("node_id", p.NodeId))
+	if p.UserID != 0 {
+		result = append(result, newKeyValue("user_id", p.UserID))
 	}
 
-	if p.Role != nil {
+	if p.GroupName != "" {
+		result = append(result, newKeyValue("group_name", p.GroupName))
+	}
+
+	if p.Username != "" {
+		result = append(result, newKeyValue("username", p.Username))
+	}
+
+	if p.Role != "" {
 		result = append(result, newKeyValue("role", p.Role))
 	}
 
-	if p.Status != nil {
+	if p.Status != "" {
 		result = append(result, newKeyValue("status", p.Status))
+	}
+
+	if p.PageNo == 0 {
+		p.PageNo = PageNo
+	}
+
+	if p.PageSize == 0 {
+		p.PageSize = PageSize
+	}
+
+	return result
+}
+
+type GroupNodeParams struct {
+	PageModel
+	GroupID   uint   `json:"groupID"`
+	NodeId    uint   `json:"nodeId"`
+	GroupName string `json:"groupName"`
+	NodeName  string `json:"nodeName"`
+	CreatedBy string `json:"createdBy"`
+}
+
+func (p *GroupNodeParams) Generate() []*KeyValue {
+	var result []*KeyValue
+
+	if p.GroupID != 0 {
+		result = append(result, newKeyValue("group_id", p.GroupID))
+	}
+
+	if p.GroupName != "" {
+		result = append(result, newKeyValue("group_name", p.GroupName))
+	}
+
+	if p.NodeId != 0 {
+		result = append(result, newKeyValue("node_id", p.NodeId))
+	}
+
+	if p.CreatedBy != "" {
+		result = append(result, newKeyValue("created_by", p.CreatedBy))
 	}
 
 	if p.PageNo == 0 {

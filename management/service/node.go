@@ -32,24 +32,30 @@ type NodeService interface {
 	// Watch returns a channel that will be used to send the latest peers to the client
 	//Watch() (<-chan *entity.Node, error)
 
-	//NodeGroup
+	//Group
 	GetNodeGroup(ctx context.Context, id string) (*entity.NodeGroup, error)
-	CreateNodeGroup(ctx context.Context, dto *dto.NodeGroupDto) error
-	UpdateNodeGroup(ctx context.Context, dto *dto.NodeGroupDto) error
-	DeleteNodeGroup(ctx context.Context, id string) error
-	ListNodeGroups(ctx context.Context, params *dto.GroupParams) (*vo.PageVo, error)
+	CreateGroup(ctx context.Context, dto *dto.NodeGroupDto) error
+	UpdateGroup(ctx context.Context, dto *dto.NodeGroupDto) error
+	DeleteGroup(ctx context.Context, id string) error
+	ListGroups(ctx context.Context, params *dto.GroupParams) (*vo.PageVo, error)
 
 	//Group memeber
 	AddGroupMember(ctx context.Context, dto *dto.GroupMemberDto) error
-	RemoveGroupMember(memberID string) error
+	RemoveGroupMember(ctx context.Context, ID string) error
+	UpdateGroupMember(ctx context.Context, dto *dto.GroupMemberDto) error
 	ListGroupMembers(ctx context.Context, params *dto.GroupMemberParams) (*vo.PageVo, error)
-	GetGroupMember(memberID string) (*entity.GroupMember, error)
 
 	//Node Label
 	AddNodeTag(ctx context.Context, dto *dto.TagDto) error
 	UpdateNodeTag(ctx context.Context, dto *dto.TagDto) error
 	RemoveNodeTag(ctx context.Context, tagId uint64) error
 	ListNodeTags(ctx context.Context, params *dto.LabelParams) (*vo.PageVo, error)
+
+	//Group Node
+	AddGroupNode(ctx context.Context, dto *dto.GroupNodeDto) error
+	RemoveGroupNode(ctx context.Context, id string) error
+	ListGroupNodes(ctx context.Context, params *dto.GroupNodeParams) (*vo.PageVo, error)
+	GetGroupNode(ctx context.Context, id string) (*entity.GroupNode, error)
 }
 
 var (
@@ -199,20 +205,19 @@ func (p *nodeServiceImpl) GetAddress() int64 {
 	return count
 }
 
-//NodeGroup
-
+// NodeGroup
 func (p *nodeServiceImpl) GetNodeGroup(ctx context.Context, nodeId string) (*entity.NodeGroup, error) {
 	var (
 		group entity.NodeGroup
 		err   error
 	)
-	if err = p.Joins("join la_group_member on la_group.id = la_group_member.group_id").Where("la_group_member.node_id = ?", nodeId).First(&group).Error; err != nil {
+	if err = p.Joins("join la_group_node on la_group.id = la_group_node.group_id").Where("la_group_node.node_id = ?", nodeId).First(&group).Error; err != nil {
 		return nil, err
 	}
 	return &group, nil
 }
 
-func (p *nodeServiceImpl) CreateNodeGroup(ctx context.Context, dto *dto.NodeGroupDto) error {
+func (p *nodeServiceImpl) CreateGroup(ctx context.Context, dto *dto.NodeGroupDto) error {
 	group := &entity.NodeGroup{
 		Name:        dto.Name,
 		Description: dto.Description,
@@ -247,7 +252,7 @@ func (p *nodeServiceImpl) CreateNodeGroup(ctx context.Context, dto *dto.NodeGrou
 	return nil
 }
 
-func (p *nodeServiceImpl) UpdateNodeGroup(ctx context.Context, dto *dto.NodeGroupDto) error {
+func (p *nodeServiceImpl) UpdateGroup(ctx context.Context, dto *dto.NodeGroupDto) error {
 	group := &entity.NodeGroup{
 		ID:          strconv.Itoa(int(dto.ID)),
 		Name:        dto.Name,
@@ -281,14 +286,14 @@ func (p *nodeServiceImpl) UpdateNodeGroup(ctx context.Context, dto *dto.NodeGrou
 	return nil
 }
 
-func (p *nodeServiceImpl) DeleteNodeGroup(ctx context.Context, id string) error {
-	if err := p.Where("id = ?", id).Delete(&entity.NodeGroup{}).Error; err != nil {
+func (p *nodeServiceImpl) DeleteGroup(ctx context.Context, id string) error {
+	if err := p.Where("id = ?", id).Unscoped().Delete(&entity.NodeGroup{}).Error; err != nil {
 		return err
 	}
 	return nil
 }
 
-func (p *nodeServiceImpl) ListNodeGroups(ctx context.Context, params *dto.GroupParams) (*vo.PageVo, error) {
+func (p *nodeServiceImpl) ListGroups(ctx context.Context, params *dto.GroupParams) (*vo.PageVo, error) {
 	var nodeGroups []entity.NodeGroup
 
 	result := new(vo.PageVo)
@@ -311,12 +316,24 @@ func (p *nodeServiceImpl) ListNodeGroups(ctx context.Context, params *dto.GroupP
 	return result, nil
 }
 
+// Group Members
 func (p *nodeServiceImpl) AddGroupMember(ctx context.Context, dto *dto.GroupMemberDto) error {
+	if dto.Role != "admin" && dto.Role != "owner" && dto.Role != "member" {
+		return errors.New("invalid role")
+	}
+	if dto.Status != "pending" && dto.Status != "accepted" && dto.Status != "rejected" {
+		return errors.New("invalid status")
+	}
 	member := &entity.GroupMember{
-		GroupID: dto.GroupID,
-		NodeID:  dto.NodeID,
-		Role:    dto.Role,
-		Status:  dto.Status,
+		GroupID:   dto.GroupID,
+		GroupName: dto.GroupName,
+		UserID:    dto.UserID,
+		Username:  dto.Username,
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+		CreatedBy: dto.CreatedBy,
+		Role:      dto.Role,
+		Status:    dto.Status,
 	}
 	if err := p.Create(member).Error; err != nil {
 		return err
@@ -324,15 +341,15 @@ func (p *nodeServiceImpl) AddGroupMember(ctx context.Context, dto *dto.GroupMemb
 	return nil
 }
 
-func (p *nodeServiceImpl) RemoveGroupMember(memberID string) error {
-	if err := p.Where("id = ?", memberID).Delete(&entity.GroupMember{}).Error; err != nil {
+func (p *nodeServiceImpl) RemoveGroupMember(ctx context.Context, ID string) error {
+	if err := p.Where("id = ?", ID).Unscoped().Delete(&entity.GroupMember{}).Error; err != nil {
 		return err
 	}
 	return nil
 }
 
 func (p *nodeServiceImpl) ListGroupMembers(ctx context.Context, params *dto.GroupMemberParams) (*vo.PageVo, error) {
-	var node []*entity.Node
+	var groupMember []*entity.GroupMember
 
 	result := new(vo.PageVo)
 	sql, wrappers := utils.Generate(params)
@@ -341,25 +358,32 @@ func (p *nodeServiceImpl) ListGroupMembers(ctx context.Context, params *dto.Grou
 		db = db.Where(sql, wrappers)
 	}
 
-	if err := db.Model(&entity.Node{}).Count(&result.Total).Error; err != nil {
+	if err := db.Model(&entity.GroupMember{}).Count(&result.Total).Error; err != nil {
 		return nil, err
 	}
 
 	p.logger.Verbosef("sql: %s, wrappers: %v", sql, wrappers)
-	if err := db.Model(&entity.Node{}).Offset((params.PageNo - 1) * params.PageSize).Limit(params.PageSize).Find(&node).Error; err != nil {
+	if err := db.Model(&entity.GroupMember{}).Offset((params.PageNo - 1) * params.PageSize).Limit(params.PageSize).Find(&groupMember).Error; err != nil {
 		return nil, err
 	}
-	result.Data = node
+	result.Data = groupMember
 
 	return result, nil
 }
 
-func (p *nodeServiceImpl) GetGroupMember(memberID string) (*entity.GroupMember, error) {
-	var member entity.GroupMember
-	if err := p.Where("id = ?", memberID).First(&member).Error; err != nil {
-		return nil, err
+func (p *nodeServiceImpl) UpdateGroupMember(ctx context.Context, dto *dto.GroupMemberDto) error {
+	member := entity.GroupMember{
+		GroupID:   dto.GroupID,
+		Username:  dto.Username,
+		Role:      dto.Role,
+		Status:    dto.Status,
+		UpdatedAt: time.Now(),
+		UpdatedBy: dto.UpdatedBy,
 	}
-	return &member, nil
+	if err := p.Model(&entity.GroupMember{}).Where("group_id = ? and username = ?", member.GroupID, member.Username).Updates(&member).Error; err != nil {
+		return err
+	}
+	return nil
 }
 
 // Node Tags
@@ -406,4 +430,58 @@ func (p *nodeServiceImpl) ListNodeTags(ctx context.Context, params *dto.LabelPar
 	result.Data = labels
 
 	return result, nil
+}
+
+// Group Node
+func (p *nodeServiceImpl) AddGroupNode(ctx context.Context, dto *dto.GroupNodeDto) error {
+	groupNode := &entity.GroupNode{
+		GroupID:   dto.GroupID,
+		NodeID:    dto.NodeID,
+		GroupName: dto.GroupName,
+		CreatedBy: dto.CreatedBy,
+		CreatedAt: time.Now(),
+	}
+	if err := p.Create(groupNode).Error; err != nil {
+		return err
+	}
+	return nil
+}
+
+func (p *nodeServiceImpl) RemoveGroupNode(ctx context.Context, ID string) error {
+	if err := p.Where("id = ?", ID).Unscoped().Delete(&entity.GroupNode{}).Error; err != nil {
+		return err
+	}
+	return nil
+}
+
+func (p *nodeServiceImpl) ListGroupNodes(ctx context.Context, params *dto.GroupNodeParams) (*vo.PageVo, error) {
+	var groupNodes []*entity.GroupNode
+
+	result := new(vo.PageVo)
+	fmt.Println(params)
+	sql, wrappers := utils.Generate(params)
+	db := p.DB
+	if sql != "" {
+		db = db.Where(sql, wrappers)
+	}
+
+	if err := db.Model(&entity.GroupNode{}).Count(&result.Total).Error; err != nil {
+		return nil, err
+	}
+
+	p.logger.Verbosef("sql: %s, wrappers: %v", sql, wrappers)
+	if err := db.Model(&entity.GroupNode{}).Offset((params.PageNo - 1) * params.PageSize).Limit(params.PageSize).Find(&groupNodes).Error; err != nil {
+		return nil, err
+	}
+	result.Data = groupNodes
+
+	return result, nil
+}
+
+func (p *nodeServiceImpl) GetGroupNode(ctx context.Context, ID string) (*entity.GroupNode, error) {
+	var groupNode entity.GroupNode
+	if err := p.Where("id = ?", ID).First(&groupNode).Error; err != nil {
+		return nil, err
+	}
+	return &groupNode, nil
 }
