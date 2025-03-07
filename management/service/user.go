@@ -20,6 +20,8 @@ type UserService interface {
 	//Get returns a user by token
 	Get(token string) (*entity.User, error)
 
+	GetByUsername(username string) (*entity.User, error)
+
 	//Invite a user join network
 	// Invite a user join network
 	Invite(dto *dto.InviteDto) error
@@ -117,6 +119,14 @@ func (u *userServiceImpl) Get(token string) (*entity.User, error) {
 	return &user, nil
 }
 
+func (u *userServiceImpl) GetByUsername(username string) (*entity.User, error) {
+	var user entity.User
+	if err := u.Where("username = ?", username).Find(&user).Error; err != nil {
+		return nil, err
+	}
+	return &user, nil
+}
+
 // Invitation
 func (u *userServiceImpl) Invite(dto *dto.InviteDto) error {
 
@@ -133,9 +143,17 @@ func (u *userServiceImpl) Invite(dto *dto.InviteDto) error {
 		}
 	}()
 
+	var inviteUser, invitationUser *entity.User
+	if inviteUser, err = u.GetByUsername(dto.Username); err != nil {
+		return err
+	}
+	if invitationUser, err = u.GetByUsername(dto.InviteUsername); err != nil {
+		return err
+	}
+
 	if err = tx.Create(&entity.Invites{
-		InvitationId: dto.InvitationId,
-		InviterId:    dto.InviterId,
+		InvitationId: int64(invitationUser.ID),
+		InviterId:    int64(inviteUser.ID),
 		MobilePhone:  dto.MobilePhone,
 		Email:        dto.Email,
 		Group:        dto.Group,
@@ -147,10 +165,10 @@ func (u *userServiceImpl) Invite(dto *dto.InviteDto) error {
 	}
 
 	if err = tx.Create(&entity.Invitation{
-		InvitationId: dto.InvitationId,
-		InviterId:    dto.InviterId,
+		InvitationId: int64(invitationUser.ID),
+		InviterId:    int64(inviteUser.ID),
 		AcceptStatus: entity.NewInvite,
-		Permission:   dto.Permissions,
+		Permissions:  dto.Permissions,
 		Group:        dto.Group,
 		Network:      dto.Network,
 	}).Error; err != nil {

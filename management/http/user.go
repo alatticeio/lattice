@@ -32,6 +32,9 @@ func (s *Server) invite() gin.HandlerFunc {
 			return
 		}
 
+		username := c.GetString("username")
+		req.Username = username
+
 		if err := s.userController.Invite(&req); err != nil {
 			WriteError(c.JSON, err.Error())
 			return
@@ -74,6 +77,11 @@ func (s *Server) updateInvitation() gin.HandlerFunc {
 func (s *Server) listInvitations() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var params dto.InvitationParams
+		var err error
+		if err = c.ShouldBindQuery(&params); err != nil {
+			WriteError(c.JSON, err.Error())
+			return
+		}
 		invitations, err := s.userController.ListUserInvitations(&params)
 		if err != nil {
 			WriteError(c.JSON, err.Error())
@@ -86,6 +94,11 @@ func (s *Server) listInvitations() gin.HandlerFunc {
 func (s *Server) listInvites() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var params dto.InvitationParams
+		var err error
+		if err = c.ShouldBindQuery(&params); err != nil {
+			WriteError(c.JSON, err.Error())
+			return
+		}
 		invites, err := s.userController.ListUserInvites(&params)
 		if err != nil {
 			WriteError(c.JSON, err.Error())

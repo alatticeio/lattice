@@ -38,7 +38,7 @@ func (s *Server) authCheck() gin.HandlerFunc {
 		}
 
 		// put user into context
-		c.Header("username", user.Username)
+		c.Set("username", user.Username)
 
 		c.Next()
 	}

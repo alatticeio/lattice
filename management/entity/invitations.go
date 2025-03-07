@@ -12,7 +12,7 @@ type Invites struct {
 	InviterId    int64 // inviter user id
 	MobilePhone  string
 	Email        string
-	Avatar       string
+	//Avatar       string
 	GroupId      uint64
 	Group        string
 	Role         string
@@ -28,7 +28,6 @@ type Invitation struct {
 	InvitationId int64 // invitation user id
 	InviterId    int64 // inviter user id
 	AcceptStatus AcceptStatus
-	Permission   string
 	GroupId      uint64
 	Group        string
 	Role         string

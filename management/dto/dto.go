@@ -46,13 +46,15 @@ type SupportDto struct {
 }
 
 type InviteDto struct {
-	InvitationId int64
-	InviterId    int64
-	MobilePhone  string
-	Email        string
-	Permissions  string
-	Group        string
-	Network      string // 192.168.0.0/24
+	Username       string
+	InviteUsername string
+	InvitationId   int64
+	InviterId      int64
+	MobilePhone    string
+	Email          string
+	Permissions    string
+	Group          string
+	Network        string // 192.168.0.0/24
 }
 
 type NodeGroupDto struct {
