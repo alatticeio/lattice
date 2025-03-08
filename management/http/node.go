@@ -5,7 +5,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"linkany/management/client"
 	"linkany/management/dto"
-	"strconv"
 )
 
 func (s *Server) RegisterNodeRoutes() {
@@ -17,8 +16,9 @@ func (s *Server) RegisterNodeRoutes() {
 	nodeGroup.GET("/list", s.authCheck(), s.listNodes())
 
 	// node group
+	nodeGroup.GET("/group/:id", s.authCheck(), s.GetNodeGroup())
 	nodeGroup.POST("/group", s.authCheck(), s.createGroup())
-	nodeGroup.PUT("/group/:id", s.authCheck(), s.updateGroup())
+	nodeGroup.PUT("/group", s.authCheck(), s.updateGroup())
 	nodeGroup.DELETE("/group/:id", s.authCheck(), s.deleteGroup())
 	nodeGroup.GET("/group/list", s.authCheck(), s.listGroups())
 
@@ -153,14 +153,11 @@ func (s *Server) createGroup() gin.HandlerFunc {
 
 func (s *Server) updateGroup() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		id := c.Param("id")
 		var nodeGroupDto dto.NodeGroupDto
-		if err := c.ShouldBindJSON(&nodeGroupDto); err != nil {
+		if err := c.ShouldBind(&nodeGroupDto); err != nil {
 			c.JSON(client.BadRequest(err))
 			return
 		}
-		idInt, _ := strconv.Atoi(id)
-		nodeGroupDto.ID = uint(idInt)
 		err := s.nodeController.UpdateGroup(c, &nodeGroupDto)
 		if err != nil {
 			c.JSON(client.InternalServerError(err))
@@ -185,8 +182,8 @@ func (s *Server) deleteGroup() gin.HandlerFunc {
 func (s *Server) listGroups() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var params dto.GroupParams
-		if err := c.ShouldBindQuery(params); err != nil {
-			c.JSON(client.BadRequest(err))
+		if err := c.ShouldBindQuery(&params); err != nil {
+			WriteError(c.JSON, err.Error())
 			return
 		}
 		nodeGroups, err := s.nodeController.ListGroups(c, &params)
@@ -194,7 +191,7 @@ func (s *Server) listGroups() gin.HandlerFunc {
 			c.JSON(client.InternalServerError(err))
 			return
 		}
-		c.JSON(client.Success(nodeGroups))
+		WriteOK(c.JSON, nodeGroups)
 	}
 }
 

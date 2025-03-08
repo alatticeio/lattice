@@ -55,15 +55,13 @@ func (Node) TableName() string {
 
 // NodeGroup a node may be in multi groups
 type NodeGroup struct {
-	ID          string    `gorm:"column:id;size:64" json:"id"`
-	Name        string    `gorm:"column:name;size:64" json:"name"`
-	Description string    `gorm:"column:description;size:255" json:"description"`
-	OwnerID     uint      `gorm:"column:owner_id;size:20" json:"ownerId"`
-	IsPublic    bool      `gorm:"column:is_public" json:"isPublic"`
-	CreatedBy   string    `gorm:"column:created_by;size:64" json:"createdBy"`
-	UpdatedBy   string    `gorm:"column:updated_by;size:64" json:"updatedBy"`
-	CreatedAt   time.Time `gorm:"column:created_at" json:"createdAt"`
-	UpdatedAt   time.Time `gorm:"column:updated_at" json:"updatedAt"`
+	gorm.Model
+	Name        string `gorm:"column:name;size:64" json:"name"`
+	Description string `gorm:"column:description;size:255" json:"description"`
+	OwnerID     uint   `gorm:"column:owner_id;size:20" json:"ownerId"`
+	IsPublic    bool   `gorm:"column:is_public" json:"isPublic"`
+	CreatedBy   string `gorm:"column:created_by;size:64" json:"createdBy"`
+	UpdatedBy   string `gorm:"column:updated_by;size:64" json:"updatedBy"`
 }
 
 func (NodeGroup) TableName() string {

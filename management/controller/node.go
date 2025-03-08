@@ -45,7 +45,7 @@ func (p *NodeController) Registry(peer *dto.PeerDto) (*entity.Node, error) {
 	return p.nodeService.Register(peer)
 }
 
-func (p *NodeController) GetNodeGroup(ctx context.Context, id string) (*entity.NodeGroup, error) {
+func (p *NodeController) GetNodeGroup(ctx context.Context, id string) (*vo.NodeGroupVo, error) {
 	return p.nodeService.GetNodeGroup(ctx, id)
 }
 

@@ -10,7 +10,6 @@ import (
 	"linkany/management/utils"
 	"linkany/management/vo"
 	"linkany/pkg/log"
-	"strconv"
 	"time"
 )
 
@@ -33,7 +32,7 @@ type NodeService interface {
 	//Watch() (<-chan *entity.Node, error)
 
 	//Group
-	GetNodeGroup(ctx context.Context, id string) (*entity.NodeGroup, error)
+	GetNodeGroup(ctx context.Context, id string) (*vo.NodeGroupVo, error)
 	CreateGroup(ctx context.Context, dto *dto.NodeGroupDto) error
 	UpdateGroup(ctx context.Context, dto *dto.NodeGroupDto) error
 	DeleteGroup(ctx context.Context, id string) error
@@ -206,15 +205,26 @@ func (p *nodeServiceImpl) GetAddress() int64 {
 }
 
 // NodeGroup
-func (p *nodeServiceImpl) GetNodeGroup(ctx context.Context, nodeId string) (*entity.NodeGroup, error) {
+func (p *nodeServiceImpl) GetNodeGroup(ctx context.Context, nodeId string) (*vo.NodeGroupVo, error) {
 	var (
 		group entity.NodeGroup
 		err   error
 	)
-	if err = p.Joins("join la_group_node on la_group.id = la_group_node.group_id").Where("la_group_node.node_id = ?", nodeId).First(&group).Error; err != nil {
+
+	if err = p.Where("id = ?", nodeId).First(&group).Error; err != nil {
 		return nil, err
 	}
-	return &group, nil
+
+	return &vo.NodeGroupVo{
+		ID:          group.ID,
+		Name:        group.Name,
+		Description: group.Description,
+		CreatedAt:   group.CreatedAt,
+		DeletedAt:   group.DeletedAt,
+		UpdatedAt:   group.UpdatedAt,
+		CreatedBy:   group.CreatedBy,
+		UpdatedBy:   group.UpdatedBy,
+	}, nil
 }
 
 func (p *nodeServiceImpl) CreateGroup(ctx context.Context, dto *dto.NodeGroupDto) error {
@@ -224,8 +234,6 @@ func (p *nodeServiceImpl) CreateGroup(ctx context.Context, dto *dto.NodeGroupDto
 		IsPublic:    dto.IsPublic,
 		CreatedBy:   dto.CreatedBy,
 		UpdatedBy:   dto.CreatedBy,
-		CreatedAt:   time.Now(),
-		UpdatedAt:   time.Now(),
 	}
 	var (
 		user  *entity.User
@@ -254,13 +262,11 @@ func (p *nodeServiceImpl) CreateGroup(ctx context.Context, dto *dto.NodeGroupDto
 
 func (p *nodeServiceImpl) UpdateGroup(ctx context.Context, dto *dto.NodeGroupDto) error {
 	group := &entity.NodeGroup{
-		ID:          strconv.Itoa(int(dto.ID)),
 		Name:        dto.Name,
 		Description: dto.Description,
 		IsPublic:    dto.IsPublic,
 		CreatedBy:   dto.CreatedBy,
 		UpdatedBy:   dto.UpdatedBy,
-		UpdatedAt:   time.Now(),
 	}
 	var (
 		groupOld *entity.NodeGroup
@@ -311,7 +317,25 @@ func (p *nodeServiceImpl) ListGroups(ctx context.Context, params *dto.GroupParam
 	if err := db.Model(&entity.NodeGroup{}).Offset((params.Page - 1) * params.Size).Limit(params.Size).Find(&nodeGroups).Error; err != nil {
 		return nil, err
 	}
-	result.Data = nodeGroups
+
+	var nodeVos []vo.NodeGroupVo
+	for _, group := range nodeGroups {
+		nodeVos = append(nodeVos, vo.NodeGroupVo{
+			ID:          group.ID,
+			Name:        group.Name,
+			Description: group.Description,
+			CreatedAt:   group.CreatedAt,
+			DeletedAt:   group.DeletedAt,
+			UpdatedAt:   group.UpdatedAt,
+			CreatedBy:   group.CreatedBy,
+			UpdatedBy:   group.UpdatedBy,
+		})
+	}
+
+	result.Data = nodeVos
+	result.Current = params.Page
+	result.Page = params.Page
+	result.Size = params.Size
 
 	return result, nil
 }
