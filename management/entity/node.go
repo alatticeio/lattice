@@ -94,3 +94,15 @@ type GroupNode struct {
 func (GroupNode) TableName() string {
 	return "la_group_node"
 }
+
+// GroupPolicy relationship between Group and Policy
+type GroupPolicy struct {
+	gorm.Model
+	GroupID   int64  `json:"group_id"`
+	PolicyId  uint64 `json:"policy_id"`
+	CreatedBy string `json:"created_by"`
+}
+
+func (GroupPolicy) TableName() string {
+	return "la_group_policy"
+}

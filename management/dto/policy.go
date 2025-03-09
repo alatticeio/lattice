@@ -1,11 +1,12 @@
 package dto
 
 type AccessPolicyParams struct {
-	PageModel
-	GroupId   uint64
-	Effect    string
-	CreatedBy string
-	UpdatedBy string
+	*PageModel
+	Name      string `json:"name" form:"name"`
+	GroupId   uint64 `json:"groupId" form:"groupId"`
+	Effect    string `json:"effect" form:"effect"`
+	CreatedBy string `json:"createdBy" form:"createdBy"`
+	UpdatedBy string `json:"updatedBy" form:"updatedBy"`
 }
 
 type AccessPolicyRuleParams struct {
@@ -19,6 +20,10 @@ type AccessPolicyRuleParams struct {
 
 func (p *AccessPolicyParams) Generate() []*KeyValue {
 	var result []*KeyValue
+
+	if p.Name != "" {
+		result = append(result, newKeyValue("name", p.Name))
+	}
 
 	if p.GroupId != 0 {
 		result = append(result, newKeyValue("group_id", p.GroupId))

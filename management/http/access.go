@@ -12,7 +12,9 @@ func (s *Server) RegisterAccessRoutes() {
 	routes.POST("/policy", s.authCheck(), s.createAccessPolicy())
 	routes.PUT("/policy", s.authCheck(), s.updateAccessPolicy())
 	routes.DELETE("/policy/:policyID", s.authCheck(), s.deleteAccessPolicy())
-	routes.GET("/policy/list", s.authCheck(), s.listAccessPolicies())
+	routes.GET("/policy/page", s.authCheck(), s.listAccessPolicies())
+
+	routes.GET("/policy/list", s.authCheck(), s.listPolicies())
 
 	// rule
 	routes.GET("/rule/:ruleID", s.authCheck(), s.getRule())
@@ -41,6 +43,27 @@ func (s *Server) createAccessPolicy() gin.HandlerFunc {
 }
 
 func (s *Server) listAccessPolicies() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var params dto.AccessPolicyParams
+		var err error
+
+		s.logger.Infof("url params: %s", c.Request.URL.Query())
+		if err = c.ShouldBindQuery(&params); err != nil {
+			WriteError(c.JSON, err.Error())
+			return
+		}
+
+		policies, err := s.accessController.ListPagePolicies(c, &params)
+		if err != nil {
+			WriteError(c.JSON, err.Error())
+			return
+		}
+
+		WriteOK(c.JSON, policies)
+	}
+}
+
+func (s *Server) listPolicies() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var params dto.AccessPolicyParams
 		var err error

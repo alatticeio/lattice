@@ -66,8 +66,12 @@ func (a *AccessController) DeletePolicy(ctx context.Context, policyID uint) erro
 	return a.accessService.DeletePolicy(ctx, policyID)
 }
 
-func (a *AccessController) ListPolicies(ctx context.Context, params *dto.AccessPolicyParams) (*vo.PageVo, error) {
+func (a *AccessController) ListPagePolicies(ctx context.Context, params *dto.AccessPolicyParams) (*vo.PageVo, error) {
 	return a.accessService.ListGroupPolicies(ctx, params)
+}
+
+func (a *AccessController) ListPolicies(ctx context.Context, params *dto.AccessPolicyParams) ([]*vo.AccessPolicyVo, error) {
+	return a.accessService.ListPolicies(ctx, params)
 }
 
 func (a *AccessController) GetPolicy(ctx context.Context, policyID uint) (*entity.AccessPolicy, error) {

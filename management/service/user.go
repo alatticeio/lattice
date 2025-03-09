@@ -84,7 +84,7 @@ func (u *userServiceImpl) Login(dto *dto.UserDto) (*entity.Token, error) {
 	if err = u.rdb.Set(context.Background(), user.Username, string(key)); err != nil {
 		return nil, err
 	}
-	return &entity.Token{Token: token}, nil
+	return &entity.Token{Token: token, Avatar: user.Avatar, Email: user.Email, Mobile: user.Mobile}, nil
 }
 
 // Register creates a new user

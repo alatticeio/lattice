@@ -6,7 +6,7 @@ import (
 )
 
 type AccessPolicyVo struct {
-	ID          uint          `json:"id"`
+	ID          int64         `json:"id"`
 	Name        string        `json:"name"`                  // 策略名称
 	GroupID     uint          `json:"group_id"`              // 所属分组
 	Priority    int           `json:"priority"`              // 策略优先级（数字越大优先级越高）

@@ -112,11 +112,11 @@ func (s *Server) login() gin.HandlerFunc {
 
 		token, err = s.userController.Login(&dto)
 		if err != nil {
-			c.JSON(client.InternalServerError(err))
+			WriteError(c.JSON, err.Error())
 			return
 		}
 
-		c.JSON(client.Success(token))
+		WriteOK(c.JSON, token)
 	}
 }
 

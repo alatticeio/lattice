@@ -20,5 +20,8 @@ func (u *User) TableName() string {
 }
 
 type Token struct {
-	Token string `json:"token,omitempty"`
+	Token  string `json:"token,omitempty"`
+	Avatar string `json:"avatar,omitempty"`
+	Email  string `json:"email,omitempty"`
+	Mobile string `json:"mobile,omitempty"`
 }

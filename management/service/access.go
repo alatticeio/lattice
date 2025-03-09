@@ -19,6 +19,9 @@ type AccessPolicyService interface {
 	GetPolicy(ctx context.Context, policyID uint) (*entity.AccessPolicy, error)
 	ListGroupPolicies(ctx context.Context, params *dto.AccessPolicyParams) (*vo.PageVo, error)
 
+	//ListPagePolicies list with query
+	ListPolicies(ctx context.Context, params *dto.AccessPolicyParams) ([]*vo.AccessPolicyVo, error)
+
 	// Rule manage
 	AddRule(ctx context.Context, ruleDto *dto.AccessRuleDto) error
 	GetRule(ctx context.Context, id int64) (vo.AccessRuleVo, error)
@@ -127,6 +130,18 @@ func (a accessPolicyServiceImpl) ListGroupPolicies(ctx context.Context, params *
 	result.Page = params.Page
 	result.Size = params.Size
 	return result, err
+}
+
+func (a accessPolicyServiceImpl) ListPolicies(ctx context.Context, params *dto.AccessPolicyParams) ([]*vo.AccessPolicyVo, error) {
+	var policies []*vo.AccessPolicyVo
+	sql, wrappers := utils.GenerateSql(params)
+
+	if sql != "" {
+		err := a.Model(&entity.AccessPolicy{}).Where(sql, wrappers).Find(&policies).Error
+		return policies, err
+	}
+
+	return policies, nil
 }
 
 func (a accessPolicyServiceImpl) AddRule(ctx context.Context, ruleDto *dto.AccessRuleDto) error {
