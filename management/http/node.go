@@ -5,6 +5,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"linkany/management/client"
 	"linkany/management/dto"
+	"strconv"
 )
 
 func (s *Server) RegisterNodeRoutes() {
@@ -18,14 +19,14 @@ func (s *Server) RegisterNodeRoutes() {
 	// node group
 	nodeGroup.GET("/group/:id", s.authCheck(), s.GetNodeGroup())
 	nodeGroup.POST("/group", s.authCheck(), s.createGroup())
-	nodeGroup.PUT("/group", s.authCheck(), s.updateGroup())
+	nodeGroup.PUT("/group/:id", s.authCheck(), s.updateGroup())
 	nodeGroup.DELETE("/group/:id", s.authCheck(), s.deleteGroup())
 	nodeGroup.GET("/group/list", s.authCheck(), s.listGroups())
 
 	// group member
 	nodeGroup.POST("/group/member", s.authCheck(), s.addGroupMember())
 	nodeGroup.DELETE("/group/member/:id", s.authCheck(), s.removeGroupMember())
-	nodeGroup.PUT("/group/member/", s.authCheck(), s.UpdateGroupMember())
+	nodeGroup.PUT("/group/member/:id", s.authCheck(), s.UpdateGroupMember())
 	nodeGroup.GET("/group/member/list", s.authCheck(), s.listGroupMembers())
 
 	// Node Label
@@ -142,6 +143,10 @@ func (s *Server) createGroup() gin.HandlerFunc {
 			return
 		}
 
+		token := c.GetHeader("Authorization")
+		user, err := s.userController.Get(token)
+		nodeGroupDto.CreatedBy = user.Username
+		nodeGroupDto.Owner = user.ID
 		nodeGroup, err := s.nodeController.CreateGroup(c, &nodeGroupDto)
 		if err != nil {
 			c.JSON(client.InternalServerError(err))
@@ -153,11 +158,17 @@ func (s *Server) createGroup() gin.HandlerFunc {
 
 func (s *Server) updateGroup() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		groupId := c.Param("id")
+
 		var nodeGroupDto dto.NodeGroupDto
 		if err := c.ShouldBind(&nodeGroupDto); err != nil {
 			c.JSON(client.BadRequest(err))
 			return
 		}
+		nodeGroupDto.ID = func(str string) uint {
+			id, _ := strconv.ParseUint(groupId, 10, 64)
+			return uint(id)
+		}(groupId)
 		err := s.nodeController.UpdateGroup(c, &nodeGroupDto)
 		if err != nil {
 			c.JSON(client.InternalServerError(err))
@@ -186,6 +197,7 @@ func (s *Server) listGroups() gin.HandlerFunc {
 			WriteError(c.JSON, err.Error())
 			return
 		}
+
 		nodeGroups, err := s.nodeController.ListGroups(c, &params)
 		if err != nil {
 			c.JSON(client.InternalServerError(err))
@@ -202,8 +214,10 @@ func (s *Server) addGroupMember() gin.HandlerFunc {
 			c.JSON(client.BadRequest(err))
 			return
 		}
-
-		err := s.nodeController.AddGroupMember(c, &groupMember)
+		token := c.GetHeader("Authorization")
+		user, err := s.userController.Get(token)
+		groupMember.CreatedBy = user.Username
+		err = s.nodeController.AddGroupMember(c, &groupMember)
 		if err != nil {
 			c.JSON(client.InternalServerError(err))
 			return
@@ -231,6 +245,7 @@ func (s *Server) listGroupMembers() gin.HandlerFunc {
 			c.JSON(client.BadRequest(err))
 			return
 		}
+
 		members, err := s.nodeController.ListGroupMembers(c, &params)
 		if err != nil {
 			c.JSON(client.InternalServerError(err))
@@ -242,12 +257,14 @@ func (s *Server) listGroupMembers() gin.HandlerFunc {
 
 func (s *Server) UpdateGroupMember() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		id := c.Param("id")
 		var groupMember dto.GroupMemberDto
 		if err := c.ShouldBindJSON(&groupMember); err != nil {
 			c.JSON(client.BadRequest(err))
 			return
 		}
 
+		groupMember.ID, _ = strconv.ParseInt(id, 10, 64)
 		err := s.nodeController.UpdateGroupMember(c, &groupMember)
 		if err != nil {
 			c.JSON(client.InternalServerError(err))
@@ -337,8 +354,10 @@ func (s *Server) addGroupNode() gin.HandlerFunc {
 			c.JSON(client.BadRequest(err))
 			return
 		}
-
-		err := s.nodeController.AddGroupNode(c, &groupNode)
+		token := c.GetHeader("Authorization")
+		user, err := s.userController.Get(token)
+		groupNode.CreatedBy = user.Username
+		err = s.nodeController.AddGroupNode(c, &groupNode)
 		if err != nil {
 			c.JSON(client.InternalServerError(err))
 			return

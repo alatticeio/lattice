@@ -10,7 +10,6 @@ import (
 	"linkany/management/utils"
 	"linkany/management/vo"
 	"linkany/pkg/log"
-	"time"
 )
 
 // NodeService is an interface for peer mapper
@@ -270,38 +269,20 @@ func (p *nodeServiceImpl) CreateGroup(ctx context.Context, dto *dto.NodeGroupDto
 
 func (p *nodeServiceImpl) UpdateGroup(ctx context.Context, dto *dto.NodeGroupDto) error {
 	group := &entity.NodeGroup{
-		Name:        dto.Name,
 		Description: dto.Description,
 		IsPublic:    dto.IsPublic,
-		CreatedBy:   dto.CreatedBy,
 		UpdatedBy:   dto.UpdatedBy,
 	}
-	var (
-		groupOld *entity.NodeGroup
-		count    int64
-	)
 
-	if err := p.Model(&entity.NodeGroup{}).Where("id = ? and created_by = ?", group.ID, group.CreatedBy).First(&groupOld).Error; err != nil {
+	if err := p.Model(&entity.NodeGroup{}).Where("id = ?", dto.ID).Updates(group).Error; err != nil {
 		return err
 	}
 
-	if groupOld.Name != group.Name {
-		if err := p.Model(&entity.NodeGroup{}).Where("name = ? and created_by = ?", group.Name, group.CreatedBy).Count(&count).Error; err != nil {
-			return err
-		}
-	}
-	if count != 0 {
-		return errors.New("this group already exists")
-	}
-
-	if err := p.Model(&entity.NodeGroup{}).Where("id = ? and created_by = ?", group.ID, group.CreatedBy).Updates(group).Error; err != nil {
-		return err
-	}
 	return nil
 }
 
 func (p *nodeServiceImpl) DeleteGroup(ctx context.Context, id string) error {
-	if err := p.Where("id = ?", id).Unscoped().Delete(&entity.NodeGroup{}).Error; err != nil {
+	if err := p.Where("id = ?", id).Delete(&entity.NodeGroup{}).Error; err != nil {
 		return err
 	}
 	return nil
@@ -361,8 +342,6 @@ func (p *nodeServiceImpl) AddGroupMember(ctx context.Context, dto *dto.GroupMemb
 		GroupName: dto.GroupName,
 		UserID:    dto.UserID,
 		Username:  dto.Username,
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
 		CreatedBy: dto.CreatedBy,
 		Role:      dto.Role,
 		Status:    dto.Status,
@@ -374,7 +353,7 @@ func (p *nodeServiceImpl) AddGroupMember(ctx context.Context, dto *dto.GroupMemb
 }
 
 func (p *nodeServiceImpl) RemoveGroupMember(ctx context.Context, ID string) error {
-	if err := p.Where("id = ?", ID).Unscoped().Delete(&entity.GroupMember{}).Error; err != nil {
+	if err := p.Where("id = ?", ID).Delete(&entity.GroupMember{}).Error; err != nil {
 		return err
 	}
 	return nil
@@ -405,14 +384,11 @@ func (p *nodeServiceImpl) ListGroupMembers(ctx context.Context, params *dto.Grou
 
 func (p *nodeServiceImpl) UpdateGroupMember(ctx context.Context, dto *dto.GroupMemberDto) error {
 	member := entity.GroupMember{
-		GroupID:   dto.GroupID,
-		Username:  dto.Username,
 		Role:      dto.Role,
 		Status:    dto.Status,
-		UpdatedAt: time.Now(),
 		UpdatedBy: dto.UpdatedBy,
 	}
-	if err := p.Model(&entity.GroupMember{}).Where("group_id = ? and username = ?", member.GroupID, member.Username).Updates(&member).Error; err != nil {
+	if err := p.Model(&entity.GroupMember{}).Where("id = ?", dto.ID).Updates(&member).Error; err != nil {
 		return err
 	}
 	return nil
@@ -471,7 +447,6 @@ func (p *nodeServiceImpl) AddGroupNode(ctx context.Context, dto *dto.GroupNodeDt
 		NodeID:    dto.NodeID,
 		GroupName: dto.GroupName,
 		CreatedBy: dto.CreatedBy,
-		CreatedAt: time.Now(),
 	}
 	if err := p.Create(groupNode).Error; err != nil {
 		return err
@@ -480,7 +455,7 @@ func (p *nodeServiceImpl) AddGroupNode(ctx context.Context, dto *dto.GroupNodeDt
 }
 
 func (p *nodeServiceImpl) RemoveGroupNode(ctx context.Context, ID string) error {
-	if err := p.Where("id = ?", ID).Unscoped().Delete(&entity.GroupNode{}).Error; err != nil {
+	if err := p.Where("id = ?", ID).Delete(&entity.GroupNode{}).Error; err != nil {
 		return err
 	}
 	return nil

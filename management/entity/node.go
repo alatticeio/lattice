@@ -2,7 +2,6 @@ package entity
 
 import (
 	"gorm.io/gorm"
-	"time"
 )
 
 type GroupRoleType string
@@ -67,17 +66,15 @@ func (NodeGroup) TableName() string {
 
 // GroupMember relationship between Group and Member
 type GroupMember struct {
-	ID        string    `gorm:"column:id;size:64" json:"id"`
-	GroupID   uint      `gorm:"column:group_id;size:20" json:"groupId"`
-	GroupName string    `gorm:"column:group_name;size:64" json:"groupName"`
-	UserID    uint      `gorm:"column:user_id;size:20" json:"userId"`
-	Username  string    `gorm:"column:username;size:64" json:"username"`
-	CreatedBy string    `gorm:"column:created_by;size:64" json:"createdBy"`
-	CreatedAt time.Time `gorm:"column:created_at" json:"createdAt"`
-	UpdatedBy string    `gorm:"column:updated_by;size:64" json:"updatedBy"`
-	UpdatedAt time.Time `gorm:"column:updated_at" json:"updatedAt"`
-	Role      string    `gorm:"column:role;size:20" json:"role"`     // role：owner, admin, member
-	Status    string    `gorm:"column:status;size:20" json:"status"` // status：pending, accepted, rejected
+	gorm.Model
+	GroupID   uint   `gorm:"column:group_id;size:20" json:"groupId"`
+	GroupName string `gorm:"column:group_name;size:64" json:"groupName"`
+	UserID    uint   `gorm:"column:user_id;size:20" json:"userId"`
+	Username  string `gorm:"column:username;size:64" json:"username"`
+	CreatedBy string `gorm:"column:created_by;size:64" json:"createdBy"`
+	UpdatedBy string `gorm:"column:updated_by;size:64" json:"updatedBy"`
+	Role      string `gorm:"column:role;size:20" json:"role"`     // role：owner, admin, member
+	Status    string `gorm:"column:status;size:20" json:"status"` // status：pending, accepted, rejected
 }
 
 func (GroupMember) TableName() string {
@@ -86,13 +83,12 @@ func (GroupMember) TableName() string {
 
 // GroupNode relationship between Group and Node
 type GroupNode struct {
-	ID        string    `gorm:"column:id;size:64" json:"id"`
-	GroupID   uint      `gorm:"column:group_id;size:20" json:"groupId"`
-	NodeID    uint      `gorm:"column:node_id;size:20" json:"nodeId"`
-	GroupName string    `gorm:"column:group_name;size:64" json:"groupName"`
-	NodeName  string    `gorm:"column:node_name;size:64" json:"nodeName"`
-	CreatedBy string    `gorm:"column:created_by;size:64" json:"createdBy"`
-	CreatedAt time.Time `gorm:"column:created_at" json:"createdAt"`
+	gorm.Model
+	GroupID   uint   `gorm:"column:group_id;size:20" json:"groupId"`
+	NodeID    uint   `gorm:"column:node_id;size:20" json:"nodeId"`
+	GroupName string `gorm:"column:group_name;size:64" json:"groupName"`
+	NodeName  string `gorm:"column:node_name;size:64" json:"nodeName"`
+	CreatedBy string `gorm:"column:created_by;size:64" json:"createdBy"`
 }
 
 func (GroupNode) TableName() string {

@@ -34,24 +34,24 @@ func (l *LabelParams) Generate() []*KeyValue {
 
 type GroupParams struct {
 	PageModel
-	Name        *string
-	Description *string
-	OwnerID     *uint
+	Name        string
+	Description string
+	OwnerID     uint
 	IsPublic    *bool
 }
 
 func (p *GroupParams) Generate() []*KeyValue {
 	var result []*KeyValue
 
-	if p.Name != nil {
+	if p.Name != "" {
 		result = append(result, newKeyValue("name", p.Name))
 	}
 
-	if p.Description != nil {
+	if p.Description != "" {
 		result = append(result, newKeyValue("description", p.Description))
 	}
 
-	if p.OwnerID != nil {
+	if p.OwnerID != 0 {
 		result = append(result, newKeyValue("owner_id", p.OwnerID))
 	}
 
