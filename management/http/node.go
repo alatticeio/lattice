@@ -44,7 +44,7 @@ func (s *Server) RegisterNodeRoutes() {
 func (s *Server) getNodeByAppId() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		appId := c.Param("appId")
-		peer, err := s.nodeController.GetByAppId(appId)
+		peer, _, err := s.nodeController.GetByAppId(appId, "")
 		if err != nil {
 			c.JSON(client.InternalServerError(err))
 			return

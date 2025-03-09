@@ -21,8 +21,8 @@ func NewPeerController(nodeService service.NodeService) *NodeController {
 }
 
 // Node module
-func (p *NodeController) GetByAppId(appId string) (*entity.Node, error) {
-	return p.nodeService.GetByAppId(appId)
+func (p *NodeController) GetByAppId(appId, userId string) (*entity.Node, int64, error) {
+	return p.nodeService.GetByAppId(appId, userId)
 }
 
 func (p *NodeController) List(params *dto.QueryParams) ([]*entity.Node, error) {

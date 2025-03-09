@@ -3,9 +3,10 @@ package iface
 import (
 	"fmt"
 	internal2 "linkany/internal"
+	"linkany/pkg/log"
 )
 
-func SetRoute() RouterPrintf {
+func SetRoute(*log.Logger) RouterPrintf {
 	return func(action, address, name string) {
 		// example: netsh interface ipv4 set address name="linkany-xx" static 192.168.1.10
 		internal2.ExecCommand("cmd", "/C", fmt.Sprintf("netsh interface ipv4 set address name=\"%s\" static %s", name, address))

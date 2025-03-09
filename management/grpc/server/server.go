@@ -44,10 +44,10 @@ type ServerConfig struct {
 
 type RegistryRequest struct {
 	ID                  int64      `json:"id"`
-	InstanceID          int64      `json:"instance_id"`
 	UserID              int64      `json:"user_id"`
 	Name                string     `json:"name"`
 	Hostname            string     `json:"hostname"`
+	Description         string     `json:"description"`
 	AppID               string     `json:"app_id"`
 	Address             string     `json:"address"`
 	Endpoint            string     `json:"endpoint"`
@@ -149,13 +149,25 @@ func (s *Server) Get(ctx context.Context, in *mgt.ManagementMessage) (*mgt.Manag
 	if err := proto.Unmarshal(in.Body, &req); err != nil {
 		return nil, err
 	}
-
-	peer, err := s.peerController.GetByAppId(req.AppId)
+	user, err := s.userController.Get(req.Token)
 	if err != nil {
 		return nil, err
 	}
 
-	b, err := json.Marshal(peer)
+	peer, count, err := s.peerController.GetByAppId(req.AppId, strconv.Itoa(int(user.ID)))
+	if err != nil {
+		return nil, err
+	}
+
+	type result struct {
+		Peer  *entity.Node
+		Count int64
+	}
+	body := &result{
+		Peer:  peer,
+		Count: count,
+	}
+	b, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
 	}

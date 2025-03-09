@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"github.com/golang/protobuf/proto"
 	"github.com/vishvananda/netlink"
@@ -187,12 +188,20 @@ func NewEngine(cfg *EngineConfig) (*Engine, error) {
 	})
 
 	//fetconf
-	var current *config.Peer
-	current, err = engine.client.Get(context.Background())
+	// limit node count
+	var (
+		current *config.Peer
+		count   int64
+	)
+	current, count, err = engine.client.Get(context.Background())
 	if err != nil {
 		return nil, err
 	}
 
+	// TODO
+	if count >= 5 {
+		return nil, errors.New("your device count has reached the maximum limit")
+	}
 	var privateKey string
 	var publicKey string
 	if current.AppID != cfg.Conf.AppId {

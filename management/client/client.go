@@ -443,26 +443,31 @@ func (c *Client) GetUsers() []*config.User {
 	return users
 }
 
-func (c *Client) Get(ctx context.Context) (*config.Peer, error) {
+func (c *Client) Get(ctx context.Context) (*config.Peer, int64, error) {
 	req := &mgt.Request{
 		AppId: c.conf.AppId,
+		Token: c.conf.Token,
 	}
 
 	body, err := proto.Marshal(req)
 	if err != nil {
-		return nil, err
+		return nil, -1, err
 	}
 
 	msg, err := c.grpcClient.Get(ctx, &mgt.ManagementMessage{Body: body})
 	if err != nil {
-		return nil, err
+		return nil, -1, err
 	}
-
-	var peer config.Peer
-	if err := json.Unmarshal(msg.Body, &peer); err != nil {
-		return nil, err
+	
+	type Result struct {
+		Peer  config.Peer
+		Count int64
 	}
-	return &peer, nil
+	var result Result
+	if err := json.Unmarshal(msg.Body, &result); err != nil {
+		return nil, -1, err
+	}
+	return &result.Peer, result.Count, nil
 }
 
 func (c *Client) Watch(ctx context.Context, callback func(msg *mgt.WatchMessage) error) error {

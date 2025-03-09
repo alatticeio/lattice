@@ -25,13 +25,10 @@ func handleRole(role GroupRoleType) {
 // Node full node structure
 type Node struct {
 	gorm.Model
-	// NodeType indicates the type of the node, e.g., "server", "peer", "client"
-	NodeType            string `gorm:"column:node_type;size:20" json:"node_type"`
 	Name                string `gorm:"column:name;size:20" json:"name"`
-	Description         string `json:"description"`
-	GroupID             uint   `json:"group_id"`   // belong to which group
-	CreatedBy           uint   `json:"created_by"` // ownerID
-	InstanceID          int64  `gorm:"column:instance_id" json:"instance_id"`
+	Description         string `gorm:"column:description;size:255" json:"description"`
+	GroupID             uint   `gorm:"column:group_id;size:20" json:"groupID"`     // belong to which group
+	CreatedBy           uint   `gorm:"column:created_by;size:64" json:"createdBy"` // ownerID
 	UserID              int64  `gorm:"column:user_id" json:"user_id"`
 	Hostname            string `gorm:"column:hostname;size:50" json:"hostname"`
 	AppID               string `gorm:"column:app_id;size:20" json:"app_id"`
