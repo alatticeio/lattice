@@ -12,8 +12,8 @@ type UserDto struct {
 	Password string `json:"password"`
 }
 
-// PeerDto is a data transfer object for Peer entity
-type PeerDto struct {
+// NodeDto is a data transfer object for Peer entity
+type NodeDto struct {
 	ID                  int64     `gorm:"primaryKey;autoIncrement;column:id" json:"id"`
 	UserID              int64     `gorm:"column:user_id" json:"user_id"`
 	Name                string    `gorm:"column:name;size:20" json:"name"`
@@ -65,6 +65,11 @@ type NodeGroupDto struct {
 	IsPublic    bool   `json:"isPublic"`
 	CreatedBy   string `json:"createdBy"`
 	UpdatedBy   string `json:"updatedBy"`
+
+	NodeArray   string   `json:"nodeArray"`
+	PolicyArray string   `json:"policyArray"`
+	Nodes       []string `json:"nodes"`
+	Policies    []string `json:"policies"`
 }
 
 type GroupMemberDto struct {

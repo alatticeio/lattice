@@ -16,6 +16,7 @@ import (
 	"linkany/management/grpc/mgt"
 	"linkany/management/service"
 	"linkany/management/utils"
+	"linkany/management/vo"
 	"linkany/pkg/linkerrors"
 	"linkany/pkg/log"
 	"linkany/pkg/redis"
@@ -115,7 +116,7 @@ func (s *Server) Registry(ctx context.Context, in *mgt.ManagementMessage) (*mgt.
 		return nil, err
 	}
 
-	peer, err := s.peerController.Registry(&dto.PeerDto{
+	peer, err := s.peerController.Registry(&dto.NodeDto{
 		Hostname:            req.Hostname,
 		UserID:              int64(user.ID),
 		AppID:               req.AppID,
@@ -393,7 +394,7 @@ func (s *Server) recv(stream mgt.ManagementService_KeepaliveServer) (*mgt.Reques
 
 }
 
-func (s *Server) sendWatchMessage(eventType mgt.EventType, current *entity.Node, pubKey, userId string, status int) error {
+func (s *Server) sendWatchMessage(eventType mgt.EventType, current *vo.NodeVo, pubKey, userId string, status int) error {
 	state := 1
 	peers, err := s.peerController.List(&dto.QueryParams{
 		UserId: &userId,
@@ -412,7 +413,7 @@ func (s *Server) sendWatchMessage(eventType mgt.EventType, current *entity.Node,
 		}
 		wc := manager.Get(peer.PublicKey)
 		s.logger.Verbosef("fetch actual channel %v for peer: %v, current peer pubKey: %v", wc, peer.PublicKey, current.PublicKey)
-		message := utils.NewWatchMessage(eventType, []*entity.Node{current})
+		message := utils.NewWatchMessage(eventType, []*vo.NodeVo{current})
 		// add to channel, will send to client
 		if wc != nil {
 			wc <- message
@@ -420,7 +421,7 @@ func (s *Server) sendWatchMessage(eventType mgt.EventType, current *entity.Node,
 	}
 
 	// update peer online status
-	dtoParam := &dto.PeerDto{PublicKey: pubKey, Status: status}
+	dtoParam := &dto.NodeDto{PublicKey: pubKey, Status: status}
 	s.logger.Verbosef("update peer status ,publicKey: %v, status: %v", pubKey, status)
 	_, err = s.peerController.Update(dtoParam)
 	return err

@@ -1,7 +1,9 @@
 package dto
 
+import "linkany/management/vo"
+
 type InvitationParams struct {
-	PageModel
+	vo.PageModel
 	UserId      *string
 	Email       *string
 	MobilePhone *string

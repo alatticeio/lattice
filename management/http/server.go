@@ -27,6 +27,7 @@ type Server struct {
 	planController    *controller.PlanController
 	supportController *controller.SupportController
 	accessController  *controller.AccessController
+	groupController   *controller.GroupController
 }
 
 // ServerConfig is the server configuration
@@ -49,6 +50,7 @@ func NewServer(cfg *ServerConfig) *Server {
 		planController:    controller.NewPlanController(service.NewPlanService(cfg.DatabaseService)),
 		supportController: controller.NewSupportController(service.NewSupportMapper(cfg.DatabaseService)),
 		accessController:  controller.NewAccessController(service.NewAccessPolicyService(cfg.DatabaseService)),
+		groupController:   controller.NewGroupController(service.NewGroupService(cfg.DatabaseService)),
 		tokener:           service.NewTokenService(cfg.DatabaseService),
 	}
 	s.initRoute()
@@ -63,6 +65,7 @@ func (s *Server) initRoute() {
 	s.RegisterUserRoutes()
 	s.RegisterNodeRoutes()
 	s.RegisterAccessRoutes()
+	s.RegisterGroupRoutes()
 
 	s.GET("/ping", func(c *gin.Context) {
 		c.JSON(200, gin.H{

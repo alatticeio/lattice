@@ -1,7 +1,9 @@
 package dto
 
+import "linkany/management/vo"
+
 type LabelParams struct {
-	PageModel
+	vo.PageModel
 	CreatedBy string
 	UpdatedBy string
 }
@@ -33,7 +35,7 @@ func (l *LabelParams) Generate() []*KeyValue {
 }
 
 type GroupParams struct {
-	PageModel
+	vo.PageModel
 	Name        string
 	Description string
 	OwnerID     uint
@@ -71,7 +73,7 @@ func (p *GroupParams) Generate() []*KeyValue {
 }
 
 type GroupMemberParams struct {
-	PageModel
+	vo.PageModel
 	GroupID   uint   `json:"groupID"`
 	UserID    uint   `json:"userID"`
 	Role      string `json:"role"`
@@ -119,7 +121,7 @@ func (p *GroupMemberParams) Generate() []*KeyValue {
 }
 
 type GroupNodeParams struct {
-	PageModel
+	vo.PageModel
 	GroupID   uint   `json:"groupID"`
 	NodeId    uint   `json:"nodeId"`
 	GroupName string `json:"groupName"`

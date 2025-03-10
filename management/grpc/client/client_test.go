@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"github.com/golang/protobuf/proto"
 	"linkany/internal"
-	"linkany/management/entity"
 	pb "linkany/management/grpc/mgt"
 	"linkany/management/grpc/server"
+	"linkany/management/vo"
 	"linkany/pkg/config"
 	"linkany/pkg/log"
 	"sync"
@@ -72,7 +72,7 @@ func TestGrpcClient_List(t *testing.T) {
 
 	t.Log(resp)
 
-	var net entity.NetworkMap
+	var net vo.NetworkMap
 	if err = json.Unmarshal(resp.Body, &net); err != nil {
 		t.Fatal(err)
 	}

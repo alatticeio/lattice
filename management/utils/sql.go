@@ -34,7 +34,7 @@ func GenerateSql(params dto.ParamBuilder) (string, []interface{}) {
 		} else {
 			sb.WriteString(fmt.Sprintf("%s like ?", filter.Key))
 		}
-		wrappers = append(wrappers, "%"+filter.Value.(string)+"%")
+		wrappers = append(wrappers, fmt.Sprintf("%%%v%%", filter.Value))
 	}
 
 	return sb.String(), wrappers

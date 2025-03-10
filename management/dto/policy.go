@@ -1,7 +1,9 @@
 package dto
 
+import "linkany/management/vo"
+
 type AccessPolicyParams struct {
-	*PageModel
+	*vo.PageModel
 	Name      string `json:"name" form:"name"`
 	GroupId   uint64 `json:"groupId" form:"groupId"`
 	Effect    string `json:"effect" form:"effect"`
@@ -10,7 +12,7 @@ type AccessPolicyParams struct {
 }
 
 type AccessPolicyRuleParams struct {
-	PageModel
+	vo.PageModel
 	PolicyId   int64  `json:"policyId" form:"policyId"`
 	SourceId   string `json:"sourceId" form:"sourceId"`
 	TargetId   string `json:"targetId" form:"targetId"`

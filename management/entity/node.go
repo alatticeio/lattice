@@ -98,9 +98,11 @@ func (GroupNode) TableName() string {
 // GroupPolicy relationship between Group and Policy
 type GroupPolicy struct {
 	gorm.Model
-	GroupID   int64  `json:"group_id"`
-	PolicyId  uint64 `json:"policy_id"`
-	CreatedBy string `json:"created_by"`
+	GroupID     uint
+	PolicyId    uint
+	PolicyName  string
+	Description string
+	CreatedBy   string
 }
 
 func (GroupPolicy) TableName() string {

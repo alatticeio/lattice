@@ -14,28 +14,21 @@ import (
 
 // NodeService is an interface for peer mapper
 type NodeService interface {
-	Register(e *dto.PeerDto) (*entity.Node, error)
-	Update(e *dto.PeerDto) (*entity.Node, error)
-	Delete(e *dto.PeerDto) error
+	Register(e *dto.NodeDto) (*entity.Node, error)
+	Update(e *dto.NodeDto) (*entity.Node, error)
+	Delete(e *dto.NodeDto) error
 
 	// GetByAppId returns a peer by appId, every client has its own appId
 	GetByAppId(appId, userid string) (*entity.Node, int64, error)
 
-	GetNetworkMap(appId, userId string) (*entity.NetworkMap, error)
+	GetNetworkMap(appId, userId string) (*vo.NetworkMap, error)
 
 	// List returns a list of peers by userId，when client start up, it will call this method to get all the peers once
 	// after that, it will call Watch method to get the latest peers
-	List(params *dto.QueryParams) ([]*entity.Node, error)
+	List(params *dto.QueryParams) ([]*vo.NodeVo, error)
 
 	// Watch returns a channel that will be used to send the latest peers to the client
 	//Watch() (<-chan *entity.Node, error)
-
-	//Group
-	GetNodeGroup(ctx context.Context, id string) (*vo.NodeGroupVo, error)
-	CreateGroup(ctx context.Context, dto *dto.NodeGroupDto) error
-	UpdateGroup(ctx context.Context, dto *dto.NodeGroupDto) error
-	DeleteGroup(ctx context.Context, id string) error
-	ListGroups(ctx context.Context, params *dto.GroupParams) (*vo.PageVo, error)
 
 	//Group memeber
 	AddGroupMember(ctx context.Context, dto *dto.GroupMemberDto) error
@@ -69,7 +62,7 @@ func NewNodeService(db *DatabaseService) NodeService {
 	return &nodeServiceImpl{DatabaseService: db, logger: log.NewLogger(log.Loglevel, fmt.Sprintf("[%s] ", "peermapper"))}
 }
 
-func (p *nodeServiceImpl) Register(e *dto.PeerDto) (*entity.Node, error) {
+func (p *nodeServiceImpl) Register(e *dto.NodeDto) (*entity.Node, error) {
 	count := p.GetAddress() + 1
 	if count == -1 {
 		return nil, errors.New("the address can not be allocated")
@@ -103,7 +96,7 @@ func (p *nodeServiceImpl) Register(e *dto.PeerDto) (*entity.Node, error) {
 	return peer, nil
 }
 
-func (p *nodeServiceImpl) Update(e *dto.PeerDto) (*entity.Node, error) {
+func (p *nodeServiceImpl) Update(e *dto.NodeDto) (*entity.Node, error) {
 	var node entity.Node
 	if err := p.Where("public_key = ?", e.PublicKey).First(&node).Error; err != nil {
 		return nil, err
@@ -115,7 +108,7 @@ func (p *nodeServiceImpl) Update(e *dto.PeerDto) (*entity.Node, error) {
 	return &node, nil
 }
 
-func (p *nodeServiceImpl) Delete(e *dto.PeerDto) error {
+func (p *nodeServiceImpl) Delete(e *dto.NodeDto) error {
 	if err := p.Where("id = ?", e.ID).Delete(&entity.Node{}).Error; err != nil {
 		return err
 	}
@@ -140,20 +133,48 @@ func (p *nodeServiceImpl) GetByAppId(appId, userId string) (*entity.Node, int64,
 }
 
 // List params will filter
-func (p *nodeServiceImpl) List(params *dto.QueryParams) ([]*entity.Node, error) {
-	var peers []*entity.Node
+func (p *nodeServiceImpl) List(params *dto.QueryParams) ([]*vo.NodeVo, error) {
+	var nodes []*entity.Node
 
 	var sql string
 	var wrappers []interface{}
 
-	sql, wrappers = utils.Generate(params)
+	if params.Keyword != nil {
+		sql, wrappers = utils.GenerateSql(params)
+	} else {
+		sql, wrappers = utils.Generate(params)
+	}
 
 	p.logger.Verbosef("sql: %s, wrappers: %v", sql, wrappers)
-	if err := p.Where(sql, wrappers...).Find(&peers).Error; err != nil {
+	if err := p.Where(sql, wrappers...).Find(&nodes).Error; err != nil {
 		return nil, err
 	}
 
-	return peers, nil
+	var vos []*vo.NodeVo
+	for _, node := range nodes {
+		vos = append(vos, &vo.NodeVo{
+			ID:                  node.ID,
+			Name:                node.Name,
+			Description:         node.Description,
+			GroupID:             node.GroupID,
+			CreatedBy:           node.CreatedBy,
+			UserID:              node.UserID,
+			Hostname:            node.Hostname,
+			AppID:               node.AppID,
+			Address:             node.Address,
+			Endpoint:            node.Endpoint,
+			PersistentKeepalive: node.PersistentKeepalive,
+			PublicKey:           node.PublicKey,
+			AllowedIPs:          node.AllowedIPs,
+			RelayIP:             node.RelayIP,
+			TieBreaker:          node.TieBreaker,
+			Ufrag:               node.Ufrag,
+			Pwd:                 node.Pwd,
+			Port:                node.Port,
+			Status:              node.Status,
+		})
+	}
+	return vos, nil
 }
 
 // Watch when register or update called, first call Watch
@@ -174,7 +195,7 @@ func (p *nodeServiceImpl) Watch(appId string) (<-chan *mgt.ManagementMessage, er
 }
 
 // GetNetworkMap get user's network map
-func (p *nodeServiceImpl) GetNetworkMap(appId, userId string) (*entity.NetworkMap, error) {
+func (p *nodeServiceImpl) GetNetworkMap(appId, userId string) (*vo.NetworkMap, error) {
 	current, _, err := p.GetByAppId(appId, "")
 	if err != nil {
 		return nil, err
@@ -191,10 +212,30 @@ func (p *nodeServiceImpl) GetNetworkMap(appId, userId string) (*entity.NetworkMa
 		return nil, err
 	}
 
-	return &entity.NetworkMap{
+	return &vo.NetworkMap{
 		UserId: userId,
-		Peer:   current,
-		Peers:  peers,
+		Peer: &vo.NodeVo{
+			ID:                  current.ID,
+			Name:                current.Name,
+			Description:         current.Description,
+			GroupID:             current.GroupID,
+			CreatedBy:           current.CreatedBy,
+			UserID:              current.UserID,
+			Hostname:            current.Hostname,
+			AppID:               current.AppID,
+			Address:             current.Address,
+			Endpoint:            current.Endpoint,
+			PersistentKeepalive: current.PersistentKeepalive,
+			PublicKey:           current.PublicKey,
+			AllowedIPs:          current.AllowedIPs,
+			RelayIP:             "",
+			TieBreaker:          0,
+			Ufrag:               "",
+			Pwd:                 "",
+			Port:                0,
+			Status:              current.Status,
+		},
+		Peers: peers,
 	}, nil
 }
 
@@ -209,124 +250,6 @@ func (p *nodeServiceImpl) GetAddress() int64 {
 		return -1
 	}
 	return count
-}
-
-// NodeGroup
-func (p *nodeServiceImpl) GetNodeGroup(ctx context.Context, nodeId string) (*vo.NodeGroupVo, error) {
-	var (
-		group entity.NodeGroup
-		err   error
-	)
-
-	if err = p.Where("id = ?", nodeId).First(&group).Error; err != nil {
-		return nil, err
-	}
-
-	return &vo.NodeGroupVo{
-		ID:          group.ID,
-		Name:        group.Name,
-		Description: group.Description,
-		CreatedAt:   group.CreatedAt,
-		DeletedAt:   group.DeletedAt,
-		UpdatedAt:   group.UpdatedAt,
-		CreatedBy:   group.CreatedBy,
-		UpdatedBy:   group.UpdatedBy,
-	}, nil
-}
-
-func (p *nodeServiceImpl) CreateGroup(ctx context.Context, dto *dto.NodeGroupDto) error {
-	group := &entity.NodeGroup{
-		Name:        dto.Name,
-		Description: dto.Description,
-		IsPublic:    dto.IsPublic,
-		CreatedBy:   dto.CreatedBy,
-		UpdatedBy:   dto.CreatedBy,
-	}
-	var (
-		user  *entity.User
-		count int64
-	)
-
-	if err := p.Model(&entity.NodeGroup{}).Where("name = ? and created_by = ?", group.Name, group.CreatedBy).Count(&count).Error; err != nil {
-		return err
-	}
-
-	if count != 0 {
-		return errors.New("this group already exists")
-	}
-
-	if group.CreatedBy != "" {
-		if err := p.Where("username = ?", group.CreatedBy).First(&user).Error; err != nil {
-			return err
-		}
-		group.OwnerID = user.ID
-	}
-	if err := p.Create(group).Error; err != nil {
-		return err
-	}
-	return nil
-}
-
-func (p *nodeServiceImpl) UpdateGroup(ctx context.Context, dto *dto.NodeGroupDto) error {
-	group := &entity.NodeGroup{
-		Description: dto.Description,
-		IsPublic:    dto.IsPublic,
-		UpdatedBy:   dto.UpdatedBy,
-	}
-
-	if err := p.Model(&entity.NodeGroup{}).Where("id = ?", dto.ID).Updates(group).Error; err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (p *nodeServiceImpl) DeleteGroup(ctx context.Context, id string) error {
-	if err := p.Where("id = ?", id).Delete(&entity.NodeGroup{}).Error; err != nil {
-		return err
-	}
-	return nil
-}
-
-func (p *nodeServiceImpl) ListGroups(ctx context.Context, params *dto.GroupParams) (*vo.PageVo, error) {
-	var nodeGroups []entity.NodeGroup
-
-	result := new(vo.PageVo)
-	sql, wrappers := utils.Generate(params)
-	db := p.DB
-	if sql != "" {
-		db = db.Where(sql, wrappers)
-	}
-
-	if err := db.Model(&entity.NodeGroup{}).Count(&result.Total).Error; err != nil {
-		return nil, err
-	}
-
-	p.logger.Verbosef("sql: %s, wrappers: %v", sql, wrappers)
-	if err := db.Model(&entity.NodeGroup{}).Offset((params.Page - 1) * params.Size).Limit(params.Size).Find(&nodeGroups).Error; err != nil {
-		return nil, err
-	}
-
-	var nodeVos []vo.NodeGroupVo
-	for _, group := range nodeGroups {
-		nodeVos = append(nodeVos, vo.NodeGroupVo{
-			ID:          group.ID,
-			Name:        group.Name,
-			Description: group.Description,
-			CreatedAt:   group.CreatedAt,
-			DeletedAt:   group.DeletedAt,
-			UpdatedAt:   group.UpdatedAt,
-			CreatedBy:   group.CreatedBy,
-			UpdatedBy:   group.UpdatedBy,
-		})
-	}
-
-	result.Data = nodeVos
-	result.Current = params.Page
-	result.Page = params.Page
-	result.Size = params.Size
-
-	return result, nil
 }
 
 // Group Members

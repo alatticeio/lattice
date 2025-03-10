@@ -16,13 +16,6 @@ func (s *Server) RegisterNodeRoutes() {
 	nodeGroup.DELETE("/", s.authCheck(), s.deleteNode())
 	nodeGroup.GET("/list", s.authCheck(), s.listNodes())
 
-	// node group
-	nodeGroup.GET("/group/:id", s.authCheck(), s.GetNodeGroup())
-	nodeGroup.POST("/group", s.authCheck(), s.createGroup())
-	nodeGroup.PUT("/group/:id", s.authCheck(), s.updateGroup())
-	nodeGroup.DELETE("/group/:id", s.authCheck(), s.deleteGroup())
-	nodeGroup.GET("/group/list", s.authCheck(), s.listGroups())
-
 	// group member
 	nodeGroup.POST("/group/member", s.authCheck(), s.addGroupMember())
 	nodeGroup.DELETE("/group/member/:id", s.authCheck(), s.removeGroupMember())
@@ -40,6 +33,7 @@ func (s *Server) RegisterNodeRoutes() {
 	nodeGroup.DELETE("/group/node/:id", s.authCheck(), s.removeGroupNode())
 	nodeGroup.GET("/group/node/:id", s.authCheck(), s.getGroupNode())
 	nodeGroup.GET("/group/node/list", s.authCheck(), s.listGroupNodes())
+
 }
 
 func (s *Server) getNodeByAppId() gin.HandlerFunc {
@@ -56,7 +50,7 @@ func (s *Server) getNodeByAppId() gin.HandlerFunc {
 
 func (s *Server) createNode() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		var peerDto dto.PeerDto
+		var peerDto dto.NodeDto
 		if err := c.ShouldBindJSON(&peerDto); err != nil {
 			c.JSON(client.BadRequest(err))
 			return
@@ -81,16 +75,16 @@ func (s *Server) listNodes() gin.HandlerFunc {
 
 		peers, err := s.nodeController.List(params)
 		if err != nil {
-			c.JSON(client.InternalServerError(err))
+			WriteError(c.JSON, err.Error())
 			return
 		}
-		c.JSON(client.Success(peers))
+		WriteOK(c.JSON, peers)
 	}
 }
 
 func (s *Server) updateNode() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		var peerDto dto.PeerDto
+		var peerDto dto.NodeDto
 		if err := c.ShouldBindJSON(&peerDto); err != nil {
 			c.JSON(client.BadRequest(err))
 			return
@@ -107,7 +101,7 @@ func (s *Server) updateNode() gin.HandlerFunc {
 
 func (s *Server) deleteNode() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		var peerDto dto.PeerDto
+		var peerDto dto.NodeDto
 		if err := c.ShouldBindJSON(&peerDto); err != nil {
 			c.JSON(client.BadRequest(err))
 			return
@@ -119,91 +113,6 @@ func (s *Server) deleteNode() gin.HandlerFunc {
 			return
 		}
 		c.JSON(client.Success(nil))
-	}
-}
-
-func (s *Server) GetNodeGroup() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		nodeId := c.Param("id")
-
-		nodeGroup, err := s.nodeController.GetNodeGroup(c, nodeId)
-		if err != nil {
-			c.JSON(client.InternalServerError(err))
-			return
-		}
-		c.JSON(client.Success(nodeGroup))
-	}
-}
-
-func (s *Server) createGroup() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		var nodeGroupDto dto.NodeGroupDto
-		if err := c.ShouldBindJSON(&nodeGroupDto); err != nil {
-			c.JSON(client.BadRequest(err))
-			return
-		}
-
-		token := c.GetHeader("Authorization")
-		user, err := s.userController.Get(token)
-		nodeGroupDto.CreatedBy = user.Username
-		nodeGroupDto.Owner = user.ID
-		nodeGroup, err := s.nodeController.CreateGroup(c, &nodeGroupDto)
-		if err != nil {
-			c.JSON(client.InternalServerError(err))
-			return
-		}
-		c.JSON(client.Success(nodeGroup))
-	}
-}
-
-func (s *Server) updateGroup() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		groupId := c.Param("id")
-
-		var nodeGroupDto dto.NodeGroupDto
-		if err := c.ShouldBind(&nodeGroupDto); err != nil {
-			c.JSON(client.BadRequest(err))
-			return
-		}
-		nodeGroupDto.ID = func(str string) uint {
-			id, _ := strconv.ParseUint(groupId, 10, 64)
-			return uint(id)
-		}(groupId)
-		err := s.nodeController.UpdateGroup(c, &nodeGroupDto)
-		if err != nil {
-			c.JSON(client.InternalServerError(err))
-			return
-		}
-		c.JSON(client.Success(nil))
-	}
-}
-
-func (s *Server) deleteGroup() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		id := c.Param("id")
-		err := s.nodeController.DeleteGroup(c, id)
-		if err != nil {
-			c.JSON(client.InternalServerError(err))
-			return
-		}
-		c.JSON(client.Success(nil))
-	}
-}
-
-func (s *Server) listGroups() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		var params dto.GroupParams
-		if err := c.ShouldBindQuery(&params); err != nil {
-			WriteError(c.JSON, err.Error())
-			return
-		}
-
-		nodeGroups, err := s.nodeController.ListGroups(c, &params)
-		if err != nil {
-			c.JSON(client.InternalServerError(err))
-			return
-		}
-		WriteOK(c.JSON, nodeGroups)
 	}
 }
 

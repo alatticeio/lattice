@@ -9,10 +9,10 @@ import (
 	"github.com/pion/logging"
 	"io"
 	"linkany/internal"
-	"linkany/management/entity"
 	grpcclient "linkany/management/grpc/client"
 	"linkany/management/grpc/mgt"
 	grpcserver "linkany/management/grpc/server"
+	"linkany/management/vo"
 	"linkany/pkg/config"
 	"linkany/pkg/drp"
 	"linkany/pkg/iface"
@@ -210,7 +210,7 @@ func (c *Client) List() (*config.DeviceConf, error) {
 		return nil, err
 	}
 
-	var networkMap entity.NetworkMap
+	var networkMap vo.NetworkMap
 	if err := json.Unmarshal(resp.Body, &networkMap); err != nil {
 		return nil, err
 	}
@@ -226,7 +226,7 @@ func (c *Client) List() (*config.DeviceConf, error) {
 	return conf, nil
 }
 
-func (c *Client) ToConfigPeer(peer *entity.Node) *config.Peer {
+func (c *Client) ToConfigPeer(peer *vo.NodeVo) *config.Peer {
 
 	return &config.Peer{
 		PublicKey:           peer.PublicKey,
@@ -239,7 +239,7 @@ func (c *Client) ToConfigPeer(peer *entity.Node) *config.Peer {
 
 func (c *Client) WatchMessage(msg *mgt.WatchMessage) error {
 	var err error
-	var peers []entity.Node
+	var peers []vo.NodeVo
 	if err = json.Unmarshal(msg.Body, &peers); err != nil {
 		return err
 	}
@@ -264,7 +264,7 @@ func (c *Client) WatchMessage(msg *mgt.WatchMessage) error {
 
 }
 
-func (c *Client) AddPeer(p *entity.Node) error {
+func (c *Client) AddPeer(p *vo.NodeVo) error {
 	var err error
 	defer func() {
 		if err != nil {
@@ -458,7 +458,7 @@ func (c *Client) Get(ctx context.Context) (*config.Peer, int64, error) {
 	if err != nil {
 		return nil, -1, err
 	}
-	
+
 	type Result struct {
 		Peer  config.Peer
 		Count int64
@@ -547,7 +547,7 @@ func (c *Client) clear(pubKey string) {
 	c.proberManager.Remove(pubKey)
 }
 
-func (c *Client) RemovePeer(peer *entity.Node) error {
+func (c *Client) RemovePeer(peer *vo.NodeVo) error {
 	c.clear(peer.PublicKey)
 	wgConfigure := c.proberManager.GetWgConfiger()
 	if err := wgConfigure.RemovePeer(&iface.SetPeer{
