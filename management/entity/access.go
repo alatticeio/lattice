@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"gorm.io/gorm"
-	"time"
 )
 
 // AccessPolicy policy for node
@@ -116,12 +115,10 @@ func (a *AccessRule) TableName() string {
 // Label node label
 type Label struct {
 	gorm.Model
-	//NodeID    uint64 `json:"node_id"`
-	Label     string    `json:"label"`
-	CreatedAt time.Time `json:"createdAt"`
-	UpdatedAt time.Time `json:"updatedAt"`
-	CreatedBy string    `json:"createdBy"`
-	UpdatedBy string    `json:"updatedBy"`
+	Label     string `json:"label"`
+	OwnerId   uint64 `json:"ownerId"`
+	CreatedBy string `json:"createdBy"`
+	UpdatedBy string `json:"updatedBy"`
 }
 
 func (n *Label) TableName() string {

@@ -10,6 +10,7 @@ import (
 	"linkany/management/utils"
 	"linkany/management/vo"
 	"linkany/pkg/log"
+	"strings"
 )
 
 // NodeService is an interface for peer mapper
@@ -37,10 +38,10 @@ type NodeService interface {
 	ListGroupMembers(ctx context.Context, params *dto.GroupMemberParams) (*vo.PageVo, error)
 
 	//Node Label
-	AddNodeTag(ctx context.Context, dto *dto.TagDto) error
-	UpdateNodeTag(ctx context.Context, dto *dto.TagDto) error
-	RemoveNodeTag(ctx context.Context, tagId uint64) error
-	ListNodeTags(ctx context.Context, params *dto.LabelParams) (*vo.PageVo, error)
+	AddLabel(ctx context.Context, dto *dto.TagDto) error
+	UpdateLabel(ctx context.Context, dto *dto.TagDto) error
+	DeleteLabel(ctx context.Context, id string) error
+	ListLabel(ctx context.Context, params *dto.LabelParams) (*vo.PageVo, error)
 
 	//Group Node
 	AddGroupNode(ctx context.Context, dto *dto.GroupNodeDto) error
@@ -318,30 +319,35 @@ func (p *nodeServiceImpl) UpdateGroupMember(ctx context.Context, dto *dto.GroupM
 }
 
 // Node Tags
-func (p *nodeServiceImpl) AddNodeTag(ctx context.Context, dto *dto.TagDto) error {
+func (p *nodeServiceImpl) AddLabel(ctx context.Context, dto *dto.TagDto) error {
+	label := strings.Split(dto.Label, ":")
+	if len(label) != 2 || len(label[0]) == 0 || len(label[1]) == 0 {
+		return errors.New("invalid label")
+	}
 	return p.Create(&entity.Label{
 		Label:     dto.Label,
-		CreatedBy: dto.Username,
+		OwnerId:   dto.OwnerId,
+		CreatedBy: dto.CreatedBy,
 	}).Error
 }
 
-func (p *nodeServiceImpl) UpdateNodeTag(ctx context.Context, dto *dto.TagDto) error {
+func (p *nodeServiceImpl) UpdateLabel(ctx context.Context, dto *dto.TagDto) error {
 	var tag entity.Label
 	if err := p.Where("id = ?", dto.ID).Find(&tag).Error; err != nil {
 		return err
 	}
 
 	tag.Label = dto.Label
-	tag.UpdatedBy = dto.Username
+	tag.UpdatedBy = dto.UpdatedBy
 	p.Save(tag)
 	return nil
 }
 
-func (p *nodeServiceImpl) RemoveNodeTag(ctx context.Context, tagId uint64) error {
-	return p.Where("id = ?", tagId).Delete(&entity.Label{}).Error
+func (p *nodeServiceImpl) DeleteLabel(ctx context.Context, id string) error {
+	return p.Where("id = ?", id).Delete(&entity.Label{}).Error
 }
 
-func (p *nodeServiceImpl) ListNodeTags(ctx context.Context, params *dto.LabelParams) (*vo.PageVo, error) {
+func (p *nodeServiceImpl) ListLabel(ctx context.Context, params *dto.LabelParams) (*vo.PageVo, error) {
 	var labels []vo.LabelVo
 	result := new(vo.PageVo)
 	sql, wrappers := utils.Generate(params)

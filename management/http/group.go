@@ -17,7 +17,7 @@ func (s *Server) RegisterGroupRoutes() {
 	nodeGroup.GET("/:id", s.authCheck(), s.GetNodeGroup())
 	nodeGroup.POST("/", s.authCheck(), s.createGroup())
 	nodeGroup.PUT("/u", s.authCheck(), s.updateGroup())
-	nodeGroup.DELETE("/:id", s.authCheck(), s.deleteGroup())
+	nodeGroup.DELETE("/", s.authCheck(), s.deleteGroup())
 	nodeGroup.GET("/list", s.authCheck(), s.listGroups())
 }
 
@@ -67,7 +67,7 @@ func (s *Server) createGroup() gin.HandlerFunc {
 		token := c.GetHeader("Authorization")
 		user, err := s.userController.Get(token)
 		nodeGroupDto.CreatedBy = user.Username
-		nodeGroupDto.Owner = user.ID
+		nodeGroupDto.Owner = uint64(user.ID)
 		nodeGroup, err := s.groupController.CreateGroup(c, &nodeGroupDto)
 		if err != nil {
 			c.JSON(client.InternalServerError(err))
@@ -104,7 +104,7 @@ func (s *Server) updateGroup() gin.HandlerFunc {
 
 func (s *Server) deleteGroup() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		id := c.Param("id")
+		id := c.Query("id")
 		err := s.groupController.DeleteGroup(c, id)
 		if err != nil {
 			c.JSON(client.InternalServerError(err))

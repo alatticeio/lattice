@@ -63,20 +63,20 @@ func (p *NodeController) ListGroupMembers(ctx context.Context, params *dto.Group
 }
 
 // Node tag
-func (p *NodeController) CreateTag(ctx context.Context, dto *dto.TagDto) (*entity.Label, error) {
-	return nil, p.nodeService.AddNodeTag(ctx, dto)
+func (p *NodeController) CreateLabel(ctx context.Context, dto *dto.TagDto) (*entity.Label, error) {
+	return nil, p.nodeService.AddLabel(ctx, dto)
 }
 
-func (p *NodeController) UpdateTag(ctx context.Context, dto *dto.TagDto) error {
-	return p.nodeService.UpdateNodeTag(ctx, dto)
+func (p *NodeController) UpdateLabel(ctx context.Context, dto *dto.TagDto) error {
+	return p.nodeService.UpdateLabel(ctx, dto)
 }
 
-func (p *NodeController) DeleteTag(ctx context.Context, tagId uint64) error {
-	return p.nodeService.RemoveNodeTag(ctx, tagId)
+func (p *NodeController) DeleteLabel(ctx context.Context, id string) error {
+	return p.nodeService.DeleteLabel(ctx, id)
 }
 
-func (p *NodeController) ListTags(ctx context.Context, params *dto.LabelParams) (*vo.PageVo, error) {
-	return p.nodeService.ListNodeTags(ctx, params)
+func (p *NodeController) ListLabel(ctx context.Context, params *dto.LabelParams) (*vo.PageVo, error) {
+	return p.nodeService.ListLabel(ctx, params)
 }
 
 // Group node

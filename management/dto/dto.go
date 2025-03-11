@@ -61,7 +61,7 @@ type NodeGroupDto struct {
 	gorm.Model
 	Name        string `json:"name"`
 	Description string `json:"description"`
-	Owner       uint   `json:"ownerId"`
+	Owner       uint64 `json:"ownerId"`
 	IsPublic    bool   `json:"isPublic"`
 	CreatedBy   string `json:"createdBy"`
 	UpdatedBy   string `json:"updatedBy"`
@@ -127,7 +127,8 @@ type Condition struct {
 
 type TagDto struct {
 	gorm.Model
-	NodeID   uint64 `json:"node_id"`
-	Label    string `json:"label"`
-	Username string
+	Label     string `json:"label"`
+	OwnerId   uint64 `json:"ownerId"`
+	CreatedBy string `json:"createdBy"`
+	UpdatedBy string `json:"updatedBy"`
 }
