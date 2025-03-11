@@ -23,6 +23,10 @@ func (g *GroupController) ListGroupPolicies(ctx context.Context, params *dto.Gro
 	return g.groupService.ListGroupPolicy(ctx, params)
 }
 
+func (g *GroupController) DeleteGroupPolicy(ctx context.Context, groupId uint, policyId uint) error {
+	return g.groupService.DeleteGroupPolicy(ctx, groupId, policyId)
+}
+
 func (p *GroupController) GetNodeGroup(ctx context.Context, id string) (*vo.NodeGroupVo, error) {
 	return p.groupService.GetNodeGroup(ctx, id)
 }

@@ -66,10 +66,18 @@ type NodeGroupDto struct {
 	CreatedBy   string `json:"createdBy"`
 	UpdatedBy   string `json:"updatedBy"`
 
-	NodeArray   string   `json:"nodeArray"`
-	PolicyArray string   `json:"policyArray"`
-	Nodes       []string `json:"nodes"`
-	Policies    []string `json:"policies"`
+	GroupRelationDto
+	//Nodes    []string `json:"nodes"`
+	//Policies []string `json:"policies"`
+}
+
+type GroupRelationDto struct {
+	NodeIds      string `json:"nodeIds,omitempty"`
+	PolicyIds    string `json:"policyIds,omitempty"`
+	NodeIdList   []string
+	PolicyIdList []string
+	NodeNames    string `json:"nodeNames,omitempty"`
+	PolicyNames  string `json:"policyNames,omitempty"`
 }
 
 type GroupMemberDto struct {

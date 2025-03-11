@@ -4,6 +4,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"linkany/management/client"
 	"linkany/management/dto"
+	"strconv"
 	"strings"
 )
 
@@ -12,10 +13,11 @@ func (s *Server) RegisterGroupRoutes() {
 
 	// group policy
 	nodeGroup.GET("/policy/list", s.authCheck(), s.listGroupPolicies())
+	nodeGroup.DELETE("/:id/policy/:policyId", s.deleteGroupPolicy())
 
 	// node group
 	nodeGroup.GET("/:id", s.authCheck(), s.GetNodeGroup())
-	nodeGroup.POST("/", s.authCheck(), s.createGroup())
+	nodeGroup.POST("/a", s.authCheck(), s.createGroup())
 	nodeGroup.PUT("/u", s.authCheck(), s.updateGroup())
 	nodeGroup.DELETE("/", s.authCheck(), s.deleteGroup())
 	nodeGroup.GET("/list", s.authCheck(), s.listGroups())
@@ -39,6 +41,31 @@ func (s *Server) listGroupPolicies() gin.HandlerFunc {
 		}
 
 		WriteOK(c.JSON, policies)
+	}
+}
+
+func (s *Server) deleteGroupPolicy() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		groupId := c.Param("id")
+		gid, err := strconv.Atoi(groupId)
+		if err != nil {
+			WriteError(c.JSON, "invalid group id")
+			return
+		}
+		policyId := c.Param("policyId")
+		pid, err := strconv.Atoi(policyId)
+		if err != nil {
+			WriteError(c.JSON, "invalid policy id")
+			return
+		}
+
+		err = s.groupController.DeleteGroupPolicy(c, uint(gid), uint(pid))
+		if err != nil {
+			WriteError(c.JSON, err.Error())
+			return
+		}
+
+		WriteOK(c.JSON, nil)
 	}
 }
 
@@ -68,6 +95,15 @@ func (s *Server) createGroup() gin.HandlerFunc {
 		user, err := s.userController.Get(token)
 		nodeGroupDto.CreatedBy = user.Username
 		nodeGroupDto.Owner = uint64(user.ID)
+
+		//if nodeGroupDto.NodeIds != nil {
+		//	nodeGroupDto.Nodes = strings.Split(nodeGroupDto.NodeIds, ",")
+		//}
+
+		//if nodeGroupDto.PolicyIds != nil {
+		//	nodeGroupDto.Policies = strings.Split(nodeGroupDto.PolicyIds, ",")
+		//}
+
 		nodeGroup, err := s.groupController.CreateGroup(c, &nodeGroupDto)
 		if err != nil {
 			c.JSON(client.InternalServerError(err))
@@ -85,12 +121,12 @@ func (s *Server) updateGroup() gin.HandlerFunc {
 			return
 		}
 
-		if nodeGroupDto.NodeArray != "" {
-			nodeGroupDto.Nodes = strings.Split(nodeGroupDto.NodeArray, ",")
+		if nodeGroupDto.NodeIds != "" {
+			nodeGroupDto.NodeIdList = strings.Split(nodeGroupDto.NodeIds, ",")
 		}
 
-		if nodeGroupDto.PolicyArray != "" {
-			nodeGroupDto.Policies = strings.Split(nodeGroupDto.PolicyArray, ",")
+		if nodeGroupDto.PolicyIds != "" {
+			nodeGroupDto.PolicyIdList = strings.Split(nodeGroupDto.PolicyIds, ",")
 		}
 
 		err := s.groupController.UpdateGroup(c, &nodeGroupDto)

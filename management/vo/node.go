@@ -6,14 +6,23 @@ import (
 )
 
 type NodeGroupVo struct {
+	*GroupRelationVo
 	ID          uint           `json:"id"`
 	Name        string         `json:"name"`
+	NodeCount   int            `json:"nodeCount"`
 	Description string         `json:"description"`
 	CreatedAt   time.Time      `json:"createdAt"`
 	DeletedAt   gorm.DeletedAt `json:"deletedAt"`
 	UpdatedAt   time.Time      `json:"updatedAt"`
 	CreatedBy   string         `json:"createdBy"`
 	UpdatedBy   string         `json:"updatedBy"`
+}
+
+type GroupRelationVo struct {
+	NodeIds     []uint   `json:"nodeIds"`
+	PolicyIds   []uint   `json:"policyIds"`
+	NodeNames   []string `json:"nodeNames"`
+	PolicyNames []string `json:"policyNames"`
 }
 
 type NodeVo struct {
