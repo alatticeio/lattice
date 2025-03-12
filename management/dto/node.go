@@ -158,3 +158,41 @@ func (p *GroupNodeParams) Generate() []*KeyValue {
 
 	return result
 }
+
+type NodeLabelParams struct {
+	vo.PageModel
+	NodeId    uint64 `json:"nodeId"`
+	LabelId   uint64 `json:"labelId"`
+	LabelName string `json:"labelName"`
+	CreatedBy string `json:"createdBy"`
+}
+
+func (p *NodeLabelParams) Generate() []*KeyValue {
+	var result []*KeyValue
+
+	if p.NodeId != 0 {
+		result = append(result, newKeyValue("node_id", p.NodeId))
+	}
+
+	if p.LabelId != 0 {
+		result = append(result, newKeyValue("label_id", p.LabelId))
+	}
+
+	if p.LabelName != "" {
+		result = append(result, newKeyValue("label_name", p.LabelName))
+	}
+
+	if p.CreatedBy != "" {
+		result = append(result, newKeyValue("created_by", p.CreatedBy))
+	}
+
+	if p.Page == 0 {
+		p.Page = PageNo
+	}
+
+	if p.Size == 0 {
+		p.Size = PageSize
+	}
+
+	return result
+}

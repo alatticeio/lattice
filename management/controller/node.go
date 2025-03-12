@@ -95,3 +95,16 @@ func (p *NodeController) ListGroupNodes(ctx context.Context, params *dto.GroupNo
 func (p *NodeController) GetGroupNode(ctx context.Context, ID string) (*entity.GroupNode, error) {
 	return p.nodeService.GetGroupNode(ctx, ID)
 }
+
+// Node Label
+func (p *NodeController) AddNodeLabel(ctx context.Context, dto *dto.NodeLabelDto) error {
+	return p.nodeService.AddNodeLabel(ctx, dto)
+}
+
+func (p *NodeController) RemoveNodeLabel(ctx context.Context, ID string) error {
+	return p.nodeService.RemoveNodeLabel(ctx, ID)
+}
+
+func (p *NodeController) ListNodeLabels(ctx context.Context, params *dto.NodeLabelParams) (*vo.PageVo, error) {
+	return p.nodeService.ListNodeLabels(ctx, params)
+}

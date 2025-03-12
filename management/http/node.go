@@ -1,7 +1,6 @@
 package http
 
 import (
-	"fmt"
 	"github.com/gin-gonic/gin"
 	"linkany/management/client"
 	"linkany/management/dto"
@@ -22,7 +21,7 @@ func (s *Server) RegisterNodeRoutes() {
 	nodeGroup.PUT("/group/member/:id", s.authCheck(), s.UpdateGroupMember())
 	nodeGroup.GET("/group/member/list", s.authCheck(), s.listGroupMembers())
 
-	// Node Label
+	// Label
 	nodeGroup.POST("/label", s.authCheck(), s.createLabel())
 	nodeGroup.PUT("/label", s.authCheck(), s.updateLabel())
 	nodeGroup.DELETE("/label", s.authCheck(), s.deleteLabel())
@@ -34,6 +33,10 @@ func (s *Server) RegisterNodeRoutes() {
 	nodeGroup.GET("/group/node/:id", s.authCheck(), s.getGroupNode())
 	nodeGroup.GET("/group/node/list", s.authCheck(), s.listGroupNodes())
 
+	// node label
+	nodeGroup.POST("/label/node", s.authCheck(), s.addNodeLabel())
+	nodeGroup.DELETE("/label/node", s.authCheck(), s.removeNodeLabel())
+	nodeGroup.GET("/label/node/list", s.authCheck(), s.listNodeLabels())
 }
 
 func (s *Server) getNodeByAppId() gin.HandlerFunc {
@@ -295,7 +298,6 @@ func (s *Server) listGroupNodes() gin.HandlerFunc {
 			c.JSON(client.BadRequest(err))
 			return
 		}
-		fmt.Println("params", params.GroupName)
 		nodes, err := s.nodeController.ListGroupNodes(c, &params)
 		if err != nil {
 			c.JSON(client.InternalServerError(err))
@@ -314,5 +316,52 @@ func (s *Server) getGroupNode() gin.HandlerFunc {
 			return
 		}
 		WriteOK(c.JSON, member)
+	}
+}
+
+func (s *Server) addNodeLabel() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var nodeLabel dto.NodeLabelDto
+		if err := c.ShouldBindJSON(&nodeLabel); err != nil {
+			c.JSON(client.BadRequest(err))
+			return
+		}
+		token := c.GetHeader("Authorization")
+		user, err := s.userController.Get(token)
+		nodeLabel.CreatedBy = user.Username
+		err = s.nodeController.AddNodeLabel(c, &nodeLabel)
+		if err != nil {
+			WriteError(c.JSON, err.Error())
+			return
+		}
+		WriteOK(c.JSON, nil)
+	}
+}
+
+func (s *Server) removeNodeLabel() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		id := c.Query("id")
+		err := s.nodeController.RemoveNodeLabel(c, id)
+		if err != nil {
+			WriteError(c.JSON, err.Error())
+			return
+		}
+		WriteOK(c.JSON, nil)
+	}
+}
+
+func (s *Server) listNodeLabels() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var params dto.NodeLabelParams
+		if err := c.ShouldBindJSON(&params); err != nil {
+			c.JSON(client.BadRequest(err))
+			return
+		}
+		nodeLabels, err := s.nodeController.ListNodeLabels(c, &params)
+		if err != nil {
+			WriteBadRequest(c.JSON, err.Error())
+			return
+		}
+		WriteOK(c.JSON, nodeLabels)
 	}
 }

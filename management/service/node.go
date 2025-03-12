@@ -48,6 +48,11 @@ type NodeService interface {
 	RemoveGroupNode(ctx context.Context, id string) error
 	ListGroupNodes(ctx context.Context, params *dto.GroupNodeParams) (*vo.PageVo, error)
 	GetGroupNode(ctx context.Context, id string) (*entity.GroupNode, error)
+
+	//Node Label
+	AddNodeLabel(ctx context.Context, dto *dto.NodeLabelDto) error
+	RemoveNodeLabel(ctx context.Context, id string) error
+	ListNodeLabels(ctx context.Context, params *dto.NodeLabelParams) (*vo.PageVo, error)
 }
 
 var (
@@ -394,7 +399,6 @@ func (p *nodeServiceImpl) ListGroupNodes(ctx context.Context, params *dto.GroupN
 	var groupNodes []*entity.GroupNode
 
 	result := new(vo.PageVo)
-	fmt.Println(params)
 	sql, wrappers := utils.Generate(params)
 	db := p.DB
 	if sql != "" {
@@ -420,4 +424,61 @@ func (p *nodeServiceImpl) GetGroupNode(ctx context.Context, ID string) (*entity.
 		return nil, err
 	}
 	return &groupNode, nil
+}
+
+// Node Label
+func (p *nodeServiceImpl) AddNodeLabel(ctx context.Context, dto *dto.NodeLabelDto) error {
+	var count int64
+	if err := p.Model(&entity.Label{}).Where("id = ? and label = ?", dto.LabelID, dto.LabelName).Count(&count).Error; err != nil {
+		return err
+	}
+	if count == 0 {
+		return errors.New("invalid label")
+	}
+	if err := p.Model(&entity.NodeLabel{}).Where("label_id = ? and node_id = ?", dto.LabelID, dto.NodeID).Count(&count).Error; err != nil {
+		return err
+	}
+	if count != 0 {
+		return nil
+	}
+	nodeLabel := &entity.NodeLabel{
+		LabelId:   dto.LabelID,
+		LabelName: dto.LabelName,
+		NodeId:    dto.NodeID,
+		CreatedBy: dto.CreatedBy,
+	}
+	if err := p.Create(nodeLabel).Error; err != nil {
+		return err
+	}
+	return nil
+}
+
+func (p *nodeServiceImpl) RemoveNodeLabel(ctx context.Context, ID string) error {
+	if err := p.Where("id = ?", ID).Delete(&entity.NodeLabel{}).Error; err != nil {
+		return err
+	}
+	return nil
+}
+
+func (p *nodeServiceImpl) ListNodeLabels(ctx context.Context, params *dto.NodeLabelParams) (*vo.PageVo, error) {
+	var nodeLabels []*entity.NodeLabel
+
+	result := new(vo.PageVo)
+	sql, wrappers := utils.Generate(params)
+	db := p.DB
+	if sql != "" {
+		db = db.Where(sql, wrappers)
+	}
+
+	if err := db.Model(&entity.NodeLabel{}).Count(&result.Total).Error; err != nil {
+		return nil, err
+	}
+
+	p.logger.Verbosef("sql: %s, wrappers: %v", sql, wrappers)
+	if err := db.Model(&entity.NodeLabel{}).Order("created_at DESC").Offset((params.Page - 1) * params.Size).Limit(params.Size).Find(&nodeLabels).Error; err != nil {
+		return nil, err
+	}
+	result.Data = nodeLabels
+
+	return result, nil
 }

@@ -127,11 +127,11 @@ func (n *Label) TableName() string {
 
 type NodeLabel struct {
 	gorm.Model
-	NodeId        uint64
-	LabelId       uint64
-	CreatedBy     string
-	LastUpdatedBy string
-	LastUpdatedAt NullTime
+	NodeId    uint64
+	LabelId   uint64
+	LabelName string
+	CreatedBy string
+	UpdatedBy string
 }
 
 func (n *NodeLabel) TableName() string {

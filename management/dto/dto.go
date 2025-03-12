@@ -140,3 +140,12 @@ type TagDto struct {
 	CreatedBy string `json:"createdBy"`
 	UpdatedBy string `json:"updatedBy"`
 }
+
+type NodeLabelDto struct {
+	gorm.Model
+	LabelID   uint64 `json:"labelId"`
+	LabelName string `json:"labelName"`
+	NodeID    uint64 `json:"nodeId"`
+	CreatedBy string `json:"createdBy"`
+	UpdatedBy string `json:"updatedBy"`
+}
