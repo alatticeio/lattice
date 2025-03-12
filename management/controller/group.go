@@ -27,6 +27,10 @@ func (g *GroupController) DeleteGroupPolicy(ctx context.Context, groupId uint, p
 	return g.groupService.DeleteGroupPolicy(ctx, groupId, policyId)
 }
 
+func (g *GroupController) DeleteGroupNode(ctx context.Context, groupId uint, nodeId uint) error {
+	return g.groupService.DeleteGroupNode(ctx, groupId, nodeId)
+}
+
 func (p *GroupController) GetNodeGroup(ctx context.Context, id string) (*vo.NodeGroupVo, error) {
 	return p.groupService.GetNodeGroup(ctx, id)
 }

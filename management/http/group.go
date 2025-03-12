@@ -14,12 +14,13 @@ func (s *Server) RegisterGroupRoutes() {
 	// group policy
 	nodeGroup.GET("/policy/list", s.authCheck(), s.listGroupPolicies())
 	nodeGroup.DELETE("/:id/policy/:policyId", s.deleteGroupPolicy())
+	nodeGroup.DELETE("/:id/node/:nodeId", s.deleteGroupNode())
 
 	// node group
 	nodeGroup.GET("/:id", s.authCheck(), s.GetNodeGroup())
 	nodeGroup.POST("/a", s.authCheck(), s.createGroup())
 	nodeGroup.PUT("/u", s.authCheck(), s.updateGroup())
-	nodeGroup.DELETE("/", s.authCheck(), s.deleteGroup())
+	nodeGroup.DELETE("/:id", s.authCheck(), s.deleteGroup())
 	nodeGroup.GET("/list", s.authCheck(), s.listGroups())
 }
 
@@ -69,6 +70,31 @@ func (s *Server) deleteGroupPolicy() gin.HandlerFunc {
 	}
 }
 
+func (s *Server) deleteGroupNode() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		groupId := c.Param("id")
+		gid, err := strconv.Atoi(groupId)
+		if err != nil {
+			WriteError(c.JSON, "invalid group id")
+			return
+		}
+		nodeId := c.Param("nodeId")
+		pid, err := strconv.Atoi(nodeId)
+		if err != nil {
+			WriteError(c.JSON, "invalid nodeId id")
+			return
+		}
+
+		err = s.groupController.DeleteGroupNode(c, uint(gid), uint(pid))
+		if err != nil {
+			WriteError(c.JSON, err.Error())
+			return
+		}
+
+		WriteOK(c.JSON, nil)
+	}
+}
+
 // group handler
 func (s *Server) GetNodeGroup() gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -96,13 +122,13 @@ func (s *Server) createGroup() gin.HandlerFunc {
 		nodeGroupDto.CreatedBy = user.Username
 		nodeGroupDto.Owner = uint64(user.ID)
 
-		//if nodeGroupDto.NodeIds != nil {
-		//	nodeGroupDto.Nodes = strings.Split(nodeGroupDto.NodeIds, ",")
-		//}
+		if nodeGroupDto.NodeIds != "" {
+			nodeGroupDto.NodeIdList = strings.Split(nodeGroupDto.NodeIds, ",")
+		}
 
-		//if nodeGroupDto.PolicyIds != nil {
-		//	nodeGroupDto.Policies = strings.Split(nodeGroupDto.PolicyIds, ",")
-		//}
+		if nodeGroupDto.PolicyIds != "" {
+			nodeGroupDto.PolicyIdList = strings.Split(nodeGroupDto.PolicyIds, ",")
+		}
 
 		nodeGroup, err := s.groupController.CreateGroup(c, &nodeGroupDto)
 		if err != nil {
@@ -140,13 +166,13 @@ func (s *Server) updateGroup() gin.HandlerFunc {
 
 func (s *Server) deleteGroup() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		id := c.Query("id")
+		id := c.Param("id")
 		err := s.groupController.DeleteGroup(c, id)
 		if err != nil {
-			c.JSON(client.InternalServerError(err))
+			WriteError(c.JSON, err.Error())
 			return
 		}
-		c.JSON(client.Success(nil))
+		WriteOK(c.JSON, nil)
 	}
 }
 

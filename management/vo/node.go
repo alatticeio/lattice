@@ -19,8 +19,8 @@ type NodeGroupVo struct {
 }
 
 type GroupRelationVo struct {
-	NodeIds     []uint   `json:"nodeIds"`
-	PolicyIds   []uint   `json:"policyIds"`
+	NodeIds     []string `json:"nodeIds"`
+	PolicyIds   []string `json:"policyIds"`
 	NodeNames   []string `json:"nodeNames"`
 	PolicyNames []string `json:"policyNames"`
 }

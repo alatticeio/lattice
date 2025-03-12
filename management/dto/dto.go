@@ -72,12 +72,12 @@ type NodeGroupDto struct {
 }
 
 type GroupRelationDto struct {
-	NodeIds      string `json:"nodeIds,omitempty"`
-	PolicyIds    string `json:"policyIds,omitempty"`
-	NodeIdList   []string
-	PolicyIdList []string
-	NodeNames    string `json:"nodeNames,omitempty"`
-	PolicyNames  string `json:"policyNames,omitempty"`
+	NodeIds        string `json:"nodeIds,omitempty"`
+	PolicyIds      string `json:"policyIds,omitempty"`
+	NodeIdList     []string
+	PolicyIdList   []string
+	NodeNameList   []string
+	PolicyNameList []string
 }
 
 type GroupMemberDto struct {

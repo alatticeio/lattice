@@ -22,6 +22,8 @@ type NodeService interface {
 	// GetByAppId returns a peer by appId, every client has its own appId
 	GetByAppId(appId, userid string) (*entity.Node, int64, error)
 
+	GetById(id uint) (*entity.Node, error)
+
 	GetNetworkMap(appId, userId string) (*vo.NetworkMap, error)
 
 	// List returns a list of peers by userId，when client start up, it will call this method to get all the peers once
@@ -136,6 +138,16 @@ func (p *nodeServiceImpl) GetByAppId(appId, userId string) (*entity.Node, int64,
 	}
 
 	return &peer, count, nil
+}
+
+func (p *nodeServiceImpl) GetById(id uint) (*entity.Node, error) {
+	var (
+		node entity.Node
+		err  error
+	)
+
+	err = p.Model(&entity.Node{}).Where("id = ?", id).Find(&node).Error
+	return &node, err
 }
 
 // List params will filter
