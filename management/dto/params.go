@@ -1,6 +1,7 @@
 package dto
 
 import (
+	"linkany/management/utils"
 	"linkany/management/vo"
 )
 
@@ -13,23 +14,51 @@ type QueryParams struct {
 	Status  *int
 }
 
-func (qp *QueryParams) Generate() []*KeyValue {
-	var result []*KeyValue
+func (qp *QueryParams) Generate() []*utils.KeyValue {
+	var result []*utils.KeyValue
 
 	if qp.Name != nil {
-		result = append(result, newKeyValue("name", *qp.Name))
+		result = append(result, utils.NewKeyValue("name", *qp.Name))
 	}
 
 	if qp.PubKey != nil {
-		result = append(result, newKeyValue("pub_key", *qp.PubKey))
+		result = append(result, utils.NewKeyValue("pub_key", *qp.PubKey))
 	}
 
 	if qp.UserId != nil {
-		result = append(result, newKeyValue("user_id", *qp.UserId))
+		result = append(result, utils.NewKeyValue("user_id", *qp.UserId))
 	}
 
 	if qp.Status != nil {
-		result = append(result, newKeyValue("status", *qp.Status))
+		result = append(result, utils.NewKeyValue("status", *qp.Status))
+	}
+
+	return result
+}
+
+type PermissionParams struct {
+	vo.PageModel
+	Name           string `json:"name" form:"name"`
+	PermissionType string `json:"permissionType" form:"permissionType"`
+}
+
+func (p *PermissionParams) Generate() []*utils.KeyValue {
+	var result []*utils.KeyValue
+
+	if p.Name != "" {
+		result = append(result, utils.NewKeyValue("name", p.Name))
+	}
+
+	if p.PermissionType != "" {
+		result = append(result, utils.NewKeyValue("permission_type", p.PermissionType))
+	}
+
+	if p.Page == 0 {
+		p.Page = utils.PageNo
+	}
+
+	if p.Size == 0 {
+		p.Size = utils.PageSize
 	}
 
 	return result

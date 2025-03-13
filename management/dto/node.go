@@ -1,6 +1,9 @@
 package dto
 
-import "linkany/management/vo"
+import (
+	"linkany/management/utils"
+	"linkany/management/vo"
+)
 
 type LabelParams struct {
 	vo.PageModel
@@ -8,27 +11,27 @@ type LabelParams struct {
 	UpdatedBy string
 }
 
-func (l *LabelParams) Generate() []*KeyValue {
-	var result []*KeyValue
+func (l *LabelParams) Generate() []*utils.KeyValue {
+	var result []*utils.KeyValue
 
 	if l.CreatedBy != "" {
-		result = append(result, newKeyValue("created_by", l.CreatedBy))
+		result = append(result, utils.NewKeyValue("created_by", l.CreatedBy))
 	}
 
 	if l.UpdatedBy != "" {
-		result = append(result, newKeyValue("updated_by", l.UpdatedBy))
+		result = append(result, utils.NewKeyValue("updated_by", l.UpdatedBy))
 	}
 
 	if l.Page == 0 {
-		l.Page = PageNo
+		l.Page = utils.PageNo
 	}
 
 	if l.Size == 0 {
-		l.Size = PageSize
+		l.Size = utils.PageSize
 	}
 
 	if l.Current == 0 {
-		l.Current = PageNo
+		l.Current = utils.PageNo
 	}
 
 	return result
@@ -42,31 +45,31 @@ type GroupParams struct {
 	IsPublic    *bool
 }
 
-func (p *GroupParams) Generate() []*KeyValue {
-	var result []*KeyValue
+func (p *GroupParams) Generate() []*utils.KeyValue {
+	var result []*utils.KeyValue
 
 	if p.Name != "" {
-		result = append(result, newKeyValue("name", p.Name))
+		result = append(result, utils.NewKeyValue("name", p.Name))
 	}
 
 	if p.Description != "" {
-		result = append(result, newKeyValue("description", p.Description))
+		result = append(result, utils.NewKeyValue("description", p.Description))
 	}
 
 	if p.OwnerID != 0 {
-		result = append(result, newKeyValue("owner_id", p.OwnerID))
+		result = append(result, utils.NewKeyValue("owner_id", p.OwnerID))
 	}
 
 	if p.IsPublic != nil {
-		result = append(result, newKeyValue("is_public", p.IsPublic))
+		result = append(result, utils.NewKeyValue("is_public", p.IsPublic))
 	}
 
 	if p.Page == 0 {
-		p.Page = PageNo
+		p.Page = utils.PageNo
 	}
 
 	if p.Size == 0 {
-		p.Size = PageSize
+		p.Size = utils.PageSize
 	}
 
 	return result
@@ -82,39 +85,39 @@ type GroupMemberParams struct {
 	Username  string `json:"username"`
 }
 
-func (p *GroupMemberParams) Generate() []*KeyValue {
-	var result []*KeyValue
+func (p *GroupMemberParams) Generate() []*utils.KeyValue {
+	var result []*utils.KeyValue
 
 	if p.GroupID != 0 {
-		result = append(result, newKeyValue("group_id", p.GroupID))
+		result = append(result, utils.NewKeyValue("group_id", p.GroupID))
 	}
 
 	if p.UserID != 0 {
-		result = append(result, newKeyValue("user_id", p.UserID))
+		result = append(result, utils.NewKeyValue("user_id", p.UserID))
 	}
 
 	if p.GroupName != "" {
-		result = append(result, newKeyValue("group_name", p.GroupName))
+		result = append(result, utils.NewKeyValue("group_name", p.GroupName))
 	}
 
 	if p.Username != "" {
-		result = append(result, newKeyValue("username", p.Username))
+		result = append(result, utils.NewKeyValue("username", p.Username))
 	}
 
 	if p.Role != "" {
-		result = append(result, newKeyValue("role", p.Role))
+		result = append(result, utils.NewKeyValue("role", p.Role))
 	}
 
 	if p.Status != "" {
-		result = append(result, newKeyValue("status", p.Status))
+		result = append(result, utils.NewKeyValue("status", p.Status))
 	}
 
 	if p.Page == 0 {
-		p.Page = PageNo
+		p.Page = utils.PageNo
 	}
 
 	if p.Size == 0 {
-		p.Size = PageSize
+		p.Size = utils.PageSize
 	}
 
 	return result
@@ -129,31 +132,31 @@ type GroupNodeParams struct {
 	CreatedBy string `json:"createdBy"`
 }
 
-func (p *GroupNodeParams) Generate() []*KeyValue {
-	var result []*KeyValue
+func (p *GroupNodeParams) Generate() []*utils.KeyValue {
+	var result []*utils.KeyValue
 
 	if p.GroupID != 0 {
-		result = append(result, newKeyValue("group_id", p.GroupID))
+		result = append(result, utils.NewKeyValue("group_id", p.GroupID))
 	}
 
 	if p.GroupName != "" {
-		result = append(result, newKeyValue("group_name", p.GroupName))
+		result = append(result, utils.NewKeyValue("group_name", p.GroupName))
 	}
 
 	if p.NodeId != 0 {
-		result = append(result, newKeyValue("node_id", p.NodeId))
+		result = append(result, utils.NewKeyValue("node_id", p.NodeId))
 	}
 
 	if p.CreatedBy != "" {
-		result = append(result, newKeyValue("created_by", p.CreatedBy))
+		result = append(result, utils.NewKeyValue("created_by", p.CreatedBy))
 	}
 
 	if p.Page == 0 {
-		p.Page = PageNo
+		p.Page = utils.PageNo
 	}
 
 	if p.Size == 0 {
-		p.Size = PageSize
+		p.Size = utils.PageSize
 	}
 
 	return result
@@ -167,31 +170,31 @@ type NodeLabelParams struct {
 	CreatedBy string `json:"createdBy"`
 }
 
-func (p *NodeLabelParams) Generate() []*KeyValue {
-	var result []*KeyValue
+func (p *NodeLabelParams) Generate() []*utils.KeyValue {
+	var result []*utils.KeyValue
 
 	if p.NodeId != 0 {
-		result = append(result, newKeyValue("node_id", p.NodeId))
+		result = append(result, utils.NewKeyValue("node_id", p.NodeId))
 	}
 
 	if p.LabelId != 0 {
-		result = append(result, newKeyValue("label_id", p.LabelId))
+		result = append(result, utils.NewKeyValue("label_id", p.LabelId))
 	}
 
 	if p.LabelName != "" {
-		result = append(result, newKeyValue("label_name", p.LabelName))
+		result = append(result, utils.NewKeyValue("label_name", p.LabelName))
 	}
 
 	if p.CreatedBy != "" {
-		result = append(result, newKeyValue("created_by", p.CreatedBy))
+		result = append(result, utils.NewKeyValue("created_by", p.CreatedBy))
 	}
 
 	if p.Page == 0 {
-		p.Page = PageNo
+		p.Page = utils.PageNo
 	}
 
 	if p.Size == 0 {
-		p.Size = PageSize
+		p.Size = utils.PageSize
 	}
 
 	return result

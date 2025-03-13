@@ -77,3 +77,7 @@ func (a *AccessController) ListPolicies(ctx context.Context, params *dto.AccessP
 func (a *AccessController) GetPolicy(ctx context.Context, policyID uint) (*entity.AccessPolicy, error) {
 	return a.accessService.GetPolicy(ctx, policyID)
 }
+
+func (a *AccessController) ListPermissions(ctx context.Context, params *dto.PermissionParams) (*vo.PageVo, error) {
+	return a.accessService.ListPermissions(ctx, params)
+}

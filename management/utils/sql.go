@@ -2,12 +2,11 @@ package utils
 
 import (
 	"fmt"
-	"linkany/management/dto"
 	"strings"
 )
 
 // Generate will generate dynamic sql
-func Generate(params dto.ParamBuilder) (string, []interface{}) {
+func Generate(params ParamBuilder) (string, []interface{}) {
 	var sb strings.Builder
 	var wrappers []interface{}
 	filters := params.Generate()
@@ -24,7 +23,7 @@ func Generate(params dto.ParamBuilder) (string, []interface{}) {
 }
 
 // GenerateSql  used for tom-select
-func GenerateSql(params dto.ParamBuilder) (string, []interface{}) {
+func GenerateSql(params ParamBuilder) (string, []interface{}) {
 	var sb strings.Builder
 	var wrappers []interface{}
 	filters := params.Generate()

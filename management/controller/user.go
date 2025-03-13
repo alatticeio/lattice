@@ -36,11 +36,15 @@ func (u *UserController) Invite(dto *dto.InviteDto) error {
 	return u.userService.Invite(dto)
 }
 
+func (u *UserController) DeleteInvite(id string) error {
+	return u.userService.DeleteInvite(id)
+}
+
 func (u *UserController) GetInvitation(userId, email string) (*entity.Invitation, error) {
 	return u.userService.GetInvitation(userId, email)
 }
 
-func (u *UserController) UpdateInvitation(dto *dto.InviteDto) error {
+func (u *UserController) UpdateInvitation(dto *dto.InvitationDto) error {
 	return u.userService.UpdateInvitation(dto)
 }
 
@@ -57,7 +61,7 @@ func (u *UserController) Permit(userID uint, resource string, accessLevel string
 	return u.userService.Permit(userID, resource, accessLevel)
 }
 
-func (u *UserController) GetPermit(userID string, resource string) (*entity.Permission, error) {
+func (u *UserController) GetPermit(userID string, resource string) (*entity.UserPermission, error) {
 	return u.userService.GetPermit(userID, resource)
 }
 
@@ -65,6 +69,6 @@ func (u *UserController) RevokePermit(userID string, resource string) error {
 	return u.userService.RevokePermit(userID, resource)
 }
 
-func (u *UserController) ListPermits(userID string) ([]*entity.Permission, error) {
+func (u *UserController) ListPermits(userID string) ([]*entity.UserPermission, error) {
 	return u.userService.ListPermits(userID)
 }

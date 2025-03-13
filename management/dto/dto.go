@@ -46,15 +46,31 @@ type SupportDto struct {
 }
 
 type InviteDto struct {
-	Username       string
-	InviteUsername string
-	InvitationId   int64
-	InviterId      int64
-	MobilePhone    string
-	Email          string
-	Permissions    string
-	Group          string
-	Network        string // 192.168.0.0/24
+	Username         string
+	InviteUsername   string
+	InvitationId     int64
+	InviterId        int64
+	MobilePhone      string
+	Email            string
+	Permissions      string
+	GroupIds         string `json:"groupIds"`
+	NodeIds          string `json:"nodeIds"`
+	PolicyIds        string `json:"policyIds"`
+	LabelIds         string `json:"labelIds"`
+	PermissionIds    string `json:"permissionIds"`
+	GroupIdList      []string
+	NodeIdList       []string
+	PolicyIdList     []string
+	LabelIdList      []string
+	PermissionIdList []string
+	Network          string // 192.168.0.0/24
+}
+
+type InvitationDto struct {
+	gorm.Model
+	AcceptStatus entity.AcceptStatus
+	Permissions  string
+	RoleId       uint
 }
 
 type NodeGroupDto struct {

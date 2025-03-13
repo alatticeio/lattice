@@ -35,6 +35,9 @@ type AccessPolicyService interface {
 
 	// Audit log
 	GetAccessLogs(ctx context.Context, filter AccessLogFilter) ([]entity.AccessLog, error)
+
+	// Permissions
+	ListPermissions(ctx context.Context, params *dto.PermissionParams) (*vo.PageVo, error)
 }
 
 // 访问请求结构
@@ -237,6 +240,39 @@ func (a accessPolicyServiceImpl) BatchCheckAccess(ctx context.Context, requests 
 func (a accessPolicyServiceImpl) GetAccessLogs(ctx context.Context, filter AccessLogFilter) ([]entity.AccessLog, error) {
 	//TODO implement me
 	panic("implement me")
+}
+
+func (a accessPolicyServiceImpl) ListPermissions(ctx context.Context, params *dto.PermissionParams) (*vo.PageVo, error) {
+	sql, wrappers := utils.GenerateSql(params)
+	var permissions []entity.Permissions
+	var result = new(vo.PageVo)
+	db := a.DB
+	if sql != "" {
+		db = db.Model(&entity.Permissions{}).Where(sql, wrappers)
+	}
+
+	if err := db.Model(&entity.Permissions{}).Count(&result.Total).Error; err != nil {
+		return nil, err
+	}
+
+	if err := db.Model(&entity.Permissions{}).Offset((params.Page - 1) * params.Size).Limit(params.Size).Find(&permissions).Error; err != nil {
+		return nil, err
+	}
+
+	var vos []vo.PermissionVo
+	for _, permission := range permissions {
+		vos = append(vos, vo.PermissionVo{
+			ID:          permission.ID,
+			Name:        permission.Name,
+			Description: permission.Description,
+		})
+	}
+
+	result.Data = vos
+	result.Current = params.Page
+	result.Page = params.Page
+	result.Size = params.Size
+	return result, nil
 }
 
 func NewAccessPolicyService(db *DatabaseService) AccessPolicyService {

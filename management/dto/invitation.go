@@ -1,6 +1,9 @@
 package dto
 
-import "linkany/management/vo"
+import (
+	"linkany/management/utils"
+	"linkany/management/vo"
+)
 
 type InvitationParams struct {
 	vo.PageModel
@@ -8,7 +11,7 @@ type InvitationParams struct {
 	Email       *string
 	MobilePhone *string
 	Type        *InviteType
-	Status      *AcceptType
+	Status      *utils.AcceptType
 }
 
 type InviteType string
@@ -18,27 +21,27 @@ var (
 	INVITED InviteType = "invited" // other invite to
 )
 
-func (p *InvitationParams) Generate() []*KeyValue {
-	var result []*KeyValue
+func (p *InvitationParams) Generate() []*utils.KeyValue {
+	var result []*utils.KeyValue
 
 	if p.UserId != nil {
-		result = append(result, newKeyValue("user_id", p.UserId))
+		result = append(result, utils.NewKeyValue("user_id", p.UserId))
 	}
 
 	if p.Type != nil {
-		result = append(result, newKeyValue("Type", p.Type))
+		result = append(result, utils.NewKeyValue("Type", p.Type))
 	}
 
 	if p.Status != nil {
-		result = append(result, newKeyValue("status", p.Status))
+		result = append(result, utils.NewKeyValue("status", p.Status))
 	}
 
 	if p.Page == 0 {
-		p.Page = PageNo
+		p.Page = utils.PageNo
 	}
 
 	if p.Size == 0 {
-		p.Size = PageSize
+		p.Size = utils.PageSize
 	}
 
 	return result

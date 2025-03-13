@@ -23,6 +23,9 @@ func (s *Server) RegisterAccessRoutes() {
 	routes.DELETE("/rule/:ruleID", s.authCheck(), s.deleteAccessRule())
 	// policy rule
 	routes.GET("/policy/rules", s.authCheck(), s.listAccessRules())
+
+	//permissions
+	routes.GET("/permissions", s.authCheck(), s.listPermissions())
 }
 
 func (s *Server) createAccessPolicy() gin.HandlerFunc {
@@ -206,5 +209,24 @@ func (s *Server) getRule() gin.HandlerFunc {
 			return
 		}
 		WriteOK(c.JSON, rule)
+	}
+}
+
+func (s *Server) listPermissions() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var (
+			params dto.PermissionParams
+			err    error
+		)
+		if err = c.ShouldBindQuery(&params); err != nil {
+			WriteError(c.JSON, err.Error())
+			return
+		}
+		permissions, err := s.accessController.ListPermissions(c, &params)
+		if err != nil {
+			c.JSON(client.InternalServerError(err))
+			return
+		}
+		WriteOK(c.JSON, permissions)
 	}
 }

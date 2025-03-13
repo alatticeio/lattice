@@ -2,7 +2,7 @@ package rbac
 
 const (
 	// 分组权限
-	PermCreateGroup = "group:create"
+	//PermCreateGroup = "group:create"
 	PermDeleteGroup = "group:delete"
 	PermUpdateGroup = "group:update"
 	PermViewGroup   = "group:view"
@@ -34,17 +34,17 @@ const (
 
 // 角色权限映射
 var RolePermissions = map[string][]string{
-	"owner": {
-		PermCreateGroup, PermDeleteGroup, PermUpdateGroup, PermViewGroup,
+	"admin": {
+		PermDeleteGroup, PermUpdateGroup, PermViewGroup,
 		PermAddNode, PermRemoveNode, PermUpdateNode, PermConnectNode, PermAddPolicy,
 		PermRemovePolicy, PermUpdatePolicy, PermManageMembers, PermViewMembers,
 	},
-	"admin": {
+	"member": {
 		PermUpdateGroup, PermViewGroup,
 		PermAddNode, PermRemoveNode, PermUpdateNode, PermConnectNode, PermAddPolicy, PermRemovePolicy,
 		PermUpdatePolicy, PermManageMembers, PermViewMembers,
 	},
-	"member": {
+	"guest": {
 		PermViewGroup,
 		PermConnectNode,
 		PermViewMembers,

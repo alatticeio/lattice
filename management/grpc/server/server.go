@@ -413,7 +413,7 @@ func (s *Server) sendWatchMessage(eventType mgt.EventType, current *vo.NodeVo, p
 		}
 		wc := manager.Get(peer.PublicKey)
 		s.logger.Verbosef("fetch actual channel %v for peer: %v, current peer pubKey: %v", wc, peer.PublicKey, current.PublicKey)
-		message := utils.NewWatchMessage(eventType, []*vo.NodeVo{current})
+		message := NewWatchMessage(eventType, []*vo.NodeVo{current})
 		// add to channel, will send to client
 		if wc != nil {
 			wc <- message
@@ -425,6 +425,18 @@ func (s *Server) sendWatchMessage(eventType mgt.EventType, current *vo.NodeVo, p
 	s.logger.Verbosef("update peer status ,publicKey: %v, status: %v", pubKey, status)
 	_, err = s.peerController.Update(dtoParam)
 	return err
+}
+
+// NewWatchMessage creates a new WatchMessage, when a peer is added, updated or deleted
+func NewWatchMessage(eventType mgt.EventType, peers []*vo.NodeVo) *mgt.WatchMessage {
+	body, err := json.Marshal(peers)
+	if err != nil {
+		return nil
+	}
+	return &mgt.WatchMessage{
+		Type: eventType,
+		Body: body,
+	}
 }
 
 func (s *Server) Start() error {

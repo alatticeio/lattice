@@ -3,6 +3,7 @@ package http
 import (
 	"github.com/gin-gonic/gin"
 	"linkany/management/dto"
+	"strings"
 )
 
 func (s *Server) RegisterUserRoutes() {
@@ -13,12 +14,15 @@ func (s *Server) RegisterUserRoutes() {
 	userGroup.GET("/info", s.authCheck(), s.getUserInfo())
 
 	// user invite
-	userGroup.POST("/invite", s.authCheck(), s.invite())
-	userGroup.PUT("/invite/update", s.authCheck(), s.updateInvitation())
-	userGroup.GET("/invite", s.authCheck(), s.getInvitation())
-	userGroup.GET("/invitation/list", s.authCheck(), s.listInvitations())
+	userGroup.POST("/invite/a", s.authCheck(), s.invite())
+	userGroup.DELETE("/invite/d/:id", s.authCheck(), s.deleteInvite())
+	userGroup.PUT("/invite/u", s.authCheck(), s.updateInvitation())
+	userGroup.GET("/invite/g", s.authCheck(), s.getInvitation())
 	userGroup.GET("/invite/list", s.authCheck(), s.listInvites())
 
+	// user invitation
+	userGroup.GET("/invitation/list", s.authCheck(), s.listInvitations())
+	userGroup.PUT("/invitation/u", s.authCheck(), s.updateInvitation())
 }
 
 func (s *Server) getUserInfo() gin.HandlerFunc {
@@ -36,7 +40,6 @@ func (s *Server) getUserInfo() gin.HandlerFunc {
 // user invite
 func (s *Server) invite() gin.HandlerFunc {
 	return func(c *gin.Context) {
-
 		var req dto.InviteDto
 
 		// 解析JSON请求体
@@ -48,7 +51,39 @@ func (s *Server) invite() gin.HandlerFunc {
 		username := c.GetString("username")
 		req.Username = username
 
+		if req.GroupIds != "" {
+			req.GroupIdList = strings.Split(req.GroupIds, ",")
+		}
+
+		if req.NodeIds != "" {
+			req.NodeIdList = strings.Split(req.NodeIds, ",")
+		}
+
+		if req.PolicyIds != "" {
+			req.PolicyIdList = strings.Split(req.PolicyIds, ",")
+		}
+
+		if req.LabelIds != "" {
+			req.LabelIdList = strings.Split(req.LabelIds, ",")
+		}
+
+		if req.PermissionIds != "" {
+			req.PermissionIdList = strings.Split(req.PermissionIds, ",")
+		}
+
 		if err := s.userController.Invite(&req); err != nil {
+			WriteError(c.JSON, err.Error())
+			return
+		}
+		WriteOK(c.JSON, nil)
+	}
+}
+
+// delete invite
+func (s *Server) deleteInvite() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		id := c.Param("id")
+		if err := s.userController.DeleteInvite(id); err != nil {
 			WriteError(c.JSON, err.Error())
 			return
 		}
@@ -73,7 +108,7 @@ func (s *Server) getInvitation() gin.HandlerFunc {
 // update invitation
 func (s *Server) updateInvitation() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		var dto dto.InviteDto
+		var dto dto.InvitationDto
 		if err := c.ShouldBindJSON(&dto); err != nil {
 			c.JSON(400, gin.H{"error": "Invalid email address or missing field"})
 			return

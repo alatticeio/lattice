@@ -1,6 +1,9 @@
 package dto
 
-import "linkany/management/vo"
+import (
+	"linkany/management/utils"
+	"linkany/management/vo"
+)
 
 type AccessPolicyParams struct {
 	*vo.PageModel
@@ -20,69 +23,69 @@ type AccessPolicyRuleParams struct {
 	TargetType string `json:"targetType" form:"targetType"`
 }
 
-func (p *AccessPolicyParams) Generate() []*KeyValue {
-	var result []*KeyValue
+func (p *AccessPolicyParams) Generate() []*utils.KeyValue {
+	var result []*utils.KeyValue
 
 	if p.Name != "" {
-		result = append(result, newKeyValue("name", p.Name))
+		result = append(result, utils.NewKeyValue("name", p.Name))
 	}
 
 	if p.GroupId != 0 {
-		result = append(result, newKeyValue("group_id", p.GroupId))
+		result = append(result, utils.NewKeyValue("group_id", p.GroupId))
 	}
 
 	if p.Effect != "" {
-		result = append(result, newKeyValue("effect", p.Effect))
+		result = append(result, utils.NewKeyValue("effect", p.Effect))
 	}
 
 	if p.CreatedBy != "" {
-		result = append(result, newKeyValue("created_by", p.CreatedBy))
+		result = append(result, utils.NewKeyValue("created_by", p.CreatedBy))
 	}
 
 	if p.UpdatedBy != "" {
-		result = append(result, newKeyValue("updated_by", p.UpdatedBy))
+		result = append(result, utils.NewKeyValue("updated_by", p.UpdatedBy))
 	}
 
 	if p.Page == 0 {
-		p.Page = PageNo
+		p.Page = utils.PageNo
 	}
 
 	if p.Size == 0 {
-		p.Size = PageSize
+		p.Size = utils.PageSize
 	}
 
 	return result
 }
 
-func (p *AccessPolicyRuleParams) Generate() []*KeyValue {
-	var result []*KeyValue
+func (p *AccessPolicyRuleParams) Generate() []*utils.KeyValue {
+	var result []*utils.KeyValue
 
 	if p.PolicyId != 0 {
-		result = append(result, newKeyValue("policy_id", p.PolicyId))
+		result = append(result, utils.NewKeyValue("policy_id", p.PolicyId))
 	}
 
 	if p.SourceId != "" {
-		result = append(result, newKeyValue("source_id", p.SourceId))
+		result = append(result, utils.NewKeyValue("source_id", p.SourceId))
 	}
 
 	if p.TargetId != "" {
-		result = append(result, newKeyValue("target_id", p.TargetId))
+		result = append(result, utils.NewKeyValue("target_id", p.TargetId))
 	}
 
 	if p.SourceType != "" {
-		result = append(result, newKeyValue("source_type", p.SourceType))
+		result = append(result, utils.NewKeyValue("source_type", p.SourceType))
 	}
 
 	if p.TargetType != "" {
-		result = append(result, newKeyValue("target_type", p.TargetType))
+		result = append(result, utils.NewKeyValue("target_type", p.TargetType))
 	}
 
 	if p.Page == 0 {
-		p.Page = PageNo
+		p.Page = utils.PageNo
 	}
 
 	if p.Size == 0 {
-		p.Size = PageSize
+		p.Size = utils.PageSize
 	}
 
 	return result

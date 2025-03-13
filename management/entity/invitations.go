@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-// invtes invite others
+// Invites invites invite others
 type Invites struct {
 	gorm.Model
 	InvitationId int64 // invitation user id
@@ -25,10 +25,10 @@ type Invites struct {
 // Invitation user invite other join its network
 type Invitation struct {
 	gorm.Model
-	InvitationId int64 // invitation user id
-	InviterId    int64 // inviter user id
+	InvitationId uint // invitation user id
+	InviteeId    uint // inviter user id
 	AcceptStatus AcceptStatus
-	GroupId      uint64
+	InviteId     uint //releate to Invite table
 	Group        string
 	Role         string
 	Permissions  string

@@ -1,10 +1,8 @@
 package utils
 
 import (
-	"encoding/json"
 	"fmt"
 	"linkany/management/grpc/mgt"
-	"linkany/management/vo"
 	"linkany/pkg/log"
 	"sync"
 )
@@ -12,18 +10,6 @@ import (
 var lock sync.Mutex
 var once sync.Once
 var manager *WatchManager
-
-// NewWatchMessage creates a new WatchMessage, when a peer is added, updated or deleted
-func NewWatchMessage(eventType mgt.EventType, peers []*vo.NodeVo) *mgt.WatchMessage {
-	body, err := json.Marshal(peers)
-	if err != nil {
-		return nil
-	}
-	return &mgt.WatchMessage{
-		Type: eventType,
-		Body: body,
-	}
-}
 
 type WatchManager struct {
 	lock   sync.Mutex

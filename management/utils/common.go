@@ -1,4 +1,4 @@
-package dto
+package utils
 
 const (
 	// PageNo default page number
@@ -19,7 +19,7 @@ type KeyValue struct {
 	Value interface{}
 }
 
-func newKeyValue(k string, v interface{}) *KeyValue {
+func NewKeyValue(k string, v interface{}) *KeyValue {
 	return &KeyValue{
 		Key:   k,
 		Value: v,
