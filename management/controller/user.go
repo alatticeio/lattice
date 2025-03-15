@@ -40,6 +40,14 @@ func (u *UserController) DeleteInvite(id string) error {
 	return u.userService.DeleteInvite(id)
 }
 
+func (u *UserController) RejectInvitation(id string) error {
+	return u.userService.RejectInvitation(id)
+}
+
+func (u *UserController) AcceptInvitation(id string) error {
+	return u.userService.AcceptInvitation(id)
+}
+
 func (u *UserController) GetInvitation(userId, email string) (*entity.Invitation, error) {
 	return u.userService.GetInvitation(userId, email)
 }

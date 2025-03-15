@@ -1,8 +1,9 @@
 package entity
 
 import (
-	"gorm.io/gorm"
 	"linkany/management/utils"
+
+	"gorm.io/gorm"
 )
 
 type User struct {
@@ -32,9 +33,11 @@ type UserResourceGrantedPermission struct {
 	InvitedId     uint               // 分配的用户
 	OwnerId       uint               // 资源所有者
 	ResourceType  utils.ResourceType //资源类型
-	ResourceId    string             //资源id
+	ResourceId    uint               //资源id
 	Permission    string             //group:add
 	PermissionIds string             //group:add
+
+	AcceptStatus AcceptStatus
 }
 
 func (UserResourceGrantedPermission) TableName() string {

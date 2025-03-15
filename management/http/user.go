@@ -1,9 +1,10 @@
 package http
 
 import (
-	"github.com/gin-gonic/gin"
 	"linkany/management/dto"
-	"strings"
+	"linkany/management/utils"
+
+	"github.com/gin-gonic/gin"
 )
 
 func (s *Server) RegisterUserRoutes() {
@@ -23,6 +24,8 @@ func (s *Server) RegisterUserRoutes() {
 	// user invitation
 	userGroup.GET("/invitation/list", s.authCheck(), s.listInvitations())
 	userGroup.PUT("/invitation/u", s.authCheck(), s.updateInvitation())
+	userGroup.PUT("/invitation/r", s.authCheck(), s.rejectInvitation())
+	userGroup.PUT("/invitation/a", s.authCheck(), s.acceptInvitation())
 }
 
 func (s *Server) getUserInfo() gin.HandlerFunc {
@@ -40,7 +43,10 @@ func (s *Server) getUserInfo() gin.HandlerFunc {
 // user invite
 func (s *Server) invite() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		var req dto.InviteDto
+		var (
+			req dto.InviteDto
+			err error
+		)
 
 		// 解析JSON请求体
 		if err := c.ShouldBindJSON(&req); err != nil {
@@ -52,23 +58,45 @@ func (s *Server) invite() gin.HandlerFunc {
 		req.Username = username
 
 		if req.GroupIds != "" {
-			req.GroupIdList = strings.Split(req.GroupIds, ",")
+			req.GroupIdList, err = utils.Splits(req.GroupIds, ",")
+			if err != nil {
+				s.logger.Errorf("%v", err)
+				WriteError(c.JSON, err.Error())
+				return
+			}
 		}
 
 		if req.NodeIds != "" {
-			req.NodeIdList = strings.Split(req.NodeIds, ",")
+			req.NodeIdList, err = utils.Splits(req.NodeIds, ",")
+			if err != nil {
+				WriteError(c.JSON, err.Error())
+				return
+			}
 		}
 
 		if req.PolicyIds != "" {
-			req.PolicyIdList = strings.Split(req.PolicyIds, ",")
+			req.PolicyIdList, err = utils.Splits(req.PolicyIds, ",")
+			if err != nil {
+				WriteError(c.JSON, err.Error())
+				return
+			}
 		}
 
 		if req.LabelIds != "" {
-			req.LabelIdList = strings.Split(req.LabelIds, ",")
+			req.LabelIdList, err = utils.Splits(req.LabelIds, ",")
+			if err != nil {
+				WriteError(c.JSON, err.Error())
+				return
+			}
+
 		}
 
 		if req.PermissionIds != "" {
-			req.PermissionIdList = strings.Split(req.PermissionIds, ",")
+			req.PermissionIdList, err = utils.Splits(req.PermissionIds, ",")
+			if err != nil {
+				WriteError(c.JSON, err.Error())
+				return
+			}
 		}
 
 		if err := s.userController.Invite(&req); err != nil {
@@ -114,6 +142,28 @@ func (s *Server) updateInvitation() gin.HandlerFunc {
 			return
 		}
 		if err := s.userController.UpdateInvitation(&dto); err != nil {
+			WriteError(c.JSON, err.Error())
+			return
+		}
+		WriteOK(c.JSON, nil)
+	}
+}
+
+func (s *Server) rejectInvitation() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		id := c.Param("id")
+		if err := s.userController.RejectInvitation(id); err != nil {
+			WriteError(c.JSON, err.Error())
+			return
+		}
+		WriteOK(c.JSON, nil)
+	}
+}
+
+func (s *Server) acceptInvitation() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		id := c.Param("id")
+		if err := s.userController.RejectInvitation(id); err != nil {
 			WriteError(c.JSON, err.Error())
 			return
 		}

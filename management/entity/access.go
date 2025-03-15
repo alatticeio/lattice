@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"gorm.io/gorm"
+	"linkany/management/utils"
 )
 
 // AccessPolicy policy for node
@@ -117,6 +118,7 @@ type Label struct {
 	gorm.Model
 	Label     string `json:"label"`
 	OwnerId   uint64 `json:"ownerId"`
+	GroupType utils.GroupType
 	CreatedBy string `json:"createdBy"`
 	UpdatedBy string `json:"updatedBy"`
 }

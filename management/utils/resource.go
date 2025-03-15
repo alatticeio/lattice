@@ -4,7 +4,7 @@ package utils
 type ResourceType int
 
 const (
-	Group ResourceType = iota
+	Group = iota
 	Node
 	Policy
 	Label

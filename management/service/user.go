@@ -3,8 +3,6 @@ package service
 import (
 	"context"
 	"errors"
-	"github.com/pion/turn/v4"
-	"gorm.io/gorm"
 	"linkany/management/dto"
 	"linkany/management/entity"
 	"linkany/management/utils"
@@ -14,6 +12,9 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/pion/turn/v4"
+	"gorm.io/gorm"
 )
 
 // UserService is an interface for user mapper
@@ -32,6 +33,8 @@ type UserService interface {
 	DeleteInvite(id string) error
 	GetInvitation(userId, email string) (*entity.Invitation, error)
 	UpdateInvitation(dto *dto.InvitationDto) error
+	RejectInvitation(id string) error
+	AcceptInvitation(id string) error
 
 	//ListInvitations list user invite from others
 	ListInvitations(params *dto.InvitationParams) (*vo.PageVo, error)
@@ -186,6 +189,20 @@ func addResourcePermission(tx *gorm.DB, dto *dto.InviteDto) error {
 		}
 
 		for _, policyId := range dto.PolicyIdList {
+
+			// insert into shared policy
+			sharedPOlicy := &entity.SharedPolicy{
+				OwnerId:      uint(dto.InviterId),
+				UserId:       uint(dto.InvitationId),
+				AcceptStatus: entity.NewInvite,
+				PolicyId:     policyId,
+				GrantedAt:    utils.NewNullTime(time.Now()),
+			}
+
+			if err = tx.Model(&entity.SharedPolicy{}).Create(sharedPOlicy).Error; err != nil {
+				return err
+			}
+
 			permit := &entity.UserResourceGrantedPermission{
 				OwnerId:       uint(dto.InvitationId),
 				InvitedId:     uint(dto.InviterId),
@@ -207,6 +224,20 @@ func addResourcePermission(tx *gorm.DB, dto *dto.InviteDto) error {
 		}
 
 		for _, nodeId := range dto.NodeIdList {
+
+			// insert into shared node
+			sharedNode := &entity.SharedNode{
+				OwnerId:      uint(dto.InviterId),
+				UserId:       uint(dto.InvitationId),
+				AcceptStatus: entity.NewInvite,
+				NodeId:       nodeId,
+				GrantedAt:    utils.NewNullTime(time.Now()),
+			}
+
+			if err = tx.Model(&entity.SharedNode{}).Create(sharedNode).Error; err != nil {
+				return err
+			}
+
 			permit := &entity.UserResourceGrantedPermission{
 				OwnerId:       uint(dto.InvitationId),
 				InvitedId:     uint(dto.InviterId),
@@ -228,6 +259,20 @@ func addResourcePermission(tx *gorm.DB, dto *dto.InviteDto) error {
 		}
 
 		for _, labelId := range dto.LabelIdList {
+
+			// insert into shared label
+			sharedLabel := &entity.SharedLabel{
+				OwnerId:      uint(dto.InviterId),
+				UserId:       uint(dto.InvitationId),
+				AcceptStatus: entity.NewInvite,
+				LabelId:      labelId,
+				GrantedAt:    utils.NewNullTime(time.Now()),
+			}
+
+			if err = tx.Model(&entity.SharedLabel{}).Create(sharedLabel).Error; err != nil {
+				return err
+			}
+
 			permit := &entity.UserResourceGrantedPermission{
 				OwnerId:       uint(dto.InvitationId),
 				InvitedId:     uint(dto.InviterId),
@@ -249,6 +294,20 @@ func addResourcePermission(tx *gorm.DB, dto *dto.InviteDto) error {
 		}
 
 		for _, groupId := range dto.GroupIdList {
+
+			// insert into shared group
+			sharedGroup := &entity.SharedGroup{
+				OwnerId:      uint(dto.InviterId),
+				UserId:       uint(dto.InvitationId),
+				AcceptStatus: entity.NewInvite,
+				GroupId:      groupId,
+				GrantedAt:    utils.NewNullTime(time.Now()),
+			}
+
+			if err = tx.Model(&entity.SharedGroup{}).Create(sharedGroup).Error; err != nil {
+				return err
+			}
+
 			permit := &entity.UserResourceGrantedPermission{
 				OwnerId:       uint(dto.InvitationId),
 				InvitedId:     uint(dto.InviterId),
@@ -268,7 +327,7 @@ func addResourcePermission(tx *gorm.DB, dto *dto.InviteDto) error {
 
 func getActualPermission(tx *gorm.DB, resType utils.ResourceType, dto *dto.InviteDto) ([]string, []uint, error) {
 	var permissions []entity.Permissions
-	if err := tx.Model(&entity.Permissions{}).Where("id in ? and resource_type = ?", dto.PermissionIdList, resType).Find(&permissions).Error; err != nil {
+	if err := tx.Model(&entity.Permissions{}).Where("id in ? and permission_type = ?", dto.PermissionIdList, resType).Find(&permissions).Error; err != nil {
 		return nil, nil, err
 	}
 
@@ -301,7 +360,7 @@ func (u *userServiceImpl) DeleteInvite(id string) error {
 	})
 }
 
-func getGroupNames(tx *gorm.DB, ids []string) string {
+func getGroupNames(tx *gorm.DB, ids []uint) string {
 	var result []string
 	for _, id := range ids {
 		var group entity.NodeGroup
@@ -356,19 +415,44 @@ func (u *userServiceImpl) UpdateInvitation(dto *dto.InvitationDto) error {
 		}
 
 		// data insert to permissions
-		permissions := strings.Split(inv.Permissions, ",")
-		for _, permission := range permissions {
-			permit := &entity.UserResourceGrantedPermission{
-				InvitedId:    inv.InviteeId,
-				OwnerId:      inv.InvitationId,
-				ResourceType: 1,
-				ResourceId:   "",
-				Permission:   permission,
-			}
-			if err = tx.Model(&entity.UserResourceGrantedPermission{}).Create(permit).Error; err != nil {
-				return err
-			}
+		// permissions := strings.Split(inv.Permissions, ",")
+		// for _, permission := range permissions {
+		// 	permit := &entity.UserResourceGrantedPermission{
+		// 		InvitedId:    inv.InviteeId,
+		// 		OwnerId:      inv.InvitationId,
+		// 		ResourceType: 1,
+		// 		ResourceId:   "",
+		// 		Permission:   permission,
+		// 	}
+		// 	if err = tx.Model(&entity.UserResourceGrantedPermission{}).Create(permit).Error; err != nil {
+		// 		return err
+		// 	}
+		// }
+		return nil
+	})
+}
+
+func (u *userServiceImpl) RejectInvitation(id string) error {
+	return u.DB.Transaction(func(tx *gorm.DB) error {
+		var inv entity.Invitation
+		var err error
+		if err = tx.Model(&entity.Invitation{}).Where("id = ?", id).Find(&inv).Update("status = ?", entity.Rejected).Error; err != nil {
+			return err
 		}
+		return nil
+	})
+}
+
+func (u *userServiceImpl) AcceptInvitation(id string) error {
+	return u.DB.Transaction(func(tx *gorm.DB) error {
+		var inv entity.Invitation
+		var err error
+		if err = tx.Model(&entity.Invitation{}).Where("id = ?", id).Find(&inv).Update("status = ?", entity.Accept).Error; err != nil {
+			return err
+		}
+
+		// h
+
 		return nil
 	})
 }

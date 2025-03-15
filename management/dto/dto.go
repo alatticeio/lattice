@@ -1,9 +1,10 @@
 package dto
 
 import (
-	"gorm.io/gorm"
 	"linkany/management/entity"
 	"time"
+
+	"gorm.io/gorm"
 )
 
 // UserDto is a data transfer object for User entity
@@ -58,11 +59,11 @@ type InviteDto struct {
 	PolicyIds        string `json:"policyIds"`
 	LabelIds         string `json:"labelIds"`
 	PermissionIds    string `json:"permissionIds"`
-	GroupIdList      []string
-	NodeIdList       []string
-	PolicyIdList     []string
-	LabelIdList      []string
-	PermissionIdList []string
+	GroupIdList      []uint
+	NodeIdList       []uint
+	PolicyIdList     []uint
+	LabelIdList      []uint
+	PermissionIdList []uint
 	Network          string // 192.168.0.0/24
 }
 

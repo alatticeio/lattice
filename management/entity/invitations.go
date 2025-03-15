@@ -2,6 +2,7 @@ package entity
 
 import (
 	"gorm.io/gorm"
+	"linkany/management/utils"
 	"time"
 )
 
@@ -19,7 +20,7 @@ type Invites struct {
 	Permissions  string
 	AcceptStatus AcceptStatus
 	InvitedAt    time.Time
-	CanceledAt   NullTime
+	CanceledAt   utils.NullTime
 }
 
 // Invitation user invite other join its network
@@ -33,9 +34,9 @@ type Invitation struct {
 	Role         string
 	Permissions  string
 	Network      string //192.168.0.0/24
-	InvitedAt    NullTime
-	AcceptAt     NullTime
-	RejectAt     NullTime
+	InvitedAt    utils.NullTime
+	AcceptAt     utils.NullTime
+	RejectAt     utils.NullTime
 }
 
 func (i *Invites) TableName() string {

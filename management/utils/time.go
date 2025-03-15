@@ -1,4 +1,4 @@
-package entity
+package utils
 
 import (
 	"database/sql"
@@ -8,6 +8,15 @@ import (
 
 type NullTime struct {
 	sql.NullTime
+}
+
+func NewNullTime(t time.Time) NullTime {
+	return NullTime{
+		NullTime: sql.NullTime{
+			Time:  t,
+			Valid: true,
+		},
+	}
 }
 
 // MarshalJSON 实现 json.Marshaler 接口

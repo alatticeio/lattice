@@ -1,6 +1,8 @@
 package entity
 
 import (
+	"linkany/management/utils"
+
 	"gorm.io/gorm"
 )
 
@@ -40,6 +42,8 @@ type Node struct {
 	RelayIP             string `gorm:"column:relay_ip;size:100" json:"relay_ip"`
 	TieBreaker          int64  `gorm:"column:tie_breaker" json:"tie_breaker"`
 	Ufrag               string `gorm:"column:ufrag;size:30" json:"ufrag"`
+	Owner               string
+	GropuType           utils.GroupType
 	Pwd                 string `gorm:"column:pwd;size:50" json:"pwd"`
 	Port                int    `gorm:"column:port" json:"port"`
 	Status              int    `gorm:"column:status" json:"status"`
@@ -52,13 +56,14 @@ func (Node) TableName() string {
 // NodeGroup a node may be in multi groups
 type NodeGroup struct {
 	gorm.Model
-	Name        string `gorm:"column:name;size:64" json:"name"`
-	Description string `gorm:"column:description;size:255" json:"description"`
-	OwnerID     uint   `gorm:"column:owner_id;size:20" json:"ownerId"`
-	Owner       string `gorm:"column:owner;size:64" json:"owner"`
-	IsPublic    bool   `gorm:"column:is_public" json:"isPublic"`
-	CreatedBy   string `gorm:"column:created_by;size:64" json:"createdBy"`
-	UpdatedBy   string `gorm:"column:updated_by;size:64" json:"updatedBy"`
+	Name        string          `gorm:"column:name;size:64" json:"name"`
+	Description string          `gorm:"column:description;size:255" json:"description"`
+	OwnerID     uint            `gorm:"column:owner_id;size:20" json:"ownerId"`
+	Owner       string          `gorm:"column:owner;size:64" json:"owner"`
+	IsPublic    bool            `gorm:"column:is_public" json:"isPublic"`
+	GroupType   utils.GroupType `gorm:"column:group_type;size:20" json:"groupType"`
+	CreatedBy   string          `gorm:"column:created_by;size:64" json:"createdBy"`
+	UpdatedBy   string          `gorm:"column:updated_by;size:64" json:"updatedBy"`
 }
 
 func (NodeGroup) TableName() string {

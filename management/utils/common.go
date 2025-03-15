@@ -29,3 +29,21 @@ func NewKeyValue(k string, v interface{}) *KeyValue {
 type ParamBuilder interface {
 	Generate() []*KeyValue
 }
+
+type GroupType int
+
+const (
+	OwnGroupType = iota
+	SharedType
+)
+
+func (g GroupType) String() string {
+	switch g {
+	case OwnGroupType:
+		return "own"
+	case SharedType:
+		return "invited"
+	default:
+		return "Unknown"
+	}
+}
