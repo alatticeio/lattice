@@ -43,10 +43,36 @@ type Node struct {
 	TieBreaker          int64  `gorm:"column:tie_breaker" json:"tie_breaker"`
 	Ufrag               string `gorm:"column:ufrag;size:30" json:"ufrag"`
 	Owner               string
-	GropuType           utils.GroupType
-	Pwd                 string `gorm:"column:pwd;size:50" json:"pwd"`
-	Port                int    `gorm:"column:port" json:"port"`
-	Status              int    `gorm:"column:status" json:"status"`
+	Pwd                 string     `gorm:"column:pwd;size:50" json:"pwd"`
+	Port                int        `gorm:"column:port" json:"port"`
+	Status              NodeStatus `gorm:"column:status" json:"status"`
+}
+
+type NodeStatus int
+
+const (
+	Unregisterd NodeStatus = iota
+	Registered
+	Online
+	Offline
+	Disabled
+)
+
+func (n NodeStatus) String() string {
+	switch n {
+	case Unregisterd:
+		return "unregistered"
+	case Registered:
+		return "registered"
+	case Online:
+		return "online"
+	case Offline:
+		return "offline"
+	case Disabled:
+		return "disabled"
+	default:
+		return "unknown"
+	}
 }
 
 func (Node) TableName() string {

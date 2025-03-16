@@ -13,6 +13,7 @@ type SharedGroup struct {
 	UserId       uint
 	GroupId      uint
 	OwnerId      uint `gorm:"column:owner_id;size:20" json:"ownerId"`
+	InviteId     uint
 	AcceptStatus AcceptStatus
 	Description  string
 	GrantedAt    utils.NullTime
@@ -30,6 +31,7 @@ type SharedPolicy struct {
 	UserId       uint
 	PolicyId     uint
 	OwnerId      uint
+	InviteId     uint
 	Description  string
 	AcceptStatus AcceptStatus
 	GrantedAt    utils.NullTime
@@ -47,6 +49,7 @@ type SharedNode struct {
 	UserId       uint
 	NodeId       uint
 	OwnerId      uint
+	InviteId     uint
 	AcceptStatus AcceptStatus
 	Description  string
 	GrantedAt    utils.NullTime
@@ -62,6 +65,7 @@ type SharedLabel struct {
 	UserId       uint
 	LabelId      uint
 	OwnerId      uint
+	InviteId     uint
 	AcceptStatus AcceptStatus
 	Description  string
 	GrantedAt    utils.NullTime

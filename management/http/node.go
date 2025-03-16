@@ -10,9 +10,10 @@ import (
 func (s *Server) RegisterNodeRoutes() {
 	nodeGroup := s.RouterGroup.Group(PREFIX + "/node")
 	nodeGroup.GET("/appId/:appId", s.authCheck(), s.getNodeByAppId())
+	nodeGroup.POST("/a", s.authCheck(), s.createAppId())
 	nodeGroup.POST("/", s.authCheck(), s.createNode())
 	nodeGroup.PUT("/", s.authCheck(), s.updateNode())
-	nodeGroup.DELETE("/", s.authCheck(), s.deleteNode())
+	nodeGroup.DELETE("/:appId", s.authCheck(), s.deleteNode())
 	nodeGroup.GET("/list", s.authCheck(), s.listNodes())
 
 	// group member
@@ -54,14 +55,25 @@ func (s *Server) getNodeByAppId() gin.HandlerFunc {
 func (s *Server) createNode() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var peerDto dto.NodeDto
-		if err := c.ShouldBindJSON(&peerDto); err != nil {
-			c.JSON(client.BadRequest(err))
+		if err := c.ShouldBind(&peerDto); err != nil {
+			WriteBadRequest(c.JSON, err.Error())
 			return
 		}
 
 		peer, err := s.nodeController.Registry(&peerDto)
 		if err != nil {
-			c.JSON(client.InternalServerError(err))
+			WriteError(c.JSON, err.Error())
+			return
+		}
+		c.JSON(client.Success(peer))
+	}
+}
+
+func (s *Server) createAppId() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		peer, err := s.nodeController.CreateAppId(c)
+		if err != nil {
+			WriteError(c.JSON, err.Error())
 			return
 		}
 		c.JSON(client.Success(peer))
@@ -76,12 +88,12 @@ func (s *Server) listNodes() gin.HandlerFunc {
 			return
 		}
 
-		peers, err := s.nodeController.List(params)
+		nodes, err := s.nodeController.ListNodes(params)
 		if err != nil {
 			WriteError(c.JSON, err.Error())
 			return
 		}
-		WriteOK(c.JSON, peers)
+		WriteOK(c.JSON, nodes)
 	}
 }
 
@@ -104,13 +116,9 @@ func (s *Server) updateNode() gin.HandlerFunc {
 
 func (s *Server) deleteNode() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		var peerDto dto.NodeDto
-		if err := c.ShouldBindJSON(&peerDto); err != nil {
-			c.JSON(client.BadRequest(err))
-			return
-		}
+		appId := c.Param("appId")
 
-		err := s.nodeController.Delete(&peerDto)
+		err := s.nodeController.Delete(c, appId)
 		if err != nil {
 			c.JSON(client.InternalServerError(err))
 			return

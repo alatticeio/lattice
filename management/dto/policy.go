@@ -6,7 +6,7 @@ import (
 )
 
 type AccessPolicyParams struct {
-	*vo.PageModel
+	vo.PageModel
 	Name      string `json:"name" form:"name"`
 	GroupId   uint64 `json:"groupId" form:"groupId"`
 	Effect    string `json:"effect" form:"effect"`

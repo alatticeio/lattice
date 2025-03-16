@@ -3,6 +3,7 @@ package http
 import (
 	"linkany/management/dto"
 	"linkany/management/utils"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 )
@@ -24,8 +25,8 @@ func (s *Server) RegisterUserRoutes() {
 	// user invitation
 	userGroup.GET("/invitation/list", s.authCheck(), s.listInvitations())
 	userGroup.PUT("/invitation/u", s.authCheck(), s.updateInvitation())
-	userGroup.PUT("/invitation/r", s.authCheck(), s.rejectInvitation())
-	userGroup.PUT("/invitation/a", s.authCheck(), s.acceptInvitation())
+	userGroup.PUT("/invitation/r/:inviteId", s.authCheck(), s.rejectInvitation())
+	userGroup.PUT("/invitation/a/:inviteId", s.authCheck(), s.acceptInvitation())
 }
 
 func (s *Server) getUserInfo() gin.HandlerFunc {
@@ -107,11 +108,11 @@ func (s *Server) invite() gin.HandlerFunc {
 	}
 }
 
-// delete invite
+// delete invite cancel
 func (s *Server) deleteInvite() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id := c.Param("id")
-		if err := s.userController.DeleteInvite(id); err != nil {
+		if err := s.userController.CancelInvite(id); err != nil {
 			WriteError(c.JSON, err.Error())
 			return
 		}
@@ -151,8 +152,13 @@ func (s *Server) updateInvitation() gin.HandlerFunc {
 
 func (s *Server) rejectInvitation() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		id := c.Param("id")
-		if err := s.userController.RejectInvitation(id); err != nil {
+		id := c.Param("inviteId")
+		uid, err := strconv.Atoi(id)
+		if err != nil {
+			WriteError(c.JSON, err.Error())
+			return
+		}
+		if err := s.userController.RejectInvitation(uint(uid)); err != nil {
 			WriteError(c.JSON, err.Error())
 			return
 		}
@@ -162,8 +168,13 @@ func (s *Server) rejectInvitation() gin.HandlerFunc {
 
 func (s *Server) acceptInvitation() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		id := c.Param("id")
-		if err := s.userController.RejectInvitation(id); err != nil {
+		id := c.Param("inviteId")
+		uid, err := strconv.Atoi(id)
+		if err != nil {
+			WriteError(c.JSON, err.Error())
+			return
+		}
+		if err := s.userController.AcceptInvitation(uint(uid)); err != nil {
 			WriteError(c.JSON, err.Error())
 			return
 		}

@@ -30,8 +30,9 @@ type UserGroupShared struct {
 // resource level
 type UserResourceGrantedPermission struct {
 	gorm.Model
-	InvitedId     uint               // 分配的用户
-	OwnerId       uint               // 资源所有者
+	InvitationId  uint               // 分配的用户
+	OwnerId       uint               // 资源所有者,也即是邀请者
+	InviteId      uint               //关联的邀请表主键
 	ResourceType  utils.ResourceType //资源类型
 	ResourceId    uint               //资源id
 	Permission    string             //group:add

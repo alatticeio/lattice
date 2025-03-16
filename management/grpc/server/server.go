@@ -44,28 +44,28 @@ type ServerConfig struct {
 }
 
 type RegistryRequest struct {
-	ID                  int64      `json:"id"`
-	UserID              int64      `json:"user_id"`
-	Name                string     `json:"name"`
-	Hostname            string     `json:"hostname"`
-	Description         string     `json:"description"`
-	AppID               string     `json:"app_id"`
-	Address             string     `json:"address"`
-	Endpoint            string     `json:"endpoint"`
-	PersistentKeepalive int        `json:"persistent_keepalive"`
-	PublicKey           string     `json:"public_key"`
-	PrivateKey          string     `json:"private_key"`
-	AllowedIPs          string     `json:"allowed_ips"`
-	RelayIP             string     `json:"relay_ip"`
-	TieBreaker          uint64     `json:"tie_breaker"`
-	UpdatedAt           time.Time  `json:"updated_at"`
-	DeletedAt           *time.Time `json:"deleted_at"`
-	CreatedAt           time.Time  `json:"created_at"`
-	Ufrag               string     `json:"ufrag"`
-	Pwd                 string     `json:"pwd"`
-	Port                int        `json:"port"`
-	Status              int        `json:"status"`
-	Token               string     `json:"token"`
+	ID                  int64             `json:"id"`
+	UserID              int64             `json:"user_id"`
+	Name                string            `json:"name"`
+	Hostname            string            `json:"hostname"`
+	Description         string            `json:"description"`
+	AppID               string            `json:"app_id"`
+	Address             string            `json:"address"`
+	Endpoint            string            `json:"endpoint"`
+	PersistentKeepalive int               `json:"persistent_keepalive"`
+	PublicKey           string            `json:"public_key"`
+	PrivateKey          string            `json:"private_key"`
+	AllowedIPs          string            `json:"allowed_ips"`
+	RelayIP             string            `json:"relay_ip"`
+	TieBreaker          uint64            `json:"tie_breaker"`
+	UpdatedAt           time.Time         `json:"updated_at"`
+	DeletedAt           *time.Time        `json:"deleted_at"`
+	CreatedAt           time.Time         `json:"created_at"`
+	Ufrag               string            `json:"ufrag"`
+	Pwd                 string            `json:"pwd"`
+	Port                int               `json:"port"`
+	Status              entity.NodeStatus `json:"status"`
+	Token               string            `json:"token"`
 }
 
 func NewServer(cfg *ServerConfig) *Server {
@@ -275,7 +275,7 @@ func (s *Server) Keepalive(stream mgt.ManagementService_KeepaliveServer) error {
 		return fmt.Errorf("peer has not connected to managent server")
 	}
 
-	peers, err := s.peerController.List(&dto.QueryParams{
+	peers, err := s.peerController.ListNodes(&dto.QueryParams{
 		PubKey: &pubKey,
 	})
 
@@ -283,12 +283,12 @@ func (s *Server) Keepalive(stream mgt.ManagementService_KeepaliveServer) error {
 		s.logger.Errorf("list peers failed: %v", err)
 		return err
 	}
-
-	if len(peers) == 0 {
+	data := peers.Data.([]*vo.NodeVo)
+	if len(data) == 0 {
 		return fmt.Errorf("peer not found")
 	}
 
-	currentPeer := peers[0]
+	currentPeer := data[0]
 	s.logger.Verbosef("current peer pubKey: %s, req pubKey: %s", currentPeer.PublicKey, pubKey)
 
 	k := NewWatchKeeper()
@@ -394,9 +394,9 @@ func (s *Server) recv(stream mgt.ManagementService_KeepaliveServer) (*mgt.Reques
 
 }
 
-func (s *Server) sendWatchMessage(eventType mgt.EventType, current *vo.NodeVo, pubKey, userId string, status int) error {
+func (s *Server) sendWatchMessage(eventType mgt.EventType, current *vo.NodeVo, pubKey, userId string, status entity.NodeStatus) error {
 	state := 1
-	peers, err := s.peerController.List(&dto.QueryParams{
+	peers, err := s.peerController.ListNodes(&dto.QueryParams{
 		UserId: &userId,
 		Status: &state,
 	})
@@ -407,7 +407,7 @@ func (s *Server) sendWatchMessage(eventType mgt.EventType, current *vo.NodeVo, p
 	}
 
 	manager := utils.NewWatchManager()
-	for _, peer := range peers {
+	for _, peer := range peers.Data.([]*vo.NodeVo) {
 		if peer.PublicKey == current.PublicKey {
 			continue
 		}

@@ -36,15 +36,15 @@ func (u *UserController) Invite(dto *dto.InviteDto) error {
 	return u.userService.Invite(dto)
 }
 
-func (u *UserController) DeleteInvite(id string) error {
-	return u.userService.DeleteInvite(id)
+func (u *UserController) CancelInvite(id string) error {
+	return u.userService.CancelInvite(id)
 }
 
-func (u *UserController) RejectInvitation(id string) error {
+func (u *UserController) RejectInvitation(id uint) error {
 	return u.userService.RejectInvitation(id)
 }
 
-func (u *UserController) AcceptInvitation(id string) error {
+func (u *UserController) AcceptInvitation(id uint) error {
 	return u.userService.AcceptInvitation(id)
 }
 

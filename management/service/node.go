@@ -16,8 +16,9 @@ import (
 // NodeService is an interface for peer mapper
 type NodeService interface {
 	Register(e *dto.NodeDto) (*entity.Node, error)
+	CreateAppId(ctx context.Context) (*entity.Node, error)
 	Update(e *dto.NodeDto) (*entity.Node, error)
-	Delete(e *dto.NodeDto) error
+	DeleteNode(ctx context.Context, appId string) error
 
 	// GetByAppId returns a peer by appId, every client has its own appId
 	GetByAppId(appId, userid string) (*entity.Node, int64, error)
@@ -28,7 +29,7 @@ type NodeService interface {
 
 	// List returns a list of peers by userId，when client start up, it will call this method to get all the peers once
 	// after that, it will call Watch method to get the latest peers
-	List(params *dto.QueryParams) ([]*vo.NodeVo, error)
+	ListNodes(params *dto.QueryParams) (*vo.PageVo, error)
 
 	// Watch returns a channel that will be used to send the latest peers to the client
 	//Watch() (<-chan *entity.Node, error)
@@ -104,6 +105,17 @@ func (p *nodeServiceImpl) Register(e *dto.NodeDto) (*entity.Node, error) {
 	return peer, nil
 }
 
+func (p *nodeServiceImpl) CreateAppId(ctx context.Context) (*entity.Node, error) {
+	peer := &entity.Node{
+		AppID: utils.GenerateUUID(),
+	}
+	err := p.Create(peer).Error
+	if err != nil {
+		return nil, err
+	}
+	return peer, nil
+}
+
 func (p *nodeServiceImpl) Update(e *dto.NodeDto) (*entity.Node, error) {
 	var node entity.Node
 	if err := p.Where("public_key = ?", e.PublicKey).First(&node).Error; err != nil {
@@ -116,8 +128,8 @@ func (p *nodeServiceImpl) Update(e *dto.NodeDto) (*entity.Node, error) {
 	return &node, nil
 }
 
-func (p *nodeServiceImpl) Delete(e *dto.NodeDto) error {
-	if err := p.Where("id = ?", e.ID).Delete(&entity.Node{}).Error; err != nil {
+func (p *nodeServiceImpl) DeleteNode(ctx context.Context, appId string) error {
+	if err := p.Where("app_id = ?", appId).Delete(&entity.Node{}).Error; err != nil {
 		return err
 	}
 	return nil
@@ -151,9 +163,9 @@ func (p *nodeServiceImpl) GetById(id uint) (*entity.Node, error) {
 }
 
 // List params will filter
-func (p *nodeServiceImpl) List(params *dto.QueryParams) ([]*vo.NodeVo, error) {
+func (p *nodeServiceImpl) ListNodes(params *dto.QueryParams) (*vo.PageVo, error) {
 	var nodes []*entity.Node
-
+	result := new(vo.PageVo)
 	var sql string
 	var wrappers []interface{}
 
@@ -161,6 +173,10 @@ func (p *nodeServiceImpl) List(params *dto.QueryParams) ([]*vo.NodeVo, error) {
 		sql, wrappers = utils.GenerateSql(params)
 	} else {
 		sql, wrappers = utils.Generate(params)
+	}
+
+	if err := p.Model(&entity.Node{}).Where(sql, wrappers...).Count(&result.Total).Error; err != nil {
+		return nil, err
 	}
 
 	p.logger.Verbosef("sql: %s, wrappers: %v", sql, wrappers)
@@ -192,7 +208,13 @@ func (p *nodeServiceImpl) List(params *dto.QueryParams) ([]*vo.NodeVo, error) {
 			Status:              node.Status,
 		})
 	}
-	return vos, nil
+
+	result.Data = vos
+	result.Page = params.Page
+	result.Size = params.Size
+	result.Current = params.Page
+
+	return result, nil
 }
 
 // Watch when register or update called, first call Watch
@@ -214,47 +236,49 @@ func (p *nodeServiceImpl) Watch(appId string) (<-chan *mgt.ManagementMessage, er
 
 // GetNetworkMap get user's network map
 func (p *nodeServiceImpl) GetNetworkMap(appId, userId string) (*vo.NetworkMap, error) {
-	current, _, err := p.GetByAppId(appId, "")
-	if err != nil {
-		return nil, err
-	}
+	//current, _, err := p.GetByAppId(appId, "")
+	//if err != nil {
+	//	return nil, err
+	//}
+	//
+	//var status = 1
+	//peers, err := p.ListNodes(&dto.QueryParams{
+	//	PubKey: &current.PublicKey,
+	//	UserId: &userId,
+	//	Status: &status,
+	//})
+	//
+	//if err != nil {
+	//	return nil, err
+	//}
+	//
+	//return &vo.NetworkMap{
+	//	UserId: userId,
+	//	Peer: &vo.NodeVo{
+	//		ID:                  current.ID,
+	//		Name:                current.Name,
+	//		Description:         current.Description,
+	//		GroupID:             current.GroupID,
+	//		CreatedBy:           current.CreatedBy,
+	//		UserID:              current.UserID,
+	//		Hostname:            current.Hostname,
+	//		AppID:               current.AppID,
+	//		Address:             current.Address,
+	//		Endpoint:            current.Endpoint,
+	//		PersistentKeepalive: current.PersistentKeepalive,
+	//		PublicKey:           current.PublicKey,
+	//		AllowedIPs:          current.AllowedIPs,
+	//		RelayIP:             "",
+	//		TieBreaker:          0,
+	//		Ufrag:               "",
+	//		Pwd:                 "",
+	//		Port:                0,
+	//		Status:              current.Status,
+	//	},
+	//	Peers: peers.Data,
+	//}, nil
 
-	var status = 1
-	peers, err := p.List(&dto.QueryParams{
-		PubKey: &current.PublicKey,
-		UserId: &userId,
-		Status: &status,
-	})
-
-	if err != nil {
-		return nil, err
-	}
-
-	return &vo.NetworkMap{
-		UserId: userId,
-		Peer: &vo.NodeVo{
-			ID:                  current.ID,
-			Name:                current.Name,
-			Description:         current.Description,
-			GroupID:             current.GroupID,
-			CreatedBy:           current.CreatedBy,
-			UserID:              current.UserID,
-			Hostname:            current.Hostname,
-			AppID:               current.AppID,
-			Address:             current.Address,
-			Endpoint:            current.Endpoint,
-			PersistentKeepalive: current.PersistentKeepalive,
-			PublicKey:           current.PublicKey,
-			AllowedIPs:          current.AllowedIPs,
-			RelayIP:             "",
-			TieBreaker:          0,
-			Ufrag:               "",
-			Pwd:                 "",
-			Port:                0,
-			Status:              current.Status,
-		},
-		Peers: peers,
-	}, nil
+	return nil, nil
 }
 
 // GetAddress get peer address

@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"github.com/google/uuid"
 	"strconv"
 	"strings"
 )
@@ -28,4 +29,9 @@ func StringToUint(s string) (uint, error) {
 
 	result, err := strconv.Atoi(s)
 	return uint(result), err
+}
+
+func GenerateUUID() string {
+	uuid := uuid.New()
+	return strings.ReplaceAll(uuid.String(), "-", "")
 }

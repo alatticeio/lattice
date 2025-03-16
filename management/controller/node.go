@@ -25,8 +25,8 @@ func (p *NodeController) GetByAppId(appId, userId string) (*entity.Node, int64, 
 	return p.nodeService.GetByAppId(appId, userId)
 }
 
-func (p *NodeController) List(params *dto.QueryParams) ([]*vo.NodeVo, error) {
-	return p.nodeService.List(params)
+func (p *NodeController) ListNodes(params *dto.QueryParams) (*vo.PageVo, error) {
+	return p.nodeService.ListNodes(params)
 }
 
 func (p *NodeController) Update(dto *dto.NodeDto) (*entity.Node, error) {
@@ -37,12 +37,16 @@ func (p *NodeController) GetNetworkMap(appId, userId string) (*vo.NetworkMap, er
 	return p.nodeService.GetNetworkMap(appId, userId)
 }
 
-func (p *NodeController) Delete(dto *dto.NodeDto) error {
-	return p.nodeService.Delete(dto)
+func (p *NodeController) Delete(ctx context.Context, appId string) error {
+	return p.nodeService.DeleteNode(ctx, appId)
 }
 
 func (p *NodeController) Registry(peer *dto.NodeDto) (*entity.Node, error) {
 	return p.nodeService.Register(peer)
+}
+
+func (p *NodeController) CreateAppId(ctx context.Context) (*entity.Node, error) {
+	return p.nodeService.CreateAppId(ctx)
 }
 
 // AddGroupMember Add Group Member

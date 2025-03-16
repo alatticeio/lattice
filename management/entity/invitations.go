@@ -26,10 +26,10 @@ type Invites struct {
 // Invitation user invite other join its network
 type Invitation struct {
 	gorm.Model
-	InvitationId uint // invitation user id
-	InviteeId    uint // inviter user id
-	AcceptStatus AcceptStatus
-	InviteId     uint //releate to Invite table
+	InvitationId uint         // invitation user id
+	InviteeId    uint         // inviter user id
+	AcceptStatus AcceptStatus //
+	InviteId     uint         //relate to Invite table
 	Group        string
 	Role         string
 	Permissions  string

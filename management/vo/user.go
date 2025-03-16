@@ -22,10 +22,11 @@ type InviteVo struct {
 }
 
 type InvitationVo struct {
-	ID            uint64         `json:"id" :"id"`
-	Group         string         `json:"group,omitempty" :"group"`
-	InviterName   string         `json:"inviterName,omitempty" :"inviter_name"`
+	ID            uint64         `json:"id,string"`
+	Group         string         `json:"group,omitempty"`
+	InviterName   string         `json:"inviterName,omitempty"`
 	InviterAvatar string         `json:"inviterAvatar,omitempty"`
+	InviteId      uint           `json:"inviteId,string"`
 	Role          string         `json:"role,omitempty"`
 	Permissions   string         `json:"permissions,omitempty"`
 	AcceptStatus  string         `json:"acceptStatus,omitempty"`
