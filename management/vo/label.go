@@ -1,15 +1,16 @@
 package vo
 
 import (
+	"gorm.io/gorm"
 	"time"
 )
 
 type LabelVo struct {
-	ID        uint      `json:"id"`
-	Label     string    `json:"label"`
-	CreatedAt time.Time `json:"createdAt"`
-	DeletedAt time.Time `json:"deletedAt"`
-	UpdatedAt time.Time `json:"updatedAt"`
-	CreatedBy string    `json:"createdBy"`
-	UpdatedBy string    `json:"updatedBy"`
+	ID        uint           `json:"id"`
+	Label     string         `json:"label"`
+	CreatedAt time.Time      `json:"createdAt"`
+	DeletedAt gorm.DeletedAt `json:"deletedAt"`
+	UpdatedAt time.Time      `json:"updatedAt"`
+	CreatedBy string         `json:"createdBy"`
+	UpdatedBy string         `json:"updatedBy"`
 }

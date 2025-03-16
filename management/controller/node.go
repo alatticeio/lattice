@@ -83,6 +83,10 @@ func (p *NodeController) ListLabel(ctx context.Context, params *dto.LabelParams)
 	return p.nodeService.ListLabel(ctx, params)
 }
 
+func (p *NodeController) GetLabel(ctx context.Context, id string) (*entity.Label, error) {
+	return p.nodeService.GetLabel(ctx, id)
+}
+
 // Group node
 func (p *NodeController) AddGroupNode(ctx context.Context, dto *dto.GroupNodeDto) error {
 	return p.nodeService.AddGroupNode(ctx, dto)

@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"gorm.io/gorm"
-	"linkany/management/utils"
 )
 
 // AccessPolicy policy for node
@@ -116,11 +115,10 @@ func (a *AccessRule) TableName() string {
 // Label node label
 type Label struct {
 	gorm.Model
-	Label     string `json:"label"`
-	OwnerId   uint64 `json:"ownerId"`
-	GroupType utils.GroupType
-	CreatedBy string `json:"createdBy"`
-	UpdatedBy string `json:"updatedBy"`
+	Label     string `gorm:"column:label;size:64" json:"label"`
+	OwnerId   uint64 `gorm:"column:owner_id;size:64" json:"OwnerId"`
+	CreatedBy string `gorm:"column:created_by;size:64" json:"createdBy"`
+	UpdatedBy string `gorm:"column:updated_by;size:64" json:"updatedBy"`
 }
 
 func (n *Label) TableName() string {

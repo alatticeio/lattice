@@ -45,6 +45,7 @@ type NodeService interface {
 	UpdateLabel(ctx context.Context, dto *dto.TagDto) error
 	DeleteLabel(ctx context.Context, id string) error
 	ListLabel(ctx context.Context, params *dto.LabelParams) (*vo.PageVo, error)
+	GetLabel(ctx context.Context, id string) (*entity.Label, error)
 
 	//Group Node
 	AddGroupNode(ctx context.Context, dto *dto.GroupNodeDto) error
@@ -365,9 +366,19 @@ func (p *nodeServiceImpl) AddLabel(ctx context.Context, dto *dto.TagDto) error {
 	if len(label) != 2 || len(label[0]) == 0 || len(label[1]) == 0 {
 		return errors.New("invalid label")
 	}
+	var (
+		count int64
+		err   error
+	)
+	if err = p.Model(&entity.Label{}).Where("label = ? and created_by = ?", dto.Label, dto.CreatedBy).Count(&count).Error; err != nil {
+		return err
+	}
+	if count != 0 {
+		return errors.New("label is exist")
+	}
+
 	return p.Create(&entity.Label{
 		Label:     dto.Label,
-		OwnerId:   dto.OwnerId,
 		CreatedBy: dto.CreatedBy,
 	}).Error
 }
@@ -389,7 +400,8 @@ func (p *nodeServiceImpl) DeleteLabel(ctx context.Context, id string) error {
 }
 
 func (p *nodeServiceImpl) ListLabel(ctx context.Context, params *dto.LabelParams) (*vo.PageVo, error) {
-	var labels []vo.LabelVo
+	var labels []entity.Label
+
 	result := new(vo.PageVo)
 	sql, wrappers := utils.Generate(params)
 	db := p.DB
@@ -405,9 +417,31 @@ func (p *nodeServiceImpl) ListLabel(ctx context.Context, params *dto.LabelParams
 		return nil, err
 	}
 
-	result.Data = labels
+	var labelVos []vo.LabelVo
+	for _, label := range labels {
+		labelVos = append(labelVos, vo.LabelVo{
+			ID:        label.ID,
+			Label:     label.Label,
+			CreatedAt: label.CreatedAt,
+			UpdatedAt: label.UpdatedAt,
+			CreatedBy: label.CreatedBy,
+			UpdatedBy: label.UpdatedBy,
+		})
+	}
+	result.Data = labelVos
+	result.Current = params.Page
+	result.Page = params.Page
+	result.Size = params.Size
 
 	return result, nil
+}
+
+func (p *nodeServiceImpl) GetLabel(ctx context.Context, id string) (*entity.Label, error) {
+	var label entity.Label
+	if err := p.Where("id = ?", id).First(&label).Error; err != nil {
+		return nil, err
+	}
+	return &label, nil
 }
 
 // Group Node
