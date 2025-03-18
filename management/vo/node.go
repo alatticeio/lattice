@@ -8,9 +8,11 @@ import (
 
 type NodeGroupVo struct {
 	*GroupRelationVo
-	ID          uint           `json:"id"`
-	Name        string         `json:"name"`
-	NodeCount   int            `json:"nodeCount"`
+	ID        uint   `json:"id"`
+	Name      string `json:"name"`
+	NodeCount int    `json:"nodeCount"`
+	//NodeIdList   []uint         `json:"nodeIdList"` // for tom-select update/add
+	//PolicyIdList []uint         `json:"policyIdList"`
 	Description string         `json:"description"`
 	CreatedAt   time.Time      `json:"createdAt"`
 	DeletedAt   gorm.DeletedAt `json:"deletedAt"`
@@ -19,6 +21,7 @@ type NodeGroupVo struct {
 	UpdatedBy   string         `json:"updatedBy"`
 }
 
+// GroupRelationVo for tom-select show
 type GroupRelationVo struct {
 	NodeIds     []string `json:"nodeIds"`
 	PolicyIds   []string `json:"policyIds"`
@@ -31,8 +34,8 @@ type NodeVo struct {
 	Name                string            `json:"name,omitempty"`
 	Description         string            `json:"description,omitempty"`
 	GroupID             uint              `json:"groupID,omitempty"`   // belong to which group
-	CreatedBy           uint              `json:"createdBy,omitempty"` // ownerID
-	UserID              int64             `json:"userId,omitempty"`
+	CreatedBy           string            `json:"createdBy,omitempty"` // ownerID
+	UserID              uint              `json:"userId,omitempty"`
 	Hostname            string            `json:"hostname,omitempty"`
 	AppID               string            `json:"appId,omitempty"`
 	Address             string            `json:"address,omitempty"`

@@ -26,6 +26,7 @@ func (s *Server) RegisterAccessRoutes() {
 
 	//permissions
 	routes.GET("/permissions", s.authCheck(), s.listPermissions())
+	routes.DELETE("/permissions/invite/:inviteId/permission/:permissionId", s.authCheck(), s.deleteUserResourcePermission())
 }
 
 func (s *Server) createAccessPolicy() gin.HandlerFunc {
@@ -228,5 +229,20 @@ func (s *Server) listPermissions() gin.HandlerFunc {
 			return
 		}
 		WriteOK(c.JSON, permissions)
+	}
+}
+
+func (s *Server) deleteUserResourcePermission() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		inviteID := c.Param("inviteId")
+		permissionID := c.Param("permissionId")
+		uid, _ := strconv.Atoi(inviteID)
+		pid, _ := strconv.Atoi(permissionID)
+		err := s.accessController.DeleteUserResourcePermission(c, uint(uid), uint(pid))
+		if err != nil {
+			c.JSON(client.InternalServerError(err))
+			return
+		}
+		WriteOK(c.JSON, nil)
 	}
 }

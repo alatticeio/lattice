@@ -28,9 +28,8 @@ type Node struct {
 	gorm.Model
 	Name                string `gorm:"column:name;size:20" json:"name"`
 	Description         string `gorm:"column:description;size:255" json:"description"`
-	GroupID             uint   `gorm:"column:group_id;size:20" json:"groupID"`     // belong to which group
-	CreatedBy           uint   `gorm:"column:created_by;size:64" json:"createdBy"` // ownerID
-	UserID              int64  `gorm:"column:user_id" json:"user_id"`
+	CreatedBy           string `gorm:"column:created_by;size:64" json:"createdBy"` // ownerID
+	UserID              uint   `gorm:"column:user_id" json:"user_id"`
 	Hostname            string `gorm:"column:hostname;size:50" json:"hostname"`
 	AppID               string `gorm:"column:app_id;size:20" json:"app_id"`
 	Address             string `gorm:"column:address;size:50" json:"address"`

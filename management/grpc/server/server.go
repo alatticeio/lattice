@@ -118,7 +118,7 @@ func (s *Server) Registry(ctx context.Context, in *mgt.ManagementMessage) (*mgt.
 
 	peer, err := s.peerController.Registry(&dto.NodeDto{
 		Hostname:            req.Hostname,
-		UserID:              int64(user.ID),
+		UserID:              user.ID,
 		AppID:               req.AppID,
 		Address:             req.Address,
 		PersistentKeepalive: req.PersistentKeepalive,
@@ -461,7 +461,7 @@ func (s *Server) VerifyToken(ctx context.Context, in *mgt.ManagementMessage) (*m
 		return nil, err
 	}
 
-	b, err := s.tokenService.Verify(user.Username, user.Password)
+	b, _, err := s.tokenService.Verify(user.Username, user.Password)
 	if err != nil {
 		return nil, err
 	}

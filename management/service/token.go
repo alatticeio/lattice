@@ -39,22 +39,22 @@ func (t *TokenService) Generate(username, password string) (string, error) {
 	return token.SignedString(haSalt)
 }
 
-func (t *TokenService) Verify(username, password string) (bool, error) {
+func (t *TokenService) Verify(username, password string) (bool, *entity.User, error) {
 
 	var user entity.User
 	if err := t.Where("username = ?", username).Find(&user).Error; err != nil {
-		return false, fmt.Errorf("user not found")
+		return false, nil, fmt.Errorf("user not found")
 	}
 
 	if user.Username != username {
-		return false, fmt.Errorf("user %s not found", username)
+		return false, nil, fmt.Errorf("user %s not found", username)
 	}
 
 	if user.Password != password {
-		return false, fmt.Errorf("password not match")
+		return false, nil, fmt.Errorf("password not match")
 	}
 
-	return true, nil
+	return true, &user, nil
 }
 
 func (t *TokenService) Parse(tokenString string) (*entity.User, error) {

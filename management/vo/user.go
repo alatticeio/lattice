@@ -6,6 +6,7 @@ import (
 )
 
 type InviteVo struct {
+	*UserResourceVo
 	ID           uint64         `json:"id"`
 	InviteeName  string         `json:"inviteeName,omitempty"`
 	InviterName  string         `json:"inviterName,omitempty"`
@@ -31,4 +32,37 @@ type InvitationVo struct {
 	Permissions   string         `json:"permissions,omitempty"`
 	AcceptStatus  string         `json:"acceptStatus,omitempty"`
 	InvitedAt     utils.NullTime `json:"invitedAt,omitempty"`
+}
+
+type NodeResourceVo struct {
+	NodeIds   []uint   `json:"nodeIds"`
+	NodeNames []string `json:"nodeNames"`
+}
+
+type PolicyResourceVo struct {
+	PolicyIds   []uint   `json:"policyIds"`
+	PolicyNames []string `json:"policyNames"`
+}
+
+type GroupResourceVo struct {
+	GroupIds   []uint   `json:"groupIds"`
+	GroupNames []string `json:"groupNames"`
+}
+
+type PermissionResourceVo struct {
+	PermissionIds   []uint   `json:"permissionIds"`
+	PermissionNames []string `json:"permissionNames"`
+}
+
+type LabelResourceVo struct {
+	LabelIds   []uint   `json:"labelIds"`
+	LabelNames []string `json:"labelNames"`
+}
+
+type UserResourceVo struct {
+	*GroupResourceVo
+	*PolicyResourceVo
+	*NodeResourceVo
+	*PermissionResourceVo
+	*LabelResourceVo
 }

@@ -31,6 +31,8 @@ type UserService interface {
 	// Invite a user join network
 	Invite(dto *dto.InviteDto) error
 	CancelInvite(id string) error
+	DeleteInvite(id string) error
+	GetInvite(ctx context.Context, id string) (*vo.InviteVo, error)
 	GetInvitation(userId, email string) (*entity.Invitation, error)
 	UpdateInvitation(dto *dto.InvitationDto) error
 	RejectInvitation(id uint) error
@@ -140,10 +142,10 @@ func (u *userServiceImpl) Invite(dto *dto.InviteDto) error {
 	return u.DB.Transaction(func(tx *gorm.DB) error {
 		var err error
 		var inviteUser, invitationUser *entity.User
-		if inviteUser, err = u.GetByUsername(dto.Username); err != nil {
+		if inviteUser, err = u.GetByUsername(dto.InviterName); err != nil {
 			return err
 		}
-		if invitationUser, err = u.GetByUsername(dto.InviteUsername); err != nil {
+		if invitationUser, err = u.GetByUsername(dto.InviteeName); err != nil {
 			return err
 		}
 
@@ -180,13 +182,122 @@ func (u *userServiceImpl) Invite(dto *dto.InviteDto) error {
 
 }
 
+func (u *userServiceImpl) GetInvite(ctx context.Context, id string) (*vo.InviteVo, error) {
+	result := new(vo.InviteVo)
+	var invite entity.Invites
+	if err := u.Where("id = ?", id).First(&invite).Error; err != nil {
+		return nil, err
+	}
+
+	var inviteUser, invitationUser entity.User
+	if err := u.Where("id = ?", invite.InviterId).First(&inviteUser).Error; err != nil {
+		return nil, err
+	}
+
+	if err := u.Where("id = ?", invite.InvitationId).First(&invitationUser).Error; err != nil {
+		return nil, err
+	}
+	uvo, err := u.genUserResourceVo(invite.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	result.UserResourceVo = uvo
+
+	return result, nil
+}
+
+func (u *userServiceImpl) genUserResourceVo(inviteId uint) (*vo.UserResourceVo, error) {
+	uvo := new(vo.UserResourceVo)
+	// get invite resource info
+	var sharedGroup []entity.SharedGroup
+	if err := u.Model(&entity.SharedGroup{}).Where("invite_id = ?", inviteId).Find(&sharedGroup).Error; err != nil {
+		return nil, err
+	}
+
+	if sharedGroup != nil {
+		groupResourceVo := new(vo.GroupResourceVo)
+		uvo.GroupResourceVo = groupResourceVo
+		for _, group := range sharedGroup {
+			groupResourceVo.GroupIds = append(groupResourceVo.GroupIds, group.GroupId)
+			groupResourceVo.GroupNames = append(groupResourceVo.GroupNames, group.GroupName)
+		}
+	}
+
+	// shared node
+	var sharedNode []entity.SharedNode
+	if err := u.Model(&entity.SharedNode{}).Where("invite_id = ?", inviteId).Find(&sharedNode).Error; err != nil {
+		return nil, err
+	}
+
+	if sharedNode != nil {
+		nodeResourceVo := new(vo.NodeResourceVo)
+		uvo.NodeResourceVo = nodeResourceVo
+		for _, node := range sharedNode {
+			nodeResourceVo.NodeIds = append(nodeResourceVo.NodeIds, node.NodeId)
+			nodeResourceVo.NodeNames = append(nodeResourceVo.NodeNames, node.NodeName)
+		}
+	}
+
+	// shared policy
+	var sharedPolicy []entity.SharedPolicy
+	if err := u.Model(&entity.SharedPolicy{}).Where("invite_id = ?", inviteId).Find(&sharedPolicy).Error; err != nil {
+		return nil, err
+	}
+
+	if sharedPolicy != nil {
+		policyResourceVo := new(vo.PolicyResourceVo)
+		uvo.PolicyResourceVo = policyResourceVo
+		for _, policy := range sharedPolicy {
+			policyResourceVo.PolicyIds = append(policyResourceVo.PolicyIds, policy.PolicyId)
+			policyResourceVo.PolicyNames = append(policyResourceVo.PolicyNames, policy.PolicyName)
+		}
+	}
+
+	// share label
+	var sharedLabel []entity.SharedLabel
+	if err := u.Model(&entity.SharedLabel{}).Where("invite_id = ?", inviteId).Find(&sharedLabel).Error; err != nil {
+		return nil, err
+	}
+
+	if sharedLabel != nil {
+		labelResourceVo := new(vo.LabelResourceVo)
+		uvo.LabelResourceVo = labelResourceVo
+		for _, label := range sharedLabel {
+			labelResourceVo.LabelIds = append(labelResourceVo.LabelIds, label.LabelId)
+			labelResourceVo.LabelNames = append(labelResourceVo.LabelNames, label.LabelName)
+		}
+	}
+
+	// shared permissions
+	var sharedPermissions []entity.UserResourceGrantedPermission
+	if err := u.Model(&entity.UserResourceGrantedPermission{}).Where("invite_id = ?", inviteId).Find(&sharedPermissions).Error; err != nil {
+		return nil, err
+	}
+
+	if sharedPermissions != nil {
+		permissionResourceVo := new(vo.PermissionResourceVo)
+		uvo.PermissionResourceVo = permissionResourceVo
+		for _, sharedPermission := range sharedPermissions {
+			permissionResourceVo.PermissionIds = append(permissionResourceVo.PermissionIds, sharedPermission.PermissionId)
+			permissionResourceVo.PermissionNames = append(permissionResourceVo.PermissionNames, sharedPermission.PermissionValue)
+		}
+
+	}
+
+	return uvo, nil
+}
+
 func addResourcePermission(tx *gorm.DB, inviteId uint, dto *dto.InviteDto) error {
 
+	var allNames []string
+
 	if dto.PolicyIdList != nil {
-		names, ids, err := getActualPermission(tx, utils.Policy, dto)
+		names, values, ids, err := getActualPermission(tx, utils.Policy, dto)
 		if err != nil {
 			return err
 		}
+		allNames = append(allNames, names...)
 
 		for _, policyId := range dto.PolicyIdList {
 
@@ -204,26 +315,18 @@ func addResourcePermission(tx *gorm.DB, inviteId uint, dto *dto.InviteDto) error
 				return err
 			}
 
-			permit := &entity.UserResourceGrantedPermission{
-				OwnerId:       uint(dto.InvitationId),
-				InvitationId:  uint(dto.InviteeId),
-				InviteId:      inviteId,
-				ResourceType:  utils.Policy,
-				ResourceId:    policyId,
-				Permission:    utils.Join(names, ","),
-				PermissionIds: utils.Join(ids, ","),
-			}
-			if err := tx.Create(permit).Error; err != nil {
+			if err = createResourcePermission(tx, uint(dto.InvitationId), uint(dto.InviteeId), policyId, names, values, ids); err != nil {
 				return err
 			}
 		}
 	}
 
 	if dto.NodeIdList != nil {
-		names, ids, err := getActualPermission(tx, utils.Node, dto)
+		names, values, ids, err := getActualPermission(tx, utils.Node, dto)
 		if err != nil {
 			return err
 		}
+		allNames = append(allNames, names...)
 
 		for _, nodeId := range dto.NodeIdList {
 
@@ -241,27 +344,18 @@ func addResourcePermission(tx *gorm.DB, inviteId uint, dto *dto.InviteDto) error
 				return err
 			}
 
-			permit := &entity.UserResourceGrantedPermission{
-				OwnerId:       uint(dto.InvitationId),
-				InvitationId:  uint(dto.InviteeId),
-				ResourceType:  utils.Node,
-				ResourceId:    nodeId,
-				InviteId:      inviteId,
-				Permission:    utils.Join(names, ","),
-				PermissionIds: utils.Join(ids, ","),
-			}
-			if err := tx.Create(permit).Error; err != nil {
+			if err = createResourcePermission(tx, uint(dto.InvitationId), uint(dto.InviteeId), nodeId, names, values, ids); err != nil {
 				return err
 			}
 		}
 	}
 
 	if dto.LabelIdList != nil {
-		names, ids, err := getActualPermission(tx, utils.Label, dto)
+		names, values, ids, err := getActualPermission(tx, utils.Label, dto)
 		if err != nil {
 			return err
 		}
-
+		allNames = append(allNames, names...)
 		for _, labelId := range dto.LabelIdList {
 
 			// insert into shared label
@@ -278,36 +372,33 @@ func addResourcePermission(tx *gorm.DB, inviteId uint, dto *dto.InviteDto) error
 				return err
 			}
 
-			permit := &entity.UserResourceGrantedPermission{
-				OwnerId:       uint(dto.InvitationId),
-				InvitationId:  uint(dto.InviteeId),
-				ResourceType:  utils.Label,
-				InviteId:      inviteId,
-				ResourceId:    labelId,
-				Permission:    utils.Join(names, ","),
-				PermissionIds: utils.Join(ids, ","),
-			}
-			if err := tx.Create(permit).Error; err != nil {
+			if err = createResourcePermission(tx, uint(dto.InvitationId), uint(dto.InviteeId), labelId, names, values, ids); err != nil {
 				return err
 			}
 		}
 	}
 
 	if dto.GroupIdList != nil {
-		names, ids, err := getActualPermission(tx, utils.Group, dto)
+		names, values, ids, err := getActualPermission(tx, utils.Group, dto)
 		if err != nil {
 			return err
 		}
+		allNames = append(allNames, names...)
 
-		for _, groupId := range dto.GroupIdList {
+		var groups []entity.NodeGroup
+		if err = tx.Model(&entity.NodeGroup{}).Where("id in ?", dto.GroupIdList).Find(&groups).Error; err != nil {
+			return err
+		}
 
+		for _, group := range groups {
 			// insert into shared group
 			sharedGroup := &entity.SharedGroup{
 				OwnerId:      uint(dto.InviteeId),
 				UserId:       uint(dto.InvitationId),
+				GroupName:    group.Name,
 				InviteId:     inviteId,
 				AcceptStatus: entity.NewInvite,
-				GroupId:      groupId,
+				GroupId:      group.ID,
 				GrantedAt:    utils.NewNullTime(time.Now()),
 			}
 
@@ -315,38 +406,58 @@ func addResourcePermission(tx *gorm.DB, inviteId uint, dto *dto.InviteDto) error
 				return err
 			}
 
-			permit := &entity.UserResourceGrantedPermission{
-				OwnerId:       uint(dto.InvitationId),
-				InvitationId:  uint(dto.InviteeId),
-				ResourceType:  utils.Group,
-				ResourceId:    groupId,
-				InviteId:      inviteId,
-				Permission:    utils.Join(names, ","),
-				PermissionIds: utils.Join(ids, ","),
-			}
-			if err := tx.Create(permit).Error; err != nil {
+			if err = createResourcePermission(tx, uint(dto.InvitationId), uint(dto.InviteeId), group.ID, names, values, ids); err != nil {
 				return err
 			}
 		}
 	}
 
+	// update invite permissinos
+	if err := tx.Model(&entity.Invites{}).Where("id = ?", inviteId).Update("permissions", strings.Join(allNames, ",")).Error; err != nil {
+		return err
+	}
+
 	return nil
 }
 
-func getActualPermission(tx *gorm.DB, resType utils.ResourceType, dto *dto.InviteDto) ([]string, []uint, error) {
+func createResourcePermission(tx *gorm.DB, ownerId, invitationId, resourceId uint, permissionTexts, permissionValues []string, permissionIds []uint) error {
+	for i, permissionText := range permissionTexts {
+		permit := &entity.UserResourceGrantedPermission{
+			OwnerId:         ownerId,
+			InvitationId:    invitationId,
+			ResourceType:    utils.Group,
+			ResourceId:      resourceId,
+			InviteId:        invitationId,
+			PermissionText:  permissionText,
+			PermissionValue: permissionValues[i],
+			PermissionId:    permissionIds[i],
+		}
+		if err := tx.Create(permit).Error; err != nil {
+			return err
+		}
+	}
+
+	return nil
+
+}
+
+// getActualPermission return names, values, ids, err
+func getActualPermission(tx *gorm.DB, resType utils.ResourceType, dto *dto.InviteDto) ([]string, []string, []uint, error) {
 	var permissions []entity.Permissions
 	if err := tx.Model(&entity.Permissions{}).Where("id in ? and permission_type = ?", dto.PermissionIdList, resType).Find(&permissions).Error; err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	var names []string
 	var ids []uint
+	var values []string
 	for _, permission := range permissions {
 		names = append(names, permission.Name)
 		ids = append(ids, permission.ID)
+		values = append(values, permission.PermissionValue)
 	}
 
-	return names, ids, nil
+	return names, values, ids, nil
 }
 
 func (u *userServiceImpl) CancelInvite(id string) error {
@@ -361,6 +472,22 @@ func (u *userServiceImpl) CancelInvite(id string) error {
 		}
 
 		return updateResourcePermission(tx, invite.ID, entity.Canceled)
+
+	})
+}
+
+func (u *userServiceImpl) DeleteInvite(id string) error {
+	return u.DB.Transaction(func(tx *gorm.DB) error {
+		//delete role &  permissions
+
+		var invite entity.Invites
+
+		var err error
+		if err = tx.Model(&entity.Invites{}).Where("id = ?", id).Find(&invite).Delete(&entity.Invites{}).Error; err != nil {
+			return err
+		}
+
+		return deleteResourcePermission(tx, invite.ID)
 
 	})
 }
@@ -505,6 +632,37 @@ func updateResourcePermission(tx *gorm.DB, inviteId uint, status entity.AcceptSt
 	return nil
 }
 
+func deleteResourcePermission(tx *gorm.DB, inviteId uint) error {
+	// update shared group
+	var (
+		err error
+	)
+	if err = tx.Model(&entity.SharedGroup{}).Where("invite_id = ?", inviteId).Delete(&entity.SharedGroup{}).Error; err != nil {
+		return err
+	}
+
+	// update shared node
+	if err = tx.Model(&entity.SharedNode{}).Where("invite_id = ?", inviteId).Delete(&entity.SharedNode{}).Error; err != nil {
+		return err
+	}
+
+	// update shared label
+	if err = tx.Model(&entity.SharedLabel{}).Where("invite_id = ?", inviteId).Delete(&entity.SharedLabel{}).Error; err != nil {
+		return err
+	}
+
+	// update shared policy
+	if err = tx.Model(&entity.SharedPolicy{}).Where("invite_id = ?", inviteId).Delete(&entity.SharedPolicy{}).Error; err != nil {
+		return err
+	}
+
+	// update shared perissions
+	if err = tx.Model(&entity.UserResourceGrantedPermission{}).Where("invite_id = ?", inviteId).Delete(&entity.UserResourceGrantedPermission{}).Error; err != nil {
+		return err
+	}
+	return nil
+}
+
 func (u *userServiceImpl) ListInvites(params *dto.InvitationParams) (*vo.PageVo, error) {
 
 	var invs []*entity.Invites
@@ -536,18 +694,24 @@ func (u *userServiceImpl) ListInvites(params *dto.InvitationParams) (*vo.PageVo,
 			return nil, err
 		}
 
+		uvo, err := u.genUserResourceVo(inv.ID)
+		if err != nil {
+			return nil, err
+		}
+
 		insVo := &vo.InviteVo{
-			ID:           uint64(inv.ID),
-			InviteeName:  inviteUser.Username,
-			InviterName:  invitationUser.Username,
-			MobilePhone:  invitationUser.Mobile,
-			Email:        invitationUser.Email,
-			Avatar:       invitationUser.Avatar,
-			Role:         inv.Role,
-			GroupName:    inv.Group,
-			Permissions:  inv.Permissions,
-			AcceptStatus: inv.AcceptStatus.String(),
-			InvitedAt:    inv.InvitedAt,
+			UserResourceVo: uvo,
+			ID:             uint64(inv.ID),
+			InviteeName:    invitationUser.Username,
+			InviterName:    inviteUser.Username,
+			MobilePhone:    invitationUser.Mobile,
+			Email:          invitationUser.Email,
+			Avatar:         invitationUser.Avatar,
+			Role:           inv.Role,
+			GroupName:      inv.Group,
+			Permissions:    inv.Permissions,
+			AcceptStatus:   inv.AcceptStatus.String(),
+			InvitedAt:      inv.InvitedAt,
 		}
 
 		insVos = append(insVos, insVo)

@@ -24,7 +24,7 @@ func (s *Server) authCheck() gin.HandlerFunc {
 			return
 		}
 
-		b, err := s.tokener.Verify(user.Username, user.Password)
+		b, u, err := s.tokener.Verify(user.Username, user.Password)
 		if err != nil {
 			c.JSON(client.InternalServerError(err))
 			c.Abort()
@@ -39,6 +39,7 @@ func (s *Server) authCheck() gin.HandlerFunc {
 
 		// put user into context
 		c.Set("username", user.Username)
+		c.Set("userId", u.ID)
 
 		c.Next()
 	}

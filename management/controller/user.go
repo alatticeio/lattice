@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"context"
 	"fmt"
 	"linkany/management/dto"
 	"linkany/management/entity"
@@ -36,8 +37,16 @@ func (u *UserController) Invite(dto *dto.InviteDto) error {
 	return u.userService.Invite(dto)
 }
 
+func (u *UserController) GetInvite(ctx context.Context, id string) (*vo.InviteVo, error) {
+	return u.userService.GetInvite(ctx, id)
+}
+
 func (u *UserController) CancelInvite(id string) error {
 	return u.userService.CancelInvite(id)
+}
+
+func (u *UserController) DeleteInvite(id string) error {
+	return u.userService.DeleteInvite(id)
 }
 
 func (u *UserController) RejectInvitation(id uint) error {

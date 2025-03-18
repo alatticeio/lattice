@@ -107,9 +107,21 @@ func (p *nodeServiceImpl) Register(e *dto.NodeDto) (*entity.Node, error) {
 }
 
 func (p *nodeServiceImpl) CreateAppId(ctx context.Context) (*entity.Node, error) {
-	peer := &entity.Node{
-		AppID: utils.GenerateUUID(),
+	username := ctx.Value("username")
+	if username == nil {
+		return nil, errors.New("invalid username")
 	}
+	userId := ctx.Value("userId")
+	if userId == nil {
+		return nil, errors.New("invalid userId")
+	}
+
+	peer := &entity.Node{
+		AppID:     utils.GenerateUUID(),
+		UserID:    userId.(uint),
+		CreatedBy: username.(string),
+	}
+
 	err := p.Create(peer).Error
 	if err != nil {
 		return nil, err
@@ -191,7 +203,6 @@ func (p *nodeServiceImpl) ListNodes(params *dto.QueryParams) (*vo.PageVo, error)
 			ID:                  node.ID,
 			Name:                node.Name,
 			Description:         node.Description,
-			GroupID:             node.GroupID,
 			CreatedBy:           node.CreatedBy,
 			UserID:              node.UserID,
 			Hostname:            node.Hostname,

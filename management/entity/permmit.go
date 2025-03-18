@@ -4,9 +4,10 @@ import "gorm.io/gorm"
 
 type Permissions struct {
 	gorm.Model
-	ResourceType string
-	Name         string
-	Description  string
+	ResourceType    string
+	Name            string
+	PermissionValue string
+	Description     string
 }
 
 func (Permissions) TableName() string {

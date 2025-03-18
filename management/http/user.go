@@ -17,6 +17,7 @@ func (s *Server) RegisterUserRoutes() {
 
 	// user invite
 	userGroup.POST("/invite/a", s.authCheck(), s.invite())
+	userGroup.PUT("/invite/c/:id", s.authCheck(), s.cancelInvite())
 	userGroup.DELETE("/invite/d/:id", s.authCheck(), s.deleteInvite())
 	userGroup.PUT("/invite/u", s.authCheck(), s.updateInvitation())
 	userGroup.GET("/invite/g", s.authCheck(), s.getInvitation())
@@ -56,7 +57,7 @@ func (s *Server) invite() gin.HandlerFunc {
 		}
 
 		username := c.GetString("username")
-		req.Username = username
+		req.InviterName = username
 
 		if req.GroupIds != "" {
 			req.GroupIdList, err = utils.Splits(req.GroupIds, ",")
@@ -108,11 +109,23 @@ func (s *Server) invite() gin.HandlerFunc {
 	}
 }
 
+// cancel invite cancel
+func (s *Server) cancelInvite() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		id := c.Param("id")
+		if err := s.userController.CancelInvite(id); err != nil {
+			WriteError(c.JSON, err.Error())
+			return
+		}
+		WriteOK(c.JSON, nil)
+	}
+}
+
 // delete invite cancel
 func (s *Server) deleteInvite() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id := c.Param("id")
-		if err := s.userController.CancelInvite(id); err != nil {
+		if err := s.userController.DeleteInvite(id); err != nil {
 			WriteError(c.JSON, err.Error())
 			return
 		}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"gorm.io/gorm"
 	"linkany/management/dto"
 	"linkany/management/entity"
 	"linkany/management/utils"
@@ -21,6 +22,7 @@ type AccessPolicyService interface {
 
 	//ListPagePolicies list with query
 	ListPolicies(ctx context.Context, params *dto.AccessPolicyParams) ([]*vo.AccessPolicyVo, error)
+	DeleteUserResourcePermission(ctx context.Context, inviteId, permissionId uint) error
 
 	// Rule manage
 	AddRule(ctx context.Context, ruleDto *dto.AccessRuleDto) error
@@ -273,6 +275,21 @@ func (a accessPolicyServiceImpl) ListPermissions(ctx context.Context, params *dt
 	result.Page = params.Page
 	result.Size = params.Size
 	return result, nil
+}
+
+func (a accessPolicyServiceImpl) DeleteUserResourcePermission(ctx context.Context, inviteId, permissionId uint) error {
+	var (
+		err error
+	)
+
+	return a.DB.Transaction(func(tx *gorm.DB) error {
+		if err = tx.Model(&entity.UserResourceGrantedPermission{}).Where("invite_id = ? and permission_id = ?", inviteId, permissionId).Delete(&entity.UserResourceGrantedPermission{}).Error; err != nil {
+			return err
+		}
+
+		return nil
+	})
+
 }
 
 func NewAccessPolicyService(db *DatabaseService) AccessPolicyService {

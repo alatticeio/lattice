@@ -81,3 +81,7 @@ func (a *AccessController) GetPolicy(ctx context.Context, policyID uint) (*entit
 func (a *AccessController) ListPermissions(ctx context.Context, params *dto.PermissionParams) (*vo.PageVo, error) {
 	return a.accessService.ListPermissions(ctx, params)
 }
+
+func (a *AccessController) DeleteUserResourcePermission(ctx context.Context, inviteId, permissionId uint) error {
+	return a.accessService.DeleteUserResourcePermission(ctx, inviteId, permissionId)
+}
