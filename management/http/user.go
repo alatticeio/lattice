@@ -14,18 +14,19 @@ func (s *Server) RegisterUserRoutes() {
 	userGroup.POST("/login", s.login())
 	userGroup.GET("/list", s.authCheck(), s.getUsers())
 	userGroup.GET("/info", s.authCheck(), s.getUserInfo())
+	userGroup.GET("/queryUsers", s.authCheck(), s.queryUsers())
 
 	// user invite
 	userGroup.POST("/invite/a", s.authCheck(), s.invite())
 	userGroup.PUT("/invite/c/:id", s.authCheck(), s.cancelInvite())
 	userGroup.DELETE("/invite/d/:id", s.authCheck(), s.deleteInvite())
-	userGroup.PUT("/invite/u", s.authCheck(), s.updateInvitation())
+	userGroup.PUT("/invite/u", s.authCheck(), s.updateInvite())
 	userGroup.GET("/invite/g", s.authCheck(), s.getInvitation())
 	userGroup.GET("/invite/list", s.authCheck(), s.listInvites())
 
 	// user invitation
 	userGroup.GET("/invitation/list", s.authCheck(), s.listInvitations())
-	userGroup.PUT("/invitation/u", s.authCheck(), s.updateInvitation())
+	userGroup.PUT("/invitation/u", s.authCheck(), s.updateInvite())
 	userGroup.PUT("/invitation/r/:inviteId", s.authCheck(), s.rejectInvitation())
 	userGroup.PUT("/invitation/a/:inviteId", s.authCheck(), s.acceptInvitation())
 }
@@ -39,6 +40,23 @@ func (s *Server) getUserInfo() gin.HandlerFunc {
 			return
 		}
 		WriteOK(c.JSON, user)
+	}
+}
+
+func (s *Server) queryUsers() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var params dto.UserParams
+		var err error
+		if err = c.ShouldBindQuery(&params); err != nil {
+			WriteError(c.JSON, err.Error())
+			return
+		}
+		users, err := s.userController.QueryUsers(&params)
+		if err != nil {
+			WriteError(c.JSON, err.Error())
+			return
+		}
+		WriteOK(c.JSON, users)
 	}
 }
 
@@ -148,14 +166,14 @@ func (s *Server) getInvitation() gin.HandlerFunc {
 }
 
 // update invitation
-func (s *Server) updateInvitation() gin.HandlerFunc {
+func (s *Server) updateInvite() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		var dto dto.InvitationDto
+		var dto dto.InviteDto
 		if err := c.ShouldBindJSON(&dto); err != nil {
 			c.JSON(400, gin.H{"error": "Invalid email address or missing field"})
 			return
 		}
-		if err := s.userController.UpdateInvitation(&dto); err != nil {
+		if err := s.userController.UpdateInvite(c, &dto); err != nil {
 			WriteError(c.JSON, err.Error())
 			return
 		}

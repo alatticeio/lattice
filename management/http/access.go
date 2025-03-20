@@ -14,7 +14,7 @@ func (s *Server) RegisterAccessRoutes() {
 	routes.DELETE("/policy/:policyID", s.authCheck(), s.deleteAccessPolicy())
 	routes.GET("/policy/page", s.authCheck(), s.listAccessPolicies())
 
-	routes.GET("/policy/list", s.authCheck(), s.listPolicies())
+	routes.GET("/policy/q", s.authCheck(), s.queryPolicies())
 
 	// rule
 	routes.GET("/rule/:ruleID", s.authCheck(), s.getRule())
@@ -25,7 +25,7 @@ func (s *Server) RegisterAccessRoutes() {
 	routes.GET("/policy/rules", s.authCheck(), s.listAccessRules())
 
 	//permissions
-	routes.GET("/permissions", s.authCheck(), s.listPermissions())
+	routes.GET("/permissions/q", s.authCheck(), s.queryPermissions())
 	routes.DELETE("/permissions/invite/:inviteId/permission/:permissionId", s.authCheck(), s.deleteUserResourcePermission())
 }
 
@@ -67,7 +67,7 @@ func (s *Server) listAccessPolicies() gin.HandlerFunc {
 	}
 }
 
-func (s *Server) listPolicies() gin.HandlerFunc {
+func (s *Server) queryPolicies() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var params dto.AccessPolicyParams
 		var err error
@@ -213,7 +213,7 @@ func (s *Server) getRule() gin.HandlerFunc {
 	}
 }
 
-func (s *Server) listPermissions() gin.HandlerFunc {
+func (s *Server) queryPermissions() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var (
 			params dto.PermissionParams
@@ -223,7 +223,7 @@ func (s *Server) listPermissions() gin.HandlerFunc {
 			WriteError(c.JSON, err.Error())
 			return
 		}
-		permissions, err := s.accessController.ListPermissions(c, &params)
+		permissions, err := s.accessController.QueryPermissions(c, &params)
 		if err != nil {
 			c.JSON(client.InternalServerError(err))
 			return

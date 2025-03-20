@@ -50,6 +50,7 @@ type SupportDto struct {
 // 被邀请: InvitationId
 // 邀请表主键: InviteId
 type InviteDto struct {
+	ID               uint
 	InviteeName      string
 	InviterName      string
 	InvitationId     int64
@@ -68,6 +69,7 @@ type InviteDto struct {
 	LabelIdList      []uint
 	PermissionIdList []uint
 	Network          string // 192.168.0.0/24
+	Description      string
 }
 
 type InvitationDto struct {

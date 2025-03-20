@@ -38,8 +38,7 @@ func (qp *QueryParams) Generate() []*utils.KeyValue {
 
 type PermissionParams struct {
 	vo.PageModel
-	Name           string `json:"name" form:"name"`
-	PermissionType string `json:"permissionType" form:"permissionType"`
+	Name string `json:"name" form:"name"`
 }
 
 func (p *PermissionParams) Generate() []*utils.KeyValue {
@@ -47,10 +46,6 @@ func (p *PermissionParams) Generate() []*utils.KeyValue {
 
 	if p.Name != "" {
 		result = append(result, utils.NewKeyValue("name", p.Name))
-	}
-
-	if p.PermissionType != "" {
-		result = append(result, utils.NewKeyValue("permission_type", p.PermissionType))
 	}
 
 	if p.Page == 0 {

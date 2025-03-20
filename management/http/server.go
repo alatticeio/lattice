@@ -28,6 +28,7 @@ type Server struct {
 	supportController *controller.SupportController
 	accessController  *controller.AccessController
 	groupController   *controller.GroupController
+	sharedController  *controller.SharedController
 }
 
 // ServerConfig is the server configuration

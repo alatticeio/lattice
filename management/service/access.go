@@ -21,7 +21,7 @@ type AccessPolicyService interface {
 	ListGroupPolicies(ctx context.Context, params *dto.AccessPolicyParams) (*vo.PageVo, error)
 
 	//ListPagePolicies list with query
-	ListPolicies(ctx context.Context, params *dto.AccessPolicyParams) ([]*vo.AccessPolicyVo, error)
+	QueryPolicies(ctx context.Context, params *dto.AccessPolicyParams) ([]*vo.AccessPolicyVo, error)
 	DeleteUserResourcePermission(ctx context.Context, inviteId, permissionId uint) error
 
 	// Rule manage
@@ -40,6 +40,9 @@ type AccessPolicyService interface {
 
 	// Permissions
 	ListPermissions(ctx context.Context, params *dto.PermissionParams) (*vo.PageVo, error)
+
+	// Permissions
+	QueryPermissions(ctx context.Context, params *dto.PermissionParams) ([]*vo.PermissionVo, error)
 }
 
 // 访问请求结构
@@ -137,7 +140,7 @@ func (a accessPolicyServiceImpl) ListGroupPolicies(ctx context.Context, params *
 	return result, err
 }
 
-func (a accessPolicyServiceImpl) ListPolicies(ctx context.Context, params *dto.AccessPolicyParams) ([]*vo.AccessPolicyVo, error) {
+func (a accessPolicyServiceImpl) QueryPolicies(ctx context.Context, params *dto.AccessPolicyParams) ([]*vo.AccessPolicyVo, error) {
 	var policies []*vo.AccessPolicyVo
 	sql, wrappers := utils.GenerateSql(params)
 
@@ -275,6 +278,30 @@ func (a accessPolicyServiceImpl) ListPermissions(ctx context.Context, params *dt
 	result.Page = params.Page
 	result.Size = params.Size
 	return result, nil
+}
+
+func (a accessPolicyServiceImpl) QueryPermissions(ctx context.Context, params *dto.PermissionParams) ([]*vo.PermissionVo, error) {
+	sql, wrappers := utils.GenerateSql(params)
+	var permissions []entity.Permissions
+	db := a.DB
+	if sql != "" {
+		db = db.Model(&entity.Permissions{}).Where(sql, wrappers)
+	}
+
+	if err := db.Model(&entity.Permissions{}).Find(&permissions).Error; err != nil {
+		return nil, err
+	}
+
+	var vos []*vo.PermissionVo
+	for _, permission := range permissions {
+		vos = append(vos, &vo.PermissionVo{
+			ID:          permission.ID,
+			Name:        permission.Name,
+			Description: permission.Description,
+		})
+	}
+
+	return vos, nil
 }
 
 func (a accessPolicyServiceImpl) DeleteUserResourcePermission(ctx context.Context, inviteId, permissionId uint) error {

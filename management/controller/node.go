@@ -29,6 +29,10 @@ func (p *NodeController) ListNodes(params *dto.QueryParams) (*vo.PageVo, error) 
 	return p.nodeService.ListNodes(params)
 }
 
+func (p *NodeController) QueryNodes(params *dto.QueryParams) ([]*vo.NodeVo, error) {
+	return p.nodeService.QueryNodes(params)
+}
+
 func (p *NodeController) Update(dto *dto.NodeDto) (*entity.Node, error) {
 	return p.nodeService.Update(dto)
 }

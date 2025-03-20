@@ -31,6 +31,7 @@ type Invitation struct {
 	AcceptStatus AcceptStatus //
 	InviteId     uint         //relate to Invite table
 	Group        string
+	GroupIds     string
 	Role         string
 	Permissions  string
 	Network      string //192.168.0.0/24

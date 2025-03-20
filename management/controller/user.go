@@ -32,6 +32,10 @@ func (u *UserController) Get(token string) (*entity.User, error) {
 	return u.userService.Get(token)
 }
 
+func (u *UserController) QueryUsers(params *dto.UserParams) ([]*vo.UserVo, error) {
+	return u.userService.QueryUsers(params)
+}
+
 // Invite module
 func (u *UserController) Invite(dto *dto.InviteDto) error {
 	return u.userService.Invite(dto)
@@ -39,6 +43,10 @@ func (u *UserController) Invite(dto *dto.InviteDto) error {
 
 func (u *UserController) GetInvite(ctx context.Context, id string) (*vo.InviteVo, error) {
 	return u.userService.GetInvite(ctx, id)
+}
+
+func (u *UserController) UpdateInvite(ctx context.Context, dto *dto.InviteDto) error {
+	return u.userService.UpdateInvite(ctx, dto)
 }
 
 func (u *UserController) CancelInvite(id string) error {

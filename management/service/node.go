@@ -31,6 +31,8 @@ type NodeService interface {
 	// after that, it will call Watch method to get the latest peers
 	ListNodes(params *dto.QueryParams) (*vo.PageVo, error)
 
+	QueryNodes(params *dto.QueryParams) ([]*vo.NodeVo, error)
+
 	// Watch returns a channel that will be used to send the latest peers to the client
 	//Watch() (<-chan *entity.Node, error)
 
@@ -227,6 +229,50 @@ func (p *nodeServiceImpl) ListNodes(params *dto.QueryParams) (*vo.PageVo, error)
 	result.Current = params.Page
 
 	return result, nil
+}
+
+// List params will filter
+func (p *nodeServiceImpl) QueryNodes(params *dto.QueryParams) ([]*vo.NodeVo, error) {
+	var nodes []*entity.Node
+	var sql string
+	var wrappers []interface{}
+
+	if params.Keyword != nil {
+		sql, wrappers = utils.GenerateSql(params)
+	} else {
+		sql, wrappers = utils.Generate(params)
+	}
+
+	p.logger.Verbosef("sql: %s, wrappers: %v", sql, wrappers)
+	if err := p.Where(sql, wrappers...).Find(&nodes).Error; err != nil {
+		return nil, err
+	}
+
+	var nodeVos []*vo.NodeVo
+	for _, node := range nodes {
+		nodeVos = append(nodeVos, &vo.NodeVo{
+			ID:                  node.ID,
+			Name:                node.Name,
+			Description:         node.Description,
+			CreatedBy:           node.CreatedBy,
+			UserID:              node.UserID,
+			Hostname:            node.Hostname,
+			AppID:               node.AppID,
+			Address:             node.Address,
+			Endpoint:            node.Endpoint,
+			PersistentKeepalive: node.PersistentKeepalive,
+			PublicKey:           node.PublicKey,
+			AllowedIPs:          node.AllowedIPs,
+			RelayIP:             node.RelayIP,
+			TieBreaker:          node.TieBreaker,
+			Ufrag:               node.Ufrag,
+			Pwd:                 node.Pwd,
+			Port:                node.Port,
+			Status:              node.Status,
+		})
+	}
+
+	return nodeVos, nil
 }
 
 // Watch when register or update called, first call Watch

@@ -19,6 +19,7 @@ type GroupService interface {
 	UpdateGroup(ctx context.Context, dto *dto.NodeGroupDto) error
 	DeleteGroup(ctx context.Context, id string) error
 	ListGroups(ctx context.Context, params *dto.GroupParams) (*vo.PageVo, error)
+	QueryGroups(ctx context.Context, params *dto.GroupParams) ([]*vo.NodeGroupVo, error)
 
 	ListGroupPolicy(ctx context.Context, params *dto.GroupPolicyParams) ([]*vo.GroupPolicyVo, error)
 	DeleteGroupPolicy(ctx context.Context, groupId uint, policyId uint) error
@@ -263,6 +264,42 @@ func (g *groupServiceImpl) ListGroups(ctx context.Context, params *dto.GroupPara
 	result.Size = params.Size
 
 	return result, nil
+}
+
+func (g *groupServiceImpl) QueryGroups(ctx context.Context, params *dto.GroupParams) ([]*vo.NodeGroupVo, error) {
+	var nodeGroups []entity.NodeGroup
+
+	sql, wrappers := utils.Generate(params)
+	db := g.DB
+	if sql != "" {
+		db = db.Where(sql, wrappers)
+	}
+
+	g.logger.Verbosef("sql: %s, wrappers: %v", sql, wrappers)
+	if err := db.Model(&entity.NodeGroup{}).Offset((params.Page - 1) * params.Size).Limit(params.Size).Find(&nodeGroups).Error; err != nil {
+		return nil, err
+	}
+
+	var nodeVos []*vo.NodeGroupVo
+	for _, group := range nodeGroups {
+		res, err := g.fetchNodeAndGroup(group.ID)
+		if err != nil {
+			return nil, err
+		}
+		nodeVos = append(nodeVos, &vo.NodeGroupVo{
+			ID:              group.ID,
+			Name:            group.Name,
+			Description:     group.Description,
+			GroupRelationVo: res,
+			CreatedAt:       group.CreatedAt,
+			DeletedAt:       group.DeletedAt,
+			UpdatedAt:       group.UpdatedAt,
+			CreatedBy:       group.CreatedBy,
+			UpdatedBy:       group.UpdatedBy,
+		})
+	}
+
+	return nodeVos, nil
 }
 
 func (g *groupServiceImpl) fetchNodeAndGroup(groupId uint) (*vo.GroupRelationVo, error) {

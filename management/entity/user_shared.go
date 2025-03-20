@@ -1,10 +1,8 @@
 package entity
 
 import (
-	"linkany/management/utils"
-	"time"
-
 	"gorm.io/gorm"
+	"linkany/management/utils"
 )
 
 // SharedGroup is the entity that represents the shared group
@@ -56,7 +54,7 @@ type SharedNode struct {
 	AcceptStatus AcceptStatus
 	Description  string
 	GrantedAt    utils.NullTime
-	RevokedAt    time.Time
+	RevokedAt    utils.NullTime
 }
 
 func (SharedNode) TableName() string {

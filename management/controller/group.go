@@ -51,3 +51,7 @@ func (p *GroupController) DeleteGroup(ctx context.Context, id string) error {
 func (p *GroupController) ListGroups(ctx context.Context, params *dto.GroupParams) (*vo.PageVo, error) {
 	return p.groupService.ListGroups(ctx, params)
 }
+
+func (p *GroupController) QueryGroups(ctx context.Context, params *dto.GroupParams) ([]*vo.NodeGroupVo, error) {
+	return p.groupService.QueryGroups(ctx, params)
+}

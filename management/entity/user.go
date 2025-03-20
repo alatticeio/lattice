@@ -1,9 +1,8 @@
 package entity
 
 import (
-	"linkany/management/utils"
-
 	"gorm.io/gorm"
+	"linkany/management/utils"
 )
 
 type User struct {

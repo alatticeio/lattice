@@ -16,6 +16,7 @@ func (s *Server) RegisterNodeRoutes() {
 	nodeGroup.PUT("/", s.authCheck(), s.updateNode())
 	nodeGroup.DELETE("/:appId", s.authCheck(), s.deleteNode())
 	nodeGroup.GET("/list", s.authCheck(), s.listNodes())
+	nodeGroup.GET("/q", s.authCheck(), s.queryNodes())
 
 	// group member
 	nodeGroup.POST("/group/member", s.authCheck(), s.addGroupMember())
@@ -91,6 +92,23 @@ func (s *Server) listNodes() gin.HandlerFunc {
 		}
 
 		nodes, err := s.nodeController.ListNodes(params)
+		if err != nil {
+			WriteError(c.JSON, err.Error())
+			return
+		}
+		WriteOK(c.JSON, nodes)
+	}
+}
+
+func (s *Server) queryNodes() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		params := &dto.QueryParams{}
+		if err := c.ShouldBindQuery(params); err != nil {
+			c.JSON(client.BadRequest(err))
+			return
+		}
+
+		nodes, err := s.nodeController.QueryNodes(params)
 		if err != nil {
 			WriteError(c.JSON, err.Error())
 			return

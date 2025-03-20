@@ -22,6 +22,7 @@ func (s *Server) RegisterGroupRoutes() {
 	nodeGroup.PUT("/u", s.authCheck(), s.updateGroup())
 	nodeGroup.DELETE("/:id", s.authCheck(), s.deleteGroup())
 	nodeGroup.GET("/list", s.authCheck(), s.listGroups())
+	nodeGroup.GET("/q", s.authCheck(), s.queryGroups())
 }
 
 func (s *Server) listGroupPolicies() gin.HandlerFunc {
@@ -185,6 +186,23 @@ func (s *Server) listGroups() gin.HandlerFunc {
 		}
 
 		nodeGroups, err := s.groupController.ListGroups(c, &params)
+		if err != nil {
+			c.JSON(client.InternalServerError(err))
+			return
+		}
+		WriteOK(c.JSON, nodeGroups)
+	}
+}
+
+func (s *Server) queryGroups() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var params dto.GroupParams
+		if err := c.ShouldBindQuery(&params); err != nil {
+			WriteError(c.JSON, err.Error())
+			return
+		}
+
+		nodeGroups, err := s.groupController.QueryGroups(c, &params)
 		if err != nil {
 			c.JSON(client.InternalServerError(err))
 			return

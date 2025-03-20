@@ -71,15 +71,15 @@ func (a *AccessController) ListPagePolicies(ctx context.Context, params *dto.Acc
 }
 
 func (a *AccessController) ListPolicies(ctx context.Context, params *dto.AccessPolicyParams) ([]*vo.AccessPolicyVo, error) {
-	return a.accessService.ListPolicies(ctx, params)
+	return a.accessService.QueryPolicies(ctx, params)
 }
 
 func (a *AccessController) GetPolicy(ctx context.Context, policyID uint) (*entity.AccessPolicy, error) {
 	return a.accessService.GetPolicy(ctx, policyID)
 }
 
-func (a *AccessController) ListPermissions(ctx context.Context, params *dto.PermissionParams) (*vo.PageVo, error) {
-	return a.accessService.ListPermissions(ctx, params)
+func (a *AccessController) QueryPermissions(ctx context.Context, params *dto.PermissionParams) ([]*vo.PermissionVo, error) {
+	return a.accessService.QueryPermissions(ctx, params)
 }
 
 func (a *AccessController) DeleteUserResourcePermission(ctx context.Context, inviteId, permissionId uint) error {
