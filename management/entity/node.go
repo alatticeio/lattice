@@ -47,6 +47,12 @@ type Node struct {
 	Status              NodeStatus `gorm:"column:status" json:"status"`
 }
 
+type ListNode struct {
+	Node
+	GroupName string `gorm:"column:group_name;size:50" json:"groupName"`
+	LabelName string `gorm:"column:label_name;size:256" json:"labelName"`
+}
+
 type NodeStatus int
 
 const (

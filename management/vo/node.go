@@ -49,4 +49,6 @@ type NodeVo struct {
 	Pwd                 string            `json:"pwd"`
 	Port                int               `json:"port"`
 	Status              entity.NodeStatus `json:"status"`
+	GroupName           string            `json:"groupName"`
+	LabelName           string            `json:"labelName"`
 }

@@ -397,7 +397,7 @@ func (s *Server) recv(stream mgt.ManagementService_KeepaliveServer) (*mgt.Reques
 func (s *Server) sendWatchMessage(eventType mgt.EventType, current *vo.NodeVo, pubKey, userId string, status entity.NodeStatus) error {
 	state := 1
 	peers, err := s.peerController.ListNodes(&dto.QueryParams{
-		UserId: &userId,
+		UserId: userId,
 		Status: &state,
 	})
 
