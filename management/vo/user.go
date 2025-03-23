@@ -44,7 +44,7 @@ type InvitationVo struct {
 }
 
 type NodeResourceVo struct {
-	NodeIds   []uint   `json:"nodeIds,string"`
+	NodeIds   []string `json:"nodeIds,string"`
 	NodeNames []string `json:"nodeNames"`
 }
 

@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"linkany/management/dto"
 	"linkany/management/entity"
 	"linkany/management/utils"
@@ -217,6 +218,49 @@ func (u *userServiceImpl) Invite(dto *dto.InviteDto) error {
 
 }
 
+func (u *userServiceImpl) UpdateInvite(ctx context.Context, dto *dto.InviteDto) error {
+	return u.DB.Transaction(func(tx *gorm.DB) error {
+		var err error
+		groupName := getGroupNames(tx, dto.GroupIdList)
+
+		if err = tx.Model(&entity.Invites{}).Find("invite_id = ?", dto.ID).Update("group", groupName).Update("group_ids", dto.GroupIds).Error; err != nil {
+			return err
+		}
+
+		if err = tx.Model(&entity.Invitation{}).Find("invite_id = ?", dto.ID).Update("group", groupName).Update("group_ids", dto.GroupIds).Error; err != nil {
+			return err
+		}
+
+		// insert into user granted permissions
+		return updateResources(tx, dto.ID, dto)
+	})
+}
+
+func updateResources(tx *gorm.DB, inviteId uint, dto *dto.InviteDto) error {
+	var err error
+	if err = tx.Model(&entity.SharedGroup{}).Where("invite_id = ?", inviteId).Delete(&entity.SharedGroup{}).Error; err != nil {
+		return err
+	}
+
+	if err = tx.Model(&entity.SharedNode{}).Where("invite_id = ?", inviteId).Delete(&entity.SharedNode{}).Error; err != nil {
+		return err
+	}
+
+	if err = tx.Model(&entity.SharedLabel{}).Where("invite_id = ?", inviteId).Delete(&entity.SharedLabel{}).Error; err != nil {
+		return err
+	}
+
+	if err = tx.Model(&entity.SharedPolicy{}).Where("invite_id = ?", inviteId).Delete(&entity.SharedPolicy{}).Error; err != nil {
+		return err
+	}
+
+	if err = tx.Model(&entity.UserResourceGrantedPermission{}).Where("invite_id = ?", inviteId).Delete(&entity.UserResourceGrantedPermission{}).Error; err != nil {
+		return err
+	}
+
+	return addResourcePermission(tx, inviteId, dto)
+}
+
 func (u *userServiceImpl) GetInvite(ctx context.Context, id string) (*vo.InviteVo, error) {
 	result := new(vo.InviteVo)
 	var invite entity.Invites
@@ -240,20 +284,6 @@ func (u *userServiceImpl) GetInvite(ctx context.Context, id string) (*vo.InviteV
 	result.UserResourceVo = uvo
 
 	return result, nil
-}
-
-func (u *userServiceImpl) UpdateInvite(ctx context.Context, dto *dto.InviteDto) error {
-	return u.DB.Transaction(func(tx *gorm.DB) error {
-		var (
-			invite entity.Invites
-			err    error
-		)
-		if err = tx.Model(&entity.Invites{}).Where("id = ?", dto.ID).Find(&invite).Update("description", dto.Description).Error; err != nil {
-			return err
-		}
-
-		return nil
-	})
 }
 
 func (u *userServiceImpl) genUserResourceVo(inviteId uint) (*vo.UserResourceVo, error) {
@@ -283,7 +313,7 @@ func (u *userServiceImpl) genUserResourceVo(inviteId uint) (*vo.UserResourceVo, 
 		nodeResourceVo := new(vo.NodeResourceVo)
 		uvo.NodeResourceVo = nodeResourceVo
 		for _, node := range sharedNode {
-			nodeResourceVo.NodeIds = append(nodeResourceVo.NodeIds, node.NodeId)
+			nodeResourceVo.NodeIds = append(nodeResourceVo.NodeIds, fmt.Sprintf("%d", node.NodeId))
 			nodeResourceVo.NodeNames = append(nodeResourceVo.NodeNames, node.NodeName)
 		}
 	}

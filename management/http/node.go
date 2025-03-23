@@ -30,17 +30,20 @@ func (s *Server) RegisterNodeRoutes() {
 	nodeGroup.DELETE("/label", s.authCheck(), s.deleteLabel())
 	nodeGroup.GET("/label/list", s.authCheck(), s.listLabel())
 	nodeGroup.GET("/label", s.authCheck(), s.getLabel())
+	nodeGroup.GET("/label/q", s.authCheck(), s.queryLabels())
 
 	// group node
 	nodeGroup.POST("/group/node", s.authCheck(), s.addGroupNode())
 	nodeGroup.DELETE("/group/node/:id", s.authCheck(), s.removeGroupNode())
 	nodeGroup.GET("/group/node/:id", s.authCheck(), s.getGroupNode())
 	nodeGroup.GET("/group/node/list", s.authCheck(), s.listGroupNodes())
+	nodeGroup.GET("/group/node/q", s.authCheck(), s.queryNodes())
 
 	// node label
 	nodeGroup.POST("/label/node", s.authCheck(), s.addNodeLabel())
 	nodeGroup.DELETE("/label/node", s.authCheck(), s.removeNodeLabel())
 	nodeGroup.GET("/label/node/list", s.authCheck(), s.listNodeLabels())
+
 }
 
 func (s *Server) getNodeByAppId() gin.HandlerFunc {
@@ -402,6 +405,22 @@ func (s *Server) listNodeLabels() gin.HandlerFunc {
 			return
 		}
 		nodeLabels, err := s.nodeController.ListNodeLabels(c, &params)
+		if err != nil {
+			WriteBadRequest(c.JSON, err.Error())
+			return
+		}
+		WriteOK(c.JSON, nodeLabels)
+	}
+}
+
+func (s *Server) queryLabels() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var params dto.NodeLabelParams
+		if err := c.ShouldBindQuery(&params); err != nil {
+			c.JSON(client.BadRequest(err))
+			return
+		}
+		nodeLabels, err := s.nodeController.QueryLabels(c, &params)
 		if err != nil {
 			WriteBadRequest(c.JSON, err.Error())
 			return

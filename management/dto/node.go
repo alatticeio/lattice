@@ -166,7 +166,7 @@ type NodeLabelParams struct {
 	vo.PageModel
 	NodeId    uint64 `json:"nodeId"`
 	LabelId   uint64 `json:"labelId"`
-	LabelName string `json:"labelName"`
+	Label     string `json:"name"`
 	CreatedBy string `json:"createdBy"`
 }
 
@@ -181,8 +181,8 @@ func (p *NodeLabelParams) Generate() []*utils.KeyValue {
 		result = append(result, utils.NewKeyValue("label_id", p.LabelId))
 	}
 
-	if p.LabelName != "" {
-		result = append(result, utils.NewKeyValue("label_name", p.LabelName))
+	if p.Label != "" {
+		result = append(result, utils.NewKeyValue("label_name", p.Label))
 	}
 
 	if p.CreatedBy != "" {

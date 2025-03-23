@@ -47,6 +47,7 @@ type NodeService interface {
 	UpdateLabel(ctx context.Context, dto *dto.TagDto) error
 	DeleteLabel(ctx context.Context, id string) error
 	ListLabel(ctx context.Context, params *dto.LabelParams) (*vo.PageVo, error)
+	QueryLabels(ctx context.Context, params *dto.NodeLabelParams) ([]*vo.LabelVo, error)
 	GetLabel(ctx context.Context, id string) (*entity.Label, error)
 
 	//Group Node
@@ -491,6 +492,34 @@ func (p *nodeServiceImpl) ListLabel(ctx context.Context, params *dto.LabelParams
 	result.Size = params.Size
 
 	return result, nil
+}
+
+func (p *nodeServiceImpl) QueryLabels(ctx context.Context, params *dto.NodeLabelParams) ([]*vo.LabelVo, error) {
+	var labels []entity.Label
+
+	sql, wrappers := utils.Generate(params)
+	db := p.DB
+	if sql != "" {
+		db = db.Where(sql, wrappers)
+	}
+
+	if err := db.Model(&entity.Label{}).Find(&labels).Error; err != nil {
+		return nil, err
+	}
+
+	var labelVos []*vo.LabelVo
+	for _, label := range labels {
+		labelVos = append(labelVos, &vo.LabelVo{
+			ID:        label.ID,
+			Label:     label.Label,
+			CreatedAt: label.CreatedAt,
+			UpdatedAt: label.UpdatedAt,
+			CreatedBy: label.CreatedBy,
+			UpdatedBy: label.UpdatedBy,
+		})
+	}
+
+	return labelVos, nil
 }
 
 func (p *nodeServiceImpl) GetLabel(ctx context.Context, id string) (*entity.Label, error) {

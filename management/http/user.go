@@ -69,7 +69,7 @@ func (s *Server) invite() gin.HandlerFunc {
 		)
 
 		// 解析JSON请求体
-		if err := c.ShouldBindJSON(&req); err != nil {
+		if err := c.ShouldBind(&req); err != nil {
 			WriteError(c.JSON, err.Error())
 			return
 		}
@@ -127,6 +127,72 @@ func (s *Server) invite() gin.HandlerFunc {
 	}
 }
 
+// update invitation
+func (s *Server) updateInvite() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var (
+			req dto.InviteDto
+			err error
+		)
+
+		// 解析JSON请求体
+		if err := c.ShouldBind(&req); err != nil {
+			WriteError(c.JSON, err.Error())
+			return
+		}
+
+		username := c.GetString("username")
+		req.InviterName = username
+
+		if req.GroupIds != "" {
+			req.GroupIdList, err = utils.Splits(req.GroupIds, ",")
+			if err != nil {
+				s.logger.Errorf("%v", err)
+				WriteError(c.JSON, err.Error())
+				return
+			}
+		}
+
+		if req.NodeIds != "" {
+			req.NodeIdList, err = utils.Splits(req.NodeIds, ",")
+			if err != nil {
+				WriteError(c.JSON, err.Error())
+				return
+			}
+		}
+
+		if req.PolicyIds != "" {
+			req.PolicyIdList, err = utils.Splits(req.PolicyIds, ",")
+			if err != nil {
+				WriteError(c.JSON, err.Error())
+				return
+			}
+		}
+
+		if req.LabelIds != "" {
+			req.LabelIdList, err = utils.Splits(req.LabelIds, ",")
+			if err != nil {
+				WriteError(c.JSON, err.Error())
+				return
+			}
+
+		}
+
+		if req.PermissionIds != "" {
+			req.PermissionIdList, err = utils.Splits(req.PermissionIds, ",")
+			if err != nil {
+				WriteError(c.JSON, err.Error())
+				return
+			}
+		}
+		if err := s.userController.UpdateInvite(c, &req); err != nil {
+			WriteError(c.JSON, err.Error())
+			return
+		}
+		WriteOK(c.JSON, nil)
+	}
+}
+
 // cancel invite cancel
 func (s *Server) cancelInvite() gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -162,22 +228,6 @@ func (s *Server) getInvitation() gin.HandlerFunc {
 			return
 		}
 		WriteOK(c.JSON, invitation)
-	}
-}
-
-// update invitation
-func (s *Server) updateInvite() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		var dto dto.InviteDto
-		if err := c.ShouldBindJSON(&dto); err != nil {
-			c.JSON(400, gin.H{"error": "Invalid email address or missing field"})
-			return
-		}
-		if err := s.userController.UpdateInvite(c, &dto); err != nil {
-			WriteError(c.JSON, err.Error())
-			return
-		}
-		WriteOK(c.JSON, nil)
 	}
 }
 

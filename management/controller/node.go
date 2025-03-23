@@ -120,3 +120,7 @@ func (p *NodeController) RemoveNodeLabel(ctx context.Context, ID string) error {
 func (p *NodeController) ListNodeLabels(ctx context.Context, params *dto.NodeLabelParams) (*vo.PageVo, error) {
 	return p.nodeService.ListNodeLabels(ctx, params)
 }
+
+func (p *NodeController) QueryLabels(ctx context.Context, params *dto.NodeLabelParams) ([]*vo.LabelVo, error) {
+	return p.nodeService.QueryLabels(ctx, params)
+}
