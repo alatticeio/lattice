@@ -196,7 +196,14 @@ func (p *nodeServiceImpl) ListNodes(params *dto.QueryParams) (*vo.PageVo, error)
 	}
 
 	p.logger.Verbosef("sql: %s, wrappers: %v", sql, wrappers)
-	if err := p.Model(&entity.Node{}).Select("la_node.*, la_group_node.group_name, GROUP_CONCAT(DISTINCT la_node_label.label_name SEPARATOR ', ') AS label_name ").Joins("left join la_group_node on la_node.id = la_group_node.node_id left join la_node_label on la_node.id = la_node_label.node_Id").Where("user_id = ?", params.UserId).Group("la_node.id, la_group_node.group_name").Find(&nodes).Error; err != nil {
+	if err := p.Model(&entity.Node{}).
+		Select("la_node.*, la_group_node.group_name, GROUP_CONCAT(DISTINCT la_node_label.label_name SEPARATOR ', ') AS label_name ").
+		Joins("left join la_group_node on la_node.id = la_group_node.node_id left join la_node_label on la_node.id = la_node_label.node_Id").
+		Where("user_id = ?", params.UserId).
+		Group("la_node.id, la_group_node.group_name").
+		Offset((params.Page - 1) * params.Size).
+		Limit(params.Size).
+		Find(&nodes).Error; err != nil {
 		return nil, err
 	}
 

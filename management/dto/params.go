@@ -11,6 +11,8 @@ type QueryParams struct {
 	Name    *string `json:"name" form:"name"`
 	PubKey  *string `json:"pubKey" form:"pubKey"`
 	UserId  string  `json:"userId" form:"userId"`
+	Page    int     `json:"page" form:"page"`
+	Size    int     `json:"size" form:"size"`
 	Status  *int
 }
 
