@@ -16,4 +16,5 @@ var (
 	ErrAgentNotFound    = errors.New("agent not found")
 	ErrProbeFailed      = errors.New("probe connect failed, need check the network you are in")
 	ErrorNotSameGroup   = errors.New("not in the same group")
+	ErrInvitationExists = errors.New("invitation already exists")
 )

@@ -44,28 +44,23 @@ type InvitationVo struct {
 }
 
 type NodeResourceVo struct {
-	NodeIds   []string `json:"nodeIds,string"`
-	NodeNames []string `json:"nodeNames"`
+	NodeValues map[string]string `json:"nodeValues"`
 }
 
 type PolicyResourceVo struct {
-	PolicyIds   []uint   `json:"policyIds,string"`
-	PolicyNames []string `json:"policyNames"`
+	PolicyValues map[string]string `json:"policyValues"`
 }
 
 type GroupResourceVo struct {
-	GroupIds   []uint   `json:"groupIds,string"`
-	GroupNames []string `json:"groupNames"`
+	GroupValues map[string]string `json:"groupValues"`
 }
 
 type PermissionResourceVo struct {
-	PermissionIds   []uint   `json:"permissionIds,string"`
-	PermissionNames []string `json:"permissionNames"`
+	PermissionValues map[string]string `json:"permissionValues"`
 }
 
 type LabelResourceVo struct {
-	LabelIds   []uint   `json:"labelIds,string"`
-	LabelNames []string `json:"labelNames"`
+	LabelValues map[string]string `json:"labelValues"`
 }
 
 type UserResourceVo struct {

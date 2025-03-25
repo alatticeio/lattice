@@ -175,7 +175,6 @@ func (s *Server) updateInvite() gin.HandlerFunc {
 				WriteError(c.JSON, err.Error())
 				return
 			}
-
 		}
 
 		if req.PermissionIds != "" {

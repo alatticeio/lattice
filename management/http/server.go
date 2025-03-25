@@ -52,6 +52,7 @@ func NewServer(cfg *ServerConfig) *Server {
 		supportController: controller.NewSupportController(service.NewSupportMapper(cfg.DatabaseService)),
 		accessController:  controller.NewAccessController(service.NewAccessPolicyService(cfg.DatabaseService)),
 		groupController:   controller.NewGroupController(service.NewGroupService(cfg.DatabaseService)),
+		sharedController:  controller.NewSharedController(service.NewSharedService(cfg.DatabaseService)),
 		tokener:           service.NewTokenService(cfg.DatabaseService),
 	}
 	s.initRoute()
@@ -67,6 +68,7 @@ func (s *Server) initRoute() {
 	s.RegisterNodeRoutes()
 	s.RegisterAccessRoutes()
 	s.RegisterGroupRoutes()
+	s.RegisterSharedRoutes()
 
 	s.GET("/ping", func(c *gin.Context) {
 		c.JSON(200, gin.H{

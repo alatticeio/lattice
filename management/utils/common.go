@@ -4,7 +4,7 @@ const (
 	// PageNo default page number
 	PageNo = 1
 	// PageSize default page size
-	PageSize = 1000
+	PageSize = 10
 )
 
 type AcceptType string

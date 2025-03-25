@@ -107,17 +107,16 @@ func (s *shareServiceImpl) UpdateSharedGroup(ctx context.Context, dto *dto.Share
 	return nil
 }
 
-func (s *shareServiceImpl) DeleteSharedGroup(ctx context.Context, inviteId, labelId uint) error {
+func (s *shareServiceImpl) DeleteSharedGroup(ctx context.Context, inviteId, groupId uint) error {
 	var (
-		sharedGroup vo.SharedGroupVo
-		err         error
+		err error
 	)
 	return s.DB.Transaction(func(tx *gorm.DB) error {
-		if err = s.Model(&sharedGroup).Where("invite_id = ? and label_id = ?", inviteId, labelId).Delete(&sharedGroup).Error; err != nil {
+		if err = s.Model(&entity.SharedGroup{}).Where("invite_id = ? and group_id = ?", inviteId, groupId).Delete(&entity.SharedGroup{}).Error; err != nil {
 			return err
 		}
 
-		if err = s.Model(&entity.UserResourceGrantedPermission{}).Where("invite_id = ? and resource_id  = ?", inviteId, labelId).Delete(&entity.UserResourceGrantedPermission{}).Error; err != nil {
+		if err = s.Model(&entity.UserResourceGrantedPermission{}).Where("invite_id = ? and resource_id  = ?", inviteId, groupId).Delete(&entity.UserResourceGrantedPermission{}).Error; err != nil {
 			return err
 		}
 
@@ -132,7 +131,7 @@ func (s *shareServiceImpl) GetSharedPolicy(ctx context.Context, id string) (*vo.
 		err          error
 	)
 
-	if err = s.Model(&sharedPolicy).Where("id = ?", id).First(&sharedPolicy).Error; err != nil {
+	if err = s.Model(&entity.SharedPolicy{}).Where("id = ?", id).First(&sharedPolicy).Error; err != nil {
 		return nil, err
 	}
 
@@ -175,12 +174,11 @@ func (s *shareServiceImpl) UpdateSharedPolicy(ctx context.Context, dto *dto.Shar
 
 func (s *shareServiceImpl) DeleteSharedPolicy(ctx context.Context, inviteId, policyId uint) error {
 	var (
-		sharedPolicy vo.SharedPolicyVo
-		err          error
+		err error
 	)
 
 	return s.DB.Transaction(func(tx *gorm.DB) error {
-		if err = s.Model(&sharedPolicy).Where("invite_id and policy_id = ?", inviteId, policyId).Delete(&sharedPolicy).Error; err != nil {
+		if err = s.Model(&entity.SharedPolicy{}).Where("invite_id and policy_id = ?", inviteId, policyId).Delete(&entity.SharedPolicy{}).Error; err != nil {
 			return err
 		}
 
@@ -240,11 +238,10 @@ func (s *shareServiceImpl) UpdateSharedNode(ctx context.Context, dto *dto.Shared
 
 func (s *shareServiceImpl) DeleteSharedNode(ctx context.Context, inviteId, nodeId uint) error {
 	var (
-		sharedNode vo.SharedNodeVo
-		err        error
+		err error
 	)
 	return s.DB.Transaction(func(tx *gorm.DB) error {
-		if err = s.Model(&sharedNode).Where("invite_id = ? and node_id = ?", inviteId, nodeId).Delete(&sharedNode).Error; err != nil {
+		if err = s.Model(&entity.SharedNode{}).Where("invite_id = ? and node_id = ?", inviteId, nodeId).Delete(&entity.SharedNode{}).Error; err != nil {
 			return err
 		}
 
@@ -304,11 +301,10 @@ func (s *shareServiceImpl) UpdateSharedLabel(ctx context.Context, dto *dto.Share
 
 func (s *shareServiceImpl) DeleteSharedLabel(ctx context.Context, inviteId, labelId uint) error {
 	var (
-		sharedGroup vo.SharedGroupVo
-		err         error
+		err error
 	)
 	return s.DB.Transaction(func(tx *gorm.DB) error {
-		if err = s.Model(&sharedGroup).Where("invite_id = ? and label_id = ?", inviteId, labelId).Delete(&sharedGroup).Error; err != nil {
+		if err = s.Model(&entity.SharedLabel{}).Where("invite_id = ? and label_id = ?", inviteId, labelId).Delete(&entity.SharedLabel{}).Error; err != nil {
 			return err
 		}
 

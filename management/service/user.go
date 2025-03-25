@@ -185,6 +185,18 @@ func (u *userServiceImpl) Invite(dto *dto.InviteDto) error {
 			return err
 		}
 
+		// first query, if the invitation exists
+		var exist entity.Invitation
+		if err = tx.Model(&entity.Invitation{}).Where("invitee_name = ?", dto.InviteeName).First(&exist).Error; err != nil {
+			if !errors.Is(err, gorm.ErrRecordNotFound) {
+				return err
+			}
+		}
+
+		if exist.ID != 0 {
+			return linkerrors.ErrInvitationExists
+		}
+
 		groupName := getGroupNames(tx, dto.GroupIdList)
 		invite := &entity.Invites{
 			InvitationId: int64(invitationUser.ID),
@@ -223,11 +235,17 @@ func (u *userServiceImpl) UpdateInvite(ctx context.Context, dto *dto.InviteDto) 
 		var err error
 		groupName := getGroupNames(tx, dto.GroupIdList)
 
-		if err = tx.Model(&entity.Invites{}).Find("invite_id = ?", dto.ID).Update("group", groupName).Update("group_ids", dto.GroupIds).Error; err != nil {
+		if err = tx.Model(&entity.Invites{}).Where("id = ?", dto.ID).Updates(entity.Invites{
+			Group:    groupName,
+			GroupIds: dto.GroupIds,
+		}).Error; err != nil {
 			return err
 		}
 
-		if err = tx.Model(&entity.Invitation{}).Find("invite_id = ?", dto.ID).Update("group", groupName).Update("group_ids", dto.GroupIds).Error; err != nil {
+		if err = tx.Model(&entity.Invitation{}).Where("invite_id = ?", dto.ID).Updates(entity.Invitation{
+			Group:    groupName,
+			GroupIds: dto.GroupIds,
+		}).Error; err != nil {
 			return err
 		}
 
@@ -297,10 +315,13 @@ func (u *userServiceImpl) genUserResourceVo(inviteId uint) (*vo.UserResourceVo, 
 	if sharedGroup != nil {
 		groupResourceVo := new(vo.GroupResourceVo)
 		uvo.GroupResourceVo = groupResourceVo
+
+		//var groupValues []*vo.ResourceValue
+		groupValues := make(map[string]string, 1)
 		for _, group := range sharedGroup {
-			groupResourceVo.GroupIds = append(groupResourceVo.GroupIds, group.GroupId)
-			groupResourceVo.GroupNames = append(groupResourceVo.GroupNames, group.GroupName)
+			groupValues[fmt.Sprintf("%d", group.GroupId)] = group.GroupName
 		}
+		groupResourceVo.GroupValues = groupValues
 	}
 
 	// shared node
@@ -312,10 +333,12 @@ func (u *userServiceImpl) genUserResourceVo(inviteId uint) (*vo.UserResourceVo, 
 	if sharedNode != nil {
 		nodeResourceVo := new(vo.NodeResourceVo)
 		uvo.NodeResourceVo = nodeResourceVo
+		nodeValues := make(map[string]string, 1)
 		for _, node := range sharedNode {
-			nodeResourceVo.NodeIds = append(nodeResourceVo.NodeIds, fmt.Sprintf("%d", node.NodeId))
-			nodeResourceVo.NodeNames = append(nodeResourceVo.NodeNames, node.NodeName)
+			nodeValues[fmt.Sprintf("%d", node.NodeId)] = node.NodeName
 		}
+
+		nodeResourceVo.NodeValues = nodeValues
 	}
 
 	// shared policy
@@ -327,10 +350,12 @@ func (u *userServiceImpl) genUserResourceVo(inviteId uint) (*vo.UserResourceVo, 
 	if sharedPolicy != nil {
 		policyResourceVo := new(vo.PolicyResourceVo)
 		uvo.PolicyResourceVo = policyResourceVo
+		policyValues := make(map[string]string, 1)
 		for _, policy := range sharedPolicy {
-			policyResourceVo.PolicyIds = append(policyResourceVo.PolicyIds, policy.PolicyId)
-			policyResourceVo.PolicyNames = append(policyResourceVo.PolicyNames, policy.PolicyName)
+			policyValues[fmt.Sprintf("%d", policy.PolicyId)] = policy.PolicyName
 		}
+
+		policyResourceVo.PolicyValues = policyValues
 	}
 
 	// share label
@@ -342,10 +367,12 @@ func (u *userServiceImpl) genUserResourceVo(inviteId uint) (*vo.UserResourceVo, 
 	if sharedLabel != nil {
 		labelResourceVo := new(vo.LabelResourceVo)
 		uvo.LabelResourceVo = labelResourceVo
+		labelValues := make(map[string]string, 1)
 		for _, label := range sharedLabel {
-			labelResourceVo.LabelIds = append(labelResourceVo.LabelIds, label.LabelId)
-			labelResourceVo.LabelNames = append(labelResourceVo.LabelNames, label.LabelName)
+			labelValues[fmt.Sprintf("%d", label.LabelId)] = label.LabelName
 		}
+
+		labelResourceVo.LabelValues = labelValues
 	}
 
 	// shared permissions
@@ -357,14 +384,15 @@ func (u *userServiceImpl) genUserResourceVo(inviteId uint) (*vo.UserResourceVo, 
 	if sharedPermissions != nil {
 		permissionResourceVo := new(vo.PermissionResourceVo)
 		uvo.PermissionResourceVo = permissionResourceVo
+		permissionValues := make(map[string]string, 1)
 		for _, sharedPermission := range sharedPermissions {
-			if utils.Contains(permissionResourceVo.PermissionIds, sharedPermission.PermissionId) {
+			if (permissionValues[fmt.Sprintf("%d", sharedPermission.PermissionId)]) != "" {
 				continue
 			}
-			permissionResourceVo.PermissionIds = append(permissionResourceVo.PermissionIds, sharedPermission.PermissionId)
-			permissionResourceVo.PermissionNames = append(permissionResourceVo.PermissionNames, sharedPermission.PermissionText)
+			permissionValues[fmt.Sprintf("%d", sharedPermission.PermissionId)] = sharedPermission.PermissionText
 		}
 
+		permissionResourceVo.PermissionValues = permissionValues
 	}
 
 	return uvo, nil
@@ -372,7 +400,9 @@ func (u *userServiceImpl) genUserResourceVo(inviteId uint) (*vo.UserResourceVo, 
 
 func addResourcePermission(tx *gorm.DB, inviteId uint, dto *dto.InviteDto) error {
 
-	var allNames []string
+	var (
+		allNames []string
+	)
 
 	if dto.PolicyIdList != nil {
 		names, values, ids, err := getActualPermission(tx, utils.Policy, dto)
@@ -381,7 +411,12 @@ func addResourcePermission(tx *gorm.DB, inviteId uint, dto *dto.InviteDto) error
 		}
 		allNames = append(allNames, names...)
 
-		for _, policyId := range dto.PolicyIdList {
+		var policies []entity.Node
+		if err = tx.Model(&entity.Node{}).Where("id in ?", dto.GroupIdList).Find(&policies).Error; err != nil {
+			return err
+		}
+
+		for _, policy := range policies {
 
 			// insert into shared policy
 			sharedPolicy := &entity.SharedPolicy{
@@ -389,7 +424,8 @@ func addResourcePermission(tx *gorm.DB, inviteId uint, dto *dto.InviteDto) error
 				UserId:       uint(dto.InvitationId),
 				InviteId:     inviteId,
 				AcceptStatus: entity.NewInvite,
-				PolicyId:     policyId,
+				PolicyId:     policy.ID,
+				PolicyName:   policy.Name,
 				GrantedAt:    utils.NewNullTime(time.Now()),
 			}
 
@@ -420,15 +456,20 @@ func addResourcePermission(tx *gorm.DB, inviteId uint, dto *dto.InviteDto) error
 		}
 		allNames = append(allNames, names...)
 
-		for _, nodeId := range dto.NodeIdList {
+		var nodes []entity.Node
+		if err = tx.Model(&entity.Node{}).Where("id in ?", dto.NodeIdList).Find(&nodes).Error; err != nil {
+			return err
+		}
 
+		for _, node := range nodes {
 			// insert into shared node
 			sharedNode := &entity.SharedNode{
 				OwnerId:      uint(dto.InviteeId),
 				UserId:       uint(dto.InvitationId),
 				InviteId:     inviteId,
 				AcceptStatus: entity.NewInvite,
-				NodeId:       nodeId,
+				NodeId:       node.ID,
+				NodeName:     node.Name,
 				GrantedAt:    utils.NewNullTime(time.Now()),
 			}
 
@@ -458,7 +499,13 @@ func addResourcePermission(tx *gorm.DB, inviteId uint, dto *dto.InviteDto) error
 			return err
 		}
 		allNames = append(allNames, names...)
-		for _, labelId := range dto.LabelIdList {
+
+		var labels []entity.Label
+		if err = tx.Model(&entity.Label{}).Where("id in ?", dto.NodeIdList).Find(&labels).Error; err != nil {
+			return err
+		}
+
+		for _, label := range labels {
 
 			// insert into shared label
 			sharedLabel := &entity.SharedLabel{
@@ -466,7 +513,8 @@ func addResourcePermission(tx *gorm.DB, inviteId uint, dto *dto.InviteDto) error
 				UserId:       uint(dto.InvitationId),
 				InviteId:     inviteId,
 				AcceptStatus: entity.NewInvite,
-				LabelId:      labelId,
+				LabelId:      label.ID,
+				LabelName:    label.Label,
 				GrantedAt:    utils.NewNullTime(time.Now()),
 			}
 
