@@ -312,11 +312,15 @@ func (g *groupServiceImpl) fetchNodeAndGroup(groupId uint) (*vo.GroupRelationVo,
 		}
 	}
 
-	vo := new(vo.GroupRelationVo)
+	result := new(vo.GroupRelationVo)
+	nodeResourceVo := new(vo.NodeResourceVo)
+
+	nodeValues := make(map[string]string, 1)
 	for _, groupNode := range groupNodes {
-		vo.NodeNames = append(vo.NodeNames, groupNode.NodeName)
-		vo.NodeIds = append(vo.NodeIds, fmt.Sprintf("%d", groupNode.NodeID))
+		nodeValues[fmt.Sprintf("%d", groupNode.NodeID)] = groupNode.NodeName
 	}
+	nodeResourceVo.NodeValues = nodeValues
+	result.NodeResourceVo = nodeResourceVo
 
 	// query policies
 	var groupPolicies []entity.GroupPolicy
@@ -326,12 +330,16 @@ func (g *groupServiceImpl) fetchNodeAndGroup(groupId uint) (*vo.GroupRelationVo,
 		}
 	}
 
+	policyResourceVo := new(vo.PolicyResourceVo)
+	policyValues := make(map[string]string, 1)
 	for _, groupPolicy := range groupPolicies {
-		vo.PolicyNames = append(vo.PolicyNames, groupPolicy.PolicyName)
-		vo.PolicyIds = append(vo.PolicyIds, fmt.Sprintf("%d", groupPolicy.PolicyId))
+		policyValues[fmt.Sprintf("%d", groupPolicy.PolicyId)] = groupPolicy.PolicyName
 	}
 
-	return vo, nil
+	policyResourceVo.PolicyValues = policyValues
+	result.PolicyResourceVo = policyResourceVo
+
+	return result, nil
 }
 
 func (g *groupServiceImpl) ListGroupPolicy(ctx context.Context, params *dto.GroupPolicyParams) ([]*vo.GroupPolicyVo, error) {

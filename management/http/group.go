@@ -113,8 +113,8 @@ func (s *Server) GetNodeGroup() gin.HandlerFunc {
 func (s *Server) createGroup() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var nodeGroupDto dto.NodeGroupDto
-		if err := c.ShouldBindJSON(&nodeGroupDto); err != nil {
-			c.JSON(client.BadRequest(err))
+		if err := c.ShouldBind(&nodeGroupDto); err != nil {
+			WriteError(c.JSON, err.Error())
 			return
 		}
 

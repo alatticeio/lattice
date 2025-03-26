@@ -23,10 +23,8 @@ type NodeGroupVo struct {
 
 // GroupRelationVo for tom-select show
 type GroupRelationVo struct {
-	NodeIds     []string `json:"nodeIds"`
-	PolicyIds   []string `json:"policyIds"`
-	NodeNames   []string `json:"nodeNames"`
-	PolicyNames []string `json:"policyNames"`
+	*PolicyResourceVo
+	*NodeResourceVo
 }
 
 type NodeVo struct {
