@@ -7,6 +7,7 @@ type ClientFlags struct {
 	RedisPassword string
 	InterfaceName string
 	ForceRelay    bool
+	AppKey        string
 
 	//Url
 	ManagementUrl string

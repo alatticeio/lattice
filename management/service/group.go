@@ -109,7 +109,7 @@ func createGroupData(tx *gorm.DB, dto *dto.NodeGroupDto) (*entity.NodeGroup, err
 		if err := tx.Where("username = ?", group.CreatedBy).First(&user).Error; err != nil {
 			return nil, err
 		}
-		group.OwnerID = user.ID
+		group.OwnerId = user.ID
 	}
 	err := tx.Create(&group).Error
 	return group, err

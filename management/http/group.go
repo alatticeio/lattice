@@ -12,17 +12,17 @@ func (s *Server) RegisterGroupRoutes() {
 	nodeGroup := s.RouterGroup.Group(PREFIX + "/group")
 
 	// group policy
-	nodeGroup.GET("/policy/list", s.authCheck(), s.listGroupPolicies())
-	nodeGroup.DELETE("/:id/policy/:policyId", s.deleteGroupPolicy())
-	nodeGroup.DELETE("/:id/node/:nodeId", s.deleteGroupNode())
+	nodeGroup.GET("/policy/list", s.tokenFilter(), s.listGroupPolicies())
+	nodeGroup.DELETE("/:id/policy/:policyId", s.tokenFilter(), s.authFilter(), s.deleteGroupPolicy())
+	nodeGroup.DELETE("/:id/node/:nodeId", s.tokenFilter(), s.authFilter(), s.deleteGroupNode())
 
 	// node group
-	nodeGroup.GET("/:id", s.authCheck(), s.GetNodeGroup())
-	nodeGroup.POST("/a", s.authCheck(), s.createGroup())
-	nodeGroup.PUT("/u", s.authCheck(), s.updateGroup())
-	nodeGroup.DELETE("/:id", s.authCheck(), s.deleteGroup())
-	nodeGroup.GET("/list", s.authCheck(), s.listGroups())
-	nodeGroup.GET("/q", s.authCheck(), s.queryGroups())
+	nodeGroup.GET("/:id", s.tokenFilter(), s.GetNodeGroup())
+	nodeGroup.POST("/a", s.tokenFilter(), s.authFilter(), s.createGroup())
+	nodeGroup.PUT("/u", s.tokenFilter(), s.authFilter(), s.updateGroup())
+	nodeGroup.DELETE("/:id", s.tokenFilter(), s.authFilter(), s.deleteGroup())
+	nodeGroup.GET("/list", s.tokenFilter(), s.listGroups())
+	nodeGroup.GET("/q", s.tokenFilter(), s.queryGroups())
 }
 
 func (s *Server) listGroupPolicies() gin.HandlerFunc {

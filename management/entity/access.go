@@ -26,6 +26,7 @@ func (a *AccessPolicy) TableName() string {
 // AccessRule rule for access policy
 type AccessRule struct {
 	gorm.Model
+	OwnerId    uint     `json:"owner_id"`             // 所属ID
 	RuleType   RuleType `json:"rule_type"`            // 规则类型
 	PolicyID   uint     `json:"policy_id"`            // 所属策略ID
 	SourceType string   `json:"source_type"`          // 源类型：node/tag/all

@@ -29,6 +29,8 @@ type Server struct {
 	accessController  *controller.AccessController
 	groupController   *controller.GroupController
 	sharedController  *controller.SharedController
+
+	settingsController *controller.SettingsController
 }
 
 // ServerConfig is the server configuration
@@ -43,24 +45,25 @@ type ServerConfig struct {
 func NewServer(cfg *ServerConfig) *Server {
 	e := gin.Default()
 	s := &Server{
-		logger:            log.NewLogger(log.Loglevel, fmt.Sprintf("[%s ]", "mgt-server")),
-		Engine:            e,
-		listen:            cfg.Listen,
-		userController:    controller.NewUserController(service.NewUserService(cfg.DatabaseService, cfg.Rdb)),
-		nodeController:    controller.NewPeerController(service.NewNodeService(cfg.DatabaseService)),
-		planController:    controller.NewPlanController(service.NewPlanService(cfg.DatabaseService)),
-		supportController: controller.NewSupportController(service.NewSupportMapper(cfg.DatabaseService)),
-		accessController:  controller.NewAccessController(service.NewAccessPolicyService(cfg.DatabaseService)),
-		groupController:   controller.NewGroupController(service.NewGroupService(cfg.DatabaseService)),
-		sharedController:  controller.NewSharedController(service.NewSharedService(cfg.DatabaseService)),
-		tokener:           service.NewTokenService(cfg.DatabaseService),
+		logger:             log.NewLogger(log.Loglevel, fmt.Sprintf("[%s ]", "mgt-server")),
+		Engine:             e,
+		listen:             cfg.Listen,
+		userController:     controller.NewUserController(service.NewUserService(cfg.DatabaseService, cfg.Rdb)),
+		nodeController:     controller.NewPeerController(service.NewNodeService(cfg.DatabaseService)),
+		planController:     controller.NewPlanController(service.NewPlanService(cfg.DatabaseService)),
+		supportController:  controller.NewSupportController(service.NewSupportMapper(cfg.DatabaseService)),
+		accessController:   controller.NewAccessController(service.NewAccessPolicyService(cfg.DatabaseService)),
+		groupController:    controller.NewGroupController(service.NewGroupService(cfg.DatabaseService)),
+		sharedController:   controller.NewSharedController(service.NewSharedService(cfg.DatabaseService)),
+		settingsController: controller.NewSettingsController(service.NewUserSettingsService(cfg.DatabaseService)),
+		tokener:            service.NewTokenService(cfg.DatabaseService),
 	}
 	s.initRoute()
 
 	return s
 }
 
-// authCheck checks if the user is authenticated
+// tokenFilter checks if the user is authenticated
 func (s *Server) initRoute() {
 
 	// register user router
@@ -69,6 +72,7 @@ func (s *Server) initRoute() {
 	s.RegisterAccessRoutes()
 	s.RegisterGroupRoutes()
 	s.RegisterSharedRoutes()
+	s.RegisterSettingsRoutes()
 
 	s.GET("/ping", func(c *gin.Context) {
 		c.JSON(200, gin.H{
@@ -76,12 +80,12 @@ func (s *Server) initRoute() {
 		})
 	})
 
-	s.GET("/api/v1/plans", s.authCheck(), s.listPlans())
+	s.GET("/api/v1/plans", s.tokenFilter(), s.listPlans())
 
 	//support
-	s.GET("/api/v1/supports", s.authCheck(), s.listSupports())
-	s.POST("/api/v1/support", s.authCheck(), s.createSupport())
-	s.GET("/api/v1/support/:id", s.authCheck(), s.getSupport())
+	s.GET("/api/v1/supports", s.tokenFilter(), s.listSupports())
+	s.POST("/api/v1/support", s.tokenFilter(), s.createSupport())
+	s.GET("/api/v1/support/:id", s.tokenFilter(), s.getSupport())
 }
 
 func (s *Server) Start() error {

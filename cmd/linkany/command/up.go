@@ -9,8 +9,8 @@ import (
 func UP() *cobra.Command {
 	var flags client.ClientFlags
 	cmd := &cobra.Command{
-		Short:        "UP",
-		Use:          "UP [command]",
+		Short:        "up",
+		Use:          "up [command]",
 		SilenceUsage: true,
 		Long:         `linkany startup, will create a wireguard interface and join your linkany network,and also will config the interface automatically`,
 		RunE: func(cmd *cobra.Command, args []string) error {

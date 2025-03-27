@@ -8,6 +8,7 @@ const (
 	Node
 	Policy
 	Label
+	Rule
 )
 
 func (r ResourceType) String() string {
@@ -20,6 +21,8 @@ func (r ResourceType) String() string {
 		return "label"
 	case Policy:
 		return "policy"
+	case Rule:
+		return "rule"
 	default:
 		return "Unknown"
 	}

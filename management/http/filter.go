@@ -5,7 +5,7 @@ import (
 	"linkany/management/client"
 )
 
-func (s *Server) authCheck() gin.HandlerFunc {
+func (s *Server) tokenFilter() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Check the token
 		// If the token is invalid, return 401

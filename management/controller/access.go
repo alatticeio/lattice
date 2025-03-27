@@ -6,6 +6,7 @@ import (
 	"linkany/management/dto"
 	"linkany/management/entity"
 	"linkany/management/service"
+	"linkany/management/utils"
 	"linkany/management/vo"
 	"linkany/pkg/log"
 )
@@ -41,8 +42,8 @@ func (a *AccessController) ListPolicyRules(ctx context.Context, params *dto.Acce
 }
 
 // AccessControl module
-func (a *AccessController) CheckAccess(sourceNodeID, targetNodeID uint, action string) (bool, error) {
-	return a.accessService.CheckAccess(context.Background(), sourceNodeID, targetNodeID, action)
+func (a *AccessController) CheckAccess(ctx context.Context, resourceType utils.ResourceType, resourceId uint, action string) (bool, error) {
+	return a.accessService.CheckAccess(ctx, resourceType, resourceId, action)
 }
 
 func (a *AccessController) BatchCheckAccess(requests []service.AccessRequest) ([]service.AccessResult, error) {

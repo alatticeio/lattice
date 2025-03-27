@@ -103,7 +103,7 @@ func (s *Server) Login(ctx context.Context, in *mgt.ManagementMessage) (*mgt.Man
 	}, nil
 }
 
-// Registry, will return a list of response
+// Registry will return a list of response
 func (s *Server) Registry(ctx context.Context, in *mgt.ManagementMessage) (*mgt.ManagementMessage, error) {
 	var req RegistryRequest
 	if err := json.Unmarshal(in.Body, &req); err != nil {

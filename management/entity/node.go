@@ -87,7 +87,7 @@ type NodeGroup struct {
 	gorm.Model
 	Name        string `gorm:"column:name;size:64" json:"name"`
 	Description string `gorm:"column:description;size:255" json:"description"`
-	OwnerID     uint   `gorm:"column:owner_id;size:20" json:"ownerId"`
+	OwnerId     uint   `gorm:"column:owner_id;size:20" json:"ownerId"`
 	Owner       string `gorm:"column:owner;size:64" json:"owner"`
 	IsPublic    bool   `gorm:"column:is_public" json:"isPublic"`
 	//GroupType   utils.GroupType `gorm:"column:group_type;size:20" json:"groupType"`

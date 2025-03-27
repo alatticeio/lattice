@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"context"
 	"github.com/google/uuid"
 	"strconv"
 	"strings"
@@ -34,4 +35,13 @@ func StringToUint(s string) (uint, error) {
 func GenerateUUID() string {
 	uuid := uuid.New()
 	return strings.ReplaceAll(uuid.String(), "-", "")
+}
+
+func GetUserIdFromCtx(ctx context.Context) uint {
+	userId := ctx.Value("userId")
+	if userId == nil {
+		return 0
+	}
+
+	return userId.(uint)
 }

@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"gorm.io/gorm"
 	"linkany/management/dto"
@@ -32,7 +33,7 @@ type AccessPolicyService interface {
 	ListPolicyRules(ctx context.Context, params *dto.AccessPolicyRuleParams) (*vo.PageVo, error)
 
 	// Access control
-	CheckAccess(ctx context.Context, sourceNodeID, targetNodeID uint, action string) (bool, error)
+	CheckAccess(ctx context.Context, resourceType utils.ResourceType, resourceId uint, action string) (bool, error)
 	BatchCheckAccess(ctx context.Context, requests []AccessRequest) ([]AccessResult, error)
 
 	// Audit log
@@ -232,9 +233,82 @@ func (a accessPolicyServiceImpl) ListPolicyRules(ctx context.Context, params *dt
 	return result, nil
 }
 
-func (a accessPolicyServiceImpl) CheckAccess(ctx context.Context, sourceNodeID, targetNodeID uint, action string) (bool, error) {
-	//TODO implement me
-	panic("implement me")
+func (a accessPolicyServiceImpl) CheckAccess(ctx context.Context, resourceType utils.ResourceType, resourceId uint, action string) (bool, error) {
+	var (
+		err   error
+		count int64
+	)
+
+	userId := ctx.Value("userId")
+	//check whether resource is own
+	switch resourceType {
+	case utils.Group:
+		var group entity.NodeGroup
+		if err = a.Model(&entity.NodeGroup{}).Where("id = ?", resourceId).Find(&group).Error; err != nil {
+			return false, err
+		}
+
+		if group.OwnerId == userId {
+			return true, nil
+		}
+	case utils.Policy:
+		var policy entity.NodeGroup
+		if err = a.Model(&entity.AccessPolicy{}).Where("id = ?", resourceId).Find(&policy).Error; err != nil {
+			return false, err
+		}
+
+		if policy.OwnerId == userId {
+			return true, nil
+		}
+
+	case utils.Node:
+		var node entity.NodeGroup
+		if err = a.Model(&entity.Node{}).Where("id = ?", resourceId).Find(&node).Error; err != nil {
+			return false, err
+		}
+
+		if node.OwnerId == userId {
+			return true, nil
+		}
+
+	case utils.Label:
+		var label entity.Label
+		if err = a.Model(&entity.Label{}).Where("id = ?", resourceId).Find(&label).Error; err != nil {
+			return false, err
+		}
+
+		if label.OwnerId == userId {
+			return true, nil
+		}
+
+	case utils.Rule:
+		var rule entity.AccessRule
+		if err = a.Model(&entity.AccessRule{}).Where("id = ?", resourceId).Find(&rule).Error; err != nil {
+			return false, err
+		}
+
+		if rule.OwnerId == userId {
+			return true, nil
+		}
+
+	default:
+		return false, nil
+	}
+
+	//check whether user has permission
+	if err = a.Model(&entity.UserResourceGrantedPermission{}).Where("invitation_id = ? and resource_id = ? and permission_value =  ?", userId, resourceId, action).Count(&count).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return false, nil
+		}
+	}
+
+	//check whether user has permission
+	if count == 0 {
+		return false, errors.New("no permission")
+	}
+
+	return true, nil
+
 }
 
 func (a accessPolicyServiceImpl) BatchCheckAccess(ctx context.Context, requests []AccessRequest) ([]AccessResult, error) {

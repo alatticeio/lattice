@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: linkany-turn
+  namespace: linkany
+  labels:
+    k8s-app: linkany-turn
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      k8s-app: linkany-turn
+  template:
+    metadata:
+      labels:
+        k8s-app: linkany-turn
+    spec:
+      imagePullSecrets:
+        - name: ali-registry
+      hostAliases:
+        - ip: "10.96.80.105"
+          hostnames:
+            - "console.linkany.io"
+      containers:
+        - name: linkany-turn
+          image: registry.cn-hangzhou.aliyuncs.com/linkany-io/linkany-sg:latest
+          imagePullPolicy: Always
+          command: [ "linkany", "turn" ]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: linkany-turn-svc
+  namespace: linkany
+spec:
+  ports:
+    - protocol: TCP
+      port: 32132
+      targetPort: 32132
+      nodePort: 32132
+  selector:
+    k8s-app: linkany-turn
+  type: NodePort
