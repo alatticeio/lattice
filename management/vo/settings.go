@@ -1,8 +1,9 @@
 package vo
 
-type UserSettingsKeyVo struct {
+type AppKeyVo struct {
 	ModelVo
-	UserSettingsKey string `json:"userKey"`
+	AppKey string `json:"appKey"`
+	Status string `json:"status"`
 }
 
 type UserSettingsVo struct {

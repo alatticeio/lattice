@@ -72,7 +72,7 @@ type nodeServiceImpl struct {
 }
 
 func NewNodeService(db *DatabaseService) NodeService {
-	return &nodeServiceImpl{DatabaseService: db, logger: log.NewLogger(log.Loglevel, fmt.Sprintf("[%s] ", "peermapper"))}
+	return &nodeServiceImpl{DatabaseService: db, logger: log.NewLogger(log.Loglevel, "peermapper")}
 }
 
 func (p *nodeServiceImpl) Register(e *dto.NodeDto) (*entity.Node, error) {

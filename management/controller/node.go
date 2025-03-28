@@ -2,7 +2,6 @@ package controller
 
 import (
 	"context"
-	"fmt"
 	"linkany/management/dto"
 	"linkany/management/entity"
 	"linkany/management/service"
@@ -15,9 +14,10 @@ type NodeController struct {
 	nodeService service.NodeService
 }
 
-func NewPeerController(nodeService service.NodeService) *NodeController {
-	logger := log.NewLogger(log.Loglevel, fmt.Sprintf("[%s] ", "node-controller"))
-	return &NodeController{nodeService: nodeService, logger: logger}
+func NewPeerController(db *service.DatabaseService) *NodeController {
+	return &NodeController{
+		nodeService: service.NewNodeService(db),
+		logger:      log.NewLogger(log.Loglevel, "node-controller")}
 }
 
 // Node module

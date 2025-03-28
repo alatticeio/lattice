@@ -71,6 +71,12 @@ func (c *Client) Watch(ctx context.Context, in *mgt.ManagementMessage, callback 
 	}
 
 	ch := make(chan struct{})
+	defer func() {
+		c.logger.Infof("close watching stream")
+		if err = stream.CloseSend(); err != nil {
+			logger.Errorf("close send failed: %v", err)
+		}
+	}()
 	go func() {
 		for {
 			in, err := stream.Recv()
@@ -81,6 +87,7 @@ func (c *Client) Watch(ctx context.Context, in *mgt.ManagementMessage, callback 
 			}
 			if err != nil {
 				logger.Errorf("err: %v", err)
+				continue
 			}
 
 			var watchMessage mgt.WatchMessage

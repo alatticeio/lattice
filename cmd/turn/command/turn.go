@@ -1,7 +1,6 @@
 package command
 
 import (
-	"fmt"
 	"github.com/spf13/cobra"
 	"linkany/management/client"
 	"linkany/pkg/config"
@@ -47,7 +46,7 @@ func runTurn(opts turnOptions) error {
 	})
 
 	return turn.Start(&server.TurnServerConfig{
-		Logger:   log.NewLogger(log.Loglevel, fmt.Sprintf("[%s] ", "turnserver")),
+		Logger:   log.NewLogger(log.Loglevel, "turnserver"),
 		PublicIP: opts.PublicIP,
 		Port:     opts.Port,
 		Client:   client,

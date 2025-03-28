@@ -1,7 +1,6 @@
 package server
 
 import (
-	"fmt"
 	"linkany/pkg/linkerrors"
 	"linkany/pkg/log"
 	"sync"
@@ -21,7 +20,7 @@ func NewForwardManager() *ForwardManager {
 	return &ForwardManager{
 		lock:   &sync.Mutex{},
 		m:      make(map[string]chan *ForwardMessage),
-		logger: log.NewLogger(log.Loglevel, fmt.Sprintf("[%s] ", "forwardmanager")),
+		logger: log.NewLogger(log.Loglevel, "forwardmanager"),
 	}
 }
 

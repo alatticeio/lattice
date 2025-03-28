@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"fmt"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
@@ -25,10 +26,10 @@ type ClientConfig struct {
 }
 
 func NewClient(cfg *ClientConfig) (*Client, error) {
-
 	keepAliveArgs := keepalive.ClientParameters{
-		Time:    20 * time.Second,
-		Timeout: 20 * time.Second,
+		Time:                10 * time.Second,
+		Timeout:             3 * time.Second,
+		PermitWithoutStream: true,
 	}
 	// Set up a connection to the server.
 	conn, err := grpc.NewClient(cfg.Addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
@@ -62,49 +63,71 @@ func (c *Client) Forward(ctx context.Context, ch chan *signaling.EncryptMessage,
 		}
 	}()
 
-	go func() {
-		for {
-			select {
-			case msg := <-ch:
-				if err := stream.Send(msg); err != nil {
-					s, ok := status.FromError(err)
-					if ok && s.Code() == codes.Canceled {
-						c.logger.Infof("stream canceled")
-						return
-					} else if err == io.EOF {
-						c.logger.Infof("stream EOF")
-						return
-					}
+	errChan := make(chan error)
+	go c.sendMessages(stream, ch, errChan)
+	go c.receiveMessages(stream, errChan, callback)
 
-					c.logger.Errorf("send message failed: %v", err)
-					return
-				}
-			}
+	select {
+	case err = <-errChan:
+		if err == io.EOF {
+			return nil
 		}
-	}()
 
+		if status.Code(err) == codes.Canceled {
+			c.logger.Infof("stream closed")
+			return nil
+		}
+
+		return err
+	}
+}
+
+func (c *Client) receiveMessages(stream signaling.SignalingService_ForwardClient, errChan chan error, callback func(message *signaling.EncryptMessage) error) {
 	for {
 		msg, err := stream.Recv()
 		if err != nil {
 			s, ok := status.FromError(err)
 			if ok && s.Code() == codes.Canceled {
-				c.logger.Infof("client canceled")
-				return nil
+				c.logger.Infof("stream canceled")
+				errChan <- fmt.Errorf("stream canceled")
+				return
 			} else if err == io.EOF {
-				c.logger.Infof("client closed")
-				return nil
+				c.logger.Infof("stream closed")
+				errChan <- fmt.Errorf("stream closed")
+				return
 			}
 
-			c.logger.Errorf("recv msg failed: %v", err)
-			return err
+			c.logger.Errorf("recv message failed: %v", err)
+			errChan <- fmt.Errorf("recv message failed: %v", err)
+			return
 		}
 
-		if err = callback(msg); err != nil {
-			c.logger.Errorf("callback failed: %v", err)
-		}
-
+		callback(msg)
 	}
+}
 
+func (c *Client) sendMessages(stream signaling.SignalingService_ForwardClient, ch chan *signaling.EncryptMessage, errChan chan error) {
+	for {
+		select {
+		case msg := <-ch:
+			if err := stream.Send(msg); err != nil {
+				s, ok := status.FromError(err)
+				if ok && s.Code() == codes.Canceled {
+					c.logger.Infof("stream canceled")
+					errChan <- fmt.Errorf("stream canceled")
+					return
+				} else if err == io.EOF {
+					c.logger.Infof("stream closed")
+					errChan <- fmt.Errorf("stream closed")
+					return
+				}
+
+				c.logger.Errorf("send message failed: %v", err)
+				errChan <- fmt.Errorf("send message failed: %v", err)
+				return
+			}
+		}
+	}
 }
 
 func (c *Client) Close() error {

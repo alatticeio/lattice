@@ -29,10 +29,10 @@ import (
 type Server struct {
 	logger *log.Logger
 	mgt.UnimplementedManagementServiceServer
-	userController *controller.UserController
-	peerController *controller.NodeController
-	port           int
-	tokenService   *service.TokenService
+	userController  *controller.UserController
+	peerController  *controller.NodeController
+	port            int
+	tokenController *controller.TokenController
 }
 
 type ServerConfig struct {
@@ -70,10 +70,11 @@ type RegistryRequest struct {
 
 func NewServer(cfg *ServerConfig) *Server {
 	return &Server{
-		logger:         cfg.Logger,
-		port:           cfg.Port,
-		userController: controller.NewUserController(service.NewUserService(cfg.DataBaseService, cfg.Rdb)),
-		peerController: controller.NewPeerController(service.NewNodeService(cfg.DataBaseService)),
+		logger:          cfg.Logger,
+		port:            cfg.Port,
+		userController:  controller.NewUserController(cfg.DataBaseService, cfg.Rdb),
+		peerController:  controller.NewPeerController(cfg.DataBaseService),
+		tokenController: controller.NewTokenController(cfg.DataBaseService),
 	}
 }
 
@@ -456,12 +457,12 @@ func (s *Server) VerifyToken(ctx context.Context, in *mgt.ManagementMessage) (*m
 		return nil, err
 	}
 
-	user, err := s.tokenService.Parse(req.Token)
+	user, err := s.tokenController.Parse(req.Token)
 	if err != nil {
 		return nil, err
 	}
 
-	b, _, err := s.tokenService.Verify(user.Username, user.Password)
+	b, _, err := s.tokenController.Verify(user.Username, user.Password)
 	if err != nil {
 		return nil, err
 	}

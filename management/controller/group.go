@@ -14,9 +14,10 @@ type GroupController struct {
 	groupService service.GroupService
 }
 
-func NewGroupController(groupService service.GroupService) *GroupController {
-	logger := log.NewLogger(log.Loglevel, "[group-policy-controller] ")
-	return &GroupController{groupService: groupService, logger: logger}
+func NewGroupController(db *service.DatabaseService) *GroupController {
+	return &GroupController{
+		groupService: service.NewGroupService(db),
+		logger:       log.NewLogger(log.Loglevel, "group-policy-controller")}
 }
 
 func (g *GroupController) ListGroupPolicies(ctx context.Context, params *dto.GroupPolicyParams) ([]*vo.GroupPolicyVo, error) {

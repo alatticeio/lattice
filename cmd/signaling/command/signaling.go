@@ -2,11 +2,13 @@ package command
 
 import (
 	"github.com/spf13/cobra"
+	"linkany/pkg/log"
 	"linkany/signaling"
 )
 
 type signalerOptions struct {
-	Listen string
+	Listen   string
+	LogLevel string
 }
 
 func SignalingCmd() *cobra.Command {
@@ -27,10 +29,15 @@ func SignalingCmd() *cobra.Command {
 	}
 	fs := cmd.Flags()
 	fs.StringVarP(&opts.Listen, "", "l", "", "http port for drp over http")
+	fs.StringVarP(&opts.LogLevel, "log-level", "", "silent", "log level (silent, info, error, warn, verbose)")
 	return cmd
 }
 
 // run signaling server
 func runSignaling(opts signalerOptions) error {
+	if opts.LogLevel == "" {
+		opts.LogLevel = "error"
+	}
+	log.Loglevel = log.SetLogLevel(opts.LogLevel)
 	return signaling.Start(opts.Listen)
 }

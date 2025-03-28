@@ -1,7 +1,6 @@
 package controller
 
 import (
-	"fmt"
 	"linkany/management/entity"
 	"linkany/management/service"
 	"linkany/pkg/log"
@@ -13,7 +12,7 @@ type PlanController struct {
 }
 
 func NewPlanController(planMapper service.PlanService) *PlanController {
-	return &PlanController{planMapper: planMapper, logger: log.NewLogger(log.Loglevel, fmt.Sprintf("[%s] ", "plan-controller"))}
+	return &PlanController{planMapper: planMapper, logger: log.NewLogger(log.Loglevel, "plan-controller")}
 }
 
 func (p *PlanController) List() ([]*entity.Plan, error) {

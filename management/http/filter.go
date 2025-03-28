@@ -17,14 +17,14 @@ func (s *Server) tokenFilter() gin.HandlerFunc {
 			return
 		}
 
-		user, err := s.tokener.Parse(token)
+		user, err := s.tokenController.Parse(token)
 		if err != nil {
 			WriteError(c.JSON, "Invalid token")
 			c.Abort()
 			return
 		}
 
-		b, u, err := s.tokener.Verify(user.Username, user.Password)
+		b, u, err := s.tokenController.Verify(user.Username, user.Password)
 		if err != nil {
 			c.JSON(client.InternalServerError(err))
 			c.Abort()

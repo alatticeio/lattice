@@ -2,12 +2,12 @@ package controller
 
 import (
 	"context"
-	"fmt"
 	"linkany/management/dto"
 	"linkany/management/entity"
 	"linkany/management/service"
 	"linkany/management/vo"
 	"linkany/pkg/log"
+	"linkany/pkg/redis"
 )
 
 type UserController struct {
@@ -15,8 +15,10 @@ type UserController struct {
 	userService service.UserService
 }
 
-func NewUserController(userMapper service.UserService) *UserController {
-	return &UserController{userService: userMapper, logger: log.NewLogger(log.Loglevel, fmt.Sprintf("[%s] ", "user-controller"))}
+func NewUserController(db *service.DatabaseService, rdb *redis.Client) *UserController {
+	return &UserController{
+		userService: service.NewUserService(db, rdb),
+		logger:      log.NewLogger(log.Loglevel, "user-controller")}
 }
 
 // User module

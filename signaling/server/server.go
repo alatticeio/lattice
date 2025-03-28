@@ -6,6 +6,7 @@ import (
 	"github.com/golang/protobuf/proto"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/status"
 	"io"
 	"linkany/management/grpc/client"
@@ -15,6 +16,7 @@ import (
 	"linkany/pkg/log"
 	"linkany/signaling/grpc/signaling"
 	"net"
+	"time"
 )
 
 type Server struct {
@@ -40,7 +42,7 @@ func NewServer(cfg *ServerConfig) (*Server, error) {
 
 	mgtClient, err := client.NewClient(&client.GrpcConfig{
 		Addr:   "console.linkany.io:32051",
-		Logger: log.NewLogger(log.Loglevel, fmt.Sprintf("[%s] ", "grpcclient")),
+		Logger: log.NewLogger(log.Loglevel, "grpcclient"),
 	})
 	if err != nil {
 		return nil, err
@@ -58,7 +60,24 @@ func (s *Server) Start() error {
 	if err != nil {
 		return err
 	}
-	grpcServer := grpc.NewServer()
+	kasp := keepalive.ServerParameters{
+		MaxConnectionIdle:     15 * time.Minute, // 如果连接空闲超过此时间，发送 GOAWAY
+		MaxConnectionAge:      30 * time.Minute, // 连接最大存活时间
+		MaxConnectionAgeGrace: 5 * time.Second,  // 强制关闭连接前的等待时间
+		Time:                  5 * time.Second,  // 如果没有 ping，每5秒发送 ping
+		Timeout:               1 * time.Second,  // ping 响应超时时间
+	}
+
+	// 服务端强制策略
+	kaep := keepalive.EnforcementPolicy{
+		MinTime:             5 * time.Second, // 客户端两次 ping 之间的最小时间间隔
+		PermitWithoutStream: true,            // 即使没有活跃的流也允许保持连接
+	}
+
+	grpcServer := grpc.NewServer(
+		grpc.KeepaliveParams(kasp),
+		grpc.KeepaliveEnforcementPolicy(kaep),
+	)
 	signaling.RegisterSignalingServiceServer(grpcServer, s)
 	s.logger.Verbosef("Signaling grpc server listening at %v", listen.Addr())
 	return grpcServer.Serve(listen)
@@ -186,7 +205,7 @@ func (s *Server) recv(stream grpc.BidiStreamingServer[signaling.EncryptMessage, 
 			return signaling.EncryptMessageReqAndResp{}, linkerrors.ErrClientClosed, nil
 		}
 
-		s.logger.Errorf("recv msg failed: %v", err)
+		s.logger.Errorf("receive msg failed: %v", err)
 		return signaling.EncryptMessageReqAndResp{}, err, nil
 	}
 

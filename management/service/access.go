@@ -395,7 +395,7 @@ func (a accessPolicyServiceImpl) DeleteUserResourcePermission(ctx context.Contex
 
 func NewAccessPolicyService(db *DatabaseService) AccessPolicyService {
 	return &accessPolicyServiceImpl{
-		logger:          log.NewLogger(log.Loglevel, fmt.Sprintf("[%s] ", "access_policy_service")),
+		logger:          log.NewLogger(log.Loglevel, "access_policy_service"),
 		DatabaseService: db,
 	}
 }

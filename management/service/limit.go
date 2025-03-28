@@ -17,12 +17,13 @@ type UserConfigInterface interface {
 
 type UserConfigMapper struct {
 	*DatabaseService
-	tokener    *TokenService
+	tokener    *tokenServiceImpl
 	userMapper UserService
 }
 
 func NewUserConfigMapper(dataBaseService *DatabaseService) *UserConfigMapper {
-	return &UserConfigMapper{DatabaseService: dataBaseService, tokener: NewTokenService(dataBaseService), userMapper: NewUserService(dataBaseService, nil)}
+	//return &UserConfigMapper{DatabaseService: dataBaseService, tokenService: NewTokenService(dataBaseService), userMapper: NewUserService(dataBaseService, nil)}
+	return nil
 }
 
 func (ucm *UserConfigMapper) Get(token string) (*entity.UserConfig, error) {

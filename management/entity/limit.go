@@ -10,16 +10,6 @@ type UserConfig struct {
 	PeersLimit  int   // free user can only have 100 peers total
 }
 
-type AppKey struct {
-	gorm.Model
-	UserId uint
-	AppKey string
-}
-
-func (AppKey) TableName() string {
-	return "la_app_key"
-}
-
 type NodeLimit struct {
 	gorm.Model
 	UserId             uint

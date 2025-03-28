@@ -8,16 +8,16 @@ import (
 
 func (s *Server) RegisterSettingsRoutes() {
 	settingsGroup := s.RouterGroup.Group(PREFIX + "/settings")
-	settingsGroup.POST("/key/a", s.tokenFilter(), s.newUserSettingsKey())
-	settingsGroup.DELETE("/key/:id", s.tokenFilter(), s.deleteUserSettingsKey())
-	settingsGroup.GET("/key/list", s.tokenFilter(), s.userSettingsKeyList())
+	settingsGroup.POST("/key/a", s.tokenFilter(), s.newAppKey())
+	settingsGroup.DELETE("/key/:id", s.tokenFilter(), s.deleteAppKey())
+	settingsGroup.GET("/key/list", s.tokenFilter(), s.listAppKeys())
 
 	settingsGroup.POST("/a", s.tokenFilter(), s.newUserSettings())
 }
 
-func (s *Server) newUserSettingsKey() gin.HandlerFunc {
+func (s *Server) newAppKey() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		err := s.settingsController.NewUserSettingsKey(c)
+		err := s.settingsController.NewAppKey(c)
 		if err != nil {
 			WriteError(c.JSON, err.Error())
 			return
@@ -43,7 +43,7 @@ func (s *Server) newUserSettings() gin.HandlerFunc {
 	}
 }
 
-func (s *Server) deleteUserSettingsKey() gin.HandlerFunc {
+func (s *Server) deleteAppKey() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var err error
 		id := c.Param("id")
@@ -52,7 +52,7 @@ func (s *Server) deleteUserSettingsKey() gin.HandlerFunc {
 			WriteError(c.JSON, "invalid key id")
 			return
 		}
-		err = s.settingsController.DeleteUserSettingsKey(c, uint(keyId))
+		err = s.settingsController.RemoveAppKey(c, uint(keyId))
 		if err != nil {
 			WriteError(c.JSON, err.Error())
 			return
@@ -61,11 +61,11 @@ func (s *Server) deleteUserSettingsKey() gin.HandlerFunc {
 	}
 }
 
-func (s *Server) userSettingsKeyList() gin.HandlerFunc {
+func (s *Server) listAppKeys() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var (
 			err    error
-			params dto.UserKeyParams
+			params dto.AppKeyParams
 		)
 
 		if err = c.ShouldBindQuery(&params); err != nil {
@@ -75,7 +75,7 @@ func (s *Server) userSettingsKeyList() gin.HandlerFunc {
 
 		params.UserId = c.Value("userId").(uint)
 
-		vo, err := s.settingsController.UserSettingsKeyList(c, &params)
+		vo, err := s.settingsController.ListAppkeys(c, &params)
 		if err != nil {
 			WriteError(c.JSON, err.Error())
 			return

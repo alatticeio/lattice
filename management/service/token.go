@@ -8,27 +8,27 @@ import (
 	"time"
 )
 
-type TokenInterface interface {
-	Generate() (string, error)
-	Verify(username, password, token string) (bool, error)
+type TokenService interface {
+	Generate(username, password string) (string, error)
+	Verify(username, password string) (bool, *entity.User, error)
 
-	Parse(token string)
+	Parse(token string) (*entity.User, error)
 }
 
 var haSalt = []byte("linkany.io")
 
-type TokenService struct {
+type tokenServiceImpl struct {
 	logger *log.Logger
 	*DatabaseService
 }
 
-func NewTokenService(db *DatabaseService) *TokenService {
-	return &TokenService{
-		DatabaseService: db, logger: log.NewLogger(log.Loglevel, fmt.Sprintf("[%s] ", "token-service")),
+func NewTokenService(db *DatabaseService) TokenService {
+	return &tokenServiceImpl{
+		DatabaseService: db, logger: log.NewLogger(log.Loglevel, "token-service"),
 	}
 }
 
-func (t *TokenService) Generate(username, password string) (string, error) {
+func (t *tokenServiceImpl) Generate(username, password string) (string, error) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"username": username,
 		"password": password,
@@ -39,10 +39,10 @@ func (t *TokenService) Generate(username, password string) (string, error) {
 	return token.SignedString(haSalt)
 }
 
-func (t *TokenService) Verify(username, password string) (bool, *entity.User, error) {
+func (t *tokenServiceImpl) Verify(username, password string) (bool, *entity.User, error) {
 
 	var user entity.User
-	if err := t.Where("username = ?", username).Find(&user).Error; err != nil {
+	if err := t.Model(&entity.User{}).Where("username = ?", username).Find(&user).Error; err != nil {
 		return false, nil, fmt.Errorf("user not found")
 	}
 
@@ -57,7 +57,7 @@ func (t *TokenService) Verify(username, password string) (bool, *entity.User, er
 	return true, &user, nil
 }
 
-func (t *TokenService) Parse(tokenString string) (*entity.User, error) {
+func (t *tokenServiceImpl) Parse(tokenString string) (*entity.User, error) {
 	// Parse takes the token string and a function for looking up the key. The latter is especially
 	// useful if you use multiple keys for your application.  The standard is to use 'kid' in the
 	// head of the token to identify which key to use, but the parsed token (head and claims) is provided

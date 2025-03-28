@@ -1,7 +1,6 @@
 package utils
 
 import (
-	"fmt"
 	"linkany/management/grpc/mgt"
 	"linkany/pkg/log"
 	"sync"
@@ -27,7 +26,7 @@ func NewWatchManager() *WatchManager {
 	once.Do(func() {
 		manager = &WatchManager{
 			m:      make(map[string]chan *mgt.WatchMessage),
-			logger: log.NewLogger(log.Loglevel, fmt.Sprintf("[%s] ", "watchmanager")),
+			logger: log.NewLogger(log.Loglevel, "watchmanager"),
 		}
 	})
 

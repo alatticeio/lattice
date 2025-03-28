@@ -2,7 +2,6 @@ package client
 
 import (
 	"context"
-	"fmt"
 	"github.com/golang/protobuf/proto"
 	"linkany/pkg/config"
 	"linkany/pkg/log"
@@ -14,7 +13,7 @@ func TestClient_Register(t *testing.T) {
 
 	client, err := NewClient(&ClientConfig{
 		Addr:   "console.linkany.io:32132",
-		Logger: log.NewLogger(log.Loglevel, fmt.Sprintf("[%s] ", "signalingclient")),
+		Logger: log.NewLogger(log.Loglevel, "signalingclient"),
 	})
 
 	if err != nil {

@@ -33,7 +33,7 @@ func TestClient_Login(t *testing.T) {
 func TestClient_Get(t *testing.T) {
 
 	// controlclient
-	grpcClient, err := mgtclient.NewClient(&mgtclient.GrpcConfig{Addr: "console.linkany.io:32051", Logger: log.NewLogger(log.Loglevel, fmt.Sprintf("[%s] ", "grpcclient"))})
+	grpcClient, err := mgtclient.NewClient(&mgtclient.GrpcConfig{Addr: "console.linkany.io:32051", Logger: log.NewLogger(log.Loglevel, fmt.Sprintf("%s", "grpcclient"))})
 	if err != nil {
 		t.Fatal(err)
 	}

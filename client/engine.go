@@ -108,7 +108,7 @@ func NewEngine(cfg *EngineConfig) (*Engine, error) {
 	turnClient, err := turnclient.NewClient(&turnclient.ClientConfig{
 		ServerUrl: cfg.TurnServerUrl,
 		Conf:      cfg.Conf,
-		Logger:    log.NewLogger(log.Loglevel, fmt.Sprintf("[%s] ", "turnclient")),
+		Logger:    log.NewLogger(log.Loglevel, "turnclient"),
 	})
 
 	if err != nil {
@@ -139,7 +139,7 @@ func NewEngine(cfg *EngineConfig) (*Engine, error) {
 	proberManager := probe.NewProberManager(cfg.ForceRelay, relayer)
 
 	// controlclient
-	grpcClient, err := mgtclient.NewClient(&mgtclient.GrpcConfig{Addr: cfg.ManagementUrl, Logger: log.NewLogger(log.Loglevel, fmt.Sprintf("[%s] ", "grpcclient"))})
+	grpcClient, err := mgtclient.NewClient(&mgtclient.GrpcConfig{Addr: cfg.ManagementUrl, Logger: log.NewLogger(log.Loglevel, "grpcclient")})
 	if err != nil {
 		return nil, err
 	}
@@ -148,7 +148,7 @@ func NewEngine(cfg *EngineConfig) (*Engine, error) {
 	engine.keyManager = internal.NewKeyManager("")
 
 	drpclient := drp.NewClient(&drp.ClientConfig{
-		Logger:        log.NewLogger(log.Loglevel, fmt.Sprintf("[%s] ", "drpclient")),
+		Logger:        log.NewLogger(log.Loglevel, "drpclient"),
 		Probers:       proberManager,
 		AgentManager:  engine.agentManager,
 		UdpMux:        universalUdpMuxDefault,
@@ -171,7 +171,7 @@ func NewEngine(cfg *EngineConfig) (*Engine, error) {
 	ufrag, pwd := probe.GenerateRandomUfragPwd()
 
 	engine.client = controlclient.NewClient(&controlclient.ClientConfig{
-		Logger:          log.NewLogger(log.Loglevel, fmt.Sprintf("[%s] ", "controlclient")),
+		Logger:          log.NewLogger(log.Loglevel, "controlclient"),
 		PeersManager:    engine.peersManager,
 		Conf:            cfg.Conf,
 		UdpMux:          universalUdpMuxDefault.UDPMuxDefault,
@@ -304,7 +304,11 @@ func (e *Engine) registerToSignaling(ctx context.Context, cfg *config.LocalConfi
 
 	_, err = e.signalingClient.Register(ctx, in)
 
-	return err
+	if err != nil {
+		e.logger.Errorf("register to signaling failed: %v", err)
+		return err
+	}
+	return nil
 }
 
 func (e *Engine) Stop() error {

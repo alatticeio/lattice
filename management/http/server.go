@@ -1,7 +1,6 @@
 package http
 
 import (
-	"fmt"
 	"github.com/gin-gonic/gin"
 	"linkany/management/client"
 	"linkany/management/controller"
@@ -21,7 +20,7 @@ type Server struct {
 	*gin.Engine
 	logger            *log.Logger
 	listen            string
-	tokener           *service.TokenService
+	tokenController   *controller.TokenController
 	userController    *controller.UserController
 	nodeController    *controller.NodeController
 	planController    *controller.PlanController
@@ -45,18 +44,18 @@ type ServerConfig struct {
 func NewServer(cfg *ServerConfig) *Server {
 	e := gin.Default()
 	s := &Server{
-		logger:             log.NewLogger(log.Loglevel, fmt.Sprintf("[%s ]", "mgt-server")),
+		logger:             log.NewLogger(log.Loglevel, "mgt-server"),
 		Engine:             e,
 		listen:             cfg.Listen,
-		userController:     controller.NewUserController(service.NewUserService(cfg.DatabaseService, cfg.Rdb)),
-		nodeController:     controller.NewPeerController(service.NewNodeService(cfg.DatabaseService)),
+		userController:     controller.NewUserController(cfg.DatabaseService, cfg.Rdb),
+		nodeController:     controller.NewPeerController(cfg.DatabaseService),
 		planController:     controller.NewPlanController(service.NewPlanService(cfg.DatabaseService)),
 		supportController:  controller.NewSupportController(service.NewSupportMapper(cfg.DatabaseService)),
-		accessController:   controller.NewAccessController(service.NewAccessPolicyService(cfg.DatabaseService)),
-		groupController:    controller.NewGroupController(service.NewGroupService(cfg.DatabaseService)),
-		sharedController:   controller.NewSharedController(service.NewSharedService(cfg.DatabaseService)),
-		settingsController: controller.NewSettingsController(service.NewUserSettingsService(cfg.DatabaseService)),
-		tokener:            service.NewTokenService(cfg.DatabaseService),
+		accessController:   controller.NewAccessController(cfg.DatabaseService),
+		groupController:    controller.NewGroupController(cfg.DatabaseService),
+		sharedController:   controller.NewSharedController(cfg.DatabaseService),
+		settingsController: controller.NewSettingsController(cfg.DatabaseService),
+		tokenController:    controller.NewTokenController(cfg.DatabaseService),
 	}
 	s.initRoute()
 

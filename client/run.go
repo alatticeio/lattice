@@ -16,7 +16,7 @@ func Start(flags *ClientFlags) error {
 	var err error
 	ctx := SetupSignalHandler()
 
-	logger := log.NewLogger(log.Loglevel, fmt.Sprintf("[%s] ", "linkany "))
+	logger := log.NewLogger(log.Loglevel, "linkany")
 
 	conf, err := config.GetLocalConfig()
 	if err != nil {

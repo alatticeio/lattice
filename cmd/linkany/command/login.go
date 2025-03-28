@@ -82,7 +82,7 @@ func runLogin(opts loginOptions) error {
 		}
 	}
 
-	grpcClient, err := grpcclient.NewClient(&grpcclient.GrpcConfig{Addr: fmt.Sprintf("%s:%d", internal.ManagementDomain, internal.DefaultManagementPort), Logger: log.NewLogger(log.Loglevel, fmt.Sprintf("[%s] ", "grpcclient"))})
+	grpcClient, err := grpcclient.NewClient(&grpcclient.GrpcConfig{Addr: fmt.Sprintf("%s:%d", internal.ManagementDomain, internal.DefaultManagementPort), Logger: log.NewLogger(log.Loglevel, "grpcclient")})
 	if err != nil {
 		return err
 	}

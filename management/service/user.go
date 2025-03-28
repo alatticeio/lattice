@@ -67,12 +67,12 @@ var (
 
 type userServiceImpl struct {
 	*DatabaseService
-	tokener *TokenService
-	rdb     *redis.Client
+	tokenService TokenService
+	rdb          *redis.Client
 }
 
 func NewUserService(db *DatabaseService, rdb *redis.Client) UserService {
-	return &userServiceImpl{DatabaseService: db, tokener: NewTokenService(dataBaseService), rdb: rdb}
+	return &userServiceImpl{DatabaseService: db, tokenService: NewTokenService(dataBaseService), rdb: rdb}
 }
 
 // Login checks if the user exists and returns a token
@@ -87,7 +87,7 @@ func (u *userServiceImpl) Login(dto *dto.UserDto) (*entity.Token, error) {
 		return nil, linkerrors.ErrInvalidPassword
 	}
 
-	token, err := u.tokener.Generate(user.Username, user.Password)
+	token, err := u.tokenService.Generate(user.Username, user.Password)
 	if err != nil {
 		return nil, err
 	}
@@ -119,7 +119,7 @@ func (u *userServiceImpl) Register(dto *dto.UserDto) (*entity.User, error) {
 
 // Get returns a user by username
 func (u *userServiceImpl) Get(token string) (*entity.User, error) {
-	userToken, err := u.tokener.Parse(token)
+	userToken, err := u.tokenService.Parse(token)
 	if err != nil {
 		return nil, err
 	}

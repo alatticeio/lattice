@@ -2,7 +2,6 @@ package controller
 
 import (
 	"context"
-	"fmt"
 	"linkany/management/dto"
 	"linkany/management/entity"
 	"linkany/management/service"
@@ -12,12 +11,13 @@ import (
 )
 
 type AccessController struct {
-	log           *log.Logger
+	logger        *log.Logger
 	accessService service.AccessPolicyService
 }
 
-func NewAccessController(accessService service.AccessPolicyService) *AccessController {
-	return &AccessController{accessService: accessService, log: log.NewLogger(log.Loglevel, fmt.Sprintf("[%s ]", "access-controller"))}
+func NewAccessController(db *service.DatabaseService) *AccessController {
+	return &AccessController{accessService: service.NewAccessPolicyService(db),
+		logger: log.NewLogger(log.Loglevel, "access-controller")}
 }
 
 // AccessRule module

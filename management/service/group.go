@@ -39,7 +39,7 @@ type groupServiceImpl struct {
 
 func NewGroupService(db *DatabaseService) GroupService {
 	return &groupServiceImpl{DatabaseService: db,
-		logger:            log.NewLogger(log.Loglevel, "[group-policy-service] "),
+		logger:            log.NewLogger(log.Loglevel, "group-policy-service"),
 		nodeServiceImpl:   NewNodeService(db),
 		policyServiceImpl: NewAccessPolicyService(db),
 	}

@@ -24,7 +24,7 @@ func (qp *QueryParams) Generate() []*utils.KeyValue {
 	}
 
 	if qp.PubKey != nil {
-		result = append(result, utils.NewKeyValue("pub_key", *qp.PubKey))
+		result = append(result, utils.NewKeyValue("public_key", *qp.PubKey))
 	}
 
 	if qp.UserId != "" {

@@ -1,7 +1,6 @@
 package controller
 
 import (
-	"fmt"
 	"linkany/management/dto"
 	"linkany/management/entity"
 	"linkany/management/service"
@@ -14,7 +13,7 @@ type SupportController struct {
 }
 
 func NewSupportController(supportService service.SupportService) *SupportController {
-	return &SupportController{supportService: supportService, logger: log.NewLogger(log.Loglevel, fmt.Sprintf("[%s] ", "support-controller"))}
+	return &SupportController{supportService: supportService, logger: log.NewLogger(log.Loglevel, "support-controller")}
 }
 
 func (s *SupportController) List() ([]*entity.Support, error) {

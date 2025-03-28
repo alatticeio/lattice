@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"fmt"
 	"gorm.io/gorm"
 	"linkany/management/dto"
 	"linkany/management/entity"
@@ -46,7 +45,7 @@ type shareServiceImpl struct {
 }
 
 func NewSharedService(db *DatabaseService) SharedService {
-	return &shareServiceImpl{db, log.NewLogger(log.Loglevel, fmt.Sprintf("[%s ]", "SharedService"))}
+	return &shareServiceImpl{db, log.NewLogger(log.Loglevel, "SharedService")}
 }
 
 func (s *shareServiceImpl) GetSharedGroup(ctx context.Context, id string) (*vo.SharedGroupVo, error) {

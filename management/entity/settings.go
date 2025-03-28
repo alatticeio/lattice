@@ -5,14 +5,36 @@ import (
 	"linkany/management/utils"
 )
 
-type UserSettingsKey struct {
+type AppKey struct {
 	gorm.Model
+	OrderId uint
 	UserId  uint
-	UserKey string
+	AppKey  string
+	Status  AppKeyStatus
 }
 
-func (UserSettingsKey) TableName() string {
-	return "la_user_settings_key"
+type AppKeyStatus int
+
+const (
+	Active AppKeyStatus = iota
+	Inactive
+	Frozen
+)
+
+func (ak AppKeyStatus) String() string {
+	switch ak {
+	case Active:
+		return "active"
+	case Inactive:
+		return "inactive"
+	case Frozen:
+		return "frozen"
+	}
+	return ""
+}
+
+func (AppKey) TableName() string {
+	return "la_user_app_key"
 }
 
 type UserSettings struct {

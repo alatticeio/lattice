@@ -2,7 +2,6 @@ package controller
 
 import (
 	"context"
-	"fmt"
 	"linkany/management/service"
 	"linkany/management/vo"
 	"linkany/pkg/log"
@@ -13,8 +12,10 @@ type SharedController struct {
 	sharedService service.SharedService
 }
 
-func NewSharedController(sharedService service.SharedService) *SharedController {
-	return &SharedController{sharedService: sharedService, logger: log.NewLogger(log.Loglevel, fmt.Sprintf("[%s] ", "shared-controller"))}
+func NewSharedController(db *service.DatabaseService) *SharedController {
+	return &SharedController{
+		sharedService: service.NewSharedService(db),
+		logger:        log.NewLogger(log.Loglevel, "shared-controller")}
 }
 
 func (s *SharedController) DeleteSharedLabel(ctx context.Context, inviteId, labelId uint) error {

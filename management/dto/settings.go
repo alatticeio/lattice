@@ -1,20 +1,24 @@
 package dto
 
 import (
+	"gorm.io/gorm"
+	"linkany/management/entity"
 	"linkany/management/utils"
 	"linkany/management/vo"
 )
 
-type UserSettingsKeyDto struct {
-	UserSettingsKey string `json:"userKey"`
+type AppKeyDto struct {
+	gorm.Model
+	AppKey string `json:"appKey"`
+	Status entity.AppKeyStatus
 }
 
-type UserKeyParams struct {
+type AppKeyParams struct {
 	vo.PageModel
 	UserId uint `json:"userId" form:"userId"`
 }
 
-func (p *UserKeyParams) Generate() []*utils.KeyValue {
+func (p *AppKeyParams) Generate() []*utils.KeyValue {
 	var result []*utils.KeyValue
 
 	if p.UserId != 0 {
