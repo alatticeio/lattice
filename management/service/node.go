@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"linkany/management/dto"
@@ -10,6 +11,7 @@ import (
 	"linkany/management/utils"
 	"linkany/management/vo"
 	"linkany/pkg/log"
+	"strconv"
 	"strings"
 )
 
@@ -57,8 +59,8 @@ type NodeService interface {
 	GetGroupNode(ctx context.Context, id string) (*entity.GroupNode, error)
 
 	//Node Label
-	AddNodeLabel(ctx context.Context, dto *dto.NodeLabelDto) error
-	RemoveNodeLabel(ctx context.Context, id string) error
+	AddNodeLabel(ctx context.Context, dto *dto.NodeLabelUpdateReq) error
+	RemoveNodeLabel(ctx context.Context, nodeId, labelId string) error
 	ListNodeLabels(ctx context.Context, params *dto.NodeLabelParams) (*vo.PageVo, error)
 }
 
@@ -197,8 +199,8 @@ func (p *nodeServiceImpl) ListNodes(params *dto.QueryParams) (*vo.PageVo, error)
 
 	p.logger.Verbosef("sql: %s, wrappers: %v", sql, wrappers)
 	if err := p.Model(&entity.Node{}).
-		Select("la_node.*, la_group_node.group_name, GROUP_CONCAT(DISTINCT la_node_label.label_name SEPARATOR ', ') AS label_name ").
-		Joins("left join la_group_node on la_node.id = la_group_node.node_id left join la_node_label on la_node.id = la_node_label.node_Id").
+		Select("la_node.*, la_group_node.group_name, JSON_OBJECTAGG(IFNULL(la_node_label.label_id, ''),IFNULL(la_node_label.label_name, '')) AS labels ").
+		Joins("left join la_group_node on la_node.id = la_group_node.node_id AND la_group_node.deleted_at IS NULL left join la_node_label on la_node.id = la_node_label.node_Id AND la_node_label.deleted_at IS NULL").
 		Where("user_id = ?", params.UserId).
 		Group("la_node.id, la_group_node.group_name").
 		Offset((params.Page - 1) * params.Size).
@@ -209,6 +211,14 @@ func (p *nodeServiceImpl) ListNodes(params *dto.QueryParams) (*vo.PageVo, error)
 
 	var vos []*vo.NodeVo
 	for _, node := range nodes {
+		var labelValue map[string]string
+		if node.LabelName != `{"": ""}` {
+			// 解析 JSON
+			err := json.Unmarshal([]byte(node.LabelName), &labelValue)
+			if err != nil {
+				p.logger.Errorf("JSON parsing error： %s", err.Error())
+			}
+		}
 		vos = append(vos, &vo.NodeVo{
 			ID:                  node.ID,
 			Name:                node.Name,
@@ -229,7 +239,7 @@ func (p *nodeServiceImpl) ListNodes(params *dto.QueryParams) (*vo.PageVo, error)
 			Port:                node.Port,
 			Status:              node.Status,
 			GroupName:           node.GroupName,
-			LabelName:           node.LabelName,
+			LabelValues:         labelValue,
 		})
 	}
 
@@ -592,34 +602,45 @@ func (p *nodeServiceImpl) GetGroupNode(ctx context.Context, ID string) (*entity.
 }
 
 // Node Label
-func (p *nodeServiceImpl) AddNodeLabel(ctx context.Context, dto *dto.NodeLabelDto) error {
-	var count int64
-	if err := p.Model(&entity.Label{}).Where("id = ? and label = ?", dto.LabelID, dto.LabelName).Count(&count).Error; err != nil {
-		return err
+func (p *nodeServiceImpl) AddNodeLabel(ctx context.Context, dto *dto.NodeLabelUpdateReq) error {
+	if len(dto.LabelEditData.Value) > 0 {
+		for i := 0; i < len(dto.LabelEditData.Value); i++ {
+			dto.LabelIds = strings.ReplaceAll(dto.LabelIds, dto.LabelEditData.Value[i], "")
+		}
 	}
-	if count == 0 {
-		return errors.New("invalid label")
-	}
-	if err := p.Model(&entity.NodeLabel{}).Where("label_id = ? and node_id = ?", dto.LabelID, dto.NodeID).Count(&count).Error; err != nil {
-		return err
-	}
-	if count != 0 {
+	needAddLabelId := strings.Split(dto.LabelIds, ",")
+	if len(needAddLabelId) == 0 {
 		return nil
 	}
-	nodeLabel := &entity.NodeLabel{
-		LabelId:   dto.LabelID,
-		LabelName: dto.LabelName,
-		NodeId:    dto.NodeID,
-		CreatedBy: dto.CreatedBy,
-	}
-	if err := p.Create(nodeLabel).Error; err != nil {
-		return err
+	for index, value := range needAddLabelId {
+		fmt.Println("Index:", index, "Value:", value)
+		var (
+			label *entity.Label
+		)
+		if err := p.Model(&entity.Label{}).Where("id = ?", value).Find(&label).Error; err != nil {
+			return err
+		}
+		if label == nil {
+			return errors.New("invalid label")
+		}
+		labelId, _ := strconv.ParseUint(value, 10, 64)
+		nodeId, _ := strconv.ParseUint(dto.Id, 10, 64)
+		nodeLabel := &entity.NodeLabel{
+			LabelId:   labelId,
+			LabelName: label.Label,
+			NodeId:    nodeId,
+			CreatedBy: dto.CreatedBy,
+		}
+		if err := p.Create(nodeLabel).Error; err != nil {
+			return err
+		}
 	}
 	return nil
+
 }
 
-func (p *nodeServiceImpl) RemoveNodeLabel(ctx context.Context, ID string) error {
-	if err := p.Where("id = ?", ID).Delete(&entity.NodeLabel{}).Error; err != nil {
+func (p *nodeServiceImpl) RemoveNodeLabel(ctx context.Context, nodeId, labelId string) error {
+	if err := p.Where("node_id = ? and label_id = ?", nodeId, labelId).Delete(&entity.NodeLabel{}).Error; err != nil {
 		return err
 	}
 	return nil

@@ -109,12 +109,12 @@ func (p *NodeController) GetGroupNode(ctx context.Context, ID string) (*entity.G
 }
 
 // Node Label
-func (p *NodeController) AddNodeLabel(ctx context.Context, dto *dto.NodeLabelDto) error {
+func (p *NodeController) AddNodeLabel(ctx context.Context, dto *dto.NodeLabelUpdateReq) error {
 	return p.nodeService.AddNodeLabel(ctx, dto)
 }
 
-func (p *NodeController) RemoveNodeLabel(ctx context.Context, ID string) error {
-	return p.nodeService.RemoveNodeLabel(ctx, ID)
+func (p *NodeController) RemoveNodeLabel(ctx context.Context, nodeId, labelId string) error {
+	return p.nodeService.RemoveNodeLabel(ctx, nodeId, labelId)
 }
 
 func (p *NodeController) ListNodeLabels(ctx context.Context, params *dto.NodeLabelParams) (*vo.PageVo, error) {

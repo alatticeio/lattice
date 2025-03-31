@@ -169,3 +169,14 @@ type NodeLabelDto struct {
 	CreatedBy string `json:"createdBy"`
 	UpdatedBy string `json:"updatedBy"`
 }
+
+type NodeLabelUpdateReq struct {
+	Appid         string `json:"appid"`
+	LabelEditData struct {
+		Text  []string `json:"text"`
+		Value []string `json:"value"`
+	} `json:"labelEditData"`
+	Id        string `json:"id"`
+	LabelIds  string `json:"labelIds"`
+	CreatedBy string `json:"createdBy"`
+}

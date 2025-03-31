@@ -48,7 +48,7 @@ type Node struct {
 type ListNode struct {
 	Node
 	GroupName string `gorm:"column:group_name;size:50" json:"groupName"`
-	LabelName string `gorm:"column:label_name;size:256" json:"labelName"`
+	LabelName string `gorm:"column:labels;size:256" json:"labels"`
 }
 
 type NodeStatus int

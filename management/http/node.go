@@ -371,13 +371,14 @@ func (s *Server) getGroupNode() gin.HandlerFunc {
 
 func (s *Server) addNodeLabel() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		var nodeLabel dto.NodeLabelDto
-		if err := c.ShouldBindJSON(&nodeLabel); err != nil {
+		var nodeLabel dto.NodeLabelUpdateReq
+		if err := c.ShouldBind(&nodeLabel); err != nil {
 			c.JSON(client.BadRequest(err))
 			return
 		}
 		token := c.GetHeader("Authorization")
 		user, err := s.userController.Get(token)
+
 		nodeLabel.CreatedBy = user.Username
 		err = s.nodeController.AddNodeLabel(c, &nodeLabel)
 		if err != nil {
@@ -390,8 +391,9 @@ func (s *Server) addNodeLabel() gin.HandlerFunc {
 
 func (s *Server) removeNodeLabel() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		id := c.Query("id")
-		err := s.nodeController.RemoveNodeLabel(c, id)
+		nodeId := c.Query("nodeId")
+		labelId := c.Query("labelId")
+		err := s.nodeController.RemoveNodeLabel(c, nodeId, labelId)
 		if err != nil {
 			WriteError(c.JSON, err.Error())
 			return
