@@ -3,10 +3,12 @@ package command
 import (
 	"github.com/spf13/cobra"
 	"linkany/management"
+	"linkany/pkg/log"
 )
 
 type managementOptions struct {
-	Listen string
+	Listen   string
+	LogLevel string
 }
 
 func ManagementCmd() *cobra.Command {
@@ -27,10 +29,15 @@ func ManagementCmd() *cobra.Command {
 	}
 	fs := cmd.Flags()
 	fs.StringVarP(&opts.Listen, "", "l", "", "management server listen address")
+	fs.StringVarP(&opts.LogLevel, "log-level", "", "silent", "log level (silent, info, error, warn, verbose)")
 	return cmd
 }
 
 // run drp
 func runManagement(opts managementOptions) error {
+	if opts.LogLevel == "" {
+		opts.LogLevel = "error"
+	}
+	log.Loglevel = log.SetLogLevel(opts.LogLevel)
 	return management.Start(opts.Listen)
 }

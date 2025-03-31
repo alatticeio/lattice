@@ -9,7 +9,7 @@ import (
 	"github.com/spf13/cobra"
 	"linkany/internal"
 	"linkany/management/client"
-	grpcclient "linkany/management/grpc/client"
+	mgtclient "linkany/management/grpc/client"
 	"linkany/pkg/config"
 	"linkany/pkg/linkerrors"
 	"linkany/pkg/log"
@@ -82,7 +82,7 @@ func runLogin(opts loginOptions) error {
 		}
 	}
 
-	grpcClient, err := grpcclient.NewClient(&grpcclient.GrpcConfig{Addr: fmt.Sprintf("%s:%d", internal.ManagementDomain, internal.DefaultManagementPort), Logger: log.NewLogger(log.Loglevel, "grpcclient")})
+	grpcClient, err := mgtclient.NewClient(&mgtclient.GrpcConfig{Addr: fmt.Sprintf("%s:%d", internal.ManagementDomain, internal.DefaultManagementPort), Logger: log.NewLogger(log.Loglevel, "mgtclient")})
 	if err != nil {
 		return err
 	}

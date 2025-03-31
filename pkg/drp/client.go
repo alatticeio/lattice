@@ -1,7 +1,6 @@
 package drp
 
 import (
-	"bufio"
 	"errors"
 	"fmt"
 	"github.com/golang/protobuf/proto"
@@ -21,6 +20,7 @@ import (
 	"net"
 	"net/netip"
 	"sync"
+	"time"
 )
 
 var (
@@ -137,9 +137,9 @@ func (c *Client) ReceiveOffer(msg *signaling.EncryptMessage) error {
 
 // Clientset remote client which connected to drp
 type Clientset struct {
-	PubKey wgtypes.Key
-	Conn   net.Conn
-	Brw    *bufio.ReadWriter
+	PubKey        wgtypes.Key
+	LastHeartbeat time.Time
+	Done          chan struct{}
 }
 
 // IndexTable  will cache client set

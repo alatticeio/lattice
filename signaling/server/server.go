@@ -16,18 +16,28 @@ import (
 	"linkany/pkg/log"
 	"linkany/signaling/grpc/signaling"
 	"net"
+	"sync"
 	"time"
 )
 
 type Server struct {
+	mu     sync.RWMutex
 	logger *log.Logger
 	signaling.UnimplementedSignalingServiceServer
 	listen      string
 	userService service.UserService
-	indexTable  *drp.IndexTable
+	clients     *drp.IndexTable
 	mgtClient   *client.Client
 
 	forwardManager *ForwardManager
+
+	clientset map[string]*ClientInfo
+}
+
+type ClientInfo struct {
+	ID       string
+	LastSeen time.Time
+	Stream   signaling.SignalingService_HeartbeatServer
 }
 
 type ServerConfig struct {
@@ -42,7 +52,7 @@ func NewServer(cfg *ServerConfig) (*Server, error) {
 
 	mgtClient, err := client.NewClient(&client.GrpcConfig{
 		Addr:   "console.linkany.io:32051",
-		Logger: log.NewLogger(log.Loglevel, "grpcclient"),
+		Logger: log.NewLogger(log.Loglevel, "mgtclient"),
 	})
 	if err != nil {
 		return nil, err
@@ -51,6 +61,7 @@ func NewServer(cfg *ServerConfig) (*Server, error) {
 	return &Server{
 		logger:         cfg.Logger,
 		mgtClient:      mgtClient,
+		clientset:      make(map[string]*ClientInfo),
 		forwardManager: NewForwardManager(),
 	}, nil
 }
@@ -65,10 +76,10 @@ func (s *Server) Start() error {
 		MaxConnectionAge:      30 * time.Minute, // 连接最大存活时间
 		MaxConnectionAgeGrace: 5 * time.Second,  // 强制关闭连接前的等待时间
 		Time:                  5 * time.Second,  // 如果没有 ping，每5秒发送 ping
-		Timeout:               1 * time.Second,  // ping 响应超时时间
+		Timeout:               3 * time.Second,  // ping 响应超时时间
 	}
 
-	// 服务端强制策略
+	//服务端强制策略
 	kaep := keepalive.EnforcementPolicy{
 		MinTime:             5 * time.Second, // 客户端两次 ping 之间的最小时间间隔
 		PermitWithoutStream: true,            // 即使没有活跃的流也允许保持连接
@@ -76,8 +87,7 @@ func (s *Server) Start() error {
 
 	grpcServer := grpc.NewServer(
 		grpc.KeepaliveParams(kasp),
-		grpc.KeepaliveEnforcementPolicy(kaep),
-	)
+		grpc.KeepaliveEnforcementPolicy(kaep))
 	signaling.RegisterSignalingServiceServer(grpcServer, s)
 	s.logger.Verbosef("Signaling grpc server listening at %v", listen.Addr())
 	return grpcServer.Serve(listen)
@@ -215,4 +225,71 @@ func (s *Server) recv(stream grpc.BidiStreamingServer[signaling.EncryptMessage, 
 		return signaling.EncryptMessageReqAndResp{}, err, nil
 	}
 	return req, nil, msg.Body
+}
+
+func (s *Server) Heartbeat(stream signaling.SignalingService_HeartbeatServer) error {
+	var clientID string
+	// 设置超时检测
+	go func() {
+		ticker := time.NewTicker(30 * time.Second)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ticker.C:
+				s.mu.RLock()
+				client, exists := s.clientset[clientID]
+				s.mu.RUnlock()
+
+				if exists && time.Since(client.LastSeen) > 60*time.Second {
+					// 客户端超时，关闭连接
+					s.removeClient(clientID)
+					return
+				}
+			case <-stream.Context().Done():
+				s.removeClient(clientID)
+				return
+			}
+		}
+	}()
+
+	for {
+		req, err := stream.Recv()
+		if err == io.EOF {
+			s.removeClient(clientID)
+			return nil
+		}
+		if err != nil {
+			s.removeClient(clientID)
+			return err
+		}
+
+		// 更新客户端状态
+		clientID = req.ClientId
+		s.mu.Lock()
+		s.clientset[clientID] = &ClientInfo{
+			ID:       clientID,
+			LastSeen: time.Now(),
+			Stream:   stream,
+		}
+		s.mu.Unlock()
+
+		// 发送响应
+		err = stream.Send(&signaling.HeartbeatResponse{
+			Timestamp: time.Now().UnixNano(),
+			ServerId:  "signaling",
+			Status:    signaling.Status_OK,
+		})
+		if err != nil {
+			s.removeClient(clientID)
+			return err
+		}
+	}
+
+}
+
+func (s *Server) removeClient(clientID string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.clientset, clientID)
 }

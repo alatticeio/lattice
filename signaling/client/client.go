@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -18,11 +19,19 @@ type Client struct {
 	logger *log.Logger
 	conn   *grpc.ClientConn
 	client signaling.SignalingServiceClient
+
+	done     chan struct{}
+	clientID string
+	config   struct {
+		heartbeatInterval time.Duration
+		timeout           time.Duration
+	}
 }
 
 type ClientConfig struct {
-	Logger *log.Logger
-	Addr   string
+	Logger   *log.Logger
+	Addr     string
+	ClientID string
 }
 
 func NewClient(cfg *ClientConfig) (*Client, error) {
@@ -40,9 +49,17 @@ func NewClient(cfg *ClientConfig) (*Client, error) {
 	grpc.WithKeepaliveParams(keepAliveArgs)
 	c := signaling.NewSignalingServiceClient(conn)
 	return &Client{
-		conn:   conn,
-		client: c,
-		logger: cfg.Logger,
+		conn:     conn,
+		client:   c,
+		clientID: cfg.ClientID,
+		logger:   cfg.Logger,
+		config: struct {
+			heartbeatInterval time.Duration
+			timeout           time.Duration
+		}{
+			heartbeatInterval: 20 * time.Second,
+			timeout:           60 * time.Second,
+		},
 	}, nil
 }
 
@@ -79,6 +96,68 @@ func (c *Client) Forward(ctx context.Context, ch chan *signaling.EncryptMessage,
 		}
 
 		return err
+	}
+}
+
+func (c *Client) Heartbeat(ctx context.Context) error {
+	return c.runHeartbeat(ctx)
+}
+
+func (c *Client) runHeartbeat(ctx context.Context) error {
+	stream, err := c.client.Heartbeat(ctx)
+	if err != nil {
+		return fmt.Errorf("create heartbeat stream: %w", err)
+	}
+
+	// 发送心跳
+	go func() {
+		ticker := time.NewTicker(c.config.heartbeatInterval)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ticker.C:
+				req := &signaling.HeartbeatReqeust{
+					Timestamp: time.Now().UnixNano(),
+					ClientId:  c.clientID,
+					Metadata: map[string]string{
+						"version": "1.0",
+						"status":  "active",
+					},
+				}
+
+				if err := stream.Send(req); err != nil {
+					c.logger.Errorf("Failed to send heartbeat: %v", err)
+					return
+				}
+
+				data, err := json.Marshal(req)
+				if err != nil {
+					return
+				}
+				c.logger.Verbosef("send heartbeat: %v", string(data))
+
+			case <-ctx.Done():
+				return
+			case <-c.done:
+				return
+			}
+		}
+	}()
+
+	// 接收服务端响应
+	for {
+		resp, err := stream.Recv()
+		if err == io.EOF {
+			return fmt.Errorf("server closed connection")
+		}
+		if err != nil {
+			return fmt.Errorf("receive error: %w", err)
+		}
+
+		if resp.Status != signaling.Status_OK {
+			c.logger.Verbosef("Server returned non-OK status: %v", resp.Status)
+		}
 	}
 }
 

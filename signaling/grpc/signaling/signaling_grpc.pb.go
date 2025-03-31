@@ -19,8 +19,9 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	SignalingService_Register_FullMethodName = "/SignalingService/Register"
-	SignalingService_Forward_FullMethodName  = "/SignalingService/Forward"
+	SignalingService_Register_FullMethodName  = "/SignalingService/Register"
+	SignalingService_Forward_FullMethodName   = "/SignalingService/Forward"
+	SignalingService_Heartbeat_FullMethodName = "/SignalingService/Heartbeat"
 )
 
 // SignalingServiceClient is the client API for SignalingService service.
@@ -31,6 +32,7 @@ const (
 type SignalingServiceClient interface {
 	Register(ctx context.Context, in *EncryptMessage, opts ...grpc.CallOption) (*EncryptMessage, error)
 	Forward(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[EncryptMessage, EncryptMessage], error)
+	Heartbeat(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[HeartbeatReqeust, HeartbeatResponse], error)
 }
 
 type signalingServiceClient struct {
@@ -64,6 +66,19 @@ func (c *signalingServiceClient) Forward(ctx context.Context, opts ...grpc.CallO
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type SignalingService_ForwardClient = grpc.BidiStreamingClient[EncryptMessage, EncryptMessage]
 
+func (c *signalingServiceClient) Heartbeat(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[HeartbeatReqeust, HeartbeatResponse], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &SignalingService_ServiceDesc.Streams[1], SignalingService_Heartbeat_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[HeartbeatReqeust, HeartbeatResponse]{ClientStream: stream}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type SignalingService_HeartbeatClient = grpc.BidiStreamingClient[HeartbeatReqeust, HeartbeatResponse]
+
 // SignalingServiceServer is the server API for SignalingService service.
 // All implementations must embed UnimplementedSignalingServiceServer
 // for forward compatibility.
@@ -72,6 +87,7 @@ type SignalingService_ForwardClient = grpc.BidiStreamingClient[EncryptMessage, E
 type SignalingServiceServer interface {
 	Register(context.Context, *EncryptMessage) (*EncryptMessage, error)
 	Forward(grpc.BidiStreamingServer[EncryptMessage, EncryptMessage]) error
+	Heartbeat(grpc.BidiStreamingServer[HeartbeatReqeust, HeartbeatResponse]) error
 	mustEmbedUnimplementedSignalingServiceServer()
 }
 
@@ -87,6 +103,9 @@ func (UnimplementedSignalingServiceServer) Register(context.Context, *EncryptMes
 }
 func (UnimplementedSignalingServiceServer) Forward(grpc.BidiStreamingServer[EncryptMessage, EncryptMessage]) error {
 	return status.Errorf(codes.Unimplemented, "method Forward not implemented")
+}
+func (UnimplementedSignalingServiceServer) Heartbeat(grpc.BidiStreamingServer[HeartbeatReqeust, HeartbeatResponse]) error {
+	return status.Errorf(codes.Unimplemented, "method Heartbeat not implemented")
 }
 func (UnimplementedSignalingServiceServer) mustEmbedUnimplementedSignalingServiceServer() {}
 func (UnimplementedSignalingServiceServer) testEmbeddedByValue()                          {}
@@ -134,6 +153,13 @@ func _SignalingService_Forward_Handler(srv interface{}, stream grpc.ServerStream
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type SignalingService_ForwardServer = grpc.BidiStreamingServer[EncryptMessage, EncryptMessage]
 
+func _SignalingService_Heartbeat_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(SignalingServiceServer).Heartbeat(&grpc.GenericServerStream[HeartbeatReqeust, HeartbeatResponse]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type SignalingService_HeartbeatServer = grpc.BidiStreamingServer[HeartbeatReqeust, HeartbeatResponse]
+
 // SignalingService_ServiceDesc is the grpc.ServiceDesc for SignalingService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -150,6 +176,12 @@ var SignalingService_ServiceDesc = grpc.ServiceDesc{
 		{
 			StreamName:    "Forward",
 			Handler:       _SignalingService_Forward_Handler,
+			ServerStreams: true,
+			ClientStreams: true,
+		},
+		{
+			StreamName:    "Heartbeat",
+			Handler:       _SignalingService_Heartbeat_Handler,
 			ServerStreams: true,
 			ClientStreams: true,
 		},

@@ -12,3 +12,8 @@ func CreateChannel(pubKey string) chan *mgt.WatchMessage {
 
 	return ch
 }
+
+func RemoveChannel(pubKey string) {
+	manager := utils.NewWatchManager()
+	manager.Remove(pubKey)
+}

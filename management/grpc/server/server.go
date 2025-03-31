@@ -22,12 +22,15 @@ import (
 	"linkany/pkg/redis"
 	"net"
 	"strconv"
+	"sync"
 	"time"
 )
 
 // Server is used to implement helloworld.GreeterServer.
 type Server struct {
-	logger *log.Logger
+	logger   *log.Logger
+	mu       sync.Mutex
+	channels map[string]chan *mgt.WatchMessage
 	mgt.UnimplementedManagementServiceServer
 	userController  *controller.UserController
 	peerController  *controller.NodeController
@@ -181,11 +184,11 @@ func (s *Server) Get(ctx context.Context, in *mgt.ManagementMessage) (*mgt.Manag
 func (s *Server) List(ctx context.Context, in *mgt.ManagementMessage) (*mgt.ManagementMessage, error) {
 	var req mgt.Request
 	if err := proto.Unmarshal(in.Body, &req); err != nil {
-		return nil, err
+		return nil, status.Errorf(codes.Internal, "unmarshal failed: %v", err)
 	}
 	user, err := s.userController.Get(req.GetToken())
 	if err != nil {
-		return nil, err
+		return nil, status.Errorf(codes.Internal, "get user info err: %v", err)
 	}
 	s.logger.Infof("%v", user)
 	networkMap, err := s.peerController.GetNetworkMap(req.AppId, strconv.Itoa(int(user.ID)))
@@ -195,7 +198,7 @@ func (s *Server) List(ctx context.Context, in *mgt.ManagementMessage) (*mgt.Mana
 
 	bs, err := json.Marshal(networkMap)
 	if err != nil {
-		return nil, err
+		return nil, status.Errorf(codes.Internal, "marshal failed: %v", err)
 	}
 
 	return &mgt.ManagementMessage{Body: bs}, nil
@@ -207,95 +210,65 @@ func (s *Server) Watch(server mgt.ManagementService_WatchServer) error {
 	var msg *mgt.ManagementMessage
 	msg, err = server.Recv()
 	if err != nil {
-		return err
+		return status.Errorf(codes.Internal, "receive watcher failed: %v", err)
 	}
 
 	var req mgt.Request
 	if err = proto.Unmarshal(msg.Body, &req); err != nil {
-		return err
+		return status.Errorf(codes.Internal, "unmarshal failed: %v", err)
 	}
 
-	errChan := make(chan error, 1)
-
+	clientId := req.PubKey
 	// create a chan for the peer
-	watchChannel := CreateChannel(req.PubKey)
-	s.logger.Infof("peer %v is now watching, channel: %v", req.PubKey, watchChannel)
-	closeCh := make(chan interface{})
-	go func() {
-		for {
-			select {
-			case wm := <-watchChannel:
-				s.logger.Infof("sending watch message to peer: %v", req.PubKey)
-				bs, err := proto.Marshal(wm)
-				if err != nil {
-					errChan <- err
-					close(closeCh)
-					return
-				}
+	watchChannel := CreateChannel(clientId)
+	s.logger.Infof("node %v is now watching, channel: %v", req.PubKey, watchChannel)
 
-				msg := &mgt.ManagementMessage{PubKey: req.PubKey, Body: bs}
-				if err = server.Send(msg); err != nil {
-					errChan <- err
-					close(closeCh)
-					return
-				}
-			default:
-				time.Sleep(1 * time.Second)
-			}
-		}
+	defer func() {
+		s.mu.Lock()
+		s.logger.Infof("close watch channel")
+		RemoveChannel(clientId)
+		close(watchChannel)
+		s.mu.Unlock()
 	}()
 
-	<-closeCh
-	return nil
+	for {
+		select {
+		case wm := <-watchChannel:
+			s.logger.Infof("sending watch message to node: %v", req.PubKey)
+			bs, err := proto.Marshal(wm)
+			if err != nil {
+				return status.Errorf(codes.Internal, "marshal failed: %v", err)
+			}
+
+			msg := &mgt.ManagementMessage{PubKey: req.PubKey, Body: bs}
+			if err = server.Send(msg); err != nil {
+				return status.Errorf(codes.Internal, "send failed: %v", err)
+			}
+		case <-server.Context().Done():
+			return nil
+		}
+	}
 }
 
 // Keepalive acts as a client is living， server will send 'ping' packet to client
 // client will response packet to server with in 10 seconds, if not, client is offline, otherwise onlie.
 func (s *Server) Keepalive(stream mgt.ManagementService_KeepaliveServer) error {
-	var err error
-	var req *mgt.Request
-	var pubKey string
-	var userId string
+	var (
+		err    error
+		req    *mgt.Request
+		pubKey string
+		userId string
+	)
 
 	ctx := context.Background()
 	req, err = s.recv(stream)
 	pubKey = req.PubKey
 	logger := s.logger
 
-	user, err := s.userController.Get(req.Token)
-	if err != nil {
-		s.logger.Errorf("invalid token")
-		return err
-	}
-	userId = fmt.Sprintf("%v", user.ID)
-	s.logger.Verbosef("receive from client, pubkey: %v, userId: %v", pubKey, userId)
-	// record
-	var wc chan *mgt.WatchMessage
-	wc = utils.NewWatchManager().Get(pubKey)
-	if wc == nil {
-		return fmt.Errorf("peer has not connected to managent server")
-	}
-
-	peers, err := s.peerController.ListNodes(&dto.QueryParams{
-		PubKey: &pubKey,
-	})
-
-	if err != nil {
-		s.logger.Errorf("list peers failed: %v", err)
-		return err
-	}
-	data := peers.Data.([]*vo.NodeVo)
-	if len(data) == 0 {
-		return fmt.Errorf("peer not found")
-	}
-
-	currentPeer := data[0]
-	s.logger.Verbosef("current peer pubKey: %s, req pubKey: %s", currentPeer.PublicKey, pubKey)
-
+	s.logger.Infof("receive keepalive packet from client, pubkey: %v, userId: %v", pubKey, userId)
 	k := NewWatchKeeper()
-
 	check := func(ctx context.Context) error {
-		req, err := s.recv(stream)
+		req, err = s.recv(stream)
 		if err != nil {
 			return err
 		}
@@ -333,10 +306,12 @@ func (s *Server) Keepalive(stream mgt.ManagementService_KeepaliveServer) error {
 				if err = stream.Send(&mgt.ManagementMessage{Body: body}); err != nil {
 					s, ok := status.FromError(err)
 					if ok && s.Code() == codes.Canceled {
-						logger.Verbosef("send canceled")
+						logger.Errorf("stream canceled")
+						return
 					} else if errors.Is(err, io.EOF) {
 						// client exit
-						logger.Verbosef("peer %s is disconnected", pubKey)
+						logger.Verbosef("node %s is disconnected", pubKey)
+						return
 					}
 				}
 
@@ -354,15 +329,15 @@ func (s *Server) Keepalive(stream mgt.ManagementService_KeepaliveServer) error {
 			case <-newCtx.Done():
 				logger.Infof("timeout or cancel")
 				//timeout or cancel
-				if err = s.sendWatchMessage(mgt.EventType_DELETE, currentPeer, pubKey, userId, 0); err != nil {
-					logger.Errorf("send watch message failed: %v, peer: %v", err, currentPeer.PublicKey)
+				if err = s.pushWatchMessage(mgt.EventType_DELETE, pubKey, userId, 0); err != nil {
+					logger.Errorf("send watch message failed: %v, peer: %v", err, pubKey)
 				}
 				k.Online.Store(false)
 				return fmt.Errorf("exit stream: %v", stream)
 			case <-checkChannel:
 				s.logger.Verbosef("peer %s is online", pubKey)
 				//if !k.Status.Load() {
-				if err = s.sendWatchMessage(mgt.EventType_ADD, currentPeer, pubKey, userId, 1); err != nil {
+				if err = s.pushWatchMessage(mgt.EventType_ADD, pubKey, userId, 1); err != nil {
 					return err
 				}
 				k.Online.Store(true)
@@ -395,7 +370,7 @@ func (s *Server) recv(stream mgt.ManagementService_KeepaliveServer) (*mgt.Reques
 
 }
 
-func (s *Server) sendWatchMessage(eventType mgt.EventType, current *vo.NodeVo, pubKey, userId string, status entity.NodeStatus) error {
+func (s *Server) pushWatchMessage(eventType mgt.EventType, pubKey, userId string, status entity.NodeStatus) error {
 	state := 1
 	peers, err := s.peerController.ListNodes(&dto.QueryParams{
 		UserId: userId,
@@ -408,8 +383,10 @@ func (s *Server) sendWatchMessage(eventType mgt.EventType, current *vo.NodeVo, p
 	}
 
 	manager := utils.NewWatchManager()
+	current := &vo.NodeVo{PublicKey: pubKey}
 	for _, peer := range peers.Data.([]*vo.NodeVo) {
-		if peer.PublicKey == current.PublicKey {
+		if peer.PublicKey == pubKey {
+			current = peer
 			continue
 		}
 		wc := manager.Get(peer.PublicKey)

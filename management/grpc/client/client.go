@@ -83,6 +83,7 @@ func (c *Client) Watch(ctx context.Context, in *mgt.ManagementMessage, callback 
 			if err == io.EOF {
 				// read done.
 				close(ch)
+				c.logger.Errorf("%v", err)
 				return
 			}
 			if err != nil {
@@ -133,11 +134,16 @@ func (c *Client) Keepalive(ctx context.Context, in *mgt.ManagementMessage) error
 	for {
 		msg, err := stream.Recv()
 		s, ok := status.FromError(err)
+
 		if ok && s.Code() == codes.Canceled {
-			c.logger.Infof("stream canceled")
+			errChan <- err
 			return err
 		} else if err == io.EOF {
-			c.logger.Infof("stream EOF")
+			errChan <- err
+			return err
+		} else if err != nil {
+			c.logger.Errorf("receive check living packet failed: %v", err)
+			errChan <- err
 			return err
 		}
 
@@ -156,6 +162,15 @@ func (c *Client) Keepalive(ctx context.Context, in *mgt.ManagementMessage) error
 			c.logger.Errorf("send check living packet failed: %v", err)
 		}
 
+	}
+
+	select {
+	case err = <-errChan:
+		if err == io.EOF {
+			return nil
+		}
+		c.logger.Errorf("keepalive failed: %v", err)
+		return err
 	}
 
 }

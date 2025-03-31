@@ -9,7 +9,7 @@ import (
 	"github.com/pion/logging"
 	"io"
 	"linkany/internal"
-	grpcclient "linkany/management/grpc/client"
+	mgtclient "linkany/management/grpc/client"
 	"linkany/management/grpc/mgt"
 	grpcserver "linkany/management/grpc/server"
 	"linkany/management/vo"
@@ -46,7 +46,7 @@ type Client struct {
 	pwd             string
 	ifaceName       string
 	conf            *config.LocalConfig
-	grpcClient      *grpcclient.Client
+	grpcClient      *mgtclient.Client
 	agent           *ice.Agent
 	conn4           net.PacketConn
 	udpMux          *ice.UDPMuxDefault
@@ -70,7 +70,7 @@ type ClientConfig struct {
 	UniversalUdpMux *ice.UniversalUDPMuxDefault
 	KeyManager      *internal.KeyManager
 	AgentManager    *internal.AgentManager
-	GrpcClient      *grpcclient.Client
+	GrpcClient      *mgtclient.Client
 	Ufrag           string
 	Pwd             string
 	ProberManager   *probe.NetProber

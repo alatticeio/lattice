@@ -3,7 +3,6 @@ package client
 import (
 	"context"
 	"errors"
-	"fmt"
 	"github.com/golang/protobuf/proto"
 	"github.com/vishvananda/netlink"
 	wg "golang.zx2c4.com/wireguard/device"
@@ -99,7 +98,7 @@ func NewEngine(cfg *EngineConfig) (*Engine, error) {
 		return nil, err
 	}
 
-	engine.signalingClient, err = signalingclient.NewClient(&signalingclient.ClientConfig{Addr: cfg.SignalingUrl, Logger: log.NewLogger(log.Loglevel, fmt.Sprintf("[%s] ", "signalingclient"))})
+	engine.signalingClient, err = signalingclient.NewClient(&signalingclient.ClientConfig{Addr: cfg.SignalingUrl, Logger: log.NewLogger(log.Loglevel, "signalingclient")})
 	if err != nil {
 		return nil, err
 	}
@@ -139,7 +138,7 @@ func NewEngine(cfg *EngineConfig) (*Engine, error) {
 	proberManager := probe.NewProberManager(cfg.ForceRelay, relayer)
 
 	// controlclient
-	grpcClient, err := mgtclient.NewClient(&mgtclient.GrpcConfig{Addr: cfg.ManagementUrl, Logger: log.NewLogger(log.Loglevel, "grpcclient")})
+	mgtclient, err := mgtclient.NewClient(&mgtclient.GrpcConfig{Addr: cfg.ManagementUrl, Logger: log.NewLogger(log.Loglevel, "mgtclient")})
 	if err != nil {
 		return nil, err
 	}
@@ -160,10 +159,15 @@ func NewEngine(cfg *EngineConfig) (*Engine, error) {
 		defer timer.Stop()
 		for {
 			if err = engine.signalingClient.Forward(context.Background(), engine.signalChannel, drpclient.ReceiveOffer); err != nil {
-				engine.logger.Errorf("forward failed: %v", err)
-				cfg.Logger.Errorf("forward is retrying in 20s")
+				engine.logger.Errorf("forward failed: %v, is retrying in 20s", err)
 				timer.Reset(20 * time.Second)
 			}
+		}
+	}()
+
+	go func() {
+		if err := engine.signalingClient.Heartbeat(context.Background()); err != nil {
+			engine.logger.Errorf("heartbeat failed: %v", err)
 		}
 
 	}()
@@ -182,7 +186,7 @@ func NewEngine(cfg *EngineConfig) (*Engine, error) {
 		Pwd:             pwd,
 		ProberManager:   proberManager,
 		TurnClient:      turnClient,
-		GrpcClient:      grpcClient,
+		GrpcClient:      mgtclient,
 		SignalChannel:   engine.signalChannel,
 		DrpClient:       drpclient,
 	})
@@ -278,7 +282,9 @@ func (e *Engine) Start() error {
 	go func() {
 		if err := e.client.Keepalive(context.Background()); err != nil {
 			e.logger.Errorf("keepalive failed: %v", err)
-		} //  TODO keepalive, should retry
+		} else {
+			e.logger.Infof("mgt client keepliving...")
+		}
 	}()
 
 	return nil
