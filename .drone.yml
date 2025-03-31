@@ -6,18 +6,18 @@ clone:
   disable: true
 
 steps: # 定义流水线执行步骤，这些步骤将顺序执行
-  - name: linkany
-    image: registry.cn-hangzhou.aliyuncs.com/linkany-io/drone-ssh:latest # SSH工具镜像
-    settings:
-      host: 81.68.109.143 # 远程连接地址
-      username: root # 远程连接账号
-      password:
-        from_secret: ssh_password # 从Secret中读取SSH密码
-      port: 22 # 远程连接端口
-      script:
-        - cd /root/docker/maven/build/linkany && source ~/.bash_profile
-        - git pull
-        - make linkany && make linkany-image
+#  - name: linkany
+#    image: registry.cn-hangzhou.aliyuncs.com/linkany-io/drone-ssh:latest # SSH工具镜像
+#    settings:
+#      host: 81.68.109.143 # 远程连接地址
+#      username: root # 远程连接账号
+#      password:
+#        from_secret: ssh_password # 从Secret中读取SSH密码
+#      port: 22 # 远程连接端口
+#      script:
+#        - cd /root/docker/maven/build/linkany && source ~/.bash_profile
+#        - git pull
+#        - make linkany && make linkany-image
   - name: management
     image: registry.cn-hangzhou.aliyuncs.com/linkany-io/drone-ssh:latest # SSH工具镜像
     settings:
@@ -42,18 +42,18 @@ steps: # 定义流水线执行步骤，这些步骤将顺序执行
         - cd /root/docker/maven/build/linkany && source ~/.bash_profile
         - git pull
         - make signaling && make signaling-image
-  - name: turn
-    image: registry.cn-hangzhou.aliyuncs.com/linkany-io/drone-ssh:latest # SSH工具镜像
-    settings:
-      host: 81.68.109.143 # 远程连接地址
-      username: root # 远程连接账号
-      password:
-        from_secret: ssh_password # 从Secret中读取SSH密码
-      port: 22 # 远程连接端口
-      script:
-        - cd /root/docker/maven/build/linkany && source ~/.bash_profile
-        - git pull
-        - make turn && make turn-image
+#  - name: turn
+#    image: registry.cn-hangzhou.aliyuncs.com/linkany-io/drone-ssh:latest # SSH工具镜像
+#    settings:
+#      host: 81.68.109.143 # 远程连接地址
+#      username: root # 远程连接账号
+#      password:
+#        from_secret: ssh_password # 从Secret中读取SSH密码
+#      port: 22 # 远程连接端口
+#      script:
+#        - cd /root/docker/maven/build/linkany && source ~/.bash_profile
+#        - git pull
+#        - make turn && make turn-image
   - name: deploy
     image: registry.cn-hangzhou.aliyuncs.com/linkany-io/drone-ssh:latest # SSH工具镜像
     settings:

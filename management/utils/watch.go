@@ -33,6 +33,15 @@ func NewWatchManager() *WatchManager {
 	return manager
 }
 
+type RangeFunc func()
+
+func (w *WatchManager) Map() map[string]chan *mgt.WatchMessage {
+	w.lock.Lock()
+	defer w.lock.Unlock()
+
+	return w.m
+}
+
 // Add adds a new channel to the watch manager for a new connected peer
 func (w *WatchManager) Add(key string, ch chan *mgt.WatchMessage) {
 	w.lock.Lock()
@@ -64,6 +73,6 @@ func (w *WatchManager) Get(key string) chan *mgt.WatchMessage {
 	w.lock.Lock()
 	defer w.lock.Unlock()
 	ch := w.m[key]
-	w.logger.Verbosef("Get channel: %v, manager: %v", ch, w)
+	w.logger.Verbosef("Get channel: %v for node: %v, manager: %v", ch, key, w)
 	return ch
 }

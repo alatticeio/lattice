@@ -234,7 +234,7 @@ func (s *Server) Watch(server mgt.ManagementService_WatchServer) error {
 	for {
 		select {
 		case wm := <-watchChannel:
-			s.logger.Infof("sending watch message to node: %v", req.PubKey)
+			s.logger.Infof("sending watch message: %v to node: %v", wm, req.PubKey)
 			bs, err := proto.Marshal(wm)
 			if err != nil {
 				return status.Errorf(codes.Internal, "marshal failed: %v", err)
@@ -264,6 +264,15 @@ func (s *Server) Keepalive(stream mgt.ManagementService_KeepaliveServer) error {
 	req, err = s.recv(stream)
 	pubKey = req.PubKey
 	logger := s.logger
+
+	current, err := s.peerController.QueryNodes(&dto.QueryParams{PubKey: &pubKey})
+	if err != nil {
+		return err
+	}
+
+	if len(current) == 0 {
+		return fmt.Errorf("node not found")
+	}
 
 	s.logger.Infof("receive keepalive packet from client, pubkey: %v, userId: %v", pubKey, userId)
 	k := NewWatchKeeper()
@@ -329,15 +338,15 @@ func (s *Server) Keepalive(stream mgt.ManagementService_KeepaliveServer) error {
 			case <-newCtx.Done():
 				logger.Infof("timeout or cancel")
 				//timeout or cancel
-				if err = s.pushWatchMessage(mgt.EventType_DELETE, pubKey, userId, 0); err != nil {
+				if err = s.pushWatchMessage(mgt.EventType_DELETE, current[0], userId, 0); err != nil {
 					logger.Errorf("send watch message failed: %v, peer: %v", err, pubKey)
 				}
 				k.Online.Store(false)
 				return fmt.Errorf("exit stream: %v", stream)
 			case <-checkChannel:
-				s.logger.Verbosef("peer %s is online", pubKey)
+				s.logger.Verbosef("node %s is online", pubKey)
 				//if !k.Status.Load() {
-				if err = s.pushWatchMessage(mgt.EventType_ADD, pubKey, userId, 1); err != nil {
+				if err = s.pushWatchMessage(mgt.EventType_ADD, current[0], userId, 1); err != nil {
 					return err
 				}
 				k.Online.Store(true)
@@ -370,38 +379,27 @@ func (s *Server) recv(stream mgt.ManagementService_KeepaliveServer) (*mgt.Reques
 
 }
 
-func (s *Server) pushWatchMessage(eventType mgt.EventType, pubKey, userId string, status entity.NodeStatus) error {
-	state := 1
-	peers, err := s.peerController.ListNodes(&dto.QueryParams{
-		UserId: userId,
-		Status: &state,
-	})
-
-	if err != nil {
-		s.logger.Errorf("list peers failed: %v", err)
-		return err
-	}
-
+func (s *Server) pushWatchMessage(eventType mgt.EventType, current *vo.NodeVo, userId string, status entity.NodeStatus) error {
 	manager := utils.NewWatchManager()
-	current := &vo.NodeVo{PublicKey: pubKey}
-	for _, peer := range peers.Data.([]*vo.NodeVo) {
-		if peer.PublicKey == pubKey {
-			current = peer
-			continue
-		}
-		wc := manager.Get(peer.PublicKey)
-		s.logger.Verbosef("fetch actual channel %v for peer: %v, current peer pubKey: %v", wc, peer.PublicKey, current.PublicKey)
-		message := NewWatchMessage(eventType, []*vo.NodeVo{current})
-		// add to channel, will send to client
-		if wc != nil {
-			wc <- message
-		}
+	s.mu.Lock()
+	if eventType == mgt.EventType_DELETE {
+		// remove channel
+		manager.Remove(current.PublicKey)
+	}
+	message := NewWatchMessage(eventType, []*vo.NodeVo{current})
+	s.logger.Infof(">>>>>>>>>> push watch message: %v", message)
+	// add to channel, will send to client
+
+	for key, wc := range manager.Map() {
+		s.logger.Infof("key: %v, channel: %v", key, wc)
+		wc <- message
 	}
 
-	// update peer online status
-	dtoParam := &dto.NodeDto{PublicKey: pubKey, Status: status}
-	s.logger.Verbosef("update peer status ,publicKey: %v, status: %v", pubKey, status)
-	_, err = s.peerController.Update(dtoParam)
+	// update nodeVo online status
+	dtoParam := &dto.NodeDto{PublicKey: current.PublicKey, Status: status}
+	s.logger.Verbosef("update nodeVo status ,publicKey: %v, status: %v", current.PublicKey, status)
+	_, err := s.peerController.Update(dtoParam)
+	s.mu.Unlock()
 	return err
 }
 
