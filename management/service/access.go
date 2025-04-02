@@ -14,7 +14,7 @@ import (
 )
 
 type AccessPolicyService interface {
-	// Policy manage
+	// Policy manager
 	CreatePolicy(ctx context.Context, policyDto *dto.AccessPolicyDto) error
 	UpdatePolicy(ctx context.Context, policyDto *dto.AccessPolicyDto) error
 	DeletePolicy(ctx context.Context, policyID uint) error
@@ -25,7 +25,7 @@ type AccessPolicyService interface {
 	QueryPolicies(ctx context.Context, params *dto.AccessPolicyParams) ([]*vo.AccessPolicyVo, error)
 	DeleteUserResourcePermission(ctx context.Context, inviteId, permissionId uint) error
 
-	// Rule manage
+	// Rule manager
 	AddRule(ctx context.Context, ruleDto *dto.AccessRuleDto) error
 	GetRule(ctx context.Context, id int64) (vo.AccessRuleVo, error)
 	UpdateRule(ctx context.Context, ruleDto *dto.AccessRuleDto) error

@@ -77,7 +77,7 @@ func (c *Client) GetRelayInfo(allocated bool) (*RelayInfo, error) {
 	// Allocate a relay socket on the TURN server. On success, it
 	// will return a net.PacketConn which represents the remote
 	// socket.
-	// Send BindingRequest to learn our external IP
+	// Push BindingRequest to learn our external IP
 	c.relayInfo = &RelayInfo{}
 	if allocated {
 		relayConn, err := c.turnClient.Allocate()
@@ -102,7 +102,7 @@ func (c *Client) GetRelayInfo(allocated bool) (*RelayInfo, error) {
 }
 
 func (c *Client) punchHole() error {
-	// Send BindingRequest to learn our external IP
+	// Push BindingRequest to learn our external IP
 	mappedAddr, err := c.turnClient.SendBindingRequest()
 	if err != nil {
 		return err

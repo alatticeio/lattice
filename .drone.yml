@@ -29,7 +29,7 @@ steps: # 定义流水线执行步骤，这些步骤将顺序执行
       script:
         - cd /root/docker/maven/build/linkany && source ~/.bash_profile
         - git pull
-        - make management && make management-image
+        - make -B management && make management-image
   - name: signaling
     image: registry.cn-hangzhou.aliyuncs.com/linkany-io/drone-ssh:latest # SSH工具镜像
     settings:
@@ -41,7 +41,7 @@ steps: # 定义流水线执行步骤，这些步骤将顺序执行
       script:
         - cd /root/docker/maven/build/linkany && source ~/.bash_profile
         - git pull
-        - make signaling && make signaling-image
+        - make -B signaling && make signaling-image
 #  - name: turn
 #    image: registry.cn-hangzhou.aliyuncs.com/linkany-io/drone-ssh:latest # SSH工具镜像
 #    settings:

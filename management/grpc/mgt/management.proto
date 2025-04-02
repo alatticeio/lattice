@@ -43,14 +43,3 @@ message Request {
   string appId = 2;
   string token = 3;
 }
-
-message WatchMessage {
-  EventType type = 1;
-  bytes body = 2;
-}
-
-enum EventType {
-  ADD = 0;
-  UPDATE = 1;
-  DELETE = 2;
-}

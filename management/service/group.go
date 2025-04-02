@@ -33,6 +33,7 @@ var (
 type groupServiceImpl struct {
 	logger *log.Logger
 	*DatabaseService
+	manager           *vo.WatchManager
 	nodeServiceImpl   NodeService
 	policyServiceImpl AccessPolicyService
 }
@@ -41,6 +42,7 @@ func NewGroupService(db *DatabaseService) GroupService {
 	return &groupServiceImpl{DatabaseService: db,
 		logger:            log.NewLogger(log.Loglevel, "group-policy-service"),
 		nodeServiceImpl:   NewNodeService(db),
+		manager:           vo.NewWatchManager(),
 		policyServiceImpl: NewAccessPolicyService(db),
 	}
 }
@@ -79,7 +81,7 @@ func (g *groupServiceImpl) CreateGroup(ctx context.Context, dto *dto.NodeGroupDt
 		if group, err = createGroupData(tx, dto); err != nil {
 			return err
 		}
-		return handleGP(ctx, tx, dto, group)
+		return g.handleGP(ctx, tx, dto, group)
 	})
 
 }
@@ -123,7 +125,7 @@ func (g *groupServiceImpl) UpdateGroup(ctx context.Context, dto *dto.NodeGroupDt
 			return err
 		}
 
-		return handleGP(ctx, tx, dto, group)
+		return g.handleGP(ctx, tx, dto, group)
 	})
 
 }
@@ -145,7 +147,7 @@ func updateGroupData(ctx context.Context, tx *gorm.DB, dto *dto.NodeGroupDto) (*
 	return group, nil
 }
 
-func handleGP(ctx context.Context, tx *gorm.DB, dto *dto.NodeGroupDto, group *entity.NodeGroup) error {
+func (g *groupServiceImpl) handleGP(ctx context.Context, tx *gorm.DB, dto *dto.NodeGroupDto, group *entity.NodeGroup) error {
 
 	var err error
 	if dto.NodeIdList != nil {
@@ -168,6 +170,15 @@ func handleGP(ctx context.Context, tx *gorm.DB, dto *dto.NodeGroupDto, group *en
 					if err := tx.Model(&entity.GroupNode{}).Create(&groupNode).Error; err != nil {
 						return err
 					}
+
+					// add push message
+					g.manager.Push(node.PublicKey, &vo.Message{
+						EventType: vo.EventTypeGroupAdd,
+						GroupMessage: &vo.GroupMessage{
+							GroupName: group.Name,
+							GroupId:   group.ID,
+						},
+					})
 				}
 			}
 		}
@@ -366,5 +377,25 @@ func (g *groupServiceImpl) DeleteGroupPolicy(ctx context.Context, groupId uint, 
 }
 
 func (g *groupServiceImpl) DeleteGroupNode(ctx context.Context, groupId uint, nodeId uint) error {
-	return g.Model(&entity.GroupNode{}).Where("group_id = ? and node_id = ?", groupId, nodeId).Delete(&entity.GroupNode{}).Error
+	return g.DB.Transaction(func(tx *gorm.DB) error {
+		var groupNode entity.GroupNode
+		if err := g.Model(&entity.GroupNode{}).Where("group_id = ? and node_id = ?", groupId, nodeId).Delete(&groupNode).Error; err != nil {
+			return err
+		}
+
+		var node entity.Node
+		if err := g.Model(&entity.Node{}).Where("id = ?", nodeId).Find(&node).Error; err != nil {
+			return err
+		}
+
+		g.manager.Push(node.PublicKey, &vo.Message{
+			EventType: vo.EventTypeGroupRemove,
+			GroupMessage: &vo.GroupMessage{
+				GroupId:   groupId,
+				GroupName: groupNode.GroupName,
+			},
+		})
+
+		return nil
+	})
 }

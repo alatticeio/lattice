@@ -7,6 +7,7 @@ import (
 	"linkany/management/dto"
 	"linkany/management/entity"
 	"linkany/management/service"
+	"linkany/management/vo"
 	"linkany/pkg/log"
 	"linkany/pkg/redis"
 )
@@ -30,6 +31,8 @@ type Server struct {
 	sharedController  *controller.SharedController
 
 	settingsController *controller.SettingsController
+
+	manager *vo.WatchManager
 }
 
 // ServerConfig is the server configuration
@@ -56,6 +59,7 @@ func NewServer(cfg *ServerConfig) *Server {
 		sharedController:   controller.NewSharedController(cfg.DatabaseService),
 		settingsController: controller.NewSettingsController(cfg.DatabaseService),
 		tokenController:    controller.NewTokenController(cfg.DatabaseService),
+		manager:            vo.NewWatchManager(),
 	}
 	s.initRoute()
 

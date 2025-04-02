@@ -11,7 +11,7 @@ import (
 func TestCreateChannel(t *testing.T) {
 	pubKey := "123456"
 	ch := CreateChannel(pubKey)
-	//ch := make(chan *mgt.WatchMessage, 1000)
+	//ch := make(chan *mgt.HandleWatchMessage, 1000)
 	manager := utils.NewWatchManager()
 	//manager.Add(pubKey, ch)
 

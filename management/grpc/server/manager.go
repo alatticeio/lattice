@@ -1,19 +1,18 @@
 package server
 
 import (
-	"linkany/management/grpc/mgt"
-	"linkany/management/utils"
+	"linkany/management/vo"
 )
 
-func CreateChannel(pubKey string) chan *mgt.WatchMessage {
-	manager := utils.NewWatchManager()
-	ch := make(chan *mgt.WatchMessage, 1000)
+func CreateChannel(pubKey string) chan *vo.Message {
+	manager := vo.NewWatchManager()
+	ch := make(chan *vo.Message, 1000)
 	manager.Add(pubKey, ch)
 
 	return ch
 }
 
 func RemoveChannel(pubKey string) {
-	manager := utils.NewWatchManager()
+	manager := vo.NewWatchManager()
 	manager.Remove(pubKey)
 }

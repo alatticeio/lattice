@@ -237,27 +237,27 @@ func (c *Client) ToConfigPeer(peer *vo.NodeVo) *config.Peer {
 	}
 }
 
-func (c *Client) WatchMessage(msg *mgt.WatchMessage) error {
+func (c *Client) HandleWatchMessage(msg *vo.Message) error {
 	var err error
-	var peers []vo.NodeVo
-	if err = json.Unmarshal(msg.Body, &peers); err != nil {
-		return err
-	}
 
-	for _, peer := range peers {
-		switch msg.Type {
-		case mgt.EventType_DELETE:
-			c.logger.Infof("watching type: %v >>> delete peer: %v", mgt.EventType_DELETE, peer)
-			err := c.RemovePeer(&peer)
+	switch msg.EventType {
+	case vo.EventTypeNodeRemove:
+		for _, node := range msg.GroupMessage.Nodes {
+			c.logger.Infof("watching type: %v >>> delete node: %v", vo.EventTypeNodeRemove, node)
+			err := c.RemovePeer(node)
 			if err != nil {
-				c.logger.Errorf("remove peer failed: %v", err)
-			}
-		case mgt.EventType_ADD:
-			c.logger.Infof("watching type: %v >>> add peer: %v", mgt.EventType_ADD, peer)
-			if err = c.AddPeer(&peer); err != nil {
-				c.logger.Errorf("add peer failed: %v", err)
+				c.logger.Errorf("remove node failed: %v", err)
 			}
 		}
+	case vo.EventTypeNodeAdd:
+		for _, node := range msg.GroupMessage.Nodes {
+			c.logger.Infof("watching type: %v >>> add node: %v", vo.EventTypeNodeAdd, node)
+			if err = c.AddPeer(node); err != nil {
+				c.logger.Errorf("add node failed: %v", err)
+			}
+		}
+	case vo.EventTypeGroupAdd:
+		c.logger.Verbosef("watching type: %v >>> add group: %v", vo.EventTypeGroupAdd, msg.GroupMessage.GroupName)
 	}
 
 	return nil
@@ -470,7 +470,7 @@ func (c *Client) Get(ctx context.Context) (*config.Peer, int64, error) {
 	return &result.Peer, result.Count, nil
 }
 
-func (c *Client) Watch(ctx context.Context, callback func(msg *mgt.WatchMessage) error) error {
+func (c *Client) Watch(ctx context.Context, callback func(msg *vo.Message) error) error {
 	req := &mgt.Request{
 		PubKey: c.keyManager.GetPublicKey(),
 	}

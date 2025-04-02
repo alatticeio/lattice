@@ -6,7 +6,7 @@ VERSION ?= latest
 
 build: clean linkany management signaling turn
 
-linkany: clean
+linkany:
 	docker run --rm \
 		--env CGO_ENABLED=0 \
 		--env GOPROXY=https://goproxy.cn \
@@ -18,7 +18,7 @@ linkany: clean
 		go build -v -o /root/linkany/bin/linkany/linkany \
 		-v /root/linkany/cmd/linkany/main.go
 
-management: clean
+management:
 	docker run --rm \
 		--env CGO_ENABLED=0 \
 		--env GOPROXY=https://goproxy.cn \
@@ -30,7 +30,7 @@ management: clean
 		go build -v -o /root/linkany/bin/management/linkany \
 		-v /root/linkany/cmd/management/main.go
 
-signaling: clean
+signaling:
 	docker run --rm \
 		--env CGO_ENABLED=0 \
 		--env GOPROXY=https://goproxy.cn \
@@ -42,7 +42,7 @@ signaling: clean
 		go build -v -o /root/linkany/bin/signaling/linkany \
 		-v /root/linkany/cmd/signaling/main.go
 
-turn: clean
+turn: 
 	docker run --rm \
 		--env CGO_ENABLED=0 \
 		--env GOPROXY=https://goproxy.cn \

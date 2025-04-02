@@ -11,7 +11,7 @@ import (
 	"linkany/internal"
 	controlclient "linkany/management/client"
 	mgtclient "linkany/management/grpc/client"
-	"linkany/management/grpc/mgt"
+	"linkany/management/vo"
 	"linkany/pkg/config"
 	"linkany/pkg/drp"
 	"linkany/pkg/iface"
@@ -49,11 +49,13 @@ type Engine struct {
 	GetNetworkMap   func() (*config.DeviceConf, error)
 	updated         atomic.Bool
 
+	group atomic.Value //belong to which group
+
 	peersManager *config.PeersManager
 	agentManager *internal.AgentManager
 	wgConfigure  iface.WGConfigureInterface
 
-	callback func(message *mgt.WatchMessage) error
+	callback func(message *vo.Message) error
 }
 
 type EngineConfig struct {
@@ -274,7 +276,7 @@ func (e *Engine) Start() error {
 
 	// watch
 	go func() {
-		if err := e.client.Watch(context.Background(), e.client.WatchMessage); err != nil {
+		if err := e.client.Watch(context.Background(), e.client.HandleWatchMessage); err != nil {
 			e.logger.Errorf("watch failed: %v", err)
 		}
 	}()

@@ -5,17 +5,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/golang/protobuf/proto"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 	"io"
 	"linkany/management/controller"
 	"linkany/management/dto"
 	"linkany/management/entity"
 	"linkany/management/grpc/mgt"
 	"linkany/management/service"
-	"linkany/management/utils"
 	"linkany/management/vo"
 	"linkany/pkg/linkerrors"
 	"linkany/pkg/log"
@@ -24,13 +19,18 @@ import (
 	"strconv"
 	"sync"
 	"time"
+
+	"github.com/golang/protobuf/proto"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 // Server is used to implement helloworld.GreeterServer.
 type Server struct {
 	logger   *log.Logger
 	mu       sync.Mutex
-	channels map[string]chan *mgt.WatchMessage
+	channels map[string]chan *vo.Message
 	mgt.UnimplementedManagementServiceServer
 	userController  *controller.UserController
 	peerController  *controller.NodeController
@@ -235,7 +235,7 @@ func (s *Server) Watch(server mgt.ManagementService_WatchServer) error {
 		select {
 		case wm := <-watchChannel:
 			s.logger.Infof("sending watch message: %v to node: %v", wm, req.PubKey)
-			bs, err := proto.Marshal(wm)
+			bs, err := json.Marshal(wm)
 			if err != nil {
 				return status.Errorf(codes.Internal, "marshal failed: %v", err)
 			}
@@ -338,16 +338,28 @@ func (s *Server) Keepalive(stream mgt.ManagementService_KeepaliveServer) error {
 			case <-newCtx.Done():
 				logger.Infof("timeout or cancel")
 				//timeout or cancel
-				if err = s.pushWatchMessage(mgt.EventType_DELETE, current[0], userId, 0); err != nil {
-					logger.Errorf("send watch message failed: %v, peer: %v", err, pubKey)
+				s.pushWatchMessage(&vo.MessageConfig{
+					EventType: vo.EventTypeNodeRemove,
+					GroupMessage: &vo.GroupMessage{
+						Nodes: current,
+					},
+				})
+				if err = s.UpdateStatus(current[0], 0); err != nil {
+					s.logger.Errorf("update node status: %v", err)
 				}
 				k.Online.Store(false)
 				return fmt.Errorf("exit stream: %v", stream)
 			case <-checkChannel:
 				s.logger.Verbosef("node %s is online", pubKey)
 				//if !k.Status.Load() {
-				if err = s.pushWatchMessage(mgt.EventType_ADD, current[0], userId, 1); err != nil {
-					return err
+				s.pushWatchMessage(&vo.MessageConfig{
+					EventType: vo.EventTypeNodeAdd,
+					GroupMessage: &vo.GroupMessage{
+						Nodes: current,
+					},
+				})
+				if err = s.UpdateStatus(current[0], 1); err != nil {
+					s.logger.Errorf("update node status: %v", err)
 				}
 				k.Online.Store(true)
 
@@ -361,12 +373,11 @@ func (s *Server) recv(stream mgt.ManagementService_KeepaliveServer) (*mgt.Reques
 	if err != nil {
 		state, ok := status.FromError(err)
 		if ok && state.Code() == codes.Canceled {
-			s.logger.Infof("receive canceled")
-			return nil, err
+			s.logger.Errorf("receive canceled")
+			return nil, status.Errorf(codes.Canceled, "stream canceled")
 		} else if errors.Is(err, io.EOF) {
-			// client exit
-			s.logger.Infof("client closed")
-			return nil, err
+			s.logger.Errorf("client closed")
+			return nil, status.Errorf(codes.Internal, "client closed")
 		}
 		return nil, err
 	}
@@ -379,39 +390,28 @@ func (s *Server) recv(stream mgt.ManagementService_KeepaliveServer) (*mgt.Reques
 
 }
 
-func (s *Server) pushWatchMessage(eventType mgt.EventType, current *vo.NodeVo, userId string, status entity.NodeStatus) error {
-	manager := utils.NewWatchManager()
+func (s *Server) pushWatchMessage(msg *vo.MessageConfig) {
+	manager := vo.NewWatchManager()
 	s.mu.Lock()
-	if eventType == mgt.EventType_DELETE {
-		// remove channel
-		manager.Remove(current.PublicKey)
+	defer s.mu.Unlock()
+	// send to user's all group clients
+	for _, wc := range manager.Clientsets() {
+		wc <- vo.NewMessage(msg)
 	}
-	message := NewWatchMessage(eventType, []*vo.NodeVo{current})
-	s.logger.Infof(">>>>>>>>>> push watch message: %v", message)
-	// add to channel, will send to client
+}
 
-	for key, wc := range manager.Map() {
-		s.logger.Infof("key: %v, channel: %v", key, wc)
-		wc <- message
-	}
-
+func (s *Server) UpdateStatus(current *vo.NodeVo, status entity.NodeStatus) error {
 	// update nodeVo online status
 	dtoParam := &dto.NodeDto{PublicKey: current.PublicKey, Status: status}
-	s.logger.Verbosef("update nodeVo status ,publicKey: %v, status: %v", current.PublicKey, status)
+	s.logger.Verbosef("update node status, publicKey: %v, status: %v", current.PublicKey, status)
 	_, err := s.peerController.Update(dtoParam)
-	s.mu.Unlock()
 	return err
 }
 
-// NewWatchMessage creates a new WatchMessage, when a peer is added, updated or deleted
-func NewWatchMessage(eventType mgt.EventType, peers []*vo.NodeVo) *mgt.WatchMessage {
-	body, err := json.Marshal(peers)
-	if err != nil {
-		return nil
-	}
-	return &mgt.WatchMessage{
-		Type: eventType,
-		Body: body,
+// NewWatchMessage creates a new HandleWatchMessage, when a peer is added, updated or deleted
+func NewWatchMessage(eventType vo.EventType) *vo.Message {
+	return &vo.Message{
+		EventType: eventType,
 	}
 }
 

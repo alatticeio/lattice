@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"flag"
 	"github.com/golang/protobuf/proto"
@@ -12,6 +13,7 @@ import (
 	"google.golang.org/grpc/status"
 	"io"
 	"linkany/management/grpc/mgt"
+	"linkany/management/vo"
 	"linkany/pkg/log"
 	"time"
 )
@@ -57,7 +59,7 @@ func (c *Client) Login(ctx context.Context, in *mgt.ManagementMessage) (*mgt.Man
 	return c.client.Login(ctx, in)
 }
 
-func (c *Client) Watch(ctx context.Context, in *mgt.ManagementMessage, callback func(wm *mgt.WatchMessage) error) error {
+func (c *Client) Watch(ctx context.Context, in *mgt.ManagementMessage, callback func(wm *vo.Message) error) error {
 	//ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	//defer cancel()
 	logger := c.logger
@@ -67,7 +69,7 @@ func (c *Client) Watch(ctx context.Context, in *mgt.ManagementMessage, callback 
 	}
 
 	if err = stream.Send(in); err != nil {
-		logger.Errorf("client watch: stream.Send(%v) failed: %v", in, err)
+		logger.Errorf("client watch: stream.Push(%v) failed: %v", in, err)
 	}
 
 	ch := make(chan struct{})
@@ -91,13 +93,13 @@ func (c *Client) Watch(ctx context.Context, in *mgt.ManagementMessage, callback 
 				continue
 			}
 
-			var watchMessage mgt.WatchMessage
-			if err := proto.Unmarshal(in.Body, &watchMessage); err != nil {
+			var message vo.Message
+			if err := json.Unmarshal(in.Body, &message); err != nil {
 				logger.Errorf("Failed to parse network map: %v", err)
 				continue
 			}
 
-			if err = callback(&watchMessage); err != nil {
+			if err = callback(&message); err != nil {
 				c.logger.Errorf("Failed to callback: %v", err)
 			}
 		}
@@ -118,7 +120,7 @@ func (c *Client) Keepalive(ctx context.Context, in *mgt.ManagementMessage) error
 	}
 
 	if err = stream.Send(in); err != nil {
-		c.logger.Errorf("client keepalive: stream.Send(%v) failed: %v", in, err)
+		c.logger.Errorf("client keepalive: stream.Push(%v) failed: %v", in, err)
 	}
 	defer func() {
 		if err = stream.CloseSend(); err != nil {
