@@ -336,7 +336,7 @@ func (p *nodeServiceImpl) GetNetworkMap(appId, userId string) (*vo.NetworkMap, e
 	//		ID:                  current.ID,
 	//		Name:                current.Name,
 	//		Description:         current.Description,
-	//		GroupID:             current.GroupID,
+	//		GroupId:             current.GroupId,
 	//		CreatedBy:           current.CreatedBy,
 	//		UserID:              current.UserID,
 	//		Hostname:            current.Hostname,
@@ -552,8 +552,8 @@ func (p *nodeServiceImpl) GetLabel(ctx context.Context, id string) (*entity.Labe
 // Group Node
 func (p *nodeServiceImpl) AddGroupNode(ctx context.Context, dto *dto.GroupNodeDto) error {
 	groupNode := &entity.GroupNode{
-		GroupID:   dto.GroupID,
-		NodeID:    dto.NodeID,
+		GroupId:   dto.GroupID,
+		NodeId:    dto.NodeID,
 		GroupName: dto.GroupName,
 		CreatedBy: dto.CreatedBy,
 	}

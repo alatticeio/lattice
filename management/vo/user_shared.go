@@ -1,15 +1,21 @@
 package vo
 
-import "time"
+import (
+	"time"
+)
 
-type SharedGroupVo struct {
-	ID          uint      `json:"id"`
-	UserId      uint      `json:"userId"`
-	GroupId     uint      `json:"groupId"`
-	OwnerID     uint      `json:"ownerId"`
-	Description string    `json:"description"`
-	GrantedAt   time.Time `json:"grantedAt"`
-	RevokedAt   time.Time `json:"revokedAt"`
+type SharedNodeGroupVo struct {
+	*GroupRelationVo
+	ModelVo
+	Name        string `json:"name"`
+	NodeCount   int    `json:"nodeCount"`
+	Status      string `json:"status"`
+	Description string `json:"description"`
+	CreatedBy   string `json:"createdBy"`
+	UpdatedBy   string `json:"updatedBy"`
+
+	GroupNodes    []GroupNodeVo `json:"groupNodes"` // for tom-select show
+	GroupPolicies []GroupPolicyVo
 }
 
 type SharedPolicyVo struct {

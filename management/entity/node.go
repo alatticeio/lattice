@@ -87,9 +87,11 @@ type NodeGroup struct {
 	gorm.Model
 	Name        string `gorm:"column:name;size:64" json:"name"`
 	Description string `gorm:"column:description;size:255" json:"description"`
-	OwnerId     uint   `gorm:"column:owner_id;size:20" json:"ownerId"`
-	Owner       string `gorm:"column:owner;size:64" json:"owner"`
-	IsPublic    bool   `gorm:"column:is_public" json:"isPublic"`
+
+	OwnerId  uint         `gorm:"column:owner_id;size:20" json:"ownerId"`
+	Owner    string       `gorm:"column:owner;size:64" json:"owner"`
+	IsPublic bool         `gorm:"column:is_public" json:"isPublic"`
+	Status   ActiveStatus `gorm:"column:status" json:"status"` // 0: unapproved, 1: approved, 2: rejected
 	//GroupType   utils.GroupType `gorm:"column:group_type;size:20" json:"groupType"`
 	CreatedBy string `gorm:"column:created_by;size:64" json:"createdBy"`
 	UpdatedBy string `gorm:"column:updated_by;size:64" json:"updatedBy"`
@@ -119,8 +121,8 @@ func (GroupMember) TableName() string {
 // GroupNode relationship between Group and Node
 type GroupNode struct {
 	gorm.Model
-	GroupID   uint   `gorm:"column:group_id;size:20" json:"groupId"`
-	NodeID    uint   `gorm:"column:node_id;size:20" json:"nodeId"`
+	GroupId   uint   `gorm:"column:group_id;size:20" json:"groupId"`
+	NodeId    uint   `gorm:"column:node_id;size:20" json:"nodeId"`
 	GroupName string `gorm:"column:group_name;size:64" json:"groupName"`
 	NodeName  string `gorm:"column:node_name;size:64" json:"nodeName"`
 	CreatedBy string `gorm:"column:created_by;size:64" json:"createdBy"`
@@ -133,7 +135,7 @@ func (GroupNode) TableName() string {
 // GroupPolicy relationship between Group and Policy
 type GroupPolicy struct {
 	gorm.Model
-	GroupID     uint
+	GroupId     uint
 	PolicyId    uint
 	PolicyName  string
 	Description string

@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/golang/protobuf/proto"
 	"linkany/internal"
 	pb "linkany/management/grpc/mgt"
 	"linkany/management/grpc/server"
@@ -14,6 +13,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/golang/protobuf/proto"
 )
 
 var group sync.WaitGroup
@@ -106,7 +107,7 @@ func TestGrpcClient_Watch(t *testing.T) {
 	err = client.Watch(ctx, &pb.ManagementMessage{
 		PubKey: "a+BYvXq6/xrvsnKbgORSL6lwFzqtfXV0VnTzwdo+Vnw=",
 		Body:   body,
-	}, func(wm *pb.WatchMessage) error {
+	}, func(wm *vo.Message) error {
 		fmt.Println(wm)
 		return nil
 	})

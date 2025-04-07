@@ -1,8 +1,9 @@
 package entity
 
 import (
-	"gorm.io/gorm"
 	"linkany/management/utils"
+
+	"gorm.io/gorm"
 )
 
 type AppKey struct {
@@ -10,18 +11,18 @@ type AppKey struct {
 	OrderId uint
 	UserId  uint
 	AppKey  string
-	Status  AppKeyStatus
+	Status  ActiveStatus
 }
 
-type AppKeyStatus int
+type ActiveStatus int
 
 const (
-	Active AppKeyStatus = iota
+	Active ActiveStatus = iota
 	Inactive
 	Frozen
 )
 
-func (ak AppKeyStatus) String() string {
+func (ak ActiveStatus) String() string {
 	switch ak {
 	case Active:
 		return "active"

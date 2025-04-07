@@ -1,12 +1,13 @@
 package entity
 
 import (
-	"gorm.io/gorm"
 	"linkany/management/utils"
+
+	"gorm.io/gorm"
 )
 
-// SharedGroup is the entity that represents the shared group
-type SharedGroup struct {
+// SharedNodeGroup is the entity that represents the shared group
+type SharedNodeGroup struct {
 	gorm.Model
 	UserId       uint
 	GroupId      uint
@@ -17,10 +18,13 @@ type SharedGroup struct {
 	Description  string
 	GrantedAt    utils.NullTime
 	RevokedAt    utils.NullTime
+
+	GroupNodes    []GroupNode   `gorm:"foreignKey:GroupId;references:GroupId"`
+	GroupPolicies []GroupPolicy `gorm:"foreignKey:GroupId;references:GroupId"`
 }
 
 // TableName returns the table name of the shared group
-func (SharedGroup) TableName() string {
+func (SharedNodeGroup) TableName() string {
 	return "la_shared_group"
 }
 

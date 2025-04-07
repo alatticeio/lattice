@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"linkany/management/dto"
 	"linkany/management/service"
 	"linkany/management/vo"
 	"linkany/pkg/log"
@@ -36,4 +37,16 @@ func (s *SharedController) DeleteSharedGroup(ctx context.Context, inviteId, grou
 
 func (s *SharedController) GetSharedLabel(ctx context.Context, id string) (*vo.SharedLabelVo, error) {
 	return s.sharedService.GetSharedLabel(ctx, id)
+}
+
+func (s *SharedController) AddNodeToGroup(ctx context.Context, dto *dto.NodeGroupDto) error {
+	return s.sharedService.AddNodeToGroup(ctx, dto)
+}
+
+func (s *SharedController) AddPolicyToGroup(ctx context.Context, dto *dto.NodeGroupDto) error {
+	return s.sharedService.AddPolicyToGroup(ctx, dto)
+}
+
+func (s *SharedController) ListGroups(ctx context.Context, params *dto.SharedGroupParams) (*vo.PageVo, error) {
+	return s.sharedService.ListGroups(ctx, params)
 }

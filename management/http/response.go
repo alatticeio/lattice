@@ -24,6 +24,10 @@ func WriteError(fn func(code int, obj any), msg string) {
 	fn(http.StatusOK, NewResponse(http.StatusInternalServerError, msg, nil))
 }
 
+func WriteForbidden(fn func(code int, obj any), msg string) {
+	fn(http.StatusOK, NewResponse(http.StatusForbidden, msg, nil))
+}
+
 func WriteBadRequest(fn func(code int, obj any), msg string) {
 	fn(http.StatusOK, NewResponse(http.StatusBadRequest, msg, nil))
 }

@@ -48,7 +48,7 @@ type NodeResourceVo struct {
 }
 
 type PolicyResourceVo struct {
-	PolicyValues map[string]string `json:"policyValues"`
+	PolicyValues map[string]string `json:"policyValues" gorm:"-"`
 }
 
 type GroupResourceVo struct {

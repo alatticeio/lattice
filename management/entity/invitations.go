@@ -9,18 +9,20 @@ import (
 // Invites invites invite others
 type Invites struct {
 	gorm.Model
-	InvitationId int64 // invitation user id
-	InviterId    int64 // inviter user id
-	MobilePhone  string
-	Email        string
-	//Avatar       string
-	GroupIds     string
-	Group        string
-	Role         string
-	Permissions  string
-	AcceptStatus AcceptStatus
-	InvitedAt    time.Time
-	CanceledAt   utils.NullTime
+	InvitationId       int64 // invitation user id
+	InvitationUsername string
+	InviterId          int64 // inviter user id
+	InviterUsername    string
+	MobilePhone        string
+	Email              string
+	Avatar             string
+	GroupIds           string
+	Group              string
+	Role               string
+	Permissions        string
+	AcceptStatus       AcceptStatus
+	InvitedAt          time.Time
+	CanceledAt         utils.NullTime
 }
 
 // Invitation user invite other join its network

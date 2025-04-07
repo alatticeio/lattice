@@ -2,8 +2,7 @@ package server
 
 import (
 	"fmt"
-	"linkany/management/grpc/mgt"
-	"linkany/management/utils"
+	"linkany/management/vo"
 	"testing"
 	"time"
 )
@@ -12,7 +11,7 @@ func TestCreateChannel(t *testing.T) {
 	pubKey := "123456"
 	ch := CreateChannel(pubKey)
 	//ch := make(chan *mgt.HandleWatchMessage, 1000)
-	manager := utils.NewWatchManager()
+	manager := vo.NewWatchManager()
 	//manager.Add(pubKey, ch)
 
 	go func() {
@@ -28,12 +27,7 @@ func TestCreateChannel(t *testing.T) {
 		//manager := utils.NewWatchManager()
 		ch := manager.Get(pubKey)
 		for i := 0; i < 10; i++ {
-			ch <- &mgt.WatchMessage{
-				Type: mgt.EventType_ADD,
-				Peer: &mgt.Peer{
-					PublicKey: pubKey,
-				},
-			}
+			ch <- &vo.Message{}
 		}
 	}()
 

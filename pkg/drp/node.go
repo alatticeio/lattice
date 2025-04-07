@@ -6,7 +6,7 @@ import (
 
 // Node is drp node user created.
 type Node struct {
-	// NodeID is the node id.
+	// NodeId is the node id.
 	NodeId string
 
 	// when drp use ip v4, the ip v4 address

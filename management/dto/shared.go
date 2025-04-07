@@ -1,15 +1,25 @@
 package dto
 
-import "time"
+import (
+	"time"
+
+	"gorm.io/gorm"
+)
 
 type SharedGroupDto struct {
-	ID          uint      `json:"id"`
-	UserId      uint      `json:"userId"`
-	GroupId     uint      `json:"groupId"`
-	OwnerID     uint      `json:"ownerId"`
-	Description string    `json:"description"`
-	GrantedAt   time.Time `json:"grantedAt"`
-	RevokedAt   time.Time `json:"revokedAt"`
+	gorm.Model
+	GroupId     uint   `json:"groupId"`
+	InviteId    uint   `json:"inviteId"`
+	NodeId      uint   `json:"nodeId"`
+	PolicyId    uint   `json:"policyId"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Owner       uint64 `json:"ownerId"`
+	IsPublic    bool   `json:"isPublic"`
+	CreatedBy   string `json:"createdBy"`
+	UpdatedBy   string `json:"updatedBy"`
+
+	GroupRelationDto
 }
 
 type SharedPolicyDto struct {

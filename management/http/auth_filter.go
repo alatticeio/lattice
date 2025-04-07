@@ -1,8 +1,9 @@
 package http
 
 import (
-	"github.com/gin-gonic/gin"
 	"linkany/management/utils"
+
+	"github.com/gin-gonic/gin"
 )
 
 func (s *Server) authFilter() gin.HandlerFunc {
@@ -11,6 +12,8 @@ func (s *Server) authFilter() gin.HandlerFunc {
 		// If the permission is invalid, return 403
 		// If the permission is valid, continue
 
+		// TODO get role from header
+
 		action := c.GetHeader("action")
 		resourceType := c.GetHeader("resourceType")
 		resourceId := c.GetInt("resourceId")
@@ -18,11 +21,21 @@ func (s *Server) authFilter() gin.HandlerFunc {
 		switch resourceType {
 		case "group":
 			resType = utils.Group
+		case "policy":
+			resType = utils.Policy
+		case "node":
+			resType = utils.Node
+		case "label":
+			resType = utils.Label
+		default:
+			WriteForbidden(c.JSON, "Invalid resource type")
+			c.Abort()
+			return
 		}
 		if action != "" {
 			b, err := s.accessController.CheckAccess(c, resType, uint(resourceId), action)
 			if !b || err != nil {
-				WriteError(c.JSON, err.Error())
+				WriteForbidden(c.JSON, err.Error())
 				c.Abort()
 				return
 			}

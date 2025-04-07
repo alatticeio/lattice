@@ -1,30 +1,52 @@
 package vo
 
 import (
-	"gorm.io/gorm"
 	"linkany/management/entity"
 	"time"
+
+	"gorm.io/gorm"
 )
 
-type NodeGroupVo struct {
+type Group struct {
 	*GroupRelationVo
 	ID        uint   `json:"id"`
 	Name      string `json:"name"`
 	NodeCount int    `json:"nodeCount"`
-	//NodeIdList   []uint         `json:"nodeIdList"` // for tom-select update/add
-	//PolicyIdList []uint         `json:"policyIdList"`
-	Description string         `json:"description"`
-	CreatedAt   time.Time      `json:"createdAt"`
-	DeletedAt   gorm.DeletedAt `json:"deletedAt"`
-	UpdatedAt   time.Time      `json:"updatedAt"`
-	CreatedBy   string         `json:"createdBy"`
-	UpdatedBy   string         `json:"updatedBy"`
+
+	GroupNodes    []entity.GroupNode   `json:"groupNodes"`
+	GroupPolicies []entity.GroupPolicy `json:"groupPolicies"`
+	Status        string               `json:"status"`
+	Description   string               `json:"description"`
+	CreatedAt     time.Time            `json:"createdAt"`
+	DeletedAt     gorm.DeletedAt       `json:"deletedAt"`
+	UpdatedAt     time.Time            `json:"updatedAt"`
+	CreatedBy     string               `json:"createdBy"`
+	UpdatedBy     string               `json:"updatedBy"`
 }
 
 // GroupRelationVo for tom-select show
 type GroupRelationVo struct {
 	*PolicyResourceVo
 	*NodeResourceVo
+}
+
+func NewGroupRelationVo() *GroupRelationVo {
+	return &GroupRelationVo{
+		PolicyResourceVo: NewPolicyResourceVo(), // for group policy relation
+		NodeResourceVo:   NewNodeResourceVo(),
+	}
+}
+
+func NewPolicyResourceVo() *PolicyResourceVo {
+	return &PolicyResourceVo{
+		PolicyValues: make(map[string]string, 1),
+	}
+}
+
+func NewNodeResourceVo() *NodeResourceVo {
+	return &NodeResourceVo{
+		NodeValues: make(map[string]string, 1),
+	}
 }
 
 type NodeVo struct {

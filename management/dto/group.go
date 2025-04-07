@@ -13,3 +13,8 @@ type GroupPolicyParams struct {
 	PolicyId   uint   `json:"policyId" form:"policyId"`
 	PolicyName string `json:"policyName" form:"policyName"`
 }
+
+type SharedGroupParams struct {
+	UserId uint `json:"userId" form:"userId"`
+	GroupParams
+}

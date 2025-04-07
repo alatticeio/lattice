@@ -14,12 +14,12 @@ import (
 
 type GroupService interface {
 	//Group
-	GetNodeGroup(ctx context.Context, id string) (*vo.NodeGroupVo, error)
+	GetNodeGroup(ctx context.Context, id string) (*vo.Group, error)
 	CreateGroup(ctx context.Context, dto *dto.NodeGroupDto) error
 	UpdateGroup(ctx context.Context, dto *dto.NodeGroupDto) error
 	DeleteGroup(ctx context.Context, id string) error
 	ListGroups(ctx context.Context, params *dto.GroupParams) (*vo.PageVo, error)
-	QueryGroups(ctx context.Context, params *dto.GroupParams) ([]*vo.NodeGroupVo, error)
+	QueryGroups(ctx context.Context, params *dto.GroupParams) ([]*vo.Group, error)
 
 	ListGroupPolicy(ctx context.Context, params *dto.GroupPolicyParams) ([]*vo.GroupPolicyVo, error)
 	DeleteGroupPolicy(ctx context.Context, groupId uint, policyId uint) error
@@ -48,7 +48,7 @@ func NewGroupService(db *DatabaseService) GroupService {
 }
 
 // NodeGroup
-func (g *groupServiceImpl) GetNodeGroup(ctx context.Context, nodeId string) (*vo.NodeGroupVo, error) {
+func (g *groupServiceImpl) GetNodeGroup(ctx context.Context, nodeId string) (*vo.Group, error) {
 	var (
 		group entity.NodeGroup
 		err   error
@@ -60,7 +60,7 @@ func (g *groupServiceImpl) GetNodeGroup(ctx context.Context, nodeId string) (*vo
 
 	res, err := g.fetchNodeAndGroup(group.ID)
 
-	return &vo.NodeGroupVo{
+	return &vo.Group{
 		ID:          group.ID,
 		Name:        group.Name,
 		Description: group.Description,
@@ -161,8 +161,8 @@ func (g *groupServiceImpl) handleGP(ctx context.Context, tx *gorm.DB, dto *dto.N
 					}
 
 					groupNode = entity.GroupNode{
-						GroupID:   group.ID,
-						NodeID:    node.ID,
+						GroupId:   group.ID,
+						NodeId:    node.ID,
 						GroupName: group.Name,
 						NodeName:  node.Name,
 						CreatedBy: ctx.Value("username").(string),
@@ -195,7 +195,7 @@ func (g *groupServiceImpl) handleGP(ctx context.Context, tx *gorm.DB, dto *dto.N
 					}
 
 					groupPolicy = entity.GroupPolicy{
-						GroupID:    group.ID,
+						GroupId:    group.ID,
 						PolicyId:   policy.ID,
 						PolicyName: policy.Name,
 						CreatedBy:  ctx.Value("username").(string),
@@ -241,22 +241,18 @@ func (g *groupServiceImpl) ListGroups(ctx context.Context, params *dto.GroupPara
 		db = db.Where(sql, wrappers)
 	}
 
-	if err := db.Model(&entity.NodeGroup{}).Count(&result.Total).Error; err != nil {
-		return nil, err
-	}
-
 	g.logger.Verbosef("sql: %s, wrappers: %v", sql, wrappers)
-	if err := db.Model(&entity.NodeGroup{}).Offset((params.Page - 1) * params.Size).Limit(params.Size).Find(&nodeGroups).Error; err != nil {
+	if err := db.Model(&entity.NodeGroup{}).Count(&result.Total).Offset((params.Page - 1) * params.Size).Limit(params.Size).Find(&nodeGroups).Error; err != nil {
 		return nil, err
 	}
 
-	var nodeVos []vo.NodeGroupVo
+	var nodeVos []vo.Group
 	for _, group := range nodeGroups {
 		res, err := g.fetchNodeAndGroup(group.ID)
 		if err != nil {
 			return nil, err
 		}
-		nodeVos = append(nodeVos, vo.NodeGroupVo{
+		nodeVos = append(nodeVos, vo.Group{
 			ID:              group.ID,
 			Name:            group.Name,
 			Description:     group.Description,
@@ -277,7 +273,7 @@ func (g *groupServiceImpl) ListGroups(ctx context.Context, params *dto.GroupPara
 	return result, nil
 }
 
-func (g *groupServiceImpl) QueryGroups(ctx context.Context, params *dto.GroupParams) ([]*vo.NodeGroupVo, error) {
+func (g *groupServiceImpl) QueryGroups(ctx context.Context, params *dto.GroupParams) ([]*vo.Group, error) {
 	var nodeGroups []entity.NodeGroup
 
 	sql, wrappers := utils.Generate(params)
@@ -291,13 +287,13 @@ func (g *groupServiceImpl) QueryGroups(ctx context.Context, params *dto.GroupPar
 		return nil, err
 	}
 
-	var nodeVos []*vo.NodeGroupVo
+	var nodeVos []*vo.Group
 	for _, group := range nodeGroups {
 		res, err := g.fetchNodeAndGroup(group.ID)
 		if err != nil {
 			return nil, err
 		}
-		nodeVos = append(nodeVos, &vo.NodeGroupVo{
+		nodeVos = append(nodeVos, &vo.Group{
 			ID:              group.ID,
 			Name:            group.Name,
 			Description:     group.Description,
@@ -328,7 +324,7 @@ func (g *groupServiceImpl) fetchNodeAndGroup(groupId uint) (*vo.GroupRelationVo,
 
 	nodeValues := make(map[string]string, 1)
 	for _, groupNode := range groupNodes {
-		nodeValues[fmt.Sprintf("%d", groupNode.NodeID)] = groupNode.NodeName
+		nodeValues[fmt.Sprintf("%d", groupNode.NodeId)] = groupNode.NodeName
 	}
 	nodeResourceVo.NodeValues = nodeValues
 	result.NodeResourceVo = nodeResourceVo
@@ -362,8 +358,10 @@ func (g *groupServiceImpl) ListGroupPolicy(ctx context.Context, params *dto.Grou
 	var groupPolicyVos []*vo.GroupPolicyVo
 	for _, groupPolicy := range groupPolicies {
 		groupPolicyVos = append(groupPolicyVos, &vo.GroupPolicyVo{
-			ID:          groupPolicy.ID,
-			GroupId:     groupPolicy.GroupID,
+			ModelVo: vo.ModelVo{
+				ID: groupPolicy.ID,
+			},
+			GroupId:     groupPolicy.GroupId,
 			PolicyId:    groupPolicy.PolicyId,
 			PolicyName:  groupPolicy.PolicyName,
 			Description: groupPolicy.Description,

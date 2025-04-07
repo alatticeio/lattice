@@ -32,7 +32,7 @@ func (g *GroupController) DeleteGroupNode(ctx context.Context, groupId uint, nod
 	return g.groupService.DeleteGroupNode(ctx, groupId, nodeId)
 }
 
-func (p *GroupController) GetNodeGroup(ctx context.Context, id string) (*vo.NodeGroupVo, error) {
+func (p *GroupController) GetNodeGroup(ctx context.Context, id string) (*vo.Group, error) {
 	return p.groupService.GetNodeGroup(ctx, id)
 }
 
@@ -53,6 +53,6 @@ func (p *GroupController) ListGroups(ctx context.Context, params *dto.GroupParam
 	return p.groupService.ListGroups(ctx, params)
 }
 
-func (p *GroupController) QueryGroups(ctx context.Context, params *dto.GroupParams) ([]*vo.NodeGroupVo, error) {
+func (p *GroupController) QueryGroups(ctx context.Context, params *dto.GroupParams) ([]*vo.Group, error) {
 	return p.groupService.QueryGroups(ctx, params)
 }

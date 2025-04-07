@@ -3,6 +3,7 @@ package service
 import (
 	"fmt"
 	"linkany/management/dto"
+	"linkany/management/utils"
 	"testing"
 )
 
@@ -14,11 +15,11 @@ func TestQueryParams_Generate(t *testing.T) {
 
 		params := &dto.QueryParams{
 			PubKey: &pubKey,
-			UserId: &userId,
+			UserId: userId,
 			Status: &status,
 		}
 
-		sql, filters := Generate(params)
+		sql, filters := utils.Generate(params)
 		fmt.Println(sql, filters)
 	})
 }

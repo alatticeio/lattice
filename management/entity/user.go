@@ -1,8 +1,9 @@
 package entity
 
 import (
-	"gorm.io/gorm"
 	"linkany/management/utils"
+
+	"gorm.io/gorm"
 )
 
 type User struct {
@@ -16,14 +17,15 @@ type User struct {
 	Gender   int    `json:"gender,omitempty"`
 }
 
-// UserGroupShared give a user groups permit
-type UserGroupShared struct {
-	gorm.Model
-	OwnerId     uint
-	UserId      uint
-	GroupId     uint
-	Description string
-}
+//// SharedNodeGroup give a user groups permit
+//type SharedNodeGroup struct {
+//	gorm.Model
+//	OwnerId     uint
+//	UserId      uint
+//	NodeGroupId uint
+//	NodeGroup   NodeGroup // belong to which group
+//	Description string
+//}
 
 // UserResourceGrantedPermission a user's permission which granted by owner. focus on the resources created by owner.
 // resource level

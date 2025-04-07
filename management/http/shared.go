@@ -1,8 +1,12 @@
 package http
 
 import (
-	"github.com/gin-gonic/gin"
+	"linkany/management/client"
+	"linkany/management/dto"
 	"strconv"
+	"strings"
+
+	"github.com/gin-gonic/gin"
 )
 
 func (s *Server) RegisterSharedRoutes() {
@@ -11,6 +15,33 @@ func (s *Server) RegisterSharedRoutes() {
 	userGroup.DELETE("/invite/:inviteId/group/:groupId", s.deleteSharedGroup())
 	userGroup.DELETE("/invite/:inviteId/node/:nodeId", s.deleteSharedNode())
 	userGroup.DELETE("/invite/:inviteId/policy/:policyId", s.deleteSharedPolicy())
+
+	// add node to group
+	userGroup.POST("/invite/:inviteId/group/:groupId/node/:nodeId", s.addNodeToGroup())
+	userGroup.POST("/invite/:inviteId/group/:groupId/policy/:policyId", s.addPolicyToGroup())
+
+	// list
+	userGroup.GET("/group/list", s.listSharedGroups())
+	// userGroup.POST("/invite/:inviteId/group/:groupId/label/:labelId", s.addLabelToGroup())
+	// userGroup.POST("/invite/:inviteId/group/:groupId", s.addGroup())
+	// userGroup.POST("/invite/:inviteId/label/:labelId", s.addLabel())
+	// userGroup.POST("/invite/:inviteId/node/:nodeId", s.addNode())
+	// userGroup.POST("/invite/:inviteId/policy/:policyId", s.addPolicy())
+	// userGroup.POST("/invite/:inviteId", s.addInvite())
+	// userGroup.GET("/invite/:inviteId", s.getInvite())
+	// userGroup.GET("/invite/:inviteId/label", s.getSharedLabels())
+	// userGroup.GET("/invite/:inviteId/group", s.getSharedGroups())
+
+	// // update group node
+	// userGroup.PUT("/invite/:inviteId/group/:groupId/node/:nodeId", s.updateGroupNode())
+	// userGroup.PUT("/invite/:inviteId/group/:groupId", s.updateGroup())
+	// userGroup.PUT("/invite/:inviteId/label/:labelId", s.updateLabel())
+	// userGroup.PUT("/invite/:inviteId/node/:nodeId", s.updateNode())
+	// userGroup.PUT("/invite/:inviteId/policy/:policyId", s.updatePolicy())
+	// userGroup.PUT("/invite/:inviteId", s.updateInvite())
+	// userGroup.GET("/invite/:inviteId/node", s.getSharedNodes())
+	// userGroup.GET("/invite/:inviteId/policy", s.getSharedPolicies())
+	// userGroup.GET("/invite/:inviteId/group/:groupId/node", s.getGroupNodes())
 
 }
 
@@ -103,5 +134,94 @@ func (s *Server) deleteSharedPolicy() gin.HandlerFunc {
 			return
 		}
 		WriteOK(c.JSON, nil)
+	}
+}
+
+func (s *Server) addNodeToGroup() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var nodeGroupDto dto.NodeGroupDto
+		if err := c.ShouldBind(&nodeGroupDto); err != nil {
+			c.JSON(client.BadRequest(err))
+			return
+		}
+
+		if nodeGroupDto.NodeIds != "" {
+			nodeGroupDto.NodeIdList = strings.Split(nodeGroupDto.NodeIds, ",")
+		}
+
+		// if nodeGroupDto.PolicyIds != "" {
+		// 	nodeGroupDto.PolicyIdList = strings.Split(nodeGroupDto.PolicyIds, ",")
+		// }
+
+		err := s.sharedController.AddNodeToGroup(c, &nodeGroupDto)
+		if err != nil {
+			c.JSON(client.InternalServerError(err))
+			return
+		}
+		c.JSON(client.Success(nil))
+	}
+}
+
+func (s *Server) removeNodeFromGroup() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var nodeGroupDto dto.NodeGroupDto
+		if err := c.ShouldBind(&nodeGroupDto); err != nil {
+			c.JSON(client.BadRequest(err))
+			return
+		}
+
+		if nodeGroupDto.NodeIds != "" {
+			nodeGroupDto.NodeIdList = strings.Split(nodeGroupDto.NodeIds, ",")
+		}
+
+		err := s.groupController.UpdateGroup(c, &nodeGroupDto)
+		if err != nil {
+			c.JSON(client.InternalServerError(err))
+			return
+		}
+		c.JSON(client.Success(nil))
+	}
+}
+
+func (s *Server) addPolicyToGroup() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var nodeGroupDto dto.NodeGroupDto
+		if err := c.ShouldBind(&nodeGroupDto); err != nil {
+			c.JSON(client.BadRequest(err))
+			return
+		}
+
+		// if nodeGroupDto.NodeIds != "" {
+		// 	nodeGroupDto.NodeIdList = strings.Split(nodeGroupDto.NodeIds, ",")
+		// }
+
+		if nodeGroupDto.PolicyIds != "" {
+			nodeGroupDto.PolicyIdList = strings.Split(nodeGroupDto.PolicyIds, ",")
+		}
+
+		err := s.sharedController.AddPolicyToGroup(c, &nodeGroupDto)
+		if err != nil {
+			c.JSON(client.InternalServerError(err))
+			return
+		}
+		c.JSON(client.Success(nil))
+	}
+}
+
+// list
+func (s *Server) listSharedGroups() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var params dto.SharedGroupParams
+		if err := c.ShouldBindQuery(&params); err != nil {
+			WriteError(c.JSON, err.Error())
+			return
+		}
+
+		pageVo, err := s.sharedController.ListGroups(c, &params)
+		if err != nil {
+			WriteError(c.JSON, err.Error())
+			return
+		}
+		WriteOK(c.JSON, pageVo)
 	}
 }

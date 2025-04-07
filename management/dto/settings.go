@@ -1,16 +1,17 @@
 package dto
 
 import (
-	"gorm.io/gorm"
 	"linkany/management/entity"
 	"linkany/management/utils"
 	"linkany/management/vo"
+
+	"gorm.io/gorm"
 )
 
 type AppKeyDto struct {
 	gorm.Model
 	AppKey string `json:"appKey"`
-	Status entity.AppKeyStatus
+	Status entity.ActiveStatus
 }
 
 type AppKeyParams struct {
