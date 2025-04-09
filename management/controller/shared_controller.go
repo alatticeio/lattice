@@ -50,3 +50,7 @@ func (s *SharedController) AddPolicyToGroup(ctx context.Context, dto *dto.NodeGr
 func (s *SharedController) ListGroups(ctx context.Context, params *dto.SharedGroupParams) (*vo.PageVo, error) {
 	return s.sharedService.ListGroups(ctx, params)
 }
+
+func (s *SharedController) ListNodes(ctx context.Context, params *dto.SharedNodeParams) (*vo.PageVo, error) {
+	return s.sharedService.ListNodes(ctx, params)
+}

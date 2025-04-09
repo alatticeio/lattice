@@ -623,12 +623,18 @@ func (p *nodeServiceImpl) AddNodeLabel(ctx context.Context, dto *dto.NodeLabelUp
 		if label == nil {
 			return errors.New("invalid label")
 		}
-		labelId, _ := strconv.ParseUint(value, 10, 64)
-		nodeId, _ := strconv.ParseUint(dto.Id, 10, 64)
+		labelId, err := strconv.Atoi(value)
+		if err != nil {
+			return err
+		}
+		nodeId, err := strconv.Atoi(dto.Id)
+		if err != nil {
+			return err
+		}
 		nodeLabel := &entity.NodeLabel{
-			LabelId:   labelId,
+			LabelId:   uint(labelId),
 			LabelName: label.Label,
-			NodeId:    nodeId,
+			NodeId:    uint(nodeId),
 			CreatedBy: dto.CreatedBy,
 		}
 		if err := p.Create(nodeLabel).Error; err != nil {

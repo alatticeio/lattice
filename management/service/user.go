@@ -29,14 +29,13 @@ type UserService interface {
 	GetByUsername(username string) (*entity.User, error)
 	QueryUsers(params *dto.UserParams) ([]*vo.UserVo, error)
 
-	//Invite a user join network
-	// Invite a user join network
+	//InviteEntity a user join network
 	Invite(dto *dto.InviteDto) error
 	CancelInvite(id string) error
 	DeleteInvite(id string) error
 	UpdateInvite(ctx context.Context, dto *dto.InviteDto) error
-	GetInvite(ctx context.Context, id string) (*vo.InviteVo, error)
-	GetInvitation(userId, email string) (*entity.Invitation, error)
+	//GetInvite(ctx context.Context, id string) (*vo.InviteVo, error)
+	GetInvitation(userId, email string) (*entity.InvitationEntity, error)
 	UpdateInvitation(dto *dto.InvitationDto) error
 	RejectInvitation(id uint) error
 	AcceptInvitation(id uint) error
@@ -45,7 +44,7 @@ type UserService interface {
 	ListInvitations(params *dto.InvitationParams) (*vo.PageVo, error)
 
 	//listInvites user invite others list
-	ListInvites(params *dto.InvitationParams) (*vo.PageVo, error)
+	ListInvitesEntity(params *dto.InvitationParams) (*vo.PageVo, error)
 
 	// User Permit
 	//UserPermission grants a user permission to access a resource
@@ -173,7 +172,7 @@ func (u *userServiceImpl) QueryUsers(params *dto.UserParams) ([]*vo.UserVo, erro
 	return userVos, nil
 }
 
-// Invitation
+// InvitationEntity
 func (u *userServiceImpl) Invite(dto *dto.InviteDto) error {
 	return u.DB.Transaction(func(tx *gorm.DB) error {
 		var err error
@@ -186,8 +185,8 @@ func (u *userServiceImpl) Invite(dto *dto.InviteDto) error {
 		}
 
 		// first query, if the invitation exists
-		var exist entity.Invitation
-		if err = tx.Model(&entity.Invitation{}).Where("invitee_name = ?", dto.InviteeName).First(&exist).Error; err != nil {
+		var exist entity.InvitationEntity
+		if err = tx.Model(&entity.InvitationEntity{}).Where("invitee_name = ?", dto.InviteeName).First(&exist).Error; err != nil {
 			if !errors.Is(err, gorm.ErrRecordNotFound) {
 				return err
 			}
@@ -198,7 +197,7 @@ func (u *userServiceImpl) Invite(dto *dto.InviteDto) error {
 		}
 
 		groupName := getGroupNames(tx, dto.GroupIdList)
-		invite := &entity.Invites{
+		invite := &entity.InviteEntity{
 			InvitationId:       int64(invitationUser.ID),
 			InviterId:          int64(inviteUser.ID),
 			InviterUsername:    inviteUser.Username,
@@ -215,7 +214,7 @@ func (u *userServiceImpl) Invite(dto *dto.InviteDto) error {
 			return err
 		}
 
-		if err = tx.Create(&entity.Invitation{
+		if err = tx.Create(&entity.InvitationEntity{
 			InvitationId: invitationUser.ID,
 			InviteeId:    inviteUser.ID,
 			InviteId:     invite.ID,
@@ -238,14 +237,14 @@ func (u *userServiceImpl) UpdateInvite(ctx context.Context, dto *dto.InviteDto) 
 		var err error
 		groupName := getGroupNames(tx, dto.GroupIdList)
 
-		if err = tx.Model(&entity.Invites{}).Where("id = ?", dto.ID).Updates(entity.Invites{
+		if err = tx.Model(&entity.InviteEntity{}).Where("id = ?", dto.ID).Updates(entity.InviteEntity{
 			Group:    groupName,
 			GroupIds: dto.GroupIds,
 		}).Error; err != nil {
 			return err
 		}
 
-		if err = tx.Model(&entity.Invitation{}).Where("invite_id = ?", dto.ID).Updates(entity.Invitation{
+		if err = tx.Model(&entity.InvitationEntity{}).Where("invite_id = ?", dto.ID).Updates(entity.InvitationEntity{
 			Group:    groupName,
 			GroupIds: dto.GroupIds,
 		}).Error; err != nil {
@@ -282,124 +281,30 @@ func updateResources(tx *gorm.DB, inviteId uint, dto *dto.InviteDto) error {
 	return addResourcePermission(tx, inviteId, dto)
 }
 
-func (u *userServiceImpl) GetInvite(ctx context.Context, id string) (*vo.InviteVo, error) {
-	result := new(vo.InviteVo)
-	var invite entity.Invites
-	if err := u.Where("id = ?", id).First(&invite).Error; err != nil {
-		return nil, err
-	}
-
-	var inviteUser, invitationUser entity.User
-	if err := u.Where("id = ?", invite.InviterId).First(&inviteUser).Error; err != nil {
-		return nil, err
-	}
-
-	if err := u.Where("id = ?", invite.InvitationId).First(&invitationUser).Error; err != nil {
-		return nil, err
-	}
-	uvo, err := u.genUserResourceVo(invite.ID)
-	if err != nil {
-		return nil, err
-	}
-
-	result.UserResourceVo = uvo
-
-	return result, nil
-}
-
-func (u *userServiceImpl) genUserResourceVo(inviteId uint) (*vo.UserResourceVo, error) {
-	uvo := new(vo.UserResourceVo)
-	// get invite resource info
-	var sharedGroup []entity.SharedNodeGroup
-	if err := u.Model(&entity.SharedNodeGroup{}).Where("invite_id = ?", inviteId).Find(&sharedGroup).Error; err != nil {
-		return nil, err
-	}
-
-	if sharedGroup != nil {
-		groupResourceVo := new(vo.GroupResourceVo)
-		uvo.GroupResourceVo = groupResourceVo
-
-		//var groupValues []*vo.ResourceValue
-		groupValues := make(map[string]string, 1)
-		for _, group := range sharedGroup {
-			groupValues[fmt.Sprintf("%d", group.GroupId)] = group.GroupName
-		}
-		groupResourceVo.GroupValues = groupValues
-	}
-
-	// shared node
-	var sharedNode []entity.SharedNode
-	if err := u.Model(&entity.SharedNode{}).Where("invite_id = ?", inviteId).Find(&sharedNode).Error; err != nil {
-		return nil, err
-	}
-
-	if sharedNode != nil {
-		nodeResourceVo := new(vo.NodeResourceVo)
-		uvo.NodeResourceVo = nodeResourceVo
-		nodeValues := make(map[string]string, 1)
-		for _, node := range sharedNode {
-			nodeValues[fmt.Sprintf("%d", node.NodeId)] = node.NodeName
-		}
-
-		nodeResourceVo.NodeValues = nodeValues
-	}
-
-	// shared policy
-	var sharedPolicy []entity.SharedPolicy
-	if err := u.Model(&entity.SharedPolicy{}).Where("invite_id = ?", inviteId).Find(&sharedPolicy).Error; err != nil {
-		return nil, err
-	}
-
-	if sharedPolicy != nil {
-		policyResourceVo := new(vo.PolicyResourceVo)
-		uvo.PolicyResourceVo = policyResourceVo
-		policyValues := make(map[string]string, 1)
-		for _, policy := range sharedPolicy {
-			policyValues[fmt.Sprintf("%d", policy.PolicyId)] = policy.PolicyName
-		}
-
-		policyResourceVo.PolicyValues = policyValues
-	}
-
-	// share label
-	var sharedLabel []entity.SharedLabel
-	if err := u.Model(&entity.SharedLabel{}).Where("invite_id = ?", inviteId).Find(&sharedLabel).Error; err != nil {
-		return nil, err
-	}
-
-	if sharedLabel != nil {
-		labelResourceVo := new(vo.LabelResourceVo)
-		uvo.LabelResourceVo = labelResourceVo
-		labelValues := make(map[string]string, 1)
-		for _, label := range sharedLabel {
-			labelValues[fmt.Sprintf("%d", label.LabelId)] = label.LabelName
-		}
-
-		labelResourceVo.LabelValues = labelValues
-	}
-
-	// shared permissions
-	var sharedPermissions []entity.UserResourceGrantedPermission
-	if err := u.Model(&entity.UserResourceGrantedPermission{}).Where("invite_id = ?", inviteId).Find(&sharedPermissions).Error; err != nil {
-		return nil, err
-	}
-
-	if sharedPermissions != nil {
-		permissionResourceVo := new(vo.PermissionResourceVo)
-		uvo.PermissionResourceVo = permissionResourceVo
-		permissionValues := make(map[string]string, 1)
-		for _, sharedPermission := range sharedPermissions {
-			if (permissionValues[fmt.Sprintf("%d", sharedPermission.PermissionId)]) != "" {
-				continue
-			}
-			permissionValues[fmt.Sprintf("%d", sharedPermission.PermissionId)] = sharedPermission.PermissionText
-		}
-
-		permissionResourceVo.PermissionValues = permissionValues
-	}
-
-	return uvo, nil
-}
+//func (u *userServiceImpl) GetInvite(ctx context.Context, id string) (*vo.InviteVo, error) {
+//	result := new(vo.InviteVo)
+//	var invite entity.InviteEntity
+//	if err := u.Where("id = ?", id).First(&invite).Error; err != nil {
+//		return nil, err
+//	}
+//
+//	var inviteUser, invitationUser entity.User
+//	if err := u.Where("id = ?", invite.InviterId).First(&inviteUser).Error; err != nil {
+//		return nil, err
+//	}
+//
+//	if err := u.Where("id = ?", invite.InvitationId).First(&invitationUser).Error; err != nil {
+//		return nil, err
+//	}
+//	uvo, err := u.genUserResourceVo(invite.ID)
+//	if err != nil {
+//		return nil, err
+//	}
+//
+//	result.UserResourceVo = uvo
+//
+//	return result, nil
+//}
 
 func addResourcePermission(tx *gorm.DB, inviteId uint, dto *dto.InviteDto) error {
 
@@ -586,7 +491,7 @@ func addResourcePermission(tx *gorm.DB, inviteId uint, dto *dto.InviteDto) error
 	}
 
 	// update invite permissinos
-	if err := tx.Model(&entity.Invites{}).Where("id = ?", inviteId).Update("permissions", strings.Join(allNames, ",")).Error; err != nil {
+	if err := tx.Model(&entity.InviteEntity{}).Where("id = ?", inviteId).Update("permissions", strings.Join(allNames, ",")).Error; err != nil {
 		return err
 	}
 
@@ -649,10 +554,10 @@ func (u *userServiceImpl) CancelInvite(id string) error {
 	return u.DB.Transaction(func(tx *gorm.DB) error {
 		//delete role &  permissions
 
-		var invite entity.Invites
+		var invite entity.InviteEntity
 
 		var err error
-		if err = tx.Model(&entity.Invites{}).Where("id = ?", id).Find(&invite).Update("accept_status", entity.Canceled).Error; err != nil {
+		if err = tx.Model(&entity.InviteEntity{}).Where("id = ?", id).Find(&invite).Update("accept_status", entity.Canceled).Error; err != nil {
 			return err
 		}
 
@@ -665,10 +570,10 @@ func (u *userServiceImpl) DeleteInvite(id string) error {
 	return u.DB.Transaction(func(tx *gorm.DB) error {
 		//delete role &  permissions
 
-		var invite entity.Invites
+		var invite entity.InviteEntity
 
 		var err error
-		if err = tx.Model(&entity.Invites{}).Where("id = ?", id).Find(&invite).Delete(&entity.Invites{}).Error; err != nil {
+		if err = tx.Model(&entity.InviteEntity{}).Where("id = ?", id).Find(&invite).Delete(&entity.InviteEntity{}).Error; err != nil {
 			return err
 		}
 
@@ -690,8 +595,8 @@ func getGroupNames(tx *gorm.DB, ids []uint) string {
 	return utils.Join(result, ",")
 }
 
-func (u *userServiceImpl) GetInvitation(userId, email string) (*entity.Invitation, error) {
-	var inv entity.Invitation
+func (u *userServiceImpl) GetInvitation(userId, email string) (*entity.InvitationEntity, error) {
+	var inv entity.InvitationEntity
 	if err := u.Where("invitation_id = ? AND email = ?", userId, email).First(&inv).Error; err != nil {
 		return nil, err
 	}
@@ -701,10 +606,10 @@ func (u *userServiceImpl) GetInvitation(userId, email string) (*entity.Invitatio
 func (u *userServiceImpl) UpdateInvitation(dto *dto.InvitationDto) error {
 	return u.DB.Transaction(func(tx *gorm.DB) error {
 		var (
-			inv entity.Invitation
+			inv entity.InvitationEntity
 			err error
 		)
-		if err = tx.Model(&entity.Invitation{}).Where("id = ?", dto.ID).Find(&inv).Update("accept_status", dto.AcceptStatus).Error; err != nil {
+		if err = tx.Model(&entity.InvitationEntity{}).Where("id = ?", dto.ID).Find(&inv).Update("accept_status", dto.AcceptStatus).Error; err != nil {
 			return err
 		}
 
@@ -737,9 +642,9 @@ func (u *userServiceImpl) UpdateInvitation(dto *dto.InvitationDto) error {
 
 func (u *userServiceImpl) RejectInvitation(id uint) error {
 	return u.DB.Transaction(func(tx *gorm.DB) error {
-		var inv entity.Invitation
+		var inv entity.InvitationEntity
 		var err error
-		if err = tx.Model(&entity.Invitation{}).Where("invite_id = ?", id).Find(&inv).Update("accept_status", entity.Rejected).Error; err != nil {
+		if err = tx.Model(&entity.InvitationEntity{}).Where("invite_id = ?", id).Find(&inv).Update("accept_status", entity.Rejected).Error; err != nil {
 			return err
 		}
 		return updateResourcePermission(tx, id, entity.Rejected)
@@ -748,9 +653,9 @@ func (u *userServiceImpl) RejectInvitation(id uint) error {
 
 func (u *userServiceImpl) AcceptInvitation(id uint) error {
 	return u.DB.Transaction(func(tx *gorm.DB) error {
-		var inv entity.Invitation
+		var inv entity.InvitationEntity
 		var err error
-		if err = tx.Model(&entity.Invitation{}).Where("invite_id = ?", id).Find(&inv).Update("accept_status", entity.Accept).Error; err != nil {
+		if err = tx.Model(&entity.InvitationEntity{}).Where("invite_id = ?", id).Find(&inv).Update("accept_status", entity.Accept).Error; err != nil {
 			return err
 		}
 
@@ -790,12 +695,12 @@ func updateResourcePermission(tx *gorm.DB, inviteId uint, status entity.AcceptSt
 
 	switch status {
 	case entity.Canceled:
-		if err = tx.Model(&entity.Invitation{}).Where("invite_id = ?", inviteId).Update("accept_status", entity.Canceled).Error; err != nil {
+		if err = tx.Model(&entity.InvitationEntity{}).Where("invite_id = ?", inviteId).Update("accept_status", entity.Canceled).Error; err != nil {
 			return err
 		}
 	default:
 		// update invite table
-		if err = tx.Model(&entity.Invites{}).Where("id = ?", inviteId).Update("accept_status", status).Error; err != nil {
+		if err = tx.Model(&entity.InviteEntity{}).Where("id = ?", inviteId).Update("accept_status", status).Error; err != nil {
 			return err
 		}
 	}
@@ -834,29 +739,87 @@ func deleteResourcePermission(tx *gorm.DB, inviteId uint) error {
 	return nil
 }
 
-func (u *userServiceImpl) ListInvites(params *dto.InvitationParams) (*vo.PageVo, error) {
+func (u *userServiceImpl) ListInvitesEntity(params *dto.InvitationParams) (*vo.PageVo, error) {
 
-	var invs []*entity.Invites
+	var invs []*entity.InviteEntity
 	result := new(vo.PageVo)
 	sql, wrappers := utils.Generate(params)
 	db := u.DB
 	if sql != "" {
-		db = u.Model(&entity.Invites{}).Where(sql, wrappers)
+		db = u.Model(&entity.InviteEntity{}).Where(sql, wrappers)
 	}
 
-	if err := db.Model(&entity.Invites{}).Count(&result.Total).Offset((params.Page - 1) * params.Size).Limit(params.Size).Find(&invs).Error; err != nil {
+	if err := db.Model(&entity.InviteEntity{}).Preload("SharedGroups").Preload("SharedNodes").Preload("SharedPolicies").Preload("SharedLabels").Count(&result.Total).Offset((params.Page - 1) * params.Size).Limit(params.Size).Find(&invs).Error; err != nil {
 		return nil, err
 	}
 
 	var insVos []*vo.InviteVo
 
-	var inviteIds []uint
+	//var inviteIds []uint
 	for _, inv := range invs {
-		var err error
-		inviteIds = append(inviteIds, inv.ID)
-		uvo, err := u.genUserResourceVo(inv.ID)
-		if err != nil {
-			return nil, err
+		uvo := new(vo.UserResourceVo)
+
+		//group resource vo
+		if len(inv.SharedGroups) > 0 {
+			groupResourceVo := new(vo.GroupResourceVo)
+			uvo.GroupResourceVo = groupResourceVo
+
+			//var groupValues []*vo.ResourceValue
+			groupValues := make(map[string]string, 1)
+			for _, group := range inv.SharedGroups {
+				groupValues[fmt.Sprintf("%d", group.GroupId)] = group.GroupName
+			}
+			groupResourceVo.GroupValues = groupValues
+		}
+
+		if len(inv.SharedNodes) > 0 {
+			// node resource vo
+			nodeResourceVo := new(vo.NodeResourceVo)
+			uvo.NodeResourceVo = nodeResourceVo
+
+			nodeValues := make(map[string]string, 1)
+			for _, node := range inv.SharedNodes {
+				nodeValues[fmt.Sprintf("%d", node.NodeId)] = node.NodeName
+			}
+			nodeResourceVo.NodeValues = nodeValues
+		}
+
+		if len(inv.SharedPolicies) > 0 {
+			// policy resource vo
+			policyResourceVo := new(vo.PolicyResourceVo)
+			uvo.PolicyResourceVo = policyResourceVo
+
+			policyValues := make(map[string]string, 1)
+			for _, policy := range inv.SharedPolicies {
+				policyValues[fmt.Sprintf("%d", policy.PolicyId)] = policy.PolicyName
+			}
+			policyResourceVo.PolicyValues = policyValues
+		}
+
+		if len(inv.SharedLabels) > 0 {
+			// label resource vo
+			labelResourceVo := new(vo.LabelResourceVo)
+			uvo.LabelResourceVo = labelResourceVo
+
+			labelValues := make(map[string]string, 1)
+			for _, label := range inv.SharedLabels {
+				labelValues[fmt.Sprintf("%d", label.LabelId)] = label.LabelName
+			}
+			labelResourceVo.LabelValues = labelValues
+		}
+
+		if len(inv.SharedPermissions) > 0 {
+			permissionResourceVo := new(vo.PermissionResourceVo)
+			uvo.PermissionResourceVo = permissionResourceVo
+			permissionValues := make(map[string]string, 1)
+			for _, sharedPermission := range inv.SharedPermissions {
+				if (permissionValues[fmt.Sprintf("%d", sharedPermission.PermissionId)]) != "" {
+					continue
+				}
+				permissionValues[fmt.Sprintf("%d", sharedPermission.PermissionId)] = sharedPermission.PermissionText
+			}
+
+			permissionResourceVo.PermissionValues = permissionValues
 		}
 
 		insVo := &vo.InviteVo{
@@ -885,19 +848,19 @@ func (u *userServiceImpl) ListInvites(params *dto.InvitationParams) (*vo.PageVo,
 }
 
 func (u *userServiceImpl) ListInvitations(params *dto.InvitationParams) (*vo.PageVo, error) {
-	var invs []*entity.Invitation
+	var invs []*entity.InvitationEntity
 	result := new(vo.PageVo)
 	db := u.DB
 	sql, wrappers := utils.Generate(params)
 	if sql != "" {
-		db = u.Model(&entity.Invitation{}).Where(sql, wrappers)
+		db = u.Model(&entity.InvitationEntity{}).Where(sql, wrappers)
 	}
 
-	if err := db.Model(&entity.Invitation{}).Count(&result.Total).Error; err != nil {
+	if err := db.Model(&entity.InvitationEntity{}).Count(&result.Total).Error; err != nil {
 		return nil, err
 	}
 
-	if err := u.Model(&entity.Invitation{}).Offset((params.Page - 1) * params.Size).Limit(params.Size).Find(&invs).Error; err != nil {
+	if err := u.Model(&entity.InvitationEntity{}).Offset((params.Page - 1) * params.Size).Limit(params.Size).Find(&invs).Error; err != nil {
 		return nil, err
 	}
 

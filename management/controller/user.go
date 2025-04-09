@@ -43,9 +43,9 @@ func (u *UserController) Invite(dto *dto.InviteDto) error {
 	return u.userService.Invite(dto)
 }
 
-func (u *UserController) GetInvite(ctx context.Context, id string) (*vo.InviteVo, error) {
-	return u.userService.GetInvite(ctx, id)
-}
+//func (u *UserController) GetInvite(ctx context.Context, id string) (*vo.InviteVo, error) {
+//	return u.userService.GetInvite(ctx, id)
+//}
 
 func (u *UserController) UpdateInvite(ctx context.Context, dto *dto.InviteDto) error {
 	return u.userService.UpdateInvite(ctx, dto)
@@ -67,7 +67,7 @@ func (u *UserController) AcceptInvitation(id uint) error {
 	return u.userService.AcceptInvitation(id)
 }
 
-func (u *UserController) GetInvitation(userId, email string) (*entity.Invitation, error) {
+func (u *UserController) GetInvitation(userId, email string) (*entity.InvitationEntity, error) {
 	return u.userService.GetInvitation(userId, email)
 }
 
@@ -76,7 +76,7 @@ func (u *UserController) UpdateInvitation(dto *dto.InvitationDto) error {
 }
 
 func (u *UserController) ListUserInvites(params *dto.InvitationParams) (*vo.PageVo, error) {
-	return u.userService.ListInvites(params)
+	return u.userService.ListInvitesEntity(params)
 }
 
 func (u *UserController) ListUserInvitations(params *dto.InvitationParams) (*vo.PageVo, error) {

@@ -52,6 +52,7 @@ type SharedNode struct {
 	gorm.Model
 	UserId       uint
 	NodeId       uint
+	Node         Node `gorm:"foreignKey:NodeId"`
 	NodeName     string
 	OwnerId      uint
 	InviteId     uint
@@ -59,6 +60,8 @@ type SharedNode struct {
 	Description  string
 	GrantedAt    utils.NullTime
 	RevokedAt    utils.NullTime
+
+	NodeLabels []NodeLabel `gorm:"foreignKey:NodeId;references:NodeId"`
 }
 
 func (SharedNode) TableName() string {

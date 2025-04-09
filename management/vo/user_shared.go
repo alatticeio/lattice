@@ -32,10 +32,16 @@ type SharedNodeVo struct {
 	ID          uint      `json:"id"`
 	UserId      uint      `json:"userId"`
 	NodeId      uint      `json:"nodeId"`
+	AppId       string    `json:"appId"`
+	Address     string    `json:"address"`
+	Name        string    `json:"name"`
 	OwnerId     uint      `json:"ownerId"`
 	Description string    `json:"description"`
 	GrantedAt   time.Time `json:"grantedAt"`
 	RevokedAt   time.Time `json:"revokedAt"`
+
+	*LabelResourceVo
+	NodeLabels []NodeLabelVo
 }
 
 type SharedLabelVo struct {

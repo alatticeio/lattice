@@ -6,8 +6,8 @@ import (
 	"time"
 )
 
-// Invites invites invite others
-type Invites struct {
+// InviteEntity invites invite others
+type InviteEntity struct {
 	gorm.Model
 	InvitationId       int64 // invitation user id
 	InvitationUsername string
@@ -23,17 +23,26 @@ type Invites struct {
 	AcceptStatus       AcceptStatus
 	InvitedAt          time.Time
 	CanceledAt         utils.NullTime
+
+	// gorm Has Many
+	SharedGroups      []SharedNodeGroup               `gorm:"foreignKey:InviteId"`
+	SharedNodes       []SharedNode                    `gorm:"foreignKey:InviteId"`
+	SharedPolicies    []SharedPolicy                  `gorm:"foreignKey:InviteId"`
+	SharedLabels      []SharedLabel                   `gorm:"foreignKey:InviteId"`
+	SharedPermissions []UserResourceGrantedPermission `gorm:"foreignKey:InviteId"`
 }
 
-// Invitation user invite other join its network
-type Invitation struct {
+// InvitationEntity user invite other join its network
+type InvitationEntity struct {
 	gorm.Model
 	InvitationId uint // invitation user id
 	InviteeId    uint // inviter user id
+	//belongs to User
+	User         User `gorm:"foreignKey:InviteeId"`
 	inviterName  string
 	inviteeName  string
 	AcceptStatus AcceptStatus //
-	InviteId     uint         //relate to Invite table
+	InviteId     uint         //relate to InviteEntity table
 	Group        string
 	GroupIds     string
 	Role         string
@@ -44,11 +53,11 @@ type Invitation struct {
 	RejectAt     utils.NullTime
 }
 
-func (i *Invites) TableName() string {
+func (i *InviteEntity) TableName() string {
 	return "la_user_invites"
 }
 
-func (i *Invitation) TableName() string {
+func (i *InvitationEntity) TableName() string {
 	return "la_user_invitations"
 }
 

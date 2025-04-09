@@ -1,5 +1,10 @@
 package dto
 
+import (
+	"linkany/management/utils"
+	"linkany/management/vo"
+)
+
 type GroupPolicyDto struct {
 	ID          uint   `json:"id,string"`
 	GroupId     uint   `json:"groupId,string"`
@@ -17,4 +22,22 @@ type GroupPolicyParams struct {
 type SharedGroupParams struct {
 	UserId uint `json:"userId" form:"userId"`
 	GroupParams
+}
+
+type SharedNodeParams struct {
+	vo.PageModel
+}
+
+func (p *SharedNodeParams) Generate() []*utils.KeyValue {
+	var result []*utils.KeyValue
+
+	if p.Page == 0 {
+		p.Page = utils.PageNo
+	}
+
+	if p.Size == 0 {
+		p.Size = utils.PageSize
+	}
+
+	return result
 }

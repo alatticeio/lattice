@@ -15,3 +15,13 @@ type LabelVo struct {
 	UpdatedBy   string         `json:"updatedBy"`
 	Description string         `json:"description"`
 }
+
+// NodeLabelVo Node label relation
+type NodeLabelVo struct {
+	ModelVo
+	NodeId    uint
+	LabelId   uint
+	LabelName string
+	CreatedBy string
+	UpdatedBy string
+}

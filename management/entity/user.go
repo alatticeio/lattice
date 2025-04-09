@@ -17,16 +17,6 @@ type User struct {
 	Gender   int    `json:"gender,omitempty"`
 }
 
-//// SharedNodeGroup give a user groups permit
-//type SharedNodeGroup struct {
-//	gorm.Model
-//	OwnerId     uint
-//	UserId      uint
-//	NodeGroupId uint
-//	NodeGroup   NodeGroup // belong to which group
-//	Description string
-//}
-
 // UserResourceGrantedPermission a user's permission which granted by owner. focus on the resources created by owner.
 // resource level
 type UserResourceGrantedPermission struct {

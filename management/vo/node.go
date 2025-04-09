@@ -49,6 +49,12 @@ func NewNodeResourceVo() *NodeResourceVo {
 	}
 }
 
+func NewLabelResourceVo() *LabelResourceVo {
+	return &LabelResourceVo{
+		LabelValues: make(map[string]string, 1),
+	}
+}
+
 type NodeVo struct {
 	ID                  uint              `json:"id,string"`
 	Name                string            `json:"name,omitempty"`
