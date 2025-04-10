@@ -75,12 +75,12 @@ func (u *UserController) UpdateInvitation(dto *dto.InvitationDto) error {
 	return u.userService.UpdateInvitation(dto)
 }
 
-func (u *UserController) ListUserInvites(params *dto.InvitationParams) (*vo.PageVo, error) {
-	return u.userService.ListInvitesEntity(params)
+func (u *UserController) ListUserInvites(ctx context.Context, params *dto.InvitationParams) (*vo.PageVo, error) {
+	return u.userService.ListInvitesEntity(ctx, params)
 }
 
-func (u *UserController) ListUserInvitations(params *dto.InvitationParams) (*vo.PageVo, error) {
-	return u.userService.ListInvitations(params)
+func (u *UserController) ListUserInvitations(ctx context.Context, params *dto.InvitationParams) (*vo.PageVo, error) {
+	return u.userService.ListInvitations(ctx, params)
 }
 
 // Permit module

@@ -48,6 +48,7 @@ type SharedLabelVo struct {
 	ID          uint      `json:"id"`
 	UserId      uint      `json:"userId"`
 	LabelId     uint      `json:"labelId"`
+	LabelName   string    `json:"labelName"`
 	OwnerId     uint      `json:"ownerId"`
 	Description string    `json:"description"`
 	GrantedAt   time.Time `json:"grantedAt"`

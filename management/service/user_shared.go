@@ -3,12 +3,13 @@ package service
 import (
 	"context"
 	"fmt"
-	"gorm.io/gorm"
 	"linkany/management/dto"
 	"linkany/management/entity"
 	"linkany/management/utils"
 	"linkany/management/vo"
 	"linkany/pkg/log"
+
+	"gorm.io/gorm"
 )
 
 type SharedService interface {
@@ -22,7 +23,9 @@ type SharedService interface {
 	AddNodeToGroup(ctx context.Context, dto *dto.NodeGroupDto) error
 	AddPolicyToGroup(ctx context.Context, dto *dto.NodeGroupDto) error
 	ListGroups(ctx context.Context, params *dto.SharedGroupParams) (*vo.PageVo, error)
+	ListPolicies(ctx context.Context, params *dto.SharedPolicyParams) (*vo.PageVo, error)
 	ListNodes(ctx context.Context, params *dto.SharedNodeParams) (*vo.PageVo, error)
+	ListLabels(ctx context.Context, params *dto.SharedLabelParams) (*vo.PageVo, error)
 
 	// Shared Policy
 	GetSharedPolicy(ctx context.Context, id string) (*vo.SharedPolicyVo, error)
@@ -328,7 +331,7 @@ func (s *shareServiceImpl) ListGroups(ctx context.Context, params *dto.SharedGro
 		db = s.DB.Where(sql, wrappers...)
 	}
 
-	if err = db.Model(&entity.SharedNodeGroup{}).Preload("GroupNodes").Preload("GroupPolicies").Count(&result.Total).Offset(params.Size * (params.Page - 1)).Limit(params.Size).Find(&groups).Error; err != nil {
+	if err = db.Model(&entity.SharedNodeGroup{}).Preload("GroupNodes").Preload("GroupPolicies").Where("user_id = ?", utils.GetUserIdFromCtx(ctx)).Count(&result.Total).Offset(params.Size * (params.Page - 1)).Limit(params.Size).Find(&groups).Error; err != nil {
 		return nil, err
 	}
 
@@ -402,7 +405,7 @@ func (s *shareServiceImpl) ListNodes(ctx context.Context, params *dto.SharedNode
 		db = s.DB.Where(sql, wrappers...)
 	}
 
-	if err = db.Model(&entity.SharedNode{}).Preload("Node").Preload("NodeLabels").Count(&result.Total).Offset(params.Size * (params.Page - 1)).Limit(params.Size).Find(&nodes).Error; err != nil {
+	if err = db.Model(&entity.SharedNode{}).Preload("Node").Preload("NodeLabels").Where("user_id = ?", utils.GetUserIdFromCtx(ctx)).Count(&result.Total).Offset(params.Size * (params.Page - 1)).Limit(params.Size).Find(&nodes).Error; err != nil {
 		return nil, err
 	}
 
@@ -439,6 +442,103 @@ func (s *shareServiceImpl) ListNodes(ctx context.Context, params *dto.SharedNode
 	}
 
 	result.Data = nodeVos
+	result.Page = params.Page
+	result.Size = params.Size
+
+	return result, nil
+}
+
+func (s *shareServiceImpl) ListPolicies(ctx context.Context, params *dto.SharedPolicyParams) (*vo.PageVo, error) {
+	var (
+		err       error
+		policies  []entity.SharedPolicy
+		db        *gorm.DB
+		policyVos []*vo.SharedPolicyVo
+	)
+
+	result := new(vo.PageVo)
+	db = s.DB
+
+	sql, wrappers := utils.GenerateSql(params)
+	if sql != "" {
+		db = s.DB.Where(sql, wrappers...)
+	}
+
+	if err = db.Model(&entity.SharedPolicy{}).Where("user_id = ?", utils.GetUserIdFromCtx(ctx)).Count(&result.Total).Offset(params.Size * (params.Page - 1)).Limit(params.Size).Find(&policies).Error; err != nil {
+		return nil, err
+	}
+
+	for _, policy := range policies {
+		sharedPolicyVo := &vo.SharedPolicyVo{
+			ID:          policy.ID,
+			UserId:      policy.UserId,
+			PolicyId:    policy.PolicyId,
+			OwnerId:     policy.OwnerId,
+			Description: policy.Description,
+			GrantedAt:   policy.GrantedAt.Time,
+			RevokedAt:   policy.RevokedAt.Time,
+		}
+
+		//labelResrouceVo := vo.NewLabelResourceVo()
+		//sharedPolicyVo. = labelResrouceVo
+
+		//if len(node.NodeLabels) > 0 {
+		//	sharedNodeVo.NodeLabels = make([]vo.NodeLabelVo, 0)
+		//	for _, label := range node.NodeLabels {
+		//		sharedNodeVo.NodeLabels = append(sharedNodeVo.NodeLabels, vo.NodeLabelVo{
+		//			LabelId:   label.LabelId,
+		//			LabelName: label.LabelName,
+		//		})
+		//
+		//		labelResrouceVo.LabelValues[fmt.Sprintf("%d", label.LabelId)] = label.LabelName // for tom-select show, use policyId as key
+		//	}
+		//}
+
+		policyVos = append(policyVos, sharedPolicyVo)
+	}
+
+	result.Data = policyVos
+	result.Page = params.Page
+	result.Size = params.Size
+
+	return result, nil
+}
+
+func (s *shareServiceImpl) ListLabels(ctx context.Context, params *dto.SharedLabelParams) (*vo.PageVo, error) {
+	var (
+		err      error
+		labels   []entity.SharedLabel
+		db       *gorm.DB
+		labelVos []*vo.SharedLabelVo
+	)
+
+	result := new(vo.PageVo)
+	db = s.DB
+
+	sql, wrappers := utils.GenerateSql(params)
+	if sql != "" {
+		db = s.DB.Where(sql, wrappers...)
+	}
+
+	if err = db.Model(&entity.SharedLabel{}).Where("user_id = ?", utils.GetUserIdFromCtx(ctx)).Count(&result.Total).Offset(params.Size * (params.Page - 1)).Limit(params.Size).Find(&labels).Error; err != nil {
+		return nil, err
+	}
+
+	for _, label := range labels {
+		labelVos = append(labelVos, &vo.SharedLabelVo{
+			ID:          label.ID,
+			UserId:      label.UserId,
+			LabelId:     label.LabelId,
+			LabelName:   label.LabelName,
+			OwnerId:     label.OwnerId,
+			Description: label.Description,
+			GrantedAt:   label.GrantedAt.Time,
+			RevokedAt:   label.RevokedAt.Time,
+		})
+
+	}
+
+	result.Data = labelVos
 	result.Page = params.Page
 	result.Size = params.Size
 

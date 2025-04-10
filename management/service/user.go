@@ -41,10 +41,10 @@ type UserService interface {
 	AcceptInvitation(id uint) error
 
 	//ListInvitations list user invite from others
-	ListInvitations(params *dto.InvitationParams) (*vo.PageVo, error)
+	ListInvitations(ctx context.Context, params *dto.InvitationParams) (*vo.PageVo, error)
 
 	//listInvites user invite others list
-	ListInvitesEntity(params *dto.InvitationParams) (*vo.PageVo, error)
+	ListInvitesEntity(ctx context.Context, params *dto.InvitationParams) (*vo.PageVo, error)
 
 	// User Permit
 	//UserPermission grants a user permission to access a resource
@@ -409,7 +409,7 @@ func addResourcePermission(tx *gorm.DB, inviteId uint, dto *dto.InviteDto) error
 		allNames = append(allNames, names...)
 
 		var labels []entity.Label
-		if err = tx.Model(&entity.Label{}).Where("id in ?", dto.NodeIdList).Find(&labels).Error; err != nil {
+		if err = tx.Model(&entity.Label{}).Where("id in ?", dto.LabelIdList).Find(&labels).Error; err != nil {
 			return err
 		}
 
@@ -739,7 +739,7 @@ func deleteResourcePermission(tx *gorm.DB, inviteId uint) error {
 	return nil
 }
 
-func (u *userServiceImpl) ListInvitesEntity(params *dto.InvitationParams) (*vo.PageVo, error) {
+func (u *userServiceImpl) ListInvitesEntity(ctx context.Context, params *dto.InvitationParams) (*vo.PageVo, error) {
 
 	var invs []*entity.InviteEntity
 	result := new(vo.PageVo)
@@ -749,7 +749,7 @@ func (u *userServiceImpl) ListInvitesEntity(params *dto.InvitationParams) (*vo.P
 		db = u.Model(&entity.InviteEntity{}).Where(sql, wrappers)
 	}
 
-	if err := db.Model(&entity.InviteEntity{}).Preload("SharedGroups").Preload("SharedNodes").Preload("SharedPolicies").Preload("SharedLabels").Count(&result.Total).Offset((params.Page - 1) * params.Size).Limit(params.Size).Find(&invs).Error; err != nil {
+	if err := db.Model(&entity.InviteEntity{}).Preload("SharedGroups").Preload("SharedNodes").Preload("SharedPolicies").Preload("SharedLabels").Preload("SharedPermissions").Where("inviter_id = ?", utils.GetUserIdFromCtx(ctx)).Count(&result.Total).Offset((params.Page - 1) * params.Size).Limit(params.Size).Find(&invs).Error; err != nil {
 		return nil, err
 	}
 
@@ -766,9 +766,17 @@ func (u *userServiceImpl) ListInvitesEntity(params *dto.InvitationParams) (*vo.P
 
 			//var groupValues []*vo.ResourceValue
 			groupValues := make(map[string]string, 1)
+			var groupNames []string
+			var groupIds []string
 			for _, group := range inv.SharedGroups {
 				groupValues[fmt.Sprintf("%d", group.GroupId)] = group.GroupName
+				groupNames = append(groupNames, group.GroupName)
+				groupIds = append(groupIds, fmt.Sprintf("%d", group.ID))
 			}
+
+			inv.Group = strings.Join(groupNames, ",")
+			inv.GroupIds = strings.Join(groupIds, ",")
+
 			groupResourceVo.GroupValues = groupValues
 		}
 
@@ -812,12 +820,16 @@ func (u *userServiceImpl) ListInvitesEntity(params *dto.InvitationParams) (*vo.P
 			permissionResourceVo := new(vo.PermissionResourceVo)
 			uvo.PermissionResourceVo = permissionResourceVo
 			permissionValues := make(map[string]string, 1)
+			var permissionNames []string
 			for _, sharedPermission := range inv.SharedPermissions {
 				if (permissionValues[fmt.Sprintf("%d", sharedPermission.PermissionId)]) != "" {
 					continue
 				}
+				permissionNames = append(permissionNames, sharedPermission.PermissionText)
 				permissionValues[fmt.Sprintf("%d", sharedPermission.PermissionId)] = sharedPermission.PermissionText
 			}
+
+			inv.Permissions = strings.Join(permissionNames, ",")
 
 			permissionResourceVo.PermissionValues = permissionValues
 		}
@@ -847,7 +859,7 @@ func (u *userServiceImpl) ListInvitesEntity(params *dto.InvitationParams) (*vo.P
 	return result, nil
 }
 
-func (u *userServiceImpl) ListInvitations(params *dto.InvitationParams) (*vo.PageVo, error) {
+func (u *userServiceImpl) ListInvitations(ctx context.Context, params *dto.InvitationParams) (*vo.PageVo, error) {
 	var invs []*entity.InvitationEntity
 	result := new(vo.PageVo)
 	db := u.DB
@@ -860,7 +872,7 @@ func (u *userServiceImpl) ListInvitations(params *dto.InvitationParams) (*vo.Pag
 		return nil, err
 	}
 
-	if err := u.Model(&entity.InvitationEntity{}).Offset((params.Page - 1) * params.Size).Limit(params.Size).Find(&invs).Error; err != nil {
+	if err := u.Model(&entity.InvitationEntity{}).Where("invitation_id = ?", utils.GetUserIdFromCtx(ctx)).Offset((params.Page - 1) * params.Size).Limit(params.Size).Find(&invs).Error; err != nil {
 		return nil, err
 	}
 

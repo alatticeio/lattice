@@ -24,11 +24,47 @@ type SharedGroupParams struct {
 	GroupParams
 }
 
+type SharedPolicyParams struct {
+	vo.PageModel
+}
+
 type SharedNodeParams struct {
 	vo.PageModel
 }
 
+type SharedLabelParams struct {
+	vo.PageModel
+}
+
 func (p *SharedNodeParams) Generate() []*utils.KeyValue {
+	var result []*utils.KeyValue
+
+	if p.Page == 0 {
+		p.Page = utils.PageNo
+	}
+
+	if p.Size == 0 {
+		p.Size = utils.PageSize
+	}
+
+	return result
+}
+
+func (p *SharedPolicyParams) Generate() []*utils.KeyValue {
+	var result []*utils.KeyValue
+
+	if p.Page == 0 {
+		p.Page = utils.PageNo
+	}
+
+	if p.Size == 0 {
+		p.Size = utils.PageSize
+	}
+
+	return result
+}
+
+func (p *SharedLabelParams) Generate() []*utils.KeyValue {
 	var result []*utils.KeyValue
 
 	if p.Page == 0 {

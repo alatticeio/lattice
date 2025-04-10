@@ -232,41 +232,76 @@ func (g *groupServiceImpl) DeleteGroup(ctx context.Context, id string) error {
 }
 
 func (g *groupServiceImpl) ListGroups(ctx context.Context, params *dto.GroupParams) (*vo.PageVo, error) {
-	var nodeGroups []entity.NodeGroup
+	var (
+		err      error
+		groups   []entity.NodeGroup
+		db       *gorm.DB
+		groupVos []*vo.NodeGroupVo
+	)
 
 	result := new(vo.PageVo)
-	sql, wrappers := utils.Generate(params)
-	db := g.DB
+	db = g.DB
+
+	sql, wrappers := utils.GenerateSql(params)
 	if sql != "" {
-		db = db.Where(sql, wrappers)
+		db = g.DB.Where(sql, wrappers...)
 	}
 
-	g.logger.Verbosef("sql: %s, wrappers: %v", sql, wrappers)
-	if err := db.Model(&entity.NodeGroup{}).Count(&result.Total).Offset((params.Page - 1) * params.Size).Limit(params.Size).Find(&nodeGroups).Error; err != nil {
+	if err = db.Model(&entity.NodeGroup{}).Preload("GroupNodes").Preload("GroupPolicies").Count(&result.Total).Offset(params.Size * (params.Page - 1)).Limit(params.Size).Find(&groups).Error; err != nil {
 		return nil, err
 	}
 
-	var nodeVos []vo.Group
-	for _, group := range nodeGroups {
-		res, err := g.fetchNodeAndGroup(group.ID)
-		if err != nil {
-			return nil, err
+	for _, group := range groups {
+		groupVo := &vo.NodeGroupVo{
+			GroupRelationVo: nil,
+			ModelVo: vo.ModelVo{
+				ID:        group.ID,
+				CreatedAt: group.CreatedAt,
+				UpdatedAt: group.UpdatedAt,
+				DeletedAt: group.DeletedAt.Time,
+			},
+			Name:        group.Name,
+			NodeCount:   0,
+			Status:      group.Status.String(),
+			Description: group.Description,
 		}
-		nodeVos = append(nodeVos, vo.Group{
-			ID:              group.ID,
-			Name:            group.Name,
-			Description:     group.Description,
-			GroupRelationVo: res,
-			CreatedAt:       group.CreatedAt,
-			DeletedAt:       group.DeletedAt,
-			UpdatedAt:       group.UpdatedAt,
-			CreatedBy:       group.CreatedBy,
-			UpdatedBy:       group.UpdatedBy,
-		})
+
+		groupRelationVo := vo.NewGroupRelationVo()
+		groupVo.GroupRelationVo = groupRelationVo
+
+		// fill group nodes
+		if len(group.GroupNodes) > 0 {
+			groupVo.GroupNodes = make([]vo.GroupNodeVo, 0)
+			for _, node := range group.GroupNodes {
+				groupVo.GroupNodes = append(groupVo.GroupNodes, vo.GroupNodeVo{
+					NodeId:   node.NodeId,
+					NodeName: node.NodeName,
+				})
+				groupVo.NodeCount++
+				groupRelationVo.NodeValues[fmt.Sprintf("%d", node.NodeId)] = node.NodeName // for tom-select show, use nodeId as key
+			}
+
+		}
+
+		// fill group policies
+		if len(group.GroupPolicies) > 0 {
+			groupVo.GroupPolicies = make([]vo.GroupPolicyVo, 0)
+			for _, policy := range group.GroupPolicies {
+				groupVo.GroupPolicies = append(groupVo.GroupPolicies, vo.GroupPolicyVo{
+					PolicyId:   policy.PolicyId,
+					PolicyName: policy.PolicyName,
+				})
+				groupVo.NodeCount++
+
+				groupRelationVo.PolicyValues[fmt.Sprintf("%d", policy.PolicyId)] = policy.PolicyName // for tom-select show, use policyId as key
+			}
+		}
+
+		groupVos = append(groupVos, groupVo)
+
 	}
 
-	result.Data = nodeVos
-	result.Current = params.Page
+	result.Data = groupVos
 	result.Page = params.Page
 	result.Size = params.Size
 

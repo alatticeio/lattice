@@ -271,7 +271,7 @@ func (s *Server) listInvitations() gin.HandlerFunc {
 			WriteError(c.JSON, err.Error())
 			return
 		}
-		invitations, err := s.userController.ListUserInvitations(&params)
+		invitations, err := s.userController.ListUserInvitations(c, &params)
 		if err != nil {
 			WriteError(c.JSON, err.Error())
 			return
@@ -288,7 +288,7 @@ func (s *Server) listInvites() gin.HandlerFunc {
 			WriteError(c.JSON, err.Error())
 			return
 		}
-		invites, err := s.userController.ListUserInvites(&params)
+		invites, err := s.userController.ListUserInvites(c, &params)
 		if err != nil {
 			WriteError(c.JSON, err.Error())
 			return

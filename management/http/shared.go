@@ -21,8 +21,10 @@ func (s *Server) RegisterSharedRoutes() {
 	userGroup.POST("/invite/:inviteId/group/:groupId/policy/:policyId", s.addPolicyToGroup())
 
 	// list
-	userGroup.GET("/group/list", s.listSharedGroups())
-	userGroup.GET("/node/list", s.listSharedNodes())
+	userGroup.GET("/group/list", s.tokenFilter(), s.listSharedGroups())
+	userGroup.GET("/node/list", s.tokenFilter(), s.listSharedNodes())
+	userGroup.GET("/policy/list", s.tokenFilter(), s.listSharedPolicies())
+	userGroup.GET("/label/list", s.tokenFilter(), s.listSharedLabels())
 	// userGroup.POST("/invite/:inviteId/group/:groupId/label/:labelId", s.addLabelToGroup())
 	// userGroup.POST("/invite/:inviteId/group/:groupId", s.addGroup())
 	// userGroup.POST("/invite/:inviteId/label/:labelId", s.addLabel())
@@ -237,6 +239,42 @@ func (s *Server) listSharedNodes() gin.HandlerFunc {
 		}
 
 		pageVo, err := s.sharedController.ListNodes(c, &params)
+		if err != nil {
+			WriteError(c.JSON, err.Error())
+			return
+		}
+		WriteOK(c.JSON, pageVo)
+	}
+}
+
+func (s *Server) listSharedLabels() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var params dto.SharedLabelParams
+
+		if err := c.ShouldBindQuery(&params); err != nil {
+			WriteError(c.JSON, err.Error())
+			return
+		}
+
+		pageVo, err := s.sharedController.ListLabels(c, &params)
+		if err != nil {
+			WriteError(c.JSON, err.Error())
+			return
+		}
+		WriteOK(c.JSON, pageVo)
+	}
+}
+
+func (s *Server) listSharedPolicies() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var params dto.SharedPolicyParams
+
+		if err := c.ShouldBindQuery(&params); err != nil {
+			WriteError(c.JSON, err.Error())
+			return
+		}
+
+		pageVo, err := s.sharedController.ListPolicies(c, &params)
 		if err != nil {
 			WriteError(c.JSON, err.Error())
 			return

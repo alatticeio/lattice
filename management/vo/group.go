@@ -9,6 +9,20 @@ type GroupNodeVo struct {
 	CreatedBy string `gorm:"column:created_by;size:64" json:"createdBy"`
 }
 
+type NodeGroupVo struct {
+	*GroupRelationVo
+	ModelVo
+	Name        string `json:"name"`
+	NodeCount   int    `json:"nodeCount"`
+	Status      string `json:"status"`
+	Description string `json:"description"`
+	CreatedBy   string `json:"createdBy"`
+	UpdatedBy   string `json:"updatedBy"`
+
+	GroupNodes    []GroupNodeVo   `json:"groupNodes"` // for tom-select show
+	GroupPolicies []GroupPolicyVo `json:"groupPolicies"`
+}
+
 type GroupPolicyVo struct {
 	ModelVo
 	GroupId     uint   `json:"groupId,string"`
