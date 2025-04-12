@@ -10,6 +10,7 @@ import (
 	"linkany/management/entity"
 	"linkany/management/utils"
 	"linkany/management/vo"
+	"linkany/pkg/linkerrors"
 	"linkany/pkg/log"
 )
 
@@ -33,7 +34,7 @@ type AccessPolicyService interface {
 	ListPolicyRules(ctx context.Context, params *dto.AccessPolicyRuleParams) (*vo.PageVo, error)
 
 	// Access control
-	CheckAccess(ctx context.Context, resourceType utils.ResourceType, resourceId uint, action string) (bool, error)
+	CheckAccess(ctx context.Context, resourceType utils.ResourceType, resourceId string, action string) (bool, error)
 	BatchCheckAccess(ctx context.Context, requests []AccessRequest) ([]AccessResult, error)
 
 	// Audit log
@@ -233,7 +234,7 @@ func (a accessPolicyServiceImpl) ListPolicyRules(ctx context.Context, params *dt
 	return result, nil
 }
 
-func (a accessPolicyServiceImpl) CheckAccess(ctx context.Context, resourceType utils.ResourceType, resourceId uint, action string) (bool, error) {
+func (a accessPolicyServiceImpl) CheckAccess(ctx context.Context, resourceType utils.ResourceType, resourceId string, action string) (bool, error) {
 	var (
 		err   error
 		count int64
@@ -243,8 +244,8 @@ func (a accessPolicyServiceImpl) CheckAccess(ctx context.Context, resourceType u
 	//check whether resource is own
 	switch resourceType {
 	case utils.Group:
-		var group entity.NodeGroup
-		if err = a.Model(&entity.NodeGroup{}).Where("id = ?", resourceId).Find(&group).Error; err != nil {
+		var group entity.SharedNodeGroup
+		if err = a.Model(&entity.SharedNodeGroup{}).Where("group_id = ?", resourceId).Find(&group).Error; err != nil {
 			return false, err
 		}
 
@@ -252,8 +253,8 @@ func (a accessPolicyServiceImpl) CheckAccess(ctx context.Context, resourceType u
 			return true, nil
 		}
 	case utils.Policy:
-		var policy entity.NodeGroup
-		if err = a.Model(&entity.AccessPolicy{}).Where("id = ?", resourceId).Find(&policy).Error; err != nil {
+		var policy entity.SharedPolicy
+		if err = a.Model(&entity.SharedPolicy{}).Where("policy_id = ?", resourceId).Find(&policy).Error; err != nil {
 			return false, err
 		}
 
@@ -262,8 +263,8 @@ func (a accessPolicyServiceImpl) CheckAccess(ctx context.Context, resourceType u
 		}
 
 	case utils.Node:
-		var node entity.NodeGroup
-		if err = a.Model(&entity.Node{}).Where("id = ?", resourceId).Find(&node).Error; err != nil {
+		var node entity.SharedNode
+		if err = a.Model(&entity.SharedNode{}).Where("node_id = ?", resourceId).Find(&node).Error; err != nil {
 			return false, err
 		}
 
@@ -272,8 +273,8 @@ func (a accessPolicyServiceImpl) CheckAccess(ctx context.Context, resourceType u
 		}
 
 	case utils.Label:
-		var label entity.Label
-		if err = a.Model(&entity.Label{}).Where("id = ?", resourceId).Find(&label).Error; err != nil {
+		var label entity.SharedLabel
+		if err = a.Model(&entity.SharedLabel{}).Where("label_id = ?", resourceId).Find(&label).Error; err != nil {
 			return false, err
 		}
 
@@ -283,7 +284,7 @@ func (a accessPolicyServiceImpl) CheckAccess(ctx context.Context, resourceType u
 
 	case utils.Rule:
 		var rule entity.AccessRule
-		if err = a.Model(&entity.AccessRule{}).Where("id = ?", resourceId).Find(&rule).Error; err != nil {
+		if err = a.Model(&entity.AccessRule{}).Where("rule_id = ?", resourceId).Find(&rule).Error; err != nil {
 			return false, err
 		}
 
@@ -304,7 +305,7 @@ func (a accessPolicyServiceImpl) CheckAccess(ctx context.Context, resourceType u
 
 	//check whether user has permission
 	if count == 0 {
-		return false, errors.New("no permission")
+		return false, linkerrors.ErrNoAccessPermissions
 	}
 
 	return true, nil

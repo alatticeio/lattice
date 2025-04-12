@@ -251,6 +251,14 @@ func (u *userServiceImpl) UpdateInvite(ctx context.Context, dto *dto.InviteDto) 
 			return err
 		}
 
+		// get user from username for invitee
+		var invitationUser entity.User
+		if err = tx.Model(&entity.User{}).Where("username = ?", dto.InviteeName).First(&invitationUser).Error; err != nil {
+			return err
+		}
+
+		dto.InvitationId = invitationUser.ID
+
 		// insert into user granted permissions
 		return updateResources(tx, dto.ID, dto)
 	})
@@ -480,7 +488,7 @@ func addResourcePermission(tx *gorm.DB, inviteId uint, dto *dto.InviteDto) error
 				OwnerId:          sharedGroup.OwnerId,
 				InvitationId:     sharedGroup.UserId,
 				InviteId:         inviteId,
-				ResourceId:       sharedGroup.ID,
+				ResourceId:       sharedGroup.GroupId,
 				PermissionTexts:  names,
 				PermissionValues: values,
 				PermissionIds:    ids,
@@ -534,7 +542,7 @@ func createResourcePermission(params *createPermissonParams) error {
 // getActualPermission return names, values, ids, err
 func getActualPermission(tx *gorm.DB, resType utils.ResourceType, dto *dto.InviteDto) ([]string, []string, []uint, error) {
 	var permissions []entity.Permissions
-	if err := tx.Model(&entity.Permissions{}).Where("id in ? and permission_type = ?", dto.PermissionIdList, resType).Find(&permissions).Error; err != nil {
+	if err := tx.Model(&entity.Permissions{}).Where("id in ? and permission_type = ?", dto.PermissionIdList, resType.String()).Find(&permissions).Error; err != nil {
 		return nil, nil, nil, err
 	}
 
@@ -868,27 +876,17 @@ func (u *userServiceImpl) ListInvitations(ctx context.Context, params *dto.Invit
 		db = u.Model(&entity.InvitationEntity{}).Where(sql, wrappers)
 	}
 
-	if err := db.Model(&entity.InvitationEntity{}).Count(&result.Total).Error; err != nil {
-		return nil, err
-	}
-
-	if err := u.Model(&entity.InvitationEntity{}).Where("invitation_id = ?", utils.GetUserIdFromCtx(ctx)).Offset((params.Page - 1) * params.Size).Limit(params.Size).Find(&invs).Error; err != nil {
+	if err := db.Model(&entity.InvitationEntity{}).Preload("User").Where("invitation_id = ?", utils.GetUserIdFromCtx(ctx)).Count(&result.Total).Offset((params.Page - 1) * params.Size).Limit(params.Size).Find(&invs).Error; err != nil {
 		return nil, err
 	}
 
 	var insVos []*vo.InvitationVo
 	for _, inv := range invs {
-		var inviteUser entity.User
-		var err error
-		if err = db.Model(&entity.User{}).Where("id = ?", inv.InviteeId).First(&inviteUser).Error; err != nil {
-			return nil, err
-		}
-
 		insVo := &vo.InvitationVo{
 			ID:            uint64(inv.ID),
 			Group:         inv.Group,
-			InviterName:   inviteUser.Username,
-			InviterAvatar: inviteUser.Avatar,
+			InviterName:   inv.User.Username,
+			InviterAvatar: inv.User.Avatar,
 			InviteId:      inv.InviteId,
 			Role:          inv.Role,
 			AcceptStatus:  inv.AcceptStatus.String(),

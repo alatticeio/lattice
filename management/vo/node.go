@@ -76,5 +76,5 @@ type NodeVo struct {
 	Port                int               `json:"port"`
 	Status              entity.NodeStatus `json:"status"`
 	GroupName           string            `json:"groupName"`
-	LabelValues         map[string]string `json:"labelValues"`
+	*LabelResourceVo
 }

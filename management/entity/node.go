@@ -43,6 +43,9 @@ type Node struct {
 	Pwd                 string     `gorm:"column:pwd;size:50" json:"pwd"`
 	Port                int        `gorm:"column:port" json:"port"`
 	Status              NodeStatus `gorm:"column:status" json:"status"`
+
+	Group      GroupNode   `gorm:"foreignKey:GroupId;"`
+	NodeLabels []NodeLabel `gorm:"foreignKey:NodeId;"`
 }
 
 type ListNode struct {

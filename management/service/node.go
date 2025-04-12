@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"linkany/management/dto"
@@ -182,7 +181,7 @@ func (p *nodeServiceImpl) GetById(id uint) (*entity.Node, error) {
 
 // List params will filter
 func (p *nodeServiceImpl) ListNodes(params *dto.QueryParams) (*vo.PageVo, error) {
-	var nodes []*entity.ListNode
+	var nodes []*entity.Node
 	result := new(vo.PageVo)
 	var sql string
 	var wrappers []interface{}
@@ -193,33 +192,14 @@ func (p *nodeServiceImpl) ListNodes(params *dto.QueryParams) (*vo.PageVo, error)
 		sql, wrappers = utils.Generate(params)
 	}
 
-	if err := p.Model(&entity.Node{}).Where(sql, wrappers...).Count(&result.Total).Error; err != nil {
-		return nil, err
-	}
-
 	p.logger.Verbosef("sql: %s, wrappers: %v", sql, wrappers)
-	if err := p.Model(&entity.Node{}).
-		Select("la_node.*, la_group_node.group_name, JSON_OBJECTAGG(IFNULL(la_node_label.label_id, ''),IFNULL(la_node_label.label_name, '')) AS labels ").
-		Joins("left join la_group_node on la_node.id = la_group_node.node_id AND la_group_node.deleted_at IS NULL left join la_node_label on la_node.id = la_node_label.node_Id AND la_node_label.deleted_at IS NULL").
-		Where("user_id = ?", params.UserId).
-		Group("la_node.id, la_group_node.group_name").
-		Offset((params.Page - 1) * params.Size).
-		Limit(params.Size).
-		Find(&nodes).Error; err != nil {
+	if err := p.Model(&entity.Node{}).Preload("NodeLabels").Preload("Group").Where(sql, wrappers...).Count(&result.Total).Find(&nodes).Error; err != nil {
 		return nil, err
 	}
 
 	var vos []*vo.NodeVo
 	for _, node := range nodes {
-		var labelValue map[string]string
-		if node.LabelName != `{"": ""}` {
-			// 解析 JSON
-			err := json.Unmarshal([]byte(node.LabelName), &labelValue)
-			if err != nil {
-				p.logger.Errorf("JSON parsing error： %s", err.Error())
-			}
-		}
-		vos = append(vos, &vo.NodeVo{
+		nodeVo := &vo.NodeVo{
 			ID:                  node.ID,
 			Name:                node.Name,
 			Description:         node.Description,
@@ -238,9 +218,19 @@ func (p *nodeServiceImpl) ListNodes(params *dto.QueryParams) (*vo.PageVo, error)
 			Pwd:                 node.Pwd,
 			Port:                node.Port,
 			Status:              node.Status,
-			GroupName:           node.GroupName,
-			LabelValues:         labelValue,
-		})
+			//GroupName:           node.GroupName,
+			//LabelValues:         labelValue,
+		}
+
+		if node.NodeLabels != nil {
+			labelResourceVo := new(vo.LabelResourceVo)
+			labelResourceVo.LabelValues = make(map[string]string, 1)
+			nodeVo.LabelResourceVo = labelResourceVo
+			for _, label := range node.NodeLabels {
+				labelResourceVo.LabelValues[fmt.Sprintf("%d", label.LabelId)] = label.LabelName
+			}
+		}
+		vos = append(vos, nodeVo)
 	}
 
 	result.Data = vos
@@ -251,7 +241,7 @@ func (p *nodeServiceImpl) ListNodes(params *dto.QueryParams) (*vo.PageVo, error)
 	return result, nil
 }
 
-// List params will filter
+// QueryNodes params will filter
 func (p *nodeServiceImpl) QueryNodes(params *dto.QueryParams) ([]*vo.NodeVo, error) {
 	var nodes []*entity.Node
 	var sql string
@@ -603,11 +593,11 @@ func (p *nodeServiceImpl) GetGroupNode(ctx context.Context, ID string) (*entity.
 
 // Node Label
 func (p *nodeServiceImpl) AddNodeLabel(ctx context.Context, dto *dto.NodeLabelUpdateReq) error {
-	if len(dto.LabelEditData.Value) > 0 {
-		for i := 0; i < len(dto.LabelEditData.Value); i++ {
-			dto.LabelIds = strings.ReplaceAll(dto.LabelIds, dto.LabelEditData.Value[i], "")
-		}
-	}
+	//if len(dto.LabelEditData.Value) > 0 {
+	//	for i := 0; i < len(dto.LabelEditData.Value); i++ {
+	//		dto.LabelIds = strings.ReplaceAll(dto.LabelIds, dto.LabelEditData.Value[i], "")
+	//	}
+	//}
 	needAddLabelId := strings.Split(dto.LabelIds, ",")
 	if len(needAddLabelId) == 0 {
 		return nil

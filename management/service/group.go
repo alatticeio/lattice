@@ -137,12 +137,9 @@ func updateGroupData(ctx context.Context, tx *gorm.DB, dto *dto.NodeGroupDto) (*
 		UpdatedBy:   dto.UpdatedBy,
 	}
 
-	if err := tx.Model(&entity.NodeGroup{}).Where("id = ?", dto.ID).Updates(group).Error; err != nil {
+	if err := tx.Model(&entity.NodeGroup{}).Where("id = ?", dto.ID).Updates(group).Find(group).Error; err != nil {
 		return nil, err
 	}
-
-	// should add to
-	group.ID = dto.ID
 
 	return group, nil
 }

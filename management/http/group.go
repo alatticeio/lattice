@@ -13,13 +13,13 @@ func (s *Server) RegisterGroupRoutes() {
 
 	// group policy
 	nodeGroup.GET("/policy/list", s.tokenFilter(), s.listGroupPolicies())
-	nodeGroup.DELETE("/:id/policy/:policyId", s.tokenFilter(), s.authFilter(), s.deleteGroupPolicy())
-	nodeGroup.DELETE("/:id/node/:nodeId", s.tokenFilter(), s.authFilter(), s.deleteGroupNode())
+	nodeGroup.DELETE("/:id/policy/:policyId", s.tokenFilter(), s.deleteGroupPolicy())
+	nodeGroup.DELETE("/:id/node/:nodeId", s.tokenFilter(), s.deleteGroupNode())
 
 	// node group
 	nodeGroup.GET("/:id", s.tokenFilter(), s.GetNodeGroup())
-	nodeGroup.POST("/a", s.tokenFilter(), s.authFilter(), s.createGroup())
-	nodeGroup.PUT("/u", s.tokenFilter(), s.authFilter(), s.updateGroup())
+	nodeGroup.POST("/a", s.tokenFilter(), s.createGroup())
+	nodeGroup.PUT("/u", s.tokenFilter(), s.updateGroup())
 	nodeGroup.DELETE("/:id", s.tokenFilter(), s.authFilter(), s.deleteGroup())
 	nodeGroup.GET("/list", s.tokenFilter(), s.listGroups())
 	nodeGroup.GET("/q", s.tokenFilter(), s.queryGroups())
@@ -143,8 +143,8 @@ func (s *Server) createGroup() gin.HandlerFunc {
 func (s *Server) updateGroup() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var nodeGroupDto dto.NodeGroupDto
-		if err := c.ShouldBind(&nodeGroupDto); err != nil {
-			c.JSON(client.BadRequest(err))
+		if err := c.ShouldBindJSON(&nodeGroupDto); err != nil {
+			WriteBadRequest(c.JSON, err.Error())
 			return
 		}
 
@@ -158,10 +158,10 @@ func (s *Server) updateGroup() gin.HandlerFunc {
 
 		err := s.groupController.UpdateGroup(c, &nodeGroupDto)
 		if err != nil {
-			c.JSON(client.InternalServerError(err))
+			WriteError(c.JSON, err.Error())
 			return
 		}
-		c.JSON(client.Success(nil))
+		WriteOK(c.JSON, nil)
 	}
 }
 

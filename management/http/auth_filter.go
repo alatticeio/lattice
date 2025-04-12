@@ -15,8 +15,8 @@ func (s *Server) authFilter() gin.HandlerFunc {
 		// TODO get role from header
 
 		action := c.GetHeader("action")
-		resourceType := c.GetHeader("resourceType")
-		resourceId := c.GetInt("resourceId")
+		resourceType := c.GetHeader("resource-type")
+		resourceId := c.GetHeader("resource-id")
 		var resType utils.ResourceType
 		switch resourceType {
 		case "group":
@@ -33,7 +33,7 @@ func (s *Server) authFilter() gin.HandlerFunc {
 			return
 		}
 		if action != "" {
-			b, err := s.accessController.CheckAccess(c, resType, uint(resourceId), action)
+			b, err := s.accessController.CheckAccess(c, resType, resourceId, action)
 			if !b || err != nil {
 				WriteForbidden(c.JSON, err.Error())
 				c.Abort()

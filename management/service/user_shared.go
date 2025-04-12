@@ -341,7 +341,9 @@ func (s *shareServiceImpl) ListGroups(ctx context.Context, params *dto.SharedGro
 			ModelVo: vo.ModelVo{
 				ID: group.ID,
 			},
+			GroupId:     group.GroupId,
 			Name:        group.GroupName,
+			InviteId:    group.InviteId,
 			NodeCount:   0,
 			Status:      group.AcceptStatus.String(),
 			Description: group.Description,
@@ -414,6 +416,7 @@ func (s *shareServiceImpl) ListNodes(ctx context.Context, params *dto.SharedNode
 			ID:          node.ID,
 			UserId:      node.UserId,
 			NodeId:      node.NodeId,
+			InviteId:    node.InviteId,
 			AppId:       node.Node.AppID,
 			Address:     node.Node.Address,
 			Name:        node.Node.Name,

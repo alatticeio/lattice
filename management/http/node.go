@@ -13,8 +13,8 @@ func (s *Server) RegisterNodeRoutes() {
 	nodeGroup.GET("/appId/:appId", s.tokenFilter(), s.getNodeByAppId())
 	nodeGroup.POST("/a", s.tokenFilter(), s.createAppId())
 	nodeGroup.POST("/", s.tokenFilter(), s.createNode())
-	nodeGroup.PUT("/", s.tokenFilter(), s.authFilter(), s.updateNode())
-	nodeGroup.DELETE("/:appId", s.tokenFilter(), s.authFilter(), s.deleteNode())
+	nodeGroup.PUT("/", s.tokenFilter(), s.updateNode())
+	nodeGroup.DELETE("/:appId", s.tokenFilter(), s.deleteNode())
 	nodeGroup.GET("/list", s.tokenFilter(), s.listNodes())
 	nodeGroup.GET("/q", s.tokenFilter(), s.queryNodes())
 
@@ -34,14 +34,14 @@ func (s *Server) RegisterNodeRoutes() {
 
 	// group node
 	nodeGroup.POST("/group/node", s.tokenFilter(), s.addGroupNode())
-	nodeGroup.DELETE("/group/node/:id", s.tokenFilter(), s.authFilter(), s.removeGroupNode())
+	nodeGroup.DELETE("/group/node/:id", s.tokenFilter(), s.removeGroupNode())
 	nodeGroup.GET("/group/node/:id", s.tokenFilter(), s.getGroupNode())
 	nodeGroup.GET("/group/node/list", s.tokenFilter(), s.listGroupNodes())
 	nodeGroup.GET("/group/node/q", s.tokenFilter(), s.queryNodes())
 
 	// node label
 	nodeGroup.POST("/label/node", s.tokenFilter(), s.addNodeLabel())
-	nodeGroup.DELETE("/label/node", s.tokenFilter(), s.authFilter(), s.removeNodeLabel())
+	nodeGroup.DELETE("/label/node", s.tokenFilter(), s.removeNodeLabel())
 	nodeGroup.GET("/label/node/list", s.tokenFilter(), s.listNodeLabels())
 
 }
@@ -125,13 +125,13 @@ func (s *Server) queryNodes() gin.HandlerFunc {
 
 func (s *Server) updateNode() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		var peerDto dto.NodeDto
-		if err := c.ShouldBindJSON(&peerDto); err != nil {
+		var nodeDto dto.NodeDto
+		if err := c.ShouldBind(&nodeDto); err != nil {
 			c.JSON(client.BadRequest(err))
 			return
 		}
 
-		peer, err := s.nodeController.Update(&peerDto)
+		peer, err := s.nodeController.Update(&nodeDto)
 		if err != nil {
 			c.JSON(client.InternalServerError(err))
 			return

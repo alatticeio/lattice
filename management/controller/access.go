@@ -42,7 +42,7 @@ func (a *AccessController) ListPolicyRules(ctx context.Context, params *dto.Acce
 }
 
 // AccessControl module
-func (a *AccessController) CheckAccess(ctx context.Context, resourceType utils.ResourceType, resourceId uint, action string) (bool, error) {
+func (a *AccessController) CheckAccess(ctx context.Context, resourceType utils.ResourceType, resourceId string, action string) (bool, error) {
 	return a.accessService.CheckAccess(ctx, resourceType, resourceId, action)
 }
 

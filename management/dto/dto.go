@@ -53,7 +53,7 @@ type InviteDto struct {
 	ID               uint
 	InviteeName      string
 	InviterName      string
-	InvitationId     int64
+	InvitationId     uint
 	InviteeId        int64
 	MobilePhone      string
 	Email            string
@@ -80,7 +80,7 @@ type InvitationDto struct {
 }
 
 type NodeGroupDto struct {
-	gorm.Model
+	ID          string `json:"id"`
 	Name        string `json:"name"`
 	Description string `json:"description"`
 	Owner       uint64 `json:"ownerId"`
