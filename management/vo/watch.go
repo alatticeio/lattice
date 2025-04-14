@@ -6,30 +6,106 @@ import (
 )
 
 // Message used to wrapper the message for watch
+/*
+  a node event message like:
+{
+	"code": 200,
+	"msg": "success",
+	"data": {
+		"drpUrl": "http://drp.linkany.io/drp",
+		"device": {
+			"privateKey": "mBngM2k7qWp9pVFGWMO0q1l7tiWjiIIAgsU/jwj+BHU=",
+			"publicKey": "3Hyx1Sbq0F9SZc6CUnmJ1pCPMgaAi6JRIxwoTrc1wSA=",
+			"address": "10.0.0.4",
+			"listenPort": 51820
+		},
+		"list": [{
+			"id": 1866305058815524900,
+			"instanceId": 1865958132886462500,
+			"userId": 1865418224707231700,
+			"name": null,
+			"hostname": "VM-4-3-opencloudos",
+			"appId": "64d583324d",
+			"insPrivateKey": null,
+			"insPublicKey": null,
+			"address": "10.0.0.4",
+			"endpoint": null,
+			"persistentKeepalive": 25,
+			"publicKey": "lFTblXWiDQTACHfiEqlJ6ORpBMCCiIGER1YgF729xVY=",
+			"privateKey": "gEJu/+pPlNa7CFANMvohx12iPf+/XUrpY+F39ntguEc=",
+			"allowedIPs": null,
+			"hostIp": null,
+			"srflxIp": null,
+			"relayIp": null,
+			"createDate": null
+		}]
+	}
+}
+*/
 type Message struct {
 	EventType    EventType
 	GroupMessage *GroupMessage
 }
 
 type GroupMessage struct {
-	GroupId       uint
-	GroupName     string
-	Nodes         []*NodeVo
-	PolicyMessaes []*PolicyMessage
+	GroupId   uint64
+	GroupName string
+	Nodes     []*NodeVo
+	Policies  []*PolicyMessage
 }
 
 type PolicyMessage struct {
-	PolicyId     uint
-	PolicyName   string
-	RuleMessages []*RuleMessage
+	PolicyId   uint64
+	PolicyName string
+	Rules      []*AccessRuleVo
 }
 
-type RuleMessage struct {
-	RuleId     uint
-	RuleName   string
-	RuleType   string
-	RuleValue  string
-	RuleAction string
+//type RuleMessageVo struct {
+//	RuleId     uint
+//	RuleName   string
+//	RuleType   string
+//	RuleValue  string
+//	RuleAction string
+//}
+
+func NewNodeMessage(eventType EventType, nodeVo []*NodeVo) *Message {
+	return &Message{
+		EventType: eventType,
+		GroupMessage: &GroupMessage{
+			Nodes: nodeVo,
+		},
+	}
+}
+
+func NewPolicyMessage(eventType EventType, groupName string, policyVos []*AccessPolicyVo) *Message {
+
+	var policyMessages []*PolicyMessage
+	for _, policyVo := range policyVos {
+		policyMessages = append(policyMessages, &PolicyMessage{
+			PolicyId:   policyVo.ID,
+			PolicyName: policyVo.Name,
+			Rules:      policyVo.Rules,
+		})
+	}
+
+	msg := &Message{
+		EventType: eventType,
+		GroupMessage: &GroupMessage{
+			GroupName: groupName,
+			Policies:  policyMessages,
+		},
+	}
+
+	return msg
+}
+
+func NewGroupMessage(eventType EventType, group NodeGroupVo) *Message {
+	return &Message{
+		EventType: eventType,
+		GroupMessage: &GroupMessage{
+			GroupName: group.Name,
+		},
+	}
 }
 
 type MessageConfig struct {

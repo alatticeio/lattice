@@ -8,8 +8,8 @@ type SharedNodeGroupVo struct {
 	*GroupRelationVo
 	ModelVo
 	Name        string `json:"name"`
-	GroupId     uint   `json:"groupId"`
-	InviteId    uint   `json:"inviteId"`
+	GroupId     uint64 `json:"groupId"`
+	InviteId    uint64 `json:"inviteId"`
 	NodeCount   int    `json:"nodeCount"`
 	Status      string `json:"status"`
 	Description string `json:"description"`
@@ -21,24 +21,24 @@ type SharedNodeGroupVo struct {
 }
 
 type SharedPolicyVo struct {
-	ID          uint      `json:"id"`
-	UserId      uint      `json:"userId"`
-	PolicyId    uint      `json:"policyId"`
-	OwnerId     uint      `json:"ownerId"`
+	ID          uint64    `json:"id"`
+	UserId      uint64    `json:"userId"`
+	PolicyId    uint64    `json:"policyId"`
+	OwnerId     uint64    `json:"ownerId"`
 	Description string    `json:"description"`
 	GrantedAt   time.Time `json:"grantedAt"`
 	RevokedAt   time.Time `json:"revokedAt"`
 }
 
 type SharedNodeVo struct {
-	ID          uint      `json:"id"`
-	UserId      uint      `json:"userId"`
-	InviteId    uint      `json:"inviteId"`
-	NodeId      uint      `json:"nodeId"`
+	ID          uint64    `json:"id"`
+	UserId      uint64    `json:"userId"`
+	InviteId    uint64    `json:"inviteId"`
+	NodeId      uint64    `json:"nodeId"`
 	AppId       string    `json:"appId"`
 	Address     string    `json:"address"`
 	Name        string    `json:"name"`
-	OwnerId     uint      `json:"ownerId"`
+	OwnerId     uint64    `json:"ownerId"`
 	Description string    `json:"description"`
 	GrantedAt   time.Time `json:"grantedAt"`
 	RevokedAt   time.Time `json:"revokedAt"`
@@ -48,11 +48,11 @@ type SharedNodeVo struct {
 }
 
 type SharedLabelVo struct {
-	ID          uint      `json:"id"`
-	UserId      uint      `json:"userId"`
-	LabelId     uint      `json:"labelId"`
+	ID          uint64    `json:"id"`
+	UserId      uint64    `json:"userId"`
+	LabelId     uint64    `json:"labelId"`
 	LabelName   string    `json:"labelName"`
-	OwnerId     uint      `json:"ownerId"`
+	OwnerId     uint64    `json:"ownerId"`
 	Description string    `json:"description"`
 	GrantedAt   time.Time `json:"grantedAt"`
 	RevokedAt   time.Time `json:"revokedAt"`

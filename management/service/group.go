@@ -4,22 +4,23 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"gorm.io/gorm"
 	"linkany/management/dto"
 	"linkany/management/entity"
 	"linkany/management/utils"
 	"linkany/management/vo"
 	"linkany/pkg/log"
+
+	"gorm.io/gorm"
 )
 
 type GroupService interface {
-	//Group
-	GetNodeGroup(ctx context.Context, id string) (*vo.Group, error)
+	//GroupVo
+	GetNodeGroup(ctx context.Context, id string) (*vo.GroupVo, error)
 	CreateGroup(ctx context.Context, dto *dto.NodeGroupDto) error
 	UpdateGroup(ctx context.Context, dto *dto.NodeGroupDto) error
 	DeleteGroup(ctx context.Context, id string) error
 	ListGroups(ctx context.Context, params *dto.GroupParams) (*vo.PageVo, error)
-	QueryGroups(ctx context.Context, params *dto.GroupParams) ([]*vo.Group, error)
+	QueryGroups(ctx context.Context, params *dto.GroupParams) ([]*vo.GroupVo, error)
 
 	ListGroupPolicy(ctx context.Context, params *dto.GroupPolicyParams) ([]*vo.GroupPolicyVo, error)
 	DeleteGroupPolicy(ctx context.Context, groupId uint, policyId uint) error
@@ -48,7 +49,7 @@ func NewGroupService(db *DatabaseService) GroupService {
 }
 
 // NodeGroup
-func (g *groupServiceImpl) GetNodeGroup(ctx context.Context, nodeId string) (*vo.Group, error) {
+func (g *groupServiceImpl) GetNodeGroup(ctx context.Context, nodeId string) (*vo.GroupVo, error) {
 	var (
 		group entity.NodeGroup
 		err   error
@@ -60,7 +61,7 @@ func (g *groupServiceImpl) GetNodeGroup(ctx context.Context, nodeId string) (*vo
 
 	res, err := g.fetchNodeAndGroup(group.ID)
 
-	return &vo.Group{
+	return &vo.GroupVo{
 		ID:          group.ID,
 		Name:        group.Name,
 		Description: group.Description,
@@ -169,13 +170,7 @@ func (g *groupServiceImpl) handleGP(ctx context.Context, tx *gorm.DB, dto *dto.N
 					}
 
 					// add push message
-					g.manager.Push(node.PublicKey, &vo.Message{
-						EventType: vo.EventTypeGroupAdd,
-						GroupMessage: &vo.GroupMessage{
-							GroupName: group.Name,
-							GroupId:   group.ID,
-						},
-					})
+					g.manager.Push(node.PublicKey, vo.NewNodeMessage(vo.EventTypeNodeAdd, []*vo.NodeVo{node.TransferToNodeVo()}))
 				}
 			}
 		}
@@ -305,7 +300,7 @@ func (g *groupServiceImpl) ListGroups(ctx context.Context, params *dto.GroupPara
 	return result, nil
 }
 
-func (g *groupServiceImpl) QueryGroups(ctx context.Context, params *dto.GroupParams) ([]*vo.Group, error) {
+func (g *groupServiceImpl) QueryGroups(ctx context.Context, params *dto.GroupParams) ([]*vo.GroupVo, error) {
 	var nodeGroups []entity.NodeGroup
 
 	sql, wrappers := utils.Generate(params)
@@ -319,13 +314,13 @@ func (g *groupServiceImpl) QueryGroups(ctx context.Context, params *dto.GroupPar
 		return nil, err
 	}
 
-	var nodeVos []*vo.Group
+	var nodeVos []*vo.GroupVo
 	for _, group := range nodeGroups {
 		res, err := g.fetchNodeAndGroup(group.ID)
 		if err != nil {
 			return nil, err
 		}
-		nodeVos = append(nodeVos, &vo.Group{
+		nodeVos = append(nodeVos, &vo.GroupVo{
 			ID:              group.ID,
 			Name:            group.Name,
 			Description:     group.Description,
@@ -341,7 +336,7 @@ func (g *groupServiceImpl) QueryGroups(ctx context.Context, params *dto.GroupPar
 	return nodeVos, nil
 }
 
-func (g *groupServiceImpl) fetchNodeAndGroup(groupId uint) (*vo.GroupRelationVo, error) {
+func (g *groupServiceImpl) fetchNodeAndGroup(groupId uint64) (*vo.GroupRelationVo, error) {
 	// query group node
 	var groupNodes []entity.GroupNode
 	var err error
@@ -418,13 +413,11 @@ func (g *groupServiceImpl) DeleteGroupNode(ctx context.Context, groupId uint, no
 			return err
 		}
 
-		g.manager.Push(node.PublicKey, &vo.Message{
-			EventType: vo.EventTypeGroupRemove,
-			GroupMessage: &vo.GroupMessage{
-				GroupId:   groupId,
-				GroupName: groupNode.GroupName,
+		g.manager.Push(node.PublicKey, vo.NewNodeMessage(
+			vo.EventTypeNodeRemove, []*vo.NodeVo{
+				node.TransferToNodeVo(),
 			},
-		})
+		))
 
 		return nil
 	})

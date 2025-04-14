@@ -11,6 +11,7 @@ import (
 	"linkany/management/entity"
 	"linkany/management/grpc/mgt"
 	"linkany/management/service"
+	"linkany/management/utils"
 	"linkany/management/vo"
 	"linkany/pkg/linkerrors"
 	"linkany/pkg/log"
@@ -47,28 +48,28 @@ type ServerConfig struct {
 }
 
 type RegistryRequest struct {
-	ID                  int64             `json:"id"`
-	UserID              int64             `json:"user_id"`
-	Name                string            `json:"name"`
-	Hostname            string            `json:"hostname"`
-	Description         string            `json:"description"`
-	AppID               string            `json:"app_id"`
-	Address             string            `json:"address"`
-	Endpoint            string            `json:"endpoint"`
-	PersistentKeepalive int               `json:"persistent_keepalive"`
-	PublicKey           string            `json:"public_key"`
-	PrivateKey          string            `json:"private_key"`
-	AllowedIPs          string            `json:"allowed_ips"`
-	RelayIP             string            `json:"relay_ip"`
-	TieBreaker          uint64            `json:"tie_breaker"`
-	UpdatedAt           time.Time         `json:"updated_at"`
-	DeletedAt           *time.Time        `json:"deleted_at"`
-	CreatedAt           time.Time         `json:"created_at"`
-	Ufrag               string            `json:"ufrag"`
-	Pwd                 string            `json:"pwd"`
-	Port                int               `json:"port"`
-	Status              entity.NodeStatus `json:"status"`
-	Token               string            `json:"token"`
+	ID                  int64            `json:"id"`
+	UserID              int64            `json:"user_id"`
+	Name                string           `json:"name"`
+	Hostname            string           `json:"hostname"`
+	Description         string           `json:"description"`
+	AppID               string           `json:"app_id"`
+	Address             string           `json:"address"`
+	Endpoint            string           `json:"endpoint"`
+	PersistentKeepalive int              `json:"persistent_keepalive"`
+	PublicKey           string           `json:"public_key"`
+	PrivateKey          string           `json:"private_key"`
+	AllowedIPs          string           `json:"allowed_ips"`
+	RelayIP             string           `json:"relay_ip"`
+	TieBreaker          uint64           `json:"tie_breaker"`
+	UpdatedAt           time.Time        `json:"updated_at"`
+	DeletedAt           *time.Time       `json:"deleted_at"`
+	CreatedAt           time.Time        `json:"created_at"`
+	Ufrag               string           `json:"ufrag"`
+	Pwd                 string           `json:"pwd"`
+	Port                int              `json:"port"`
+	Status              utils.NodeStatus `json:"status"`
+	Token               string           `json:"token"`
 }
 
 func NewServer(cfg *ServerConfig) *Server {
@@ -400,7 +401,7 @@ func (s *Server) pushWatchMessage(msg *vo.MessageConfig) {
 	}
 }
 
-func (s *Server) UpdateStatus(current *vo.NodeVo, status entity.NodeStatus) error {
+func (s *Server) UpdateStatus(current *vo.NodeVo, status utils.NodeStatus) error {
 	// update nodeVo online status
 	dtoParam := &dto.NodeDto{PublicKey: current.PublicKey, Status: status}
 	s.logger.Verbosef("update node status, publicKey: %v, status: %v", current.PublicKey, status)

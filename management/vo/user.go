@@ -6,7 +6,7 @@ import (
 )
 
 type UserVo struct {
-	ID          uint   `json:"id,string"`
+	ID          uint64 `json:"id,string"`
 	Username    string `json:"name,omitempty"`
 	Email       string `json:"email,omitempty"`
 	MobilePhone string `json:"mobilePhone,omitempty"`
@@ -36,7 +36,7 @@ type InvitationVo struct {
 	Group         string         `json:"group,omitempty"`
 	InviterName   string         `json:"inviterName,omitempty"`
 	InviterAvatar string         `json:"inviterAvatar,omitempty"`
-	InviteId      uint           `json:"inviteId,string"`
+	InviteId      uint64         `json:"inviteId,string"`
 	Role          string         `json:"role,omitempty"`
 	Permissions   string         `json:"permissions,omitempty"`
 	AcceptStatus  string         `json:"acceptStatus,omitempty"`

@@ -1,28 +1,29 @@
 package entity
 
 import (
-	"gorm.io/gorm"
 	"linkany/management/utils"
 	"time"
 )
 
-// InviteEntity invites invite others
-type InviteEntity struct {
-	gorm.Model
-	InvitationId       int64 // invitation user id
-	InvitationUsername string
-	InviterId          int64 // inviter user id
-	InviterUsername    string
-	MobilePhone        string
-	Email              string
-	Avatar             string
-	GroupIds           string
-	Group              string
-	Role               string
-	Permissions        string
-	AcceptStatus       AcceptStatus
-	InvitedAt          time.Time
-	CanceledAt         utils.NullTime
+// InviterEntity invites invite others
+type InviterEntity struct {
+	Model
+	InviteeId   uint64 // invitee user id
+	InviterId   uint64 // inviter user id
+	InviteeUser User   `gorm:"foreignKey:InviterId"`
+	InviterUser User   `gorm:"foreignKey:InviterId"`
+	//InviterUsername    string
+	//InvitationUsername string
+	//MobilePhone        string
+	//Email              string
+	//Avatar             string
+	GroupIds     string
+	Group        string
+	Role         string
+	Permissions  string
+	AcceptStatus AcceptStatus
+	InvitedAt    time.Time
+	CanceledAt   utils.NullTime
 
 	// gorm Has Many
 	SharedGroups      []SharedNodeGroup               `gorm:"foreignKey:InviteId"`
@@ -32,17 +33,17 @@ type InviteEntity struct {
 	SharedPermissions []UserResourceGrantedPermission `gorm:"foreignKey:InviteId"`
 }
 
-// InvitationEntity user invite other join its network
-type InvitationEntity struct {
-	gorm.Model
-	InvitationId uint // invitation user id
-	InviteeId    uint // inviter user id
+// InviteeEntity invitee data
+type InviteeEntity struct {
+	Model
+	InviteeId uint64 // invitation user id
+	InviterId uint64 // inviter user id
 	//belongs to User
-	User         User `gorm:"foreignKey:InviteeId"`
+	User         User `gorm:"foreignKey:InviterId"`
 	inviterName  string
 	inviteeName  string
 	AcceptStatus AcceptStatus //
-	InviteId     uint         //relate to InviteEntity table
+	InviteId     uint64       //relate to InviterEntity table
 	Group        string
 	GroupIds     string
 	Role         string
@@ -53,12 +54,12 @@ type InvitationEntity struct {
 	RejectAt     utils.NullTime
 }
 
-func (i *InviteEntity) TableName() string {
-	return "la_user_invites"
+func (i *InviterEntity) TableName() string {
+	return "la_user_inviters"
 }
 
-func (i *InvitationEntity) TableName() string {
-	return "la_user_invitations"
+func (i *InviteeEntity) TableName() string {
+	return "la_user_invitees"
 }
 
 type AcceptStatus int

@@ -210,7 +210,7 @@ func (s *Server) UpdateGroupMember() gin.HandlerFunc {
 			return
 		}
 
-		groupMember.ID, _ = strconv.ParseInt(id, 10, 64)
+		groupMember.ID, _ = strconv.ParseUint(id, 10, 64)
 		err := s.nodeController.UpdateGroupMember(c, &groupMember)
 		if err != nil {
 			c.JSON(client.InternalServerError(err))

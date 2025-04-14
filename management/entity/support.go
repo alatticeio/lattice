@@ -1,10 +1,8 @@
 package entity
 
-import "gorm.io/gorm"
-
 // Support is a entity for support
 type Support struct {
-	gorm.Model
+	Model
 	Name        string
 	Username    string
 	Description string

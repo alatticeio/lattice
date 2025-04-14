@@ -16,7 +16,7 @@ type AccessPolicyParams struct {
 
 type AccessPolicyRuleParams struct {
 	vo.PageModel
-	PolicyId   int64  `json:"policyId" form:"policyId"`
+	PolicyId   uint64 `json:"policyId" form:"policyId"`
 	SourceId   string `json:"sourceId" form:"sourceId"`
 	TargetId   string `json:"targetId" form:"targetId"`
 	SourceType string `json:"sourceType" form:"sourceType"`

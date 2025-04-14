@@ -59,15 +59,15 @@ func (u *UserController) DeleteInvite(id string) error {
 	return u.userService.DeleteInvite(id)
 }
 
-func (u *UserController) RejectInvitation(id uint) error {
+func (u *UserController) RejectInvitation(id uint64) error {
 	return u.userService.RejectInvitation(id)
 }
 
-func (u *UserController) AcceptInvitation(id uint) error {
+func (u *UserController) AcceptInvitation(id uint64) error {
 	return u.userService.AcceptInvitation(id)
 }
 
-func (u *UserController) GetInvitation(userId, email string) (*entity.InvitationEntity, error) {
+func (u *UserController) GetInvitation(userId, email string) (*entity.InviteeEntity, error) {
 	return u.userService.GetInvitation(userId, email)
 }
 
@@ -84,7 +84,7 @@ func (u *UserController) ListUserInvitations(ctx context.Context, params *dto.In
 }
 
 // Permit module
-func (u *UserController) Permit(userID uint, resource string, accessLevel string) error {
+func (u *UserController) Permit(userID uint64, resource string, accessLevel string) error {
 	return u.userService.Permit(userID, resource, accessLevel)
 }
 

@@ -37,7 +37,7 @@ type NodeService interface {
 	// Watch returns a channel that will be used to send the latest peers to the client
 	//Watch() (<-chan *entity.Node, error)
 
-	//Group memeber
+	//GroupVo memeber
 	AddGroupMember(ctx context.Context, dto *dto.GroupMemberDto) error
 	RemoveGroupMember(ctx context.Context, ID string) error
 	UpdateGroupMember(ctx context.Context, dto *dto.GroupMemberDto) error
@@ -51,7 +51,7 @@ type NodeService interface {
 	QueryLabels(ctx context.Context, params *dto.NodeLabelParams) ([]*vo.LabelVo, error)
 	GetLabel(ctx context.Context, id string) (*entity.Label, error)
 
-	//Group Node
+	//GroupVo Node
 	AddGroupNode(ctx context.Context, dto *dto.GroupNodeDto) error
 	RemoveGroupNode(ctx context.Context, id string) error
 	ListGroupNodes(ctx context.Context, params *dto.GroupNodeParams) (*vo.PageVo, error)
@@ -86,7 +86,7 @@ func (p *nodeServiceImpl) Register(e *dto.NodeDto) (*entity.Node, error) {
 
 	peer := &entity.Node{
 		Description:         e.Description,
-		UserID:              e.UserID,
+		UserId:              e.UserID,
 		Name:                e.Name,
 		Hostname:            e.Hostname,
 		AppID:               e.AppID,
@@ -122,7 +122,7 @@ func (p *nodeServiceImpl) CreateAppId(ctx context.Context) (*entity.Node, error)
 
 	peer := &entity.Node{
 		AppID:     utils.GenerateUUID(),
-		UserID:    userId.(uint),
+		UserId:    userId.(uint64),
 		CreatedBy: username.(string),
 	}
 
@@ -193,7 +193,7 @@ func (p *nodeServiceImpl) ListNodes(params *dto.QueryParams) (*vo.PageVo, error)
 	}
 
 	p.logger.Verbosef("sql: %s, wrappers: %v", sql, wrappers)
-	if err := p.Model(&entity.Node{}).Preload("NodeLabels").Preload("Group").Where(sql, wrappers...).Count(&result.Total).Find(&nodes).Error; err != nil {
+	if err := p.Model(&entity.Node{}).Preload("NodeLabels").Preload("GroupVo").Where(sql, wrappers...).Count(&result.Total).Find(&nodes).Error; err != nil {
 		return nil, err
 	}
 
@@ -204,7 +204,7 @@ func (p *nodeServiceImpl) ListNodes(params *dto.QueryParams) (*vo.PageVo, error)
 			Name:                node.Name,
 			Description:         node.Description,
 			CreatedBy:           node.CreatedBy,
-			UserID:              node.UserID,
+			UserId:              node.UserId,
 			Hostname:            node.Hostname,
 			AppID:               node.AppID,
 			Address:             node.Address,
@@ -265,7 +265,7 @@ func (p *nodeServiceImpl) QueryNodes(params *dto.QueryParams) ([]*vo.NodeVo, err
 			Name:                node.Name,
 			Description:         node.Description,
 			CreatedBy:           node.CreatedBy,
-			UserID:              node.UserID,
+			UserId:              node.UserId,
 			Hostname:            node.Hostname,
 			AppID:               node.AppID,
 			Address:             node.Address,
@@ -362,7 +362,7 @@ func (p *nodeServiceImpl) GetAddress() int64 {
 	return count
 }
 
-// Group Members
+// GroupVo Members
 func (p *nodeServiceImpl) AddGroupMember(ctx context.Context, dto *dto.GroupMemberDto) error {
 	if dto.Role != "admin" && dto.Role != "owner" && dto.Role != "member" {
 		return errors.New("invalid role")
@@ -539,7 +539,7 @@ func (p *nodeServiceImpl) GetLabel(ctx context.Context, id string) (*entity.Labe
 	return &label, nil
 }
 
-// Group Node
+// GroupVo Node
 func (p *nodeServiceImpl) AddGroupNode(ctx context.Context, dto *dto.GroupNodeDto) error {
 	groupNode := &entity.GroupNode{
 		GroupId:   dto.GroupID,
@@ -613,18 +613,18 @@ func (p *nodeServiceImpl) AddNodeLabel(ctx context.Context, dto *dto.NodeLabelUp
 		if label == nil {
 			return errors.New("invalid label")
 		}
-		labelId, err := strconv.Atoi(value)
+		labelId, err := strconv.ParseUint(value, 10, 64)
 		if err != nil {
 			return err
 		}
-		nodeId, err := strconv.Atoi(dto.Id)
+		nodeId, err := strconv.ParseUint(dto.Id, 10, 64)
 		if err != nil {
 			return err
 		}
 		nodeLabel := &entity.NodeLabel{
-			LabelId:   uint(labelId),
+			LabelId:   labelId,
 			LabelName: label.Label,
-			NodeId:    uint(nodeId),
+			NodeId:    nodeId,
 			CreatedBy: dto.CreatedBy,
 		}
 		if err := p.Create(nodeLabel).Error; err != nil {

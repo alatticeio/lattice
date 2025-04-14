@@ -125,8 +125,8 @@ func (p *GroupMemberParams) Generate() []*utils.KeyValue {
 
 type GroupNodeParams struct {
 	vo.PageModel
-	GroupID   uint   `json:"groupID"`
-	NodeId    uint   `json:"nodeId"`
+	GroupID   uint64 `json:"groupID"`
+	NodeId    uint64 `json:"nodeId"`
 	GroupName string `json:"groupName"`
 	NodeName  string `json:"nodeName"`
 	CreatedBy string `json:"createdBy"`

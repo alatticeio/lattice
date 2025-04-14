@@ -6,21 +6,21 @@ import (
 )
 
 type GroupPolicyDto struct {
-	ID          uint   `json:"id,string"`
-	GroupId     uint   `json:"groupId,string"`
-	PolicyId    uint   `json:"policyId,string"`
+	ID          uint64 `json:"id,string"`
+	GroupId     uint64 `json:"groupId,string"`
+	PolicyId    uint64 `json:"policyId,string"`
 	PolicyName  string `json:"policyName"`
 	Description string `json:"description"`
 }
 
 type GroupPolicyParams struct {
-	GroupId    uint   `json:"groupId" form:"groupId"`
-	PolicyId   uint   `json:"policyId" form:"policyId"`
+	GroupId    uint64 `json:"groupId" form:"groupId"`
+	PolicyId   uint64 `json:"policyId" form:"policyId"`
 	PolicyName string `json:"policyName" form:"policyName"`
 }
 
 type SharedGroupParams struct {
-	UserId uint `json:"userId" form:"userId"`
+	UserId uint64 `json:"userId" form:"userId"`
 	GroupParams
 }
 

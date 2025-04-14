@@ -53,7 +53,7 @@ func (p *NodeController) CreateAppId(ctx context.Context) (*entity.Node, error) 
 	return p.nodeService.CreateAppId(ctx)
 }
 
-// AddGroupMember Add Group Member
+// AddGroupMember Add GroupVo Member
 func (p *NodeController) AddGroupMember(ctx context.Context, dto *dto.GroupMemberDto) error {
 	return p.nodeService.AddGroupMember(ctx, dto)
 }
@@ -91,7 +91,7 @@ func (p *NodeController) GetLabel(ctx context.Context, id string) (*entity.Label
 	return p.nodeService.GetLabel(ctx, id)
 }
 
-// Group node
+// GroupVo node
 func (p *NodeController) AddGroupNode(ctx context.Context, dto *dto.GroupNodeDto) error {
 	return p.nodeService.AddGroupNode(ctx, dto)
 }

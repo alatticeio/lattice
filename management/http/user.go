@@ -233,12 +233,12 @@ func (s *Server) getInvitation() gin.HandlerFunc {
 func (s *Server) rejectInvitation() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id := c.Param("inviteId")
-		uid, err := strconv.Atoi(id)
+		uid, err := strconv.ParseUint(id, 10, 64)
 		if err != nil {
 			WriteError(c.JSON, err.Error())
 			return
 		}
-		if err := s.userController.RejectInvitation(uint(uid)); err != nil {
+		if err := s.userController.RejectInvitation(uid); err != nil {
 			WriteError(c.JSON, err.Error())
 			return
 		}
@@ -249,12 +249,12 @@ func (s *Server) rejectInvitation() gin.HandlerFunc {
 func (s *Server) acceptInvitation() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id := c.Param("inviteId")
-		uid, err := strconv.Atoi(id)
+		uid, err := strconv.ParseUint(id, 10, 64)
 		if err != nil {
 			WriteError(c.JSON, err.Error())
 			return
 		}
-		if err := s.userController.AcceptInvitation(uint(uid)); err != nil {
+		if err := s.userController.AcceptInvitation(uid); err != nil {
 			WriteError(c.JSON, err.Error())
 			return
 		}

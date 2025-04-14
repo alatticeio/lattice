@@ -4,19 +4,17 @@ import (
 	"linkany/management/entity"
 	"linkany/management/utils"
 	"linkany/management/vo"
-
-	"gorm.io/gorm"
 )
 
 type AppKeyDto struct {
-	gorm.Model
+	ID     uint64
 	AppKey string `json:"appKey"`
 	Status entity.ActiveStatus
 }
 
 type AppKeyParams struct {
 	vo.PageModel
-	UserId uint `json:"userId" form:"userId"`
+	UserId uint64 `json:"userId" form:"userId"`
 }
 
 func (p *AppKeyParams) Generate() []*utils.KeyValue {
@@ -39,10 +37,10 @@ func (p *AppKeyParams) Generate() []*utils.KeyValue {
 type UserSettingsDto struct {
 	AppKey     string
 	PlanType   string
-	NodeLimit  uint
-	NodeFree   uint
-	GroupLimit uint
-	GroupFree  uint
+	NodeLimit  uint64
+	NodeFree   uint64
+	GroupLimit uint64
+	GroupFree  uint64
 	FromDate   utils.NullTime
 	EndDate    utils.NullTime
 }

@@ -2,18 +2,16 @@ package entity
 
 import (
 	"linkany/management/utils"
-
-	"gorm.io/gorm"
 )
 
 // SharedNodeGroup is the entity that represents the shared group
 type SharedNodeGroup struct {
-	gorm.Model
-	UserId       uint
-	GroupId      uint
+	Model
+	UserId       uint64
+	GroupId      uint64
 	GroupName    string
-	OwnerId      uint `gorm:"column:owner_id;size:20" json:"ownerId"`
-	InviteId     uint
+	OwnerId      uint64 `gorm:"column:owner_id;size:20" json:"ownerId"`
+	InviteId     uint64
 	AcceptStatus AcceptStatus
 	Description  string
 	GrantedAt    utils.NullTime
@@ -30,12 +28,12 @@ func (SharedNodeGroup) TableName() string {
 
 // SharedPolicy is the entity that represents the shared policy
 type SharedPolicy struct {
-	gorm.Model
-	UserId       uint
-	PolicyId     uint
+	Model
+	UserId       uint64
+	PolicyId     uint64
 	PolicyName   string
-	OwnerId      uint
-	InviteId     uint
+	OwnerId      uint64
+	InviteId     uint64
 	Description  string
 	AcceptStatus AcceptStatus
 	GrantedAt    utils.NullTime
@@ -49,13 +47,13 @@ func (SharedPolicy) TableName() string {
 
 // SharedNode is the entity that represents the shared node
 type SharedNode struct {
-	gorm.Model
-	UserId       uint
-	NodeId       uint
+	Model
+	UserId       uint64
+	NodeId       uint64
 	Node         Node `gorm:"foreignKey:NodeId"`
 	NodeName     string
-	OwnerId      uint
-	InviteId     uint
+	OwnerId      uint64
+	InviteId     uint64
 	AcceptStatus AcceptStatus
 	Description  string
 	GrantedAt    utils.NullTime
@@ -69,12 +67,12 @@ func (SharedNode) TableName() string {
 }
 
 type SharedLabel struct {
-	gorm.Model
-	UserId       uint
-	LabelId      uint
+	Model
+	UserId       uint64
+	LabelId      uint64
 	LabelName    string
-	OwnerId      uint
-	InviteId     uint
+	OwnerId      uint64
+	InviteId     uint64
 	AcceptStatus AcceptStatus
 	Description  string
 	GrantedAt    utils.NullTime

@@ -1,9 +1,7 @@
 package entity
 
-import "gorm.io/gorm"
-
 type Permissions struct {
-	gorm.Model
+	Model
 	ResourceType    string
 	Name            string
 	PermissionValue string
@@ -16,10 +14,10 @@ func (Permissions) TableName() string {
 
 // UserPermission user permit，user's all permit will record in this table
 type UserPermission struct {
-	gorm.Model
+	Model
 	ResourceType string `json:"resource_type"` //group,node,policy
 	ResourceId   uint   `json:"resource_id"`   //group1.id， on group one record
-	UserID       uint   `json:"user_id"`
+	UserID       uint64 `json:"user_id"`
 	Permissions  string `json:"permissions"` // group:create,delete,update,view;node:add,remove,update,connect; policy:add,remove,update,connect
 }
 

@@ -2,14 +2,12 @@ package entity
 
 import (
 	"linkany/management/utils"
-
-	"gorm.io/gorm"
 )
 
 type AppKey struct {
-	gorm.Model
-	OrderId uint
-	UserId  uint
+	Model
+	OrderId uint64
+	UserId  uint64
 	AppKey  string
 	Status  ActiveStatus
 }
@@ -39,13 +37,13 @@ func (AppKey) TableName() string {
 }
 
 type UserSettings struct {
-	gorm.Model
+	Model
 	AppKey     string
 	PlanType   string
-	NodeLimit  uint
-	NodeFree   uint
-	GroupLimit uint
-	GroupFree  uint
+	NodeLimit  uint64
+	NodeFree   uint64
+	GroupLimit uint64
+	GroupFree  uint64
 	FromDate   utils.NullTime
 	EndDate    utils.NullTime
 }

@@ -14,7 +14,7 @@ import (
 
 type SharedService interface {
 
-	// Shared Group
+	// Shared GroupVo
 	GetSharedGroup(ctx context.Context, id string) (*vo.SharedNodeGroupVo, error)
 	ListSharedGroup(ctx context.Context, userId string) ([]*vo.SharedNodeGroupVo, error)
 	CreateSharedGroup(ctx context.Context, dto *dto.SharedGroupDto) error

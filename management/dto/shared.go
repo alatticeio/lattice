@@ -2,16 +2,14 @@ package dto
 
 import (
 	"time"
-
-	"gorm.io/gorm"
 )
 
 type SharedGroupDto struct {
-	gorm.Model
-	GroupId     uint   `json:"groupId"`
-	InviteId    uint   `json:"inviteId"`
-	NodeId      uint   `json:"nodeId"`
-	PolicyId    uint   `json:"policyId"`
+	ID          uint64
+	GroupId     uint64 `json:"groupId"`
+	InviteId    uint64 `json:"inviteId"`
+	NodeId      uint64 `json:"nodeId"`
+	PolicyId    uint64 `json:"policyId"`
 	Name        string `json:"name"`
 	Description string `json:"description"`
 	Owner       uint64 `json:"ownerId"`
@@ -23,30 +21,30 @@ type SharedGroupDto struct {
 }
 
 type SharedPolicyDto struct {
-	ID          uint      `json:"id"`
-	UserId      uint      `json:"userId"`
-	PolicyId    uint      `json:"policyId"`
-	OwnerId     uint      `json:"ownerId"`
+	ID          uint64    `json:"id"`
+	UserId      uint64    `json:"userId"`
+	PolicyId    uint64    `json:"policyId"`
+	OwnerId     uint64    `json:"ownerId"`
 	Description string    `json:"description"`
 	GrantedAt   time.Time `json:"grantedAt"`
 	RevokedAt   time.Time `json:"revokedAt"`
 }
 
 type SharedNodeDto struct {
-	ID          uint      `json:"id"`
-	UserId      uint      `json:"userId"`
-	NodeId      uint      `json:"nodeId"`
-	OwnerId     uint      `json:"ownerId"`
+	ID          uint64    `json:"id"`
+	UserId      uint64    `json:"userId"`
+	NodeId      uint64    `json:"nodeId"`
+	OwnerId     uint64    `json:"ownerId"`
 	Description string    `json:"description"`
 	GrantedAt   time.Time `json:"grantedAt"`
 	RevokedAt   time.Time `json:"revokedAt"`
 }
 
 type SharedLabelDto struct {
-	ID          uint      `json:"id"`
-	UserId      uint      `json:"userId"`
-	LabelId     uint      `json:"labelId"`
-	OwnerId     uint      `json:"ownerId"`
+	ID          uint64    `json:"id"`
+	UserId      uint64    `json:"userId"`
+	LabelId     uint64    `json:"labelId"`
+	OwnerId     uint64    `json:"ownerId"`
 	Description string    `json:"description"`
 	GrantedAt   time.Time `json:"grantedAt"`
 	RevokedAt   time.Time `json:"revokedAt"`

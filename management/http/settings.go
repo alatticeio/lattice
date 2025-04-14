@@ -73,7 +73,7 @@ func (s *Server) listAppKeys() gin.HandlerFunc {
 			return
 		}
 
-		params.UserId = c.Value("userId").(uint)
+		params.UserId = c.Value("userId").(uint64)
 
 		vo, err := s.settingsController.ListAppkeys(c, &params)
 		if err != nil {
