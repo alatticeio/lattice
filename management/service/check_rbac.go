@@ -96,9 +96,9 @@ package service
 //	sourceMatched := false
 //	switch rule.SourceType {
 //	case "node":
-//		sourceMatched = rule.SourceID == fmt.Sprint(sourceNodeID)
+//		sourceMatched = rule.SourceId == fmt.Sprint(sourceNodeID)
 //	case "tag":
-//		sourceMatched = contains(sourceTags, rule.SourceID)
+//		sourceMatched = contains(sourceTags, rule.SourceId)
 //	case "all":
 //		sourceMatched = true
 //	}
@@ -111,9 +111,9 @@ package service
 //	targetMatched := false
 //	switch rule.TargetType {
 //	case "node":
-//		targetMatched = rule.TargetID == fmt.Sprint(targetNodeID)
+//		targetMatched = rule.TargetId == fmt.Sprint(targetNodeID)
 //	case "tag":
-//		targetMatched = contains(targetTags, rule.TargetID)
+//		targetMatched = contains(targetTags, rule.TargetId)
 //	case "all":
 //		targetMatched = true
 //	}
@@ -144,7 +144,7 @@ package service
 //		TargetNodeID: targetNodeID,
 //		Action:       action,
 //		Result:       result,
-//		PolicyID:     policyID,
+//		PolicyId:     policyID,
 //	}
 //
 //	if err := s.Create(log).Error; err != nil {

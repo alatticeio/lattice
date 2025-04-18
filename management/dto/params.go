@@ -16,23 +16,31 @@ type QueryParams struct {
 	Status  *int
 }
 
-func (qp *QueryParams) Generate() []*utils.KeyValue {
+func (p *QueryParams) Generate() []*utils.KeyValue {
 	var result []*utils.KeyValue
 
-	if qp.Name != nil {
-		result = append(result, utils.NewKeyValue("name", *qp.Name))
+	if p.Name != nil {
+		result = append(result, utils.NewKeyValue("name", *p.Name))
 	}
 
-	if qp.PubKey != nil {
-		result = append(result, utils.NewKeyValue("public_key", *qp.PubKey))
+	if p.PubKey != nil {
+		result = append(result, utils.NewKeyValue("public_key", *p.PubKey))
 	}
 
-	if qp.UserId != "" {
-		result = append(result, utils.NewKeyValue("user_id", qp.UserId))
+	if p.UserId != "" {
+		result = append(result, utils.NewKeyValue("user_id", p.UserId))
 	}
 
-	if qp.Status != nil {
-		result = append(result, utils.NewKeyValue("status", *qp.Status))
+	if p.Status != nil {
+		result = append(result, utils.NewKeyValue("status", *p.Status))
+	}
+
+	if p.Page == 0 {
+		p.Page = utils.PageNo
+	}
+
+	if p.Size == 0 {
+		p.Size = utils.PageSize
 	}
 
 	return result

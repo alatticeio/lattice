@@ -18,7 +18,7 @@ spec:
       imagePullSecrets:
         - name: ali-registry
       hostAliases:
-        - ip: "10.96.80.105"
+        - ip: "10.96.98.115"
           hostnames:
             - "console.linkany.io"
       containers:

@@ -3,15 +3,10 @@ package client
 import (
 	"context"
 	"errors"
-	"github.com/golang/protobuf/proto"
-	"github.com/vishvananda/netlink"
-	wg "golang.zx2c4.com/wireguard/device"
-	"golang.zx2c4.com/wireguard/tun"
-	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 	"linkany/internal"
 	controlclient "linkany/management/client"
 	mgtclient "linkany/management/grpc/client"
-	"linkany/management/vo"
+	"linkany/management/utils"
 	"linkany/pkg/config"
 	"linkany/pkg/drp"
 	"linkany/pkg/iface"
@@ -26,6 +21,12 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/golang/protobuf/proto"
+	"github.com/vishvananda/netlink"
+	wg "golang.zx2c4.com/wireguard/device"
+	"golang.zx2c4.com/wireguard/tun"
+	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 )
 
 var (
@@ -55,7 +56,7 @@ type Engine struct {
 	agentManager *internal.AgentManager
 	wgConfigure  iface.WGConfigureInterface
 
-	callback func(message *vo.Message) error
+	callback func(message *utils.Message) error
 }
 
 type EngineConfig struct {

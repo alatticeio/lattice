@@ -8,15 +8,10 @@ import (
 // InviterEntity invites invite others
 type InviterEntity struct {
 	Model
-	InviteeId   uint64 // invitee user id
-	InviterId   uint64 // inviter user id
-	InviteeUser User   `gorm:"foreignKey:InviterId"`
-	InviterUser User   `gorm:"foreignKey:InviterId"`
-	//InviterUsername    string
-	//InvitationUsername string
-	//MobilePhone        string
-	//Email              string
-	//Avatar             string
+	InviteeId    uint64 // invitee user id
+	InviterId    uint64 // inviter user id
+	InviteeUser  User   `gorm:"foreignKey:InviteeId"`
+	InviterUser  User   `gorm:"foreignKey:InviterId"`
 	GroupIds     string
 	Group        string
 	Role         string

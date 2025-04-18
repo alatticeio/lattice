@@ -1,7 +1,7 @@
 package entity
 
 import (
-	"linkany/management/utils"
+	"gorm.io/gorm"
 	"time"
 )
 
@@ -15,5 +15,5 @@ type Model struct {
 	ID        uint64 `gorm:"primarykey"`
 	CreatedAt time.Time
 	UpdatedAt time.Time
-	DeletedAt utils.NullTime `gorm:"index"`
+	DeletedAt gorm.DeletedAt `gorm:"index"`
 }

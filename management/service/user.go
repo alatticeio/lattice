@@ -763,7 +763,7 @@ func (u *userServiceImpl) ListInvitesEntity(ctx context.Context, params *dto.Inv
 		db = u.Model(&entity.InviterEntity{}).Where(sql, wrappers)
 	}
 
-	if err := db.Model(&entity.InviterEntity{}).Preload("SharedGroups").Preload("SharedNodes").Preload("SharedPolicies").Preload("SharedLabels").Preload("SharedPermissions").Where("inviter_id = ?", utils.GetUserIdFromCtx(ctx)).Count(&result.Total).Offset((params.Page - 1) * params.Size).Limit(params.Size).Find(&invs).Error; err != nil {
+	if err := db.Model(&entity.InviterEntity{}).Preload("InviteeUser").Preload("SharedGroups").Preload("SharedNodes").Preload("SharedPolicies").Preload("SharedLabels").Preload("SharedPermissions").Where("inviter_id = ?", utils.GetUserIdFromCtx(ctx)).Count(&result.Total).Offset((params.Page - 1) * params.Size).Limit(params.Size).Find(&invs).Error; err != nil {
 		return nil, err
 	}
 
@@ -851,11 +851,12 @@ func (u *userServiceImpl) ListInvitesEntity(ctx context.Context, params *dto.Inv
 		insVo := &vo.InviteVo{
 			UserResourceVo: uvo,
 			ID:             uint64(inv.ID),
+			InviteeName:    inv.InviteeUser.Username,
 			//InviteeName:    inv.InvitationUsername,
-			//InviterName:    inv.InviterUsername,
-			//MobilePhone:    inv.MobilePhone,
-			//Email:          inv.Email,
-			//Avatar:         inv.Avatar,
+			InviterName:  inv.InviterUser.Username,
+			MobilePhone:  inv.InviteeUser.Mobile,
+			Email:        inv.InviteeUser.Email,
+			Avatar:       inv.InviteeUser.Avatar,
 			Role:         inv.Role,
 			GroupName:    inv.Group,
 			Permissions:  inv.Permissions,

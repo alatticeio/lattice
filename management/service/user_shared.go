@@ -387,6 +387,7 @@ func (s *shareServiceImpl) ListGroups(ctx context.Context, params *dto.SharedGro
 	result.Data = groupVos
 	result.Page = params.Page
 	result.Size = params.Size
+	result.Current = params.Page
 
 	return result, nil
 }
@@ -447,6 +448,7 @@ func (s *shareServiceImpl) ListNodes(ctx context.Context, params *dto.SharedNode
 	result.Data = nodeVos
 	result.Page = params.Page
 	result.Size = params.Size
+	result.Current = params.Page
 
 	return result, nil
 }
@@ -503,6 +505,7 @@ func (s *shareServiceImpl) ListPolicies(ctx context.Context, params *dto.SharedP
 	result.Data = policyVos
 	result.Page = params.Page
 	result.Size = params.Size
+	result.Current = params.Page
 
 	return result, nil
 }
@@ -544,6 +547,7 @@ func (s *shareServiceImpl) ListLabels(ctx context.Context, params *dto.SharedLab
 	result.Data = labelVos
 	result.Page = params.Page
 	result.Size = params.Size
+	result.Current = params.Page
 
 	return result, nil
 }

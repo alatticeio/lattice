@@ -20,11 +20,11 @@ package rbac
 //
 //	// 添加规则
 //	rule := &AccessRule{
-//		PolicyID:   policy.ID,
+//		PolicyId:   policy.ID,
 //		SourceType: "tag",
-//		SourceID:   "data",
+//		SourceId:   "data",
 //		TargetType: "tag",
-//		TargetID:   "data",
+//		TargetId:   "data",
 //		Actions:    []string{"connect", "transfer"},
 //		Conditions: JSON{
 //			"max_bandwidth": "100MB/s",

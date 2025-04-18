@@ -193,7 +193,7 @@ func (p *nodeServiceImpl) ListNodes(params *dto.QueryParams) (*vo.PageVo, error)
 	}
 
 	p.logger.Verbosef("sql: %s, wrappers: %v", sql, wrappers)
-	if err := p.Model(&entity.Node{}).Preload("NodeLabels").Preload("GroupVo").Where(sql, wrappers...).Count(&result.Total).Find(&nodes).Error; err != nil {
+	if err := p.Model(&entity.Node{}).Preload("NodeLabels").Preload("Group").Where(sql, wrappers...).Count(&result.Total).Find(&nodes).Error; err != nil {
 		return nil, err
 	}
 

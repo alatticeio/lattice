@@ -27,11 +27,16 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-// Server is used to implement helloworld.GreeterServer.
+type ServerInterface interface {
+	Login(ctx context.Context, in *mgt.ManagementMessage) (*mgt.ManagementMessage, error)
+	Registry(ctx context.Context, in *mgt.ManagementMessage) (*mgt.ManagementMessage, error)
+}
+
+// Server is grpc server used to list watch resources to nodes.
 type Server struct {
-	logger   *log.Logger
-	mu       sync.Mutex
-	channels map[string]chan *vo.Message
+	logger       *log.Logger
+	mu           sync.Mutex
+	watchManager *utils.WatchManager
 	mgt.UnimplementedManagementServiceServer
 	userController  *controller.UserController
 	peerController  *controller.NodeController
@@ -39,6 +44,7 @@ type Server struct {
 	tokenController *controller.TokenController
 }
 
+// ServerConfig used for Server builder
 type ServerConfig struct {
 	Logger          *log.Logger
 	Port            int
@@ -47,7 +53,8 @@ type ServerConfig struct {
 	Rdb             *redis.Client
 }
 
-type RegistryRequest struct {
+// RegRequest used for register to grpc server
+type RegRequest struct {
 	ID                  int64            `json:"id"`
 	UserID              int64            `json:"user_id"`
 	Name                string           `json:"name"`
@@ -79,15 +86,17 @@ func NewServer(cfg *ServerConfig) *Server {
 		userController:  controller.NewUserController(cfg.DataBaseService, cfg.Rdb),
 		peerController:  controller.NewPeerController(cfg.DataBaseService),
 		tokenController: controller.NewTokenController(cfg.DataBaseService),
+		watchManager:    utils.NewWatchManager(),
 	}
 }
 
+// Login used for node login using grpc protocol
 func (s *Server) Login(ctx context.Context, in *mgt.ManagementMessage) (*mgt.ManagementMessage, error) {
 	var req mgt.LoginRequest
 	if err := proto.Unmarshal(in.Body, &req); err != nil {
 		return nil, err
 	}
-	s.logger.Infof("Received username: %s, password: %s", req.Username, req.Password)
+	s.logger.Infof("Received login username: %s, password: %s", req.Username, req.Password)
 
 	token, err := s.userController.Login(&dto.UserDto{
 		Username: req.Username,
@@ -110,7 +119,7 @@ func (s *Server) Login(ctx context.Context, in *mgt.ManagementMessage) (*mgt.Man
 
 // Registry will return a list of response
 func (s *Server) Registry(ctx context.Context, in *mgt.ManagementMessage) (*mgt.ManagementMessage, error) {
-	var req RegistryRequest
+	var req RegRequest
 	if err := json.Unmarshal(in.Body, &req); err != nil {
 		return nil, err
 	}
@@ -150,6 +159,7 @@ func (s *Server) Registry(ctx context.Context, in *mgt.ManagementMessage) (*mgt.
 	return &mgt.ManagementMessage{Body: bs}, nil
 }
 
+// Get used to get a node info by node's appId
 func (s *Server) Get(ctx context.Context, in *mgt.ManagementMessage) (*mgt.ManagementMessage, error) {
 	var req mgt.Request
 	if err := proto.Unmarshal(in.Body, &req); err != nil {
@@ -181,7 +191,9 @@ func (s *Server) Get(ctx context.Context, in *mgt.ManagementMessage) (*mgt.Manag
 	return &mgt.ManagementMessage{Body: b}, nil
 }
 
-// List will return a list of response
+// List list-watch is like k8s's api design. list will return nodes list in the group that current node lived in.
+// watch will catching the event in the group, when a node join in or leave away, send actual event message to every other group node
+// lived in
 func (s *Server) List(ctx context.Context, in *mgt.ManagementMessage) (*mgt.ManagementMessage, error) {
 	var req mgt.Request
 	if err := proto.Unmarshal(in.Body, &req); err != nil {
@@ -192,7 +204,7 @@ func (s *Server) List(ctx context.Context, in *mgt.ManagementMessage) (*mgt.Mana
 		return nil, status.Errorf(codes.Internal, "get user info err: %v", err)
 	}
 	s.logger.Infof("%v", user)
-	networkMap, err := s.peerController.GetNetworkMap(req.AppId, strconv.Itoa(int(user.ID)))
+	networkMap, err := s.peerController.GetNetworkMap(req.AppId, fmt.Sprintf("%d", user.ID))
 	if err != nil {
 		return nil, err
 	}
@@ -205,7 +217,9 @@ func (s *Server) List(ctx context.Context, in *mgt.ManagementMessage) (*mgt.Mana
 	return &mgt.ManagementMessage{Body: bs}, nil
 }
 
-// Watch once request, will return a stream of watched response
+// Watch list-watch is like k8s's api design. list will return nodes list in the group that current node lived in.
+// watch will catching the event in the group, when a node join in or leave away, send actual event message to every other group node
+// lived in
 func (s *Server) Watch(server mgt.ManagementService_WatchServer) error {
 	var err error
 	var msg *mgt.ManagementMessage
@@ -220,6 +234,18 @@ func (s *Server) Watch(server mgt.ManagementService_WatchServer) error {
 	}
 
 	clientId := req.PubKey
+
+	// query node which group it lived in
+	currents, err := s.peerController.QueryNodes(&dto.QueryParams{PubKey: &clientId})
+	if err != nil {
+		return status.Errorf(codes.Internal, "query node failed: %v", err)
+	}
+	if len(currents) == 0 {
+		return status.Errorf(codes.Internal, "node not found")
+	}
+	current := currents[0]
+	s.logger.Infof("node %v is now watching, groupId: %v", req.PubKey, current.GroupID)
+
 	// create a chan for the peer
 	watchChannel := CreateChannel(clientId)
 	s.logger.Infof("node %v is now watching, channel: %v", req.PubKey, watchChannel)
@@ -228,13 +254,12 @@ func (s *Server) Watch(server mgt.ManagementService_WatchServer) error {
 		s.mu.Lock()
 		s.logger.Infof("close watch channel")
 		RemoveChannel(clientId)
-		close(watchChannel)
 		s.mu.Unlock()
 	}()
 
 	for {
 		select {
-		case wm := <-watchChannel:
+		case wm := <-watchChannel.GetChannel():
 			s.logger.Infof("sending watch message: %v to node: %v", wm, req.PubKey)
 			bs, err := json.Marshal(wm)
 			if err != nil {
@@ -251,8 +276,8 @@ func (s *Server) Watch(server mgt.ManagementService_WatchServer) error {
 	}
 }
 
-// Keepalive acts as a client is living， server will send 'ping' packet to client
-// client will response packet to server with in 10 seconds, if not, client is offline, otherwise onlie.
+// Keepalive used to check whether a node is living， server will send 'ping' packet to nodes
+// and node will response packet to server with in 10 seconds, if not, node is offline, otherwise online.
 func (s *Server) Keepalive(stream mgt.ManagementService_KeepaliveServer) error {
 	var (
 		err    error
@@ -262,23 +287,26 @@ func (s *Server) Keepalive(stream mgt.ManagementService_KeepaliveServer) error {
 	)
 
 	ctx := context.Background()
-	req, err = s.recv(stream)
+	req, err = s.recv(ctx, stream)
+	if err != nil {
+		return status.Errorf(codes.Internal, "receive keepalive packet failed: %v", err)
+	}
 	pubKey = req.PubKey
 	logger := s.logger
 
-	current, err := s.peerController.QueryNodes(&dto.QueryParams{PubKey: &pubKey})
+	currents, err := s.peerController.QueryNodes(&dto.QueryParams{PubKey: &pubKey})
 	if err != nil {
 		return err
 	}
-
-	if len(current) == 0 {
-		return fmt.Errorf("node not found")
+	if len(currents) == 0 {
+		return status.Errorf(codes.Internal, "node not found")
 	}
 
+	current := currents[0]
 	s.logger.Infof("receive keepalive packet from client, pubkey: %v, userId: %v", pubKey, userId)
 	k := NewWatchKeeper()
 	check := func(ctx context.Context) error {
-		req, err = s.recv(stream)
+		req, err = s.recv(ctx, stream)
 		if err != nil {
 			return err
 		}
@@ -339,37 +367,29 @@ func (s *Server) Keepalive(stream mgt.ManagementService_KeepaliveServer) error {
 			case <-newCtx.Done():
 				logger.Infof("timeout or cancel")
 				//timeout or cancel
-				s.pushWatchMessage(&vo.MessageConfig{
-					EventType: vo.EventTypeNodeRemove,
-					GroupMessage: &vo.GroupMessage{
-						Nodes: current,
-					},
-				})
-				if err = s.UpdateStatus(current[0], 0); err != nil {
+				s.watchManager.Push(current.PublicKey, utils.NewMessage().RemoveNode(
+					current.TransferToNodeMessage(),
+				))
+				if err = s.UpdateStatus(current, utils.Offline); err != nil {
 					s.logger.Errorf("update node status: %v", err)
 				}
 				k.Online.Store(false)
 				return fmt.Errorf("exit stream: %v", stream)
 			case <-checkChannel:
-				s.logger.Verbosef("node %s is online", pubKey)
-				//if !k.Status.Load() {
-				s.pushWatchMessage(&vo.MessageConfig{
-					EventType: vo.EventTypeNodeAdd,
-					GroupMessage: &vo.GroupMessage{
-						Nodes: current,
-					},
-				})
-				if err = s.UpdateStatus(current[0], 1); err != nil {
-					s.logger.Errorf("update node status: %v", err)
+				if current.Status != utils.Online {
+					if err = s.UpdateStatus(current, utils.Online); err != nil {
+						s.logger.Errorf("update node status: %v", err)
+					} else {
+						k.Online.Store(true)
+						logger.Verbosef("node %s is online", pubKey)
+					}
 				}
-				k.Online.Store(true)
-
 			}
 		}
 	}
 }
 
-func (s *Server) recv(stream mgt.ManagementService_KeepaliveServer) (*mgt.Request, error) {
+func (s *Server) recv(ctx context.Context, stream mgt.ManagementService_KeepaliveServer) (*mgt.Request, error) {
 	msg, err := stream.Recv()
 	if err != nil {
 		state, ok := status.FromError(err)
@@ -391,29 +411,14 @@ func (s *Server) recv(stream mgt.ManagementService_KeepaliveServer) (*mgt.Reques
 
 }
 
-func (s *Server) pushWatchMessage(msg *vo.MessageConfig) {
-	manager := vo.NewWatchManager()
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	// send to user's all group clients
-	for _, wc := range manager.Clientsets() {
-		wc <- vo.NewMessage(msg)
-	}
-}
-
 func (s *Server) UpdateStatus(current *vo.NodeVo, status utils.NodeStatus) error {
 	// update nodeVo online status
 	dtoParam := &dto.NodeDto{PublicKey: current.PublicKey, Status: status}
 	s.logger.Verbosef("update node status, publicKey: %v, status: %v", current.PublicKey, status)
 	_, err := s.peerController.Update(dtoParam)
-	return err
-}
 
-// NewWatchMessage creates a new HandleWatchMessage, when a peer is added, updated or deleted
-func NewWatchMessage(eventType vo.EventType) *vo.Message {
-	return &vo.Message{
-		EventType: eventType,
-	}
+	current.Status = status
+	return err
 }
 
 func (s *Server) Start() error {

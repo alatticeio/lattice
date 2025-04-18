@@ -5,17 +5,18 @@ import (
 	"encoding/json"
 	"errors"
 	"flag"
+	"io"
+	"linkany/management/grpc/mgt"
+	"linkany/management/utils"
+	"linkany/pkg/log"
+	"time"
+
 	"github.com/golang/protobuf/proto"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/status"
-	"io"
-	"linkany/management/grpc/mgt"
-	"linkany/management/vo"
-	"linkany/pkg/log"
-	"time"
 )
 
 type GrpcConfig struct {
@@ -59,7 +60,7 @@ func (c *Client) Login(ctx context.Context, in *mgt.ManagementMessage) (*mgt.Man
 	return c.client.Login(ctx, in)
 }
 
-func (c *Client) Watch(ctx context.Context, in *mgt.ManagementMessage, callback func(wm *vo.Message) error) error {
+func (c *Client) Watch(ctx context.Context, in *mgt.ManagementMessage, callback func(wm *utils.Message) error) error {
 	//ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	//defer cancel()
 	logger := c.logger
@@ -93,7 +94,7 @@ func (c *Client) Watch(ctx context.Context, in *mgt.ManagementMessage, callback 
 				continue
 			}
 
-			var message vo.Message
+			var message utils.Message
 			if err := json.Unmarshal(in.Body, &message); err != nil {
 				logger.Errorf("Failed to parse network map: %v", err)
 				continue

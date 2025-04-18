@@ -2,7 +2,7 @@ package server
 
 import (
 	"fmt"
-	"linkany/management/vo"
+	"linkany/management/utils"
 	"testing"
 	"time"
 )
@@ -11,13 +11,13 @@ func TestCreateChannel(t *testing.T) {
 	pubKey := "123456"
 	ch := CreateChannel(pubKey)
 	//ch := make(chan *mgt.HandleWatchMessage, 1000)
-	manager := vo.NewWatchManager()
+	manager := utils.NewWatchManager()
 	//manager.Add(pubKey, ch)
 
 	go func() {
 		for {
 			select {
-			case c := <-ch:
+			case c := <-ch.GetChannel():
 				fmt.Println("got message", c)
 			}
 		}
@@ -25,10 +25,7 @@ func TestCreateChannel(t *testing.T) {
 
 	go func() {
 		//manager := utils.NewWatchManager()
-		ch := manager.Get(pubKey)
-		for i := 0; i < 10; i++ {
-			ch <- &vo.Message{}
-		}
+		manager.Push(pubKey, &utils.Message{})
 	}()
 
 	time.Sleep(1000 * time.Second)

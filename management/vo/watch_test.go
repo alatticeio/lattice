@@ -2,30 +2,18 @@ package vo
 
 import (
 	"encoding/json"
+	"linkany/management/utils"
 	"testing"
 )
 
 func TestNewMessage(t *testing.T) {
 	// a node event
 
-	message := NewMessage(&MessageConfig{
-		EventType: EventTypeNodeAdd,
-		GroupMessage: &GroupMessage{
-			Nodes: []*NodeVo{
-				&NodeVo{
-					ID:      1,
-					Name:    "test",
-					Address: "192.168.0.3",
-				},
-				&NodeVo{
-					ID:      2,
-					Name:    "test",
-					Address: "192.168.0.4",
-				},
-			},
-		},
+	message := utils.NewMessage().AddGroup(1, "test")
+	message.AddNode(&utils.NodeMessage{
+		ID:   1,
+		Name: "test",
 	})
-
 	bs, _ := json.Marshal(message)
 	t.Log(string(bs))
 }

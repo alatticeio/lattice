@@ -64,7 +64,7 @@ steps: # 定义流水线执行步骤，这些步骤将顺序执行
       port: 22 # 远程连接端口
       script:
         - source ~/.bash_profile
-        - kubectl apply -f /root/docker/maven/build/linkany/conf/drp-deployment.yaml
+        - kubectl apply -f /root/docker/maven/build/linkany/conf/signaling-deployment.yaml
         - kubectl apply -f /root/docker/maven/build/linkany/conf/control-deployment.yaml
         - kubectl rollout restart deployment/linkany-control -n linkany
         - kubectl rollout restart deployment/linkany-signaling -n linkany

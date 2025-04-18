@@ -28,11 +28,11 @@ type AccessRule struct {
 	Model
 	OwnerId    uint64         `json:"owner_id"`             // 所属ID
 	RuleType   utils.RuleType `json:"rule_type"`            // 规则类型
-	PolicyID   uint64         `json:"policy_id"`            // 所属策略ID
+	PolicyId   uint64         `json:"policy_id"`            // 所属策略ID
 	SourceType string         `json:"source_type"`          // 源类型：node/tag/all
-	SourceID   string         `json:"source_id"`            // 源标识（节点ID或标签）
+	SourceId   string         `json:"source_id"`            // 源标识（节点ID或标签）
 	TargetType string         `json:"target_type"`          // 目标类型：node/tag/all
-	TargetID   string         `json:"target_id"`            // 目标标识（节点ID或标签）
+	TargetId   string         `json:"target_id"`            // 目标标识（节点ID或标签）
 	Actions    string         `json:"actions"`              // 允许的操作列表
 	TimeType   string         `json:"time_type"`            // 时间类型
 	Conditions string         `json:"conditions,omitempty"` // 额外条件（如时间限制、带宽限制等）

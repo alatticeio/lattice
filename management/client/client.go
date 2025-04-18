@@ -4,14 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/golang/protobuf/proto"
-	"github.com/linkanyio/ice"
-	"github.com/pion/logging"
 	"io"
 	"linkany/internal"
 	mgtclient "linkany/management/grpc/client"
 	"linkany/management/grpc/mgt"
 	grpcserver "linkany/management/grpc/server"
+	"linkany/management/utils"
 	"linkany/management/vo"
 	"linkany/pkg/config"
 	"linkany/pkg/drp"
@@ -26,6 +24,10 @@ import (
 	"path/filepath"
 	"sync"
 	"time"
+
+	"github.com/golang/protobuf/proto"
+	"github.com/linkanyio/ice"
+	"github.com/pion/logging"
 )
 
 type PeerMap struct {
@@ -226,7 +228,7 @@ func (c *Client) List() (*config.DeviceConf, error) {
 	return conf, nil
 }
 
-func (c *Client) ToConfigPeer(peer *vo.NodeVo) *config.Peer {
+func (c *Client) ToConfigPeer(peer *utils.NodeMessage) *config.Peer {
 
 	return &config.Peer{
 		PublicKey:           peer.PublicKey,
@@ -237,34 +239,34 @@ func (c *Client) ToConfigPeer(peer *vo.NodeVo) *config.Peer {
 	}
 }
 
-func (c *Client) HandleWatchMessage(msg *vo.Message) error {
+func (c *Client) HandleWatchMessage(msg *utils.Message) error {
 	var err error
 
 	switch msg.EventType {
-	case vo.EventTypeNodeRemove:
+	case utils.EventTypeGroupNodeRemove:
 		for _, node := range msg.GroupMessage.Nodes {
-			c.logger.Infof("watching type: %v >>> delete node: %v", vo.EventTypeNodeRemove, node)
+			c.logger.Infof("watch received event type: %v, node: %v", utils.EventTypeGroupNodeRemove, node.String())
 			err := c.RemovePeer(node)
 			if err != nil {
 				c.logger.Errorf("remove node failed: %v", err)
 			}
 		}
-	case vo.EventTypeNodeAdd:
+	case utils.EventTypeGroupNodeAdd:
 		for _, node := range msg.GroupMessage.Nodes {
-			c.logger.Infof("watching type: %v >>> add node: %v", vo.EventTypeNodeAdd, node)
+			c.logger.Infof("watch received event type: %v, node: %v", utils.EventTypeGroupNodeAdd, node.String())
 			if err = c.AddPeer(node); err != nil {
 				c.logger.Errorf("add node failed: %v", err)
 			}
 		}
-	case vo.EventTypeGroupAdd:
-		c.logger.Verbosef("watching type: %v >>> add group: %v", vo.EventTypeGroupAdd, msg.GroupMessage.GroupName)
+	case utils.EventTypeGroupAdd:
+		c.logger.Verbosef("watching received event type: %v >>> add group: %v", utils.EventTypeGroupAdd, msg.GroupMessage.GroupName)
 	}
 
 	return nil
 
 }
 
-func (c *Client) AddPeer(p *vo.NodeVo) error {
+func (c *Client) AddPeer(p *utils.NodeMessage) error {
 	var err error
 	defer func() {
 		if err != nil {
@@ -272,7 +274,7 @@ func (c *Client) AddPeer(p *vo.NodeVo) error {
 		}
 	}()
 	if p.PublicKey == c.keyManager.GetPublicKey() {
-		c.logger.Verbosef("self peer, skip")
+		c.logger.Verbosef("current node, skipping...")
 		return nil
 	}
 
@@ -470,7 +472,7 @@ func (c *Client) Get(ctx context.Context) (*config.Peer, int64, error) {
 	return &result.Peer, result.Count, nil
 }
 
-func (c *Client) Watch(ctx context.Context, callback func(msg *vo.Message) error) error {
+func (c *Client) Watch(ctx context.Context, callback func(msg *utils.Message) error) error {
 	req := &mgt.Request{
 		PubKey: c.keyManager.GetPublicKey(),
 	}
@@ -512,7 +514,7 @@ func (c *Client) Register(privateKey, publicKey, token string) (*config.DeviceCo
 	if err != nil && err != io.EOF {
 		return nil, err
 	}
-	registryRequest := &grpcserver.RegistryRequest{
+	registryRequest := &grpcserver.RegRequest{
 		Token:               token,
 		Hostname:            hostname,
 		AppID:               local.AppId,
@@ -547,11 +549,11 @@ func (c *Client) clear(pubKey string) {
 	c.proberManager.Remove(pubKey)
 }
 
-func (c *Client) RemovePeer(peer *vo.NodeVo) error {
-	c.clear(peer.PublicKey)
+func (c *Client) RemovePeer(node *utils.NodeMessage) error {
+	c.clear(node.PublicKey)
 	wgConfigure := c.proberManager.GetWgConfiger()
 	if err := wgConfigure.RemovePeer(&iface.SetPeer{
-		PublicKey: peer.PublicKey,
+		PublicKey: node.PublicKey,
 		Remove:    true,
 	}); err != nil {
 		return err

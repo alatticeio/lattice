@@ -121,7 +121,7 @@ func (a accessPolicyServiceImpl) GetPolicy(ctx context.Context, policyID uint) (
 }
 
 func (a accessPolicyServiceImpl) ListGroupPolicies(ctx context.Context, params *dto.AccessPolicyParams) (*vo.PageVo, error) {
-	var policies []vo.AccessPolicyVo
+	var policies []entity.AccessPolicy
 	var result = new(vo.PageVo)
 	sql, wrappers := utils.Generate(params)
 	db := a.DB
@@ -129,11 +129,7 @@ func (a accessPolicyServiceImpl) ListGroupPolicies(ctx context.Context, params *
 		db = db.Model(&entity.AccessPolicy{}).Where(sql, wrappers)
 	}
 
-	if err := db.Model(&entity.AccessPolicy{}).Count(&result.Total).Error; err != nil {
-		return nil, err
-	}
-
-	err := db.Model(&entity.AccessPolicy{}).Offset((params.Page - 1) * params.Size).Limit(params.Size).Find(&policies).Error
+	err := db.Model(&entity.AccessPolicy{}).Count(&result.Total).Offset((params.Page - 1) * params.Size).Limit(params.Size).Find(&policies).Error
 
 	result.Data = policies
 	result.Current = params.Page
@@ -160,11 +156,11 @@ func (a accessPolicyServiceImpl) AddRule(ctx context.Context, ruleDto *dto.Acces
 		return err
 	}
 	return a.Create(&entity.AccessRule{
-		PolicyID:   ruleDto.PolicyID,
+		PolicyId:   ruleDto.PolicyID,
 		SourceType: ruleDto.SourceType,
-		SourceID:   ruleDto.SourceID,
+		SourceId:   ruleDto.SourceID,
 		TargetType: ruleDto.TargetType,
-		TargetID:   ruleDto.TargetID,
+		TargetId:   ruleDto.TargetID,
 		Actions:    ruleDto.Actions,
 		Conditions: string(data),
 	}).Error
@@ -176,11 +172,11 @@ func (a accessPolicyServiceImpl) GetRule(ctx context.Context, ruleId int64) (vo.
 	return vo.AccessRuleVo{
 		ID:         rule.ID,
 		RuleType:   rule.RuleType,
-		PolicyID:   rule.PolicyID,
+		PolicyID:   rule.PolicyId,
 		SourceType: rule.SourceType,
-		SourceID:   rule.SourceID,
+		SourceID:   rule.SourceId,
 		TargetType: rule.TargetType,
-		TargetID:   rule.TargetID,
+		TargetID:   rule.TargetId,
 		Actions:    rule.Actions,
 		TimeType:   rule.TimeType,
 		Conditions: rule.Conditions,
@@ -195,11 +191,11 @@ func (a accessPolicyServiceImpl) UpdateRule(ctx context.Context, ruleDto *dto.Ac
 		return err
 	}
 	return a.Where("id = ?", ruleDto.ID).Save(&entity.AccessRule{
-		PolicyID:   ruleDto.PolicyID,
+		PolicyId:   ruleDto.PolicyID,
 		SourceType: ruleDto.SourceType,
-		SourceID:   ruleDto.SourceID,
+		SourceId:   ruleDto.SourceID,
 		TargetType: ruleDto.TargetType,
-		TargetID:   ruleDto.TargetID,
+		TargetId:   ruleDto.TargetID,
 		Actions:    ruleDto.Actions,
 		Conditions: string(data),
 	}).Error

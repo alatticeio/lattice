@@ -7,6 +7,7 @@ import (
 	"linkany/internal"
 	pb "linkany/management/grpc/mgt"
 	"linkany/management/grpc/server"
+	"linkany/management/utils"
 	"linkany/management/vo"
 	"linkany/pkg/config"
 	"linkany/pkg/log"
@@ -107,7 +108,7 @@ func TestGrpcClient_Watch(t *testing.T) {
 	err = client.Watch(ctx, &pb.ManagementMessage{
 		PubKey: "a+BYvXq6/xrvsnKbgORSL6lwFzqtfXV0VnTzwdo+Vnw=",
 		Body:   body,
-	}, func(wm *vo.Message) error {
+	}, func(wm *utils.Message) error {
 		fmt.Println(wm)
 		return nil
 	})
@@ -194,7 +195,7 @@ func TestGrpcClient_Register(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	requset := &server.RegistryRequest{
+	requset := &server.RegRequest{
 		Hostname:            "test",
 		Address:             "test",
 		PersistentKeepalive: 25,

@@ -1,18 +1,15 @@
 package server
 
 import (
-	"linkany/management/vo"
+	"linkany/management/utils"
 )
 
-func CreateChannel(pubKey string) chan *vo.Message {
-	manager := vo.NewWatchManager()
-	ch := make(chan *vo.Message, 1000)
-	manager.Add(pubKey, ch)
-
-	return ch
+func CreateChannel(pubKey string) *utils.NodeChannel {
+	manager := utils.NewWatchManager()
+	return manager.GetChannel(pubKey)
 }
 
 func RemoveChannel(pubKey string) {
-	manager := vo.NewWatchManager()
+	manager := utils.NewWatchManager()
 	manager.Remove(pubKey)
 }

@@ -34,7 +34,7 @@ var (
 type groupServiceImpl struct {
 	logger *log.Logger
 	*DatabaseService
-	manager           *vo.WatchManager
+	manager           *utils.WatchManager
 	nodeServiceImpl   NodeService
 	policyServiceImpl AccessPolicyService
 }
@@ -43,7 +43,7 @@ func NewGroupService(db *DatabaseService) GroupService {
 	return &groupServiceImpl{DatabaseService: db,
 		logger:            log.NewLogger(log.Loglevel, "group-policy-service"),
 		nodeServiceImpl:   NewNodeService(db),
-		manager:           vo.NewWatchManager(),
+		manager:           utils.NewWatchManager(),
 		policyServiceImpl: NewAccessPolicyService(db),
 	}
 }
@@ -170,7 +170,9 @@ func (g *groupServiceImpl) handleGP(ctx context.Context, tx *gorm.DB, dto *dto.N
 					}
 
 					// add push message
-					g.manager.Push(node.PublicKey, vo.NewNodeMessage(vo.EventTypeNodeAdd, []*vo.NodeVo{node.TransferToNodeVo()}))
+					g.manager.Push(node.PublicKey, utils.NewMessage().AddNode(
+						node.TransferToNodeVo().TransferToNodeMessage(),
+					))
 				}
 			}
 		}
@@ -295,6 +297,7 @@ func (g *groupServiceImpl) ListGroups(ctx context.Context, params *dto.GroupPara
 
 	result.Data = groupVos
 	result.Page = params.Page
+	result.Current = params.Page
 	result.Size = params.Size
 
 	return result, nil
@@ -413,10 +416,8 @@ func (g *groupServiceImpl) DeleteGroupNode(ctx context.Context, groupId uint, no
 			return err
 		}
 
-		g.manager.Push(node.PublicKey, vo.NewNodeMessage(
-			vo.EventTypeNodeRemove, []*vo.NodeVo{
-				node.TransferToNodeVo(),
-			},
+		g.manager.Push(node.PublicKey, utils.NewMessage().RemoveNode(
+			node.TransferToNodeVo().TransferToNodeMessage(),
 		))
 
 		return nil
