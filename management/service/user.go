@@ -6,9 +6,11 @@ import (
 	"fmt"
 	"linkany/management/dto"
 	"linkany/management/entity"
+	"linkany/management/repository"
 	"linkany/management/utils"
 	"linkany/management/vo"
 	"linkany/pkg/linkerrors"
+	"linkany/pkg/log"
 	"linkany/pkg/redis"
 	"strconv"
 	"strings"
@@ -20,25 +22,25 @@ import (
 
 // UserService is an interface for user mapper
 type UserService interface {
-	Login(u *dto.UserDto) (*entity.Token, error)
-	Register(e *dto.UserDto) (*entity.User, error)
+	Login(ctx context.Context, u *dto.UserDto) (*entity.Token, error)
+	Register(ctx context.Context, e *dto.UserDto) (*entity.User, error)
 
 	//Get returns a user by token
-	Get(token string) (*entity.User, error)
+	Get(ctx context.Context, token string) (*entity.User, error)
 
-	GetByUsername(usernames []string) (map[string]entity.User, error)
-	QueryUsers(params *dto.UserParams) ([]*vo.UserVo, error)
+	GetByUsername(ctx context.Context, usernames []string) (map[string]entity.User, error)
+	QueryUsers(ctx context.Context, params *dto.UserParams) ([]*vo.UserVo, error)
 
 	//InviterEntity a user join network
-	Invite(dto *dto.InviteDto) error
-	CancelInvite(id string) error
-	DeleteInvite(id string) error
+	Invite(ctx context.Context, dto *dto.InviteDto) error
+	CancelInvite(ctx context.Context, id uint64) error
+	DeleteInvite(ctx context.Context, id uint64) error
 	UpdateInvite(ctx context.Context, dto *dto.InviteDto) error
-	//GetInvite(ctx context.Context, id string) (*vo.InviteVo, error)
-	GetInvitation(userId, email string) (*entity.InviteeEntity, error)
-	UpdateInvitation(dto *dto.InvitationDto) error
-	RejectInvitation(id uint64) error
-	AcceptInvitation(id uint64) error
+	GetInvite(ctx context.Context, id uint64) (*vo.InviteVo, error)
+	GetInvitation(ctx context.Context, userId uint64, email string) (*entity.InviteeEntity, error)
+	UpdateInvitation(ctx context.Context, dto *dto.InvitationDto) error
+	RejectInvitation(ctx context.Context, id uint64) error
+	AcceptInvitation(ctx context.Context, id uint64) error
 
 	//ListInvitations list user invite from others
 	ListInvitations(ctx context.Context, params *dto.InvitationParams) (*vo.PageVo, error)
@@ -48,16 +50,16 @@ type UserService interface {
 
 	// User Permit
 	//UserPermission grants a user permission to access a resource
-	Permit(userID uint64, resource string, accessLevel string) error
+	Permit(ctx context.Context, userID uint64, resource string, accessLevel string) error
 
 	//GetPermit fetches the permission details for a specific user and resource
-	GetPermit(userID string, resource string) (*entity.UserPermission, error)
+	GetPermit(ctx context.Context, userID string, resource string) (*entity.UserPermission, error)
 
 	//RevokePermit removes a user's permission to access a resource
-	RevokePermit(userID string, resource string) error
+	RevokePermit(ctx context.Context, userID string, resource string) error
 
 	//ListPermits lists all permissions for a specific user
-	ListPermits(userID string) ([]*entity.UserPermission, error)
+	ListPermits(ctx context.Context, userID string) ([]*entity.UserPermission, error)
 }
 
 var (
@@ -65,21 +67,34 @@ var (
 )
 
 type userServiceImpl struct {
-	*DatabaseService
+	db           *gorm.DB
 	tokenService TokenService
 	rdb          *redis.Client
+	userRepo     repository.UserRepository
+	inviteRepo   repository.InviteRepository
+	shareRepo    repository.SharedRepository
+	logger       *log.Logger
 }
 
-func NewUserService(db *DatabaseService, rdb *redis.Client) UserService {
-	return &userServiceImpl{DatabaseService: db, tokenService: NewTokenService(dataBaseService), rdb: rdb}
+func (u *userServiceImpl) GetInvite(ctx context.Context, id uint64) (*vo.InviteVo, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func NewUserService(db *gorm.DB, rdb *redis.Client) UserService {
+	return &userServiceImpl{db: db, tokenService: NewTokenService(db), rdb: rdb,
+		userRepo:   repository.NewUserRepository(db),
+		inviteRepo: repository.NewInviteRepository(db),
+		shareRepo:  repository.NewSharedRepository(db),
+		logger:     log.NewLogger(log.Loglevel, "user-service")}
 }
 
 // Login checks if the user exists and returns a token
-func (u *userServiceImpl) Login(dto *dto.UserDto) (*entity.Token, error) {
+func (u *userServiceImpl) Login(ctx context.Context, dto *dto.UserDto) (*entity.Token, error) {
 
-	var user entity.User
-	if err := u.Where("username = ?", dto.Username).First(&user).Error; err != nil {
-		return nil, linkerrors.ErrUserNotFound
+	user, err := u.userRepo.GetByUsername(ctx, dto.Username)
+	if err != nil {
+		return nil, err
 	}
 
 	if err := utils.ComparePassword(user.Password, dto.Password); err != nil {
@@ -100,7 +115,7 @@ func (u *userServiceImpl) Login(dto *dto.UserDto) (*entity.Token, error) {
 }
 
 // Register creates a new user
-func (u *userServiceImpl) Register(dto *dto.UserDto) (*entity.User, error) {
+func (u *userServiceImpl) Register(ctx context.Context, dto *dto.UserDto) (*entity.User, error) {
 	hashedPassword, err := utils.EncryptPassword(dto.Password)
 	if err != nil {
 		return nil, err
@@ -109,53 +124,46 @@ func (u *userServiceImpl) Register(dto *dto.UserDto) (*entity.User, error) {
 		Username: dto.Username,
 		Password: hashedPassword,
 	}
-	err = u.Create(e).Error
-	if err != nil {
+	if err = u.userRepo.Create(ctx, e); err != nil {
 		return nil, err
 	}
+
 	return e, nil
 }
 
 // Get returns a user by username
-func (u *userServiceImpl) Get(token string) (*entity.User, error) {
+func (u *userServiceImpl) Get(ctx context.Context, token string) (*entity.User, error) {
 	userToken, err := u.tokenService.Parse(token)
 	if err != nil {
 		return nil, err
 	}
 
-	var user entity.User
-	if err := u.Where("username = ?", userToken.Username).Find(&user).Error; err != nil {
-		return nil, err
-	}
-
-	return &user, nil
+	return u.userRepo.GetByUsername(ctx, userToken.Username)
 }
 
-func (u *userServiceImpl) GetByUsername(usernames []string) (map[string]entity.User, error) {
+func (u *userServiceImpl) GetByUsername(ctx context.Context, usernames []string) (map[string]entity.User, error) {
 	m := make(map[string]entity.User, 1)
-	var users []entity.User
-	if err := u.Where("username in ?", usernames).Find(&users).Error; err != nil {
+	var (
+		err   error
+		users []*entity.User
+	)
+	if users, err = u.userRepo.GetByUsernames(ctx, usernames); err != nil {
 		return nil, err
 	}
+
+	u.logger.Verbosef("GetByUsername: %v", users)
 
 	return m, nil
 }
 
-func (u *userServiceImpl) QueryUsers(params *dto.UserParams) ([]*vo.UserVo, error) {
+func (u *userServiceImpl) QueryUsers(ctx context.Context, params *dto.UserParams) ([]*vo.UserVo, error) {
+	var (
+		users  []*entity.User
+		err    error
+		result = new(vo.PageVo)
+	)
 
-	var users []*entity.User
-	result := new(vo.PageVo)
-	sql, wrappers := utils.Generate(params)
-	db := u.DB
-	if sql != "" {
-		db = u.Model(&entity.User{}).Where(sql, wrappers)
-	}
-
-	if err := db.Model(&entity.User{}).Count(&result.Total).Error; err != nil {
-		return nil, err
-	}
-
-	if err := db.Model(&entity.User{}).Find(&users).Error; err != nil {
+	if users, err = u.userRepo.Query(ctx, params); err != nil {
 		return nil, err
 	}
 
@@ -175,52 +183,41 @@ func (u *userServiceImpl) QueryUsers(params *dto.UserParams) ([]*vo.UserVo, erro
 }
 
 // InviteeEntity
-func (u *userServiceImpl) Invite(dto *dto.InviteDto) error {
-	return u.DB.Transaction(func(tx *gorm.DB) error {
+func (u *userServiceImpl) Invite(ctx context.Context, dto *dto.InviteDto) error {
+	return u.db.Transaction(func(tx *gorm.DB) error {
 		var err error
 		var m map[string]entity.User
-		if m, err = u.GetByUsername([]string{dto.InviterName, dto.InviteeName}); err != nil {
+		if m, err = u.GetByUsername(ctx, []string{dto.InviterName, dto.InviteeName}); err != nil {
 			return err
 		}
 
 		inviterUser := m[dto.InviterName]
 		inviteeUser := m[dto.InviteeName]
 
-		//if inviteeUser, err = u.GetByUsername(dto.InviteeName); err != nil {
-		//	return err
-		//}
-
 		// first query, if the invitation exists
-		var exist entity.InviteeEntity
-		if err = tx.Model(&entity.InviteeEntity{}).Where("invitee_name = ?", dto.InviteeName).First(&exist).Error; err != nil {
-			if !errors.Is(err, gorm.ErrRecordNotFound) {
-				return err
-			}
+		inviteRepo := u.inviteRepo.WithTx(tx)
+		exists, err := inviteRepo.GetByName(ctx, dto.InviteeName)
+		if err != nil {
+			return err
 		}
-
-		if exist.ID != 0 {
+		if exists != nil {
 			return linkerrors.ErrInvitationExists
 		}
 
 		groupName := getGroupNames(tx, dto.GroupIdList)
 		invite := &entity.InviterEntity{
-			InviteeId: inviteeUser.ID,
-			InviterId: inviterUser.ID,
-			//InviterUsername:    inviterUser.Username,
-			//InvitationUsername: inviteeUser.Username,
-			//MobilePhone:        dto.MobilePhone,
-			//Email:              dto.Email,
-			//Avatar:             inviteeUser.Avatar,
+			InviteeId:    inviteeUser.ID,
+			InviterId:    inviterUser.ID,
 			Group:        groupName,
 			Permissions:  dto.Permissions,
 			AcceptStatus: entity.NewInvite,
 			InvitedAt:    time.Now(),
 		}
-		if err = tx.Create(invite).Error; err != nil {
+		if err = inviteRepo.CreateInviter(ctx, invite); err != nil {
 			return err
 		}
 
-		if err = tx.Create(&entity.InviteeEntity{
+		if err = inviteRepo.CreateInvitee(ctx, &entity.InviteeEntity{
 			InviteeId:    inviteeUser.ID,
 			InviterId:    inviterUser.ID,
 			InviteId:     invite.ID,
@@ -228,7 +225,7 @@ func (u *userServiceImpl) Invite(dto *dto.InviteDto) error {
 			Permissions:  dto.Permissions,
 			Group:        groupName,
 			Network:      dto.Network,
-		}).Error; err != nil {
+		}); err != nil {
 			return err
 		}
 
@@ -239,7 +236,7 @@ func (u *userServiceImpl) Invite(dto *dto.InviteDto) error {
 }
 
 func (u *userServiceImpl) UpdateInvite(ctx context.Context, dto *dto.InviteDto) error {
-	return u.DB.Transaction(func(tx *gorm.DB) error {
+	return u.db.Transaction(func(tx *gorm.DB) error {
 		var err error
 		groupName := getGroupNames(tx, dto.GroupIdList)
 
@@ -564,8 +561,8 @@ func getActualPermission(tx *gorm.DB, resType utils.ResourceType, dto *dto.Invit
 	return names, values, ids, nil
 }
 
-func (u *userServiceImpl) CancelInvite(id string) error {
-	return u.DB.Transaction(func(tx *gorm.DB) error {
+func (u *userServiceImpl) CancelInvite(ctx context.Context, id uint64) error {
+	return u.db.Transaction(func(tx *gorm.DB) error {
 		//delete role &  permissions
 
 		var invite entity.InviterEntity
@@ -575,19 +572,30 @@ func (u *userServiceImpl) CancelInvite(id string) error {
 			return err
 		}
 
-		return updateResourcePermission(tx, invite.ID, entity.Canceled)
+		inviteRepo := u.inviteRepo.WithTx(tx)
+		updateEntity := &entity.InviterEntity{
+			AcceptStatus: entity.Canceled,
+		}
+		updateEntity.ID = id
+		if err = inviteRepo.UpdateInviter(ctx, updateEntity); err != nil {
+			return err
+		}
+
+		return updateResourcePermission(ctx, tx, invite.ID, entity.Canceled)
 
 	})
 }
 
-func (u *userServiceImpl) DeleteInvite(id string) error {
-	return u.DB.Transaction(func(tx *gorm.DB) error {
+func (u *userServiceImpl) DeleteInvite(ctx context.Context, id uint64) error {
+	return u.db.Transaction(func(tx *gorm.DB) error {
 		//delete role &  permissions
 
-		var invite entity.InviterEntity
-
-		var err error
-		if err = tx.Model(&entity.InviterEntity{}).Where("id = ?", id).Find(&invite).Delete(&entity.InviterEntity{}).Error; err != nil {
+		var (
+			invite entity.InviterEntity
+			err    error
+		)
+		inviteRepo := u.inviteRepo.WithTx(tx)
+		if err = inviteRepo.DeleteInviter(ctx, id); err != nil {
 			return err
 		}
 
@@ -609,21 +617,25 @@ func getGroupNames(tx *gorm.DB, ids []uint64) string {
 	return utils.Join(result, ",")
 }
 
-func (u *userServiceImpl) GetInvitation(userId, email string) (*entity.InviteeEntity, error) {
-	var inv entity.InviteeEntity
-	if err := u.Where("invitation_id = ? AND email = ?", userId, email).First(&inv).Error; err != nil {
-		return nil, err
-	}
-	return &inv, nil
+func (u *userServiceImpl) GetInvitation(ctx context.Context, userId uint64, email string) (*entity.InviteeEntity, error) {
+	return u.inviteRepo.GetByInviteeIdEmail(ctx, userId, email)
 }
 
-func (u *userServiceImpl) UpdateInvitation(dto *dto.InvitationDto) error {
-	return u.DB.Transaction(func(tx *gorm.DB) error {
+func (u *userServiceImpl) UpdateInvitation(ctx context.Context, dto *dto.InvitationDto) error {
+	return u.db.Transaction(func(tx *gorm.DB) error {
 		var (
 			inv entity.InviteeEntity
 			err error
 		)
-		if err = tx.Model(&entity.InviteeEntity{}).Where("id = ?", dto.ID).Find(&inv).Update("accept_status", dto.AcceptStatus).Error; err != nil {
+
+		inviteRepo := u.inviteRepo.WithTx(tx)
+
+		if err = inviteRepo.UpdateInvitee(ctx, &entity.InviteeEntity{
+			Model: entity.Model{
+				ID: dto.ID,
+			},
+			AcceptStatus: dto.AcceptStatus,
+		}); err != nil {
 			return err
 		}
 
@@ -633,6 +645,7 @@ func (u *userServiceImpl) UpdateInvitation(dto *dto.InvitationDto) error {
 		}
 		// data insert to shared
 		groupIds := strings.Split(inv.GroupIds, ",")
+
 		for _, groupId := range groupIds {
 			gid, err := strconv.ParseUint(groupId, 10, 64)
 			if err != nil {
@@ -654,58 +667,96 @@ func (u *userServiceImpl) UpdateInvitation(dto *dto.InvitationDto) error {
 	})
 }
 
-func (u *userServiceImpl) RejectInvitation(id uint64) error {
-	return u.DB.Transaction(func(tx *gorm.DB) error {
-		var inv entity.InviteeEntity
+func (u *userServiceImpl) RejectInvitation(ctx context.Context, id uint64) error {
+	return u.db.Transaction(func(tx *gorm.DB) error {
 		var err error
-		if err = tx.Model(&entity.InviteeEntity{}).Where("invite_id = ?", id).Find(&inv).Update("accept_status", entity.Rejected).Error; err != nil {
+		inviteRepo := u.inviteRepo.WithTx(tx)
+		if err = inviteRepo.UpdateInvitee(ctx, &entity.InviteeEntity{
+			Model: entity.Model{
+				ID: id,
+			},
+			AcceptStatus: entity.Rejected,
+		}); err != nil {
 			return err
 		}
-		return updateResourcePermission(tx, id, entity.Rejected)
+		return updateResourcePermission(ctx, tx, id, entity.Rejected)
 	})
 }
 
-func (u *userServiceImpl) AcceptInvitation(id uint64) error {
-	return u.DB.Transaction(func(tx *gorm.DB) error {
-		var inv entity.InviteeEntity
+func (u *userServiceImpl) AcceptInvitation(ctx context.Context, id uint64) error {
+	return u.db.Transaction(func(tx *gorm.DB) error {
 		var err error
-		if err = tx.Model(&entity.InviteeEntity{}).Where("invite_id = ?", id).Find(&inv).Update("accept_status", entity.Accept).Error; err != nil {
+		inviteRepo := u.inviteRepo.WithTx(tx)
+		if err = inviteRepo.UpdateInvitee(ctx, &entity.InviteeEntity{
+			Model: entity.Model{
+				ID: id,
+			},
+			AcceptStatus: entity.Accept,
+		}); err != nil {
 			return err
 		}
-
 		// update shared and permissions table
-		return updateResourcePermission(tx, id, entity.Accept)
+		return updateResourcePermission(ctx, tx, id, entity.Accept)
 	})
 }
 
-func updateResourcePermission(tx *gorm.DB, inviteId uint64, status entity.AcceptStatus) error {
+func updateResourcePermission(ctx context.Context, tx *gorm.DB, inviteId uint64, status entity.AcceptStatus) error {
 	// update shared group
 	var (
 		err error
 	)
-	if err = tx.Model(&entity.SharedNodeGroup{}).Where("invite_id = ?", inviteId).Update("accept_status", status).Error; err != nil {
+	sharedRepo := repository.NewSharedRepository(tx)
+
+	//if err = tx.Model(&entity.SharedNodeGroup{}).Where("invite_id = ?", inviteId).Update("accept_status", status).Error; err != nil {
+	//	return err
+	//}
+	if err = sharedRepo.UpdateGroups(ctx, &entity.SharedNodeGroup{
+		AcceptStatus: status,
+	}, &dto.SharedGroupParams{
+		InviteId: inviteId,
+	}); err != nil {
 		return err
 	}
 
 	// update shared node
-	if err = tx.Model(&entity.SharedNode{}).Where("invite_id = ?", inviteId).Update("accept_status", status).Error; err != nil {
+	if err = sharedRepo.UpdateNodes(ctx, &entity.SharedNode{
+		AcceptStatus: status,
+	}, &dto.SharedNodeParams{
+		InviteId: &inviteId,
+	}); err != nil {
 		return err
 	}
 
 	// update shared label
-	if err = tx.Model(&entity.SharedLabel{}).Where("invite_id = ?", inviteId).Update("accept_status", status).Error; err != nil {
+	if err = sharedRepo.UpdateLabels(ctx, &entity.SharedLabel{
+		AcceptStatus: status,
+	}, &dto.SharedLabelParams{
+		InviteId: &inviteId,
+	}); err != nil {
 		return err
 	}
 
 	// update shared policy
-	if err = tx.Model(&entity.SharedPolicy{}).Where("invite_id = ?", inviteId).Update("accept_status", status).Error; err != nil {
+	if err = sharedRepo.UpdatePolicies(ctx, &entity.SharedPolicy{
+		AcceptStatus: status,
+	}, &dto.SharedPolicyParams{
+		InviteId: &inviteId,
+	}); err != nil {
 		return err
 	}
 
 	// update shared perissions
-	if err = tx.Model(&entity.UserResourceGrantedPermission{}).Where("invite_id = ?", inviteId).Update("accept_status", status).Error; err != nil {
-		return err
-	}
+	//if err = tx.Model(&entity.UserResourceGrantedPermission{}).Where("invite_id = ?", inviteId).Update("accept_status", status).Error; err != nil {
+	//	return err
+	//}
+	//TODO
+	//if err = sharedRepo.UpdatePermissions(ctx, &entity.SharedNode{
+	//	AcceptStatus: status,
+	//}, &dto.SharedNodeParams{
+	//	InviteId: inviteId,
+	//}); err != nil {
+	//	return err
+	//}
 
 	switch status {
 	case entity.Canceled:
@@ -755,15 +806,16 @@ func deleteResourcePermission(tx *gorm.DB, inviteId uint64) error {
 
 func (u *userServiceImpl) ListInvitesEntity(ctx context.Context, params *dto.InvitationParams) (*vo.PageVo, error) {
 
-	var invs []*entity.InviterEntity
-	result := new(vo.PageVo)
-	sql, wrappers := utils.Generate(params)
-	db := u.DB
-	if sql != "" {
-		db = u.Model(&entity.InviterEntity{}).Where(sql, wrappers)
-	}
+	var (
+		invs   []*entity.InviterEntity
+		result = new(vo.PageVo)
+		count  int64
+		err    error
+	)
 
-	if err := db.Model(&entity.InviterEntity{}).Preload("InviteeUser").Preload("SharedGroups").Preload("SharedNodes").Preload("SharedPolicies").Preload("SharedLabels").Preload("SharedPermissions").Where("inviter_id = ?", utils.GetUserIdFromCtx(ctx)).Count(&result.Total).Offset((params.Page - 1) * params.Size).Limit(params.Size).Find(&invs).Error; err != nil {
+	if invs, count, err = u.inviteRepo.ListInviters(ctx, &dto.InviterParams{
+		InviterId: utils.GetUserIdFromCtx(ctx),
+	}); err != nil {
 		return nil, err
 	}
 
@@ -871,19 +923,19 @@ func (u *userServiceImpl) ListInvitesEntity(ctx context.Context, params *dto.Inv
 	result.Current = params.Page
 	result.Page = params.Page
 	result.Size = params.Size
+	result.Total = count
 	return result, nil
 }
 
 func (u *userServiceImpl) ListInvitations(ctx context.Context, params *dto.InvitationParams) (*vo.PageVo, error) {
-	var invs []*entity.InviteeEntity
-	result := new(vo.PageVo)
-	db := u.DB
-	sql, wrappers := utils.Generate(params)
-	if sql != "" {
-		db = u.Model(&entity.InviteeEntity{}).Where(sql, wrappers)
-	}
+	var (
+		invs   []*entity.InviteeEntity
+		err    error
+		count  int64
+		result = new(vo.PageVo)
+	)
 
-	if err := db.Model(&entity.InviteeEntity{}).Preload("User").Where("invitation_id = ?", utils.GetUserIdFromCtx(ctx)).Count(&result.Total).Offset((params.Page - 1) * params.Size).Limit(params.Size).Find(&invs).Error; err != nil {
+	if invs, count, err = u.inviteRepo.ListInvitees(ctx, &dto.InvitationParams{}); err != nil {
 		return nil, err
 	}
 
@@ -909,43 +961,27 @@ func (u *userServiceImpl) ListInvitations(ctx context.Context, params *dto.Invit
 	result.Current = params.Page
 	result.Page = params.Page
 	result.Size = params.Size
+	result.Total = count
 
 	return result, nil
 }
 
-func (u *userServiceImpl) Permit(userID uint64, resource string, permission string) error {
+func (u *userServiceImpl) Permit(ctx context.Context, userID uint64, resource string, permission string) error {
 	//TODO Get user's permissions first, if nil, add, else update
 
-	permit := entity.UserPermission{
-		UserID:       userID,
-		ResourceType: resource,
-		Permissions:  permission,
-	}
-	if err := u.Create(&permit).Error; err != nil {
-		return err
-	}
 	return nil
 }
 
-func (u *userServiceImpl) GetPermit(userID string, resource string) (*entity.UserPermission, error) {
+func (u *userServiceImpl) GetPermit(ctx context.Context, userID string, resource string) (*entity.UserPermission, error) {
 	var permit entity.UserPermission
-	if err := u.Where("user_id = ? AND resource = ?", userID, resource).First(&permit).Error; err != nil {
-		return nil, err
-	}
 	return &permit, nil
 }
 
-func (u *userServiceImpl) RevokePermit(userID string, resource string) error {
-	if err := u.Where("user_id = ? AND resource = ?", userID, resource).Delete(&entity.UserPermission{}).Error; err != nil {
-		return err
-	}
+func (u *userServiceImpl) RevokePermit(ctx context.Context, userID string, resource string) error {
 	return nil
 }
 
-func (u *userServiceImpl) ListPermits(userID string) ([]*entity.UserPermission, error) {
+func (u *userServiceImpl) ListPermits(ctx context.Context, userID string) ([]*entity.UserPermission, error) {
 	var permits []*entity.UserPermission
-	if err := u.Where("user_id = ?", userID).Find(&permits).Error; err != nil {
-		return nil, err
-	}
 	return permits, nil
 }

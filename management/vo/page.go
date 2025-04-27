@@ -4,12 +4,29 @@ package vo
 // like c.ShouldBindQuery using.
 type PageModel struct {
 	Total   int64 `json:"total" form:"total"`
-	Page    int   `json:"page" form:"page"`
-	Current int   `json:"current" form:"current""`
-	Size    int   `json:"size" form:"size"`
+	Page    *int  `json:"page" form:"page"`
+	Current *int  `json:"current" form:"current""`
+	Size    *int  `json:"size" form:"size"`
 }
 
 type PageVo struct {
 	Data interface{} `json:"data"`
 	PageModel
+}
+
+type PageOffset struct {
+	Offset int
+	Limit  int
+}
+
+func (p *PageModel) GetPageOffset() *PageOffset {
+	if p.Page == nil || p.Size == nil {
+		return nil
+	}
+
+	offset := (*p.Page - 1) * *p.Size
+	return &PageOffset{
+		Offset: offset,
+		Limit:  *p.Size,
+	}
 }

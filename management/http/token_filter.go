@@ -24,7 +24,7 @@ func (s *Server) tokenFilter() gin.HandlerFunc {
 			return
 		}
 
-		b, u, err := s.tokenController.Verify(user.Username, user.Password)
+		b, u, err := s.tokenController.Verify(c, user.Username, user.Password)
 		if err != nil {
 			c.JSON(client.InternalServerError(err))
 			c.Abort()

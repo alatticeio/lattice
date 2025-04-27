@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"gorm.io/gorm"
 	"linkany/management/dto"
 	"linkany/management/service"
 	"linkany/management/vo"
@@ -13,29 +14,29 @@ type SharedController struct {
 	sharedService service.SharedService
 }
 
-func NewSharedController(db *service.DatabaseService) *SharedController {
+func NewSharedController(db *gorm.DB) *SharedController {
 	return &SharedController{
 		sharedService: service.NewSharedService(db),
 		logger:        log.NewLogger(log.Loglevel, "shared-controller")}
 }
 
-func (s *SharedController) DeleteSharedLabel(ctx context.Context, inviteId, labelId uint) error {
+func (s *SharedController) DeleteSharedLabel(ctx context.Context, inviteId, labelId uint64) error {
 	return s.sharedService.DeleteSharedLabel(ctx, inviteId, labelId)
 }
 
-func (s *SharedController) DeleteSharedNode(ctx context.Context, inviteId, nodeId uint) error {
+func (s *SharedController) DeleteSharedNode(ctx context.Context, inviteId, nodeId uint64) error {
 	return s.sharedService.DeleteSharedNode(ctx, inviteId, nodeId)
 }
 
-func (s *SharedController) DeleteSharedPolicy(ctx context.Context, inviteId, policyId uint) error {
+func (s *SharedController) DeleteSharedPolicy(ctx context.Context, inviteId, policyId uint64) error {
 	return s.sharedService.DeleteSharedPolicy(ctx, inviteId, policyId)
 }
 
-func (s *SharedController) DeleteSharedGroup(ctx context.Context, inviteId, groupId uint) error {
+func (s *SharedController) DeleteSharedGroup(ctx context.Context, inviteId, groupId uint64) error {
 	return s.sharedService.DeleteSharedGroup(ctx, inviteId, groupId)
 }
 
-func (s *SharedController) GetSharedLabel(ctx context.Context, id string) (*vo.SharedLabelVo, error) {
+func (s *SharedController) GetSharedLabel(ctx context.Context, id uint64) (*vo.SharedLabelVo, error) {
 	return s.sharedService.GetSharedLabel(ctx, id)
 }
 

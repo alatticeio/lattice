@@ -46,14 +46,6 @@ func (p *AccessPolicyParams) Generate() []*utils.KeyValue {
 		result = append(result, utils.NewKeyValue("updated_by", p.UpdatedBy))
 	}
 
-	if p.Page == 0 {
-		p.Page = utils.PageNo
-	}
-
-	if p.Size == 0 {
-		p.Size = utils.PageSize
-	}
-
 	return result
 }
 
@@ -78,14 +70,6 @@ func (p *AccessPolicyRuleParams) Generate() []*utils.KeyValue {
 
 	if p.TargetType != "" {
 		result = append(result, utils.NewKeyValue("target_type", p.TargetType))
-	}
-
-	if p.Page == 0 {
-		p.Page = utils.PageNo
-	}
-
-	if p.Size == 0 {
-		p.Size = utils.PageSize
 	}
 
 	return result

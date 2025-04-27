@@ -1,11 +1,12 @@
 package http
 
 import (
+	"gorm.io/gorm"
 	"linkany/management/client"
 	"linkany/management/controller"
+	"linkany/management/db"
 	"linkany/management/dto"
 	"linkany/management/entity"
-	"linkany/management/service"
 	"linkany/management/utils"
 	"linkany/pkg/log"
 	"linkany/pkg/redis"
@@ -38,9 +39,9 @@ type Server struct {
 
 // ServerConfig is the server configuration
 type ServerConfig struct {
-	Listen          string                 `mapstructure: "listen,omitempty"`
-	Database        service.DatabaseConfig `mapstructure: "database,omitempty"`
-	DatabaseService *service.DatabaseService
+	Listen          string            `mapstructure: "listen,omitempty"`
+	Database        db.DatabaseConfig `mapstructure: "database,omitempty"`
+	DatabaseService *gorm.DB
 	Rdb             *redis.Client
 }
 
@@ -48,13 +49,13 @@ type ServerConfig struct {
 func NewServer(cfg *ServerConfig) *Server {
 	e := gin.Default()
 	s := &Server{
-		logger:             log.NewLogger(log.Loglevel, "mgt-server"),
-		Engine:             e,
-		listen:             cfg.Listen,
-		userController:     controller.NewUserController(cfg.DatabaseService, cfg.Rdb),
-		nodeController:     controller.NewPeerController(cfg.DatabaseService),
-		planController:     controller.NewPlanController(service.NewPlanService(cfg.DatabaseService)),
-		supportController:  controller.NewSupportController(service.NewSupportMapper(cfg.DatabaseService)),
+		logger:         log.NewLogger(log.Loglevel, "mgt-server"),
+		Engine:         e,
+		listen:         cfg.Listen,
+		userController: controller.NewUserController(cfg.DatabaseService, cfg.Rdb),
+		nodeController: controller.NewPeerController(cfg.DatabaseService),
+		//planController:     controller.NewPlanController(service.NewPlanService(cfg.DatabaseService)),
+		//supportController:  controller.NewSupportController(service.NewSupportMapper(cfg.DatabaseService)),
 		accessController:   controller.NewAccessController(cfg.DatabaseService),
 		groupController:    controller.NewGroupController(cfg.DatabaseService),
 		sharedController:   controller.NewSharedController(cfg.DatabaseService),
@@ -104,7 +105,7 @@ func (s *Server) register() gin.HandlerFunc {
 			return
 		}
 
-		user, err := s.userController.Register(&u)
+		user, err := s.userController.Register(c, &u)
 		if err != nil {
 			c.JSON(client.InternalServerError(err))
 			return
@@ -124,7 +125,7 @@ func (s *Server) login() gin.HandlerFunc {
 			return
 		}
 
-		token, err = s.userController.Login(&dto)
+		token, err = s.userController.Login(c, &dto)
 		if err != nil {
 			WriteError(c.JSON, err.Error())
 			return
@@ -142,13 +143,13 @@ func (s *Server) getUsers() gin.HandlerFunc {
 
 func (s *Server) listPlans() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		plans, err := s.planController.List()
-		if err != nil {
-			c.JSON(client.InternalServerError(err))
-			return
-		}
-
-		c.JSON(client.Success(plans))
+		//plans, err := s.planController.List()
+		//if err != nil {
+		//	c.JSON(client.InternalServerError(err))
+		//	return
+		//}
+		//
+		//c.JSON(client.Success(plans))
 	}
 }
 

@@ -54,18 +54,18 @@ func (s *Server) RegisterSharedRoutes() {
 func (s *Server) deleteSharedLabel() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		ivd := c.Param("inviteId")
-		inviteId, err := strconv.Atoi(ivd)
+		inviteId, err := strconv.ParseUint(ivd, 10, 64)
 		if err != nil {
 			WriteError(c.JSON, "invalid invite id")
 			return
 		}
 		lid := c.Param("labelId")
-		labelId, err := strconv.Atoi(lid)
+		labelId, err := strconv.ParseUint(lid, 10, 64)
 		if err != nil {
 			WriteError(c.JSON, "invalid label id")
 			return
 		}
-		err = s.sharedController.DeleteSharedLabel(c, uint(inviteId), uint(labelId))
+		err = s.sharedController.DeleteSharedLabel(c, inviteId, labelId)
 		if err != nil {
 			WriteError(c.JSON, err.Error())
 			return
@@ -77,18 +77,18 @@ func (s *Server) deleteSharedLabel() gin.HandlerFunc {
 func (s *Server) deleteSharedGroup() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		ivd := c.Param("inviteId")
-		inviteId, err := strconv.Atoi(ivd)
+		inviteId, err := strconv.ParseUint(ivd, 10, 64)
 		if err != nil {
 			WriteError(c.JSON, "invalid invite id")
 			return
 		}
 		gid := c.Param("groupId")
-		groupId, err := strconv.Atoi(gid)
+		groupId, err := strconv.ParseUint(gid, 10, 64)
 		if err != nil {
 			WriteError(c.JSON, "invalid group id")
 			return
 		}
-		err = s.sharedController.DeleteSharedGroup(c, uint(inviteId), uint(groupId))
+		err = s.sharedController.DeleteSharedGroup(c, inviteId, groupId)
 		if err != nil {
 			WriteError(c.JSON, err.Error())
 			return
@@ -100,18 +100,18 @@ func (s *Server) deleteSharedGroup() gin.HandlerFunc {
 func (s *Server) deleteSharedNode() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		ivd := c.Param("inviteId")
-		inviteId, err := strconv.Atoi(ivd)
+		inviteId, err := strconv.ParseUint(ivd, 10, 64)
 		if err != nil {
 			WriteError(c.JSON, "invalid invite id")
 			return
 		}
 		nid := c.Param("nodeId")
-		nodeId, err := strconv.Atoi(nid)
+		nodeId, err := strconv.ParseUint(nid, 10, 64)
 		if err != nil {
 			WriteError(c.JSON, "invalid node id")
 			return
 		}
-		err = s.sharedController.DeleteSharedNode(c, uint(inviteId), uint(nodeId))
+		err = s.sharedController.DeleteSharedNode(c, inviteId, nodeId)
 		if err != nil {
 			WriteError(c.JSON, err.Error())
 			return
@@ -123,18 +123,18 @@ func (s *Server) deleteSharedNode() gin.HandlerFunc {
 func (s *Server) deleteSharedPolicy() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		ivd := c.Param("inviteId")
-		inviteId, err := strconv.Atoi(ivd)
+		inviteId, err := strconv.ParseUint(ivd, 10, 64)
 		if err != nil {
 			WriteError(c.JSON, "invalid invite id")
 			return
 		}
 		pid := c.Param("policyId")
-		policyId, err := strconv.Atoi(pid)
+		policyId, err := strconv.ParseUint(pid, 10, 64)
 		if err != nil {
 			WriteError(c.JSON, "invalid policy id")
 			return
 		}
-		err = s.sharedController.DeleteSharedPolicy(c, uint(inviteId), uint(policyId))
+		err = s.sharedController.DeleteSharedPolicy(c, inviteId, policyId)
 		if err != nil {
 			WriteError(c.JSON, err.Error())
 			return

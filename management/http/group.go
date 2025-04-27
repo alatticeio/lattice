@@ -49,19 +49,19 @@ func (s *Server) listGroupPolicies() gin.HandlerFunc {
 func (s *Server) deleteGroupPolicy() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		groupId := c.Param("id")
-		gid, err := strconv.Atoi(groupId)
+		gid, err := strconv.ParseUint(groupId, 10, 64)
 		if err != nil {
 			WriteError(c.JSON, "invalid group id")
 			return
 		}
 		policyId := c.Param("policyId")
-		pid, err := strconv.Atoi(policyId)
+		pid, err := strconv.ParseUint(policyId, 10, 64)
 		if err != nil {
 			WriteError(c.JSON, "invalid policy id")
 			return
 		}
 
-		err = s.groupController.DeleteGroupPolicy(c, uint(gid), uint(pid))
+		err = s.groupController.DeleteGroupPolicy(c, gid, pid)
 		if err != nil {
 			WriteError(c.JSON, err.Error())
 			return
@@ -74,19 +74,19 @@ func (s *Server) deleteGroupPolicy() gin.HandlerFunc {
 func (s *Server) deleteGroupNode() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		groupId := c.Param("id")
-		gid, err := strconv.Atoi(groupId)
+		gid, err := strconv.ParseUint(groupId, 10, 64)
 		if err != nil {
 			WriteError(c.JSON, "invalid group id")
 			return
 		}
 		nodeId := c.Param("nodeId")
-		pid, err := strconv.Atoi(nodeId)
+		pid, err := strconv.ParseUint(nodeId, 10, 64)
 		if err != nil {
 			WriteError(c.JSON, "invalid nodeId id")
 			return
 		}
 
-		err = s.groupController.DeleteGroupNode(c, uint(gid), uint(pid))
+		err = s.groupController.DeleteGroupNode(c, gid, pid)
 		if err != nil {
 			WriteError(c.JSON, err.Error())
 			return
@@ -99,7 +99,14 @@ func (s *Server) deleteGroupNode() gin.HandlerFunc {
 // group handler
 func (s *Server) GetNodeGroup() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		nodeId := c.Param("id")
+		var (
+			nodeId uint64
+			err    error
+		)
+		if nodeId, err = strconv.ParseUint(c.Param("id"), 10, 64); err != nil {
+			WriteError(c.JSON, err.Error())
+			return
+		}
 
 		nodeGroup, err := s.groupController.GetNodeGroup(c, nodeId)
 		if err != nil {
@@ -119,7 +126,7 @@ func (s *Server) createGroup() gin.HandlerFunc {
 		}
 
 		token := c.GetHeader("Authorization")
-		user, err := s.userController.Get(token)
+		user, err := s.userController.Get(c, token)
 		nodeGroupDto.CreatedBy = user.Username
 		nodeGroupDto.Owner = uint64(user.ID)
 

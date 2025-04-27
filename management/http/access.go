@@ -108,10 +108,14 @@ func (s *Server) updateAccessPolicy() gin.HandlerFunc {
 func (s *Server) deleteAccessPolicy() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		policyID := c.Param("policyID")
-		id, _ := strconv.Atoi(policyID)
-		err := s.accessController.DeletePolicy(c, uint(id))
+		id, err := strconv.ParseUint(policyID, 10, 64)
 		if err != nil {
-			c.JSON(client.InternalServerError(err))
+			WriteError(c.JSON, err.Error())
+			return
+		}
+		err = s.accessController.DeletePolicy(c, id)
+		if err != nil {
+			WriteError(c.JSON, err.Error())
 			return
 		}
 		WriteOK(c.JSON, nil)
@@ -155,10 +159,14 @@ func (s *Server) updateAccessRule() gin.HandlerFunc {
 func (s *Server) deleteAccessRule() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		ruleID := c.Param("ruleID")
-		id, _ := strconv.Atoi(ruleID)
-		err := s.accessController.DeleteRule(uint(id))
+		id, err := strconv.ParseUint(ruleID, 10, 64)
 		if err != nil {
-			c.JSON(client.InternalServerError(err))
+			WriteError(c.JSON, err.Error())
+			return
+		}
+		err = s.accessController.DeleteRule(id)
+		if err != nil {
+			WriteError(c.JSON, err.Error())
 			return
 		}
 		WriteOK(c.JSON, nil)
@@ -188,8 +196,12 @@ func (s *Server) listAccessRules() gin.HandlerFunc {
 func (s *Server) getRule() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		ruleID := c.Param("ruleID")
-		id, _ := strconv.Atoi(ruleID)
-		rule, err := s.accessController.GetRule(c, int64(id))
+		id, err := strconv.ParseUint(ruleID, 10, 64)
+		if err != nil {
+			WriteError(c.JSON, err.Error())
+			return
+		}
+		rule, err := s.accessController.GetRule(c, id)
 		if err != nil {
 			c.JSON(client.InternalServerError(err))
 			return

@@ -44,6 +44,7 @@ type Node struct {
 	Pwd                 string           `gorm:"column:pwd;size:50" json:"pwd"`
 	Port                int              `gorm:"column:port" json:"port"`
 	Status              utils.NodeStatus `gorm:"column:status" json:"status"`
+	ActiveStatus        utils.ActiveStatus
 
 	Group      GroupNode   `gorm:"foreignKey:GroupId;"`
 	NodeLabels []NodeLabel `gorm:"foreignKey:NodeId;"`

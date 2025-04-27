@@ -6,16 +6,18 @@ import (
 	"fmt"
 	"linkany/management/dto"
 	"linkany/management/entity"
+	"linkany/management/repository"
 	"linkany/management/utils"
 	"linkany/management/vo"
 	"linkany/pkg/log"
+	"strconv"
 
 	"gorm.io/gorm"
 )
 
 type GroupService interface {
 	//GroupVo
-	GetNodeGroup(ctx context.Context, id string) (*vo.GroupVo, error)
+	GetNodeGroup(ctx context.Context, id uint64) (*vo.GroupVo, error)
 	CreateGroup(ctx context.Context, dto *dto.NodeGroupDto) error
 	UpdateGroup(ctx context.Context, dto *dto.NodeGroupDto) error
 	DeleteGroup(ctx context.Context, id string) error
@@ -23,8 +25,8 @@ type GroupService interface {
 	QueryGroups(ctx context.Context, params *dto.GroupParams) ([]*vo.GroupVo, error)
 
 	ListGroupPolicy(ctx context.Context, params *dto.GroupPolicyParams) ([]*vo.GroupPolicyVo, error)
-	DeleteGroupPolicy(ctx context.Context, groupId uint, policyId uint) error
-	DeleteGroupNode(ctx context.Context, groupId uint, nodeId uint) error
+	DeleteGroupPolicy(ctx context.Context, groupId, policyId uint64) error
+	DeleteGroupNode(ctx context.Context, groupId, nodeId uint64) error
 }
 
 var (
@@ -32,34 +34,39 @@ var (
 )
 
 type groupServiceImpl struct {
-	logger *log.Logger
-	*DatabaseService
+	db                *gorm.DB
+	logger            *log.Logger
 	manager           *utils.WatchManager
-	nodeServiceImpl   NodeService
+	nodeRepo          repository.NodeRepository
+	groupRepo         repository.GroupRepository
+	groupNodeRepo     repository.GroupNodeRepository
+	groupPolicyRepo   repository.GroupPolicyRepository
 	policyServiceImpl AccessPolicyService
 }
 
-func NewGroupService(db *DatabaseService) GroupService {
-	return &groupServiceImpl{DatabaseService: db,
-		logger:            log.NewLogger(log.Loglevel, "group-policy-service"),
-		nodeServiceImpl:   NewNodeService(db),
-		manager:           utils.NewWatchManager(),
-		policyServiceImpl: NewAccessPolicyService(db),
+func NewGroupService(db *gorm.DB) GroupService {
+	return &groupServiceImpl{
+		logger:          log.NewLogger(log.Loglevel, "group-policy-service"),
+		nodeRepo:        repository.NewNodeRepository(db),
+		groupRepo:       repository.NewGroupRepository(db),
+		groupNodeRepo:   repository.NewGroupNodeRepository(db),
+		groupPolicyRepo: repository.NewGroupPolicyRepository(db),
+		manager:         utils.NewWatchManager(),
 	}
 }
 
 // NodeGroup
-func (g *groupServiceImpl) GetNodeGroup(ctx context.Context, nodeId string) (*vo.GroupVo, error) {
+func (g *groupServiceImpl) GetNodeGroup(ctx context.Context, nodeId uint64) (*vo.GroupVo, error) {
 	var (
-		group entity.NodeGroup
+		group *entity.NodeGroup
 		err   error
 	)
 
-	if err = g.Model(&entity.NodeGroup{}).Where("id = ?", nodeId).First(&group).Error; err != nil {
+	if group, err = g.groupRepo.Find(ctx, nodeId); err != nil {
 		return nil, err
 	}
 
-	res, err := g.fetchNodeAndGroup(group.ID)
+	res, err := g.fetchNodeAndGroup(ctx, group.ID)
 
 	return &vo.GroupVo{
 		ID:          group.ID,
@@ -76,10 +83,10 @@ func (g *groupServiceImpl) GetNodeGroup(ctx context.Context, nodeId string) (*vo
 }
 
 func (g *groupServiceImpl) CreateGroup(ctx context.Context, dto *dto.NodeGroupDto) error {
-	return g.DB.Transaction(func(tx *gorm.DB) error {
+	return g.db.Transaction(func(tx *gorm.DB) error {
 		var group *entity.NodeGroup
 		var err error
-		if group, err = createGroupData(tx, dto); err != nil {
+		if group, err = g.createGroupData(ctx, tx, dto); err != nil {
 			return err
 		}
 		return g.handleGP(ctx, tx, dto, group)
@@ -87,7 +94,7 @@ func (g *groupServiceImpl) CreateGroup(ctx context.Context, dto *dto.NodeGroupDt
 
 }
 
-func createGroupData(tx *gorm.DB, dto *dto.NodeGroupDto) (*entity.NodeGroup, error) {
+func (g *groupServiceImpl) createGroupData(ctx context.Context, tx *gorm.DB, dto *dto.NodeGroupDto) (*entity.NodeGroup, error) {
 	group := &entity.NodeGroup{
 		Name:        dto.Name,
 		Description: dto.Description,
@@ -95,34 +102,30 @@ func createGroupData(tx *gorm.DB, dto *dto.NodeGroupDto) (*entity.NodeGroup, err
 		CreatedBy:   dto.CreatedBy,
 		UpdatedBy:   dto.CreatedBy,
 	}
-	var (
-		user  *entity.User
-		count int64
-	)
 
-	if err := tx.Model(&entity.NodeGroup{}).Where("name = ? and created_by = ?", group.Name, group.CreatedBy).Count(&count).Error; err != nil {
+	groupRepo := g.groupRepo.WithTx(tx)
+
+	group, err := groupRepo.FindByName(ctx, group.Name)
+	if err != nil {
 		return nil, err
 	}
 
-	if count != 0 {
-		return nil, errors.New("this group already exists")
+	if group != nil {
+		return nil, fmt.Errorf("group name already exists")
 	}
 
-	if group.CreatedBy != "" {
-		if err := tx.Where("username = ?", group.CreatedBy).First(&user).Error; err != nil {
-			return nil, err
-		}
-		group.OwnerId = user.ID
-	}
-	err := tx.Create(&group).Error
-	return group, err
+	return group, groupRepo.Create(ctx, group)
+
 }
 
 func (g *groupServiceImpl) UpdateGroup(ctx context.Context, dto *dto.NodeGroupDto) error {
-	return g.DB.Transaction(func(tx *gorm.DB) error {
-		var err error
-		var group *entity.NodeGroup
-		if group, err = updateGroupData(ctx, tx, dto); err != nil {
+	return g.db.Transaction(func(tx *gorm.DB) error {
+		var (
+			err   error
+			group *entity.NodeGroup
+		)
+
+		if group, err = g.updateGroupData(ctx, tx, dto); err != nil {
 			return err
 		}
 
@@ -131,30 +134,27 @@ func (g *groupServiceImpl) UpdateGroup(ctx context.Context, dto *dto.NodeGroupDt
 
 }
 
-func updateGroupData(ctx context.Context, tx *gorm.DB, dto *dto.NodeGroupDto) (*entity.NodeGroup, error) {
-	group := &entity.NodeGroup{
-		Description: dto.Description,
-		IsPublic:    dto.IsPublic,
-		UpdatedBy:   dto.UpdatedBy,
-	}
-
-	if err := tx.Model(&entity.NodeGroup{}).Where("id = ?", dto.ID).Updates(group).Find(group).Error; err != nil {
-		return nil, err
-	}
-
-	return group, nil
+func (g *groupServiceImpl) updateGroupData(ctx context.Context, tx *gorm.DB, dto *dto.NodeGroupDto) (*entity.NodeGroup, error) {
+	return g.groupRepo.Update(ctx, dto)
 }
 
 func (g *groupServiceImpl) handleGP(ctx context.Context, tx *gorm.DB, dto *dto.NodeGroupDto, group *entity.NodeGroup) error {
 
 	var err error
 	if dto.NodeIdList != nil {
-		for _, nodeId := range dto.NodeIdList {
-			var groupNode entity.GroupNode
-			if err = tx.Model(&entity.GroupNode{}).Where("group_id = ? and node_id = ?", group.ID, nodeId).First(&groupNode).Error; err != nil {
+		for _, nodeIdStr := range dto.NodeIdList {
+			var (
+				groupNode entity.GroupNode
+			)
+			// check if group node exists
+			nodeId, err := strconv.ParseUint(nodeIdStr, 10, 64)
+			if err != nil {
+				return err
+			}
+			if _, err = g.groupNodeRepo.FindByGroupNodeId(ctx, group.ID, nodeId); err != nil {
 				if errors.Is(err, gorm.ErrRecordNotFound) {
-					var node entity.Node
-					if err = tx.Model(&entity.Node{}).Where("id = ?", nodeId).Find(&node).Error; err != nil {
+					var node *entity.Node
+					if node, err = g.nodeRepo.Find(ctx, nodeId); err != nil {
 						return err
 					}
 
@@ -165,7 +165,7 @@ func (g *groupServiceImpl) handleGP(ctx context.Context, tx *gorm.DB, dto *dto.N
 						NodeName:  node.Name,
 						CreatedBy: ctx.Value("username").(string),
 					}
-					if err := tx.Model(&entity.GroupNode{}).Create(&groupNode).Error; err != nil {
+					if err = g.groupNodeRepo.Create(ctx, &groupNode); err != nil {
 						return err
 					}
 
@@ -206,7 +206,7 @@ func (g *groupServiceImpl) handleGP(ctx context.Context, tx *gorm.DB, dto *dto.N
 }
 
 func (g *groupServiceImpl) DeleteGroup(ctx context.Context, id string) error {
-	return g.DB.Transaction(func(tx *gorm.DB) error {
+	return g.db.Transaction(func(tx *gorm.DB) error {
 		var err error
 		if err = tx.Model(&entity.NodeGroup{}).Where("id = ?", id).Delete(&entity.NodeGroup{}).Error; err != nil {
 			return err
@@ -228,20 +228,14 @@ func (g *groupServiceImpl) DeleteGroup(ctx context.Context, id string) error {
 func (g *groupServiceImpl) ListGroups(ctx context.Context, params *dto.GroupParams) (*vo.PageVo, error) {
 	var (
 		err      error
-		groups   []entity.NodeGroup
-		db       *gorm.DB
+		groups   []*entity.NodeGroup
+		count    int64
 		groupVos []*vo.NodeGroupVo
 	)
 
 	result := new(vo.PageVo)
-	db = g.DB
-
-	sql, wrappers := utils.GenerateSql(params)
-	if sql != "" {
-		db = g.DB.Where(sql, wrappers...)
-	}
-
-	if err = db.Model(&entity.NodeGroup{}).Preload("GroupNodes").Preload("GroupPolicies").Count(&result.Total).Offset(params.Size * (params.Page - 1)).Limit(params.Size).Find(&groups).Error; err != nil {
+	groups, count, err = g.groupRepo.List(ctx, params)
+	if err != nil {
 		return nil, err
 	}
 
@@ -299,27 +293,24 @@ func (g *groupServiceImpl) ListGroups(ctx context.Context, params *dto.GroupPara
 	result.Page = params.Page
 	result.Current = params.Page
 	result.Size = params.Size
+	result.Total = count
 
 	return result, nil
 }
 
 func (g *groupServiceImpl) QueryGroups(ctx context.Context, params *dto.GroupParams) ([]*vo.GroupVo, error) {
-	var nodeGroups []entity.NodeGroup
+	var (
+		err        error
+		nodeGroups []*entity.NodeGroup
+	)
 
-	sql, wrappers := utils.Generate(params)
-	db := g.DB
-	if sql != "" {
-		db = db.Where(sql, wrappers)
-	}
-
-	g.logger.Verbosef("sql: %s, wrappers: %v", sql, wrappers)
-	if err := db.Model(&entity.NodeGroup{}).Offset((params.Page - 1) * params.Size).Limit(params.Size).Find(&nodeGroups).Error; err != nil {
+	if nodeGroups, err = g.groupRepo.Query(ctx, params); err != nil {
 		return nil, err
 	}
 
 	var nodeVos []*vo.GroupVo
 	for _, group := range nodeGroups {
-		res, err := g.fetchNodeAndGroup(group.ID)
+		res, err := g.fetchNodeAndGroup(ctx, group.ID)
 		if err != nil {
 			return nil, err
 		}
@@ -339,11 +330,21 @@ func (g *groupServiceImpl) QueryGroups(ctx context.Context, params *dto.GroupPar
 	return nodeVos, nil
 }
 
-func (g *groupServiceImpl) fetchNodeAndGroup(groupId uint64) (*vo.GroupRelationVo, error) {
+func (g *groupServiceImpl) fetchNodeAndGroup(ctx context.Context, groupId uint64) (*vo.GroupRelationVo, error) {
 	// query group node
-	var groupNodes []entity.GroupNode
-	var err error
-	if err = g.Model(&entity.GroupNode{}).Where("group_id = ?", groupId).Find(&groupNodes).Error; err != nil {
+	var (
+		groupNodes []*entity.GroupNode
+		err        error
+	)
+	//if err = g.Model(&entity.GroupNode{}).Where("group_id = ?", groupId).Find(&groupNodes).Error; err != nil {
+	//	if !errors.Is(err, gorm.ErrRecordNotFound) {
+	//		return nil, err
+	//	}
+	//}
+
+	if groupNodes, _, err = g.groupNodeRepo.List(ctx, &dto.GroupNodeParams{
+		GroupID: groupId,
+	}); err != nil {
 		if !errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, err
 		}
@@ -360,8 +361,11 @@ func (g *groupServiceImpl) fetchNodeAndGroup(groupId uint64) (*vo.GroupRelationV
 	result.NodeResourceVo = nodeResourceVo
 
 	// query policies
-	var groupPolicies []entity.GroupPolicy
-	if err = g.Model(&entity.GroupPolicy{}).Where("group_id = ?", groupId).Find(&groupPolicies).Error; err != nil {
+	var groupPolicies []*entity.GroupPolicy
+
+	if groupPolicies, _, err = g.groupPolicyRepo.List(ctx, &dto.GroupPolicyParams{
+		GroupId: groupId,
+	}); err != nil {
 		if !errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, err
 		}
@@ -380,9 +384,15 @@ func (g *groupServiceImpl) fetchNodeAndGroup(groupId uint64) (*vo.GroupRelationV
 }
 
 func (g *groupServiceImpl) ListGroupPolicy(ctx context.Context, params *dto.GroupPolicyParams) ([]*vo.GroupPolicyVo, error) {
-	var groupPolicies []*entity.GroupPolicy
-	if err := g.Model(&entity.GroupPolicy{}).Where("group_id = ?", params.GroupId).Find(&groupPolicies).Error; err != nil {
-		return nil, err
+	var (
+		err           error
+		groupPolicies []*entity.GroupPolicy
+	)
+
+	if groupPolicies, _, err = g.groupPolicyRepo.List(ctx, params); err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, err
+		}
 	}
 
 	var groupPolicyVos []*vo.GroupPolicyVo
@@ -400,19 +410,25 @@ func (g *groupServiceImpl) ListGroupPolicy(ctx context.Context, params *dto.Grou
 	return groupPolicyVos, nil
 }
 
-func (g *groupServiceImpl) DeleteGroupPolicy(ctx context.Context, groupId uint, policyId uint) error {
-	return g.Model(&entity.GroupPolicy{}).Where("group_id = ? and policy_id = ?", groupId, policyId).Delete(&entity.GroupPolicy{}).Error
+func (g *groupServiceImpl) DeleteGroupPolicy(ctx context.Context, groupId, policyId uint64) error {
+	//return g.Model(&entity.GroupPolicy{}).Where("group_id = ? and policy_id = ?", groupId, policyId).Delete(&entity.GroupPolicy{}).Error
+	return g.groupPolicyRepo.DeleteByGroupPolicyId(ctx, groupId, policyId)
 }
 
-func (g *groupServiceImpl) DeleteGroupNode(ctx context.Context, groupId uint, nodeId uint) error {
-	return g.DB.Transaction(func(tx *gorm.DB) error {
-		var groupNode entity.GroupNode
-		if err := g.Model(&entity.GroupNode{}).Where("group_id = ? and node_id = ?", groupId, nodeId).Delete(&groupNode).Error; err != nil {
+func (g *groupServiceImpl) DeleteGroupNode(ctx context.Context, groupId, nodeId uint64) error {
+	return g.db.Transaction(func(tx *gorm.DB) error {
+		var (
+			err error
+		)
+
+		groupNodeRepo := g.groupNodeRepo.WithTx(tx)
+		if err = groupNodeRepo.DeleteByGroupNodeId(ctx, groupId, nodeId); err != nil {
 			return err
 		}
 
-		var node entity.Node
-		if err := g.Model(&entity.Node{}).Where("id = ?", nodeId).Find(&node).Error; err != nil {
+		nodeRepo := g.nodeRepo.WithTx(tx)
+		node, err := nodeRepo.Find(ctx, nodeId)
+		if err != nil {
 			return err
 		}
 

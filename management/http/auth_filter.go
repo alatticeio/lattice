@@ -2,6 +2,7 @@ package http
 
 import (
 	"linkany/management/utils"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 )
@@ -33,7 +34,9 @@ func (s *Server) authFilter() gin.HandlerFunc {
 			return
 		}
 		if action != "" {
-			b, err := s.accessController.CheckAccess(c, resType, resourceId, action)
+			resId, err := strconv.ParseUint(resourceId, 10, 64)
+
+			b, err := s.accessController.CheckAccess(c, resType, resId, action)
 			if !b || err != nil {
 				WriteForbidden(c.JSON, err.Error())
 				c.Abort()

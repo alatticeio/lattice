@@ -5,6 +5,7 @@ import (
 	"gorm.io/gorm"
 	"linkany/management/dto"
 	"linkany/management/entity"
+	"linkany/management/repository"
 	"linkany/management/utils"
 	"linkany/management/vo"
 	"linkany/pkg/log"
@@ -15,7 +16,7 @@ type UserSettingsService interface {
 	NewAppKey(ctx context.Context) error
 
 	// RemoveAppKey delete app
-	RemoveAppKey(ctx context.Context, keyId uint) error
+	RemoveAppKey(ctx context.Context, keyId uint64) error
 
 	UpdateAppKey(ctx context.Context, dto *dto.AppKeyDto) error
 
@@ -24,82 +25,58 @@ type UserSettingsService interface {
 	ListAppKeys(ctx context.Context, params *dto.AppKeyParams) (*vo.PageVo, error)
 }
 
+var (
+	_ UserSettingsService = (*userSettingsServiceImpl)(nil)
+)
+
 type userSettingsServiceImpl struct {
-	logger *log.Logger
-	*DatabaseService
+	logger      *log.Logger
+	db          *gorm.DB
+	settingRepo repository.SettingRepository
 }
 
-func NewUserSettingsService(db *DatabaseService) UserSettingsService {
+func NewUserSettingsService(db *gorm.DB) UserSettingsService {
 	logger := log.NewLogger(log.Loglevel, "user-settings-service")
-	return &userSettingsServiceImpl{logger: logger, DatabaseService: db}
+	return &userSettingsServiceImpl{logger: logger, db: db, settingRepo: repository.NewSettingRepository(db)}
 }
 
-func (a userSettingsServiceImpl) NewAppKey(ctx context.Context) error {
-	return a.DB.Transaction(func(tx *gorm.DB) error {
-		var err error
-		if err = tx.Model(&entity.AppKey{}).Create(&entity.AppKey{AppKey: utils.GenerateUUID(),
-			UserId: utils.GetUserIdFromCtx(ctx), Status: entity.Active}).Error; err != nil {
-			return err
-		}
+func (a *userSettingsServiceImpl) NewAppKey(ctx context.Context) error {
+	return a.settingRepo.CreateAppKey(ctx, &entity.AppKey{AppKey: utils.GenerateUUID(),
+		UserId: utils.GetUserIdFromCtx(ctx), Status: entity.Active})
+}
 
-		return nil
+func (a *userSettingsServiceImpl) RemoveAppKey(ctx context.Context, keyId uint64) error {
+	return a.settingRepo.DeleteAppKey(ctx, keyId)
+}
+
+func (a *userSettingsServiceImpl) NewUserSettings(ctx context.Context, dto *dto.UserSettingsDto) error {
+	return a.settingRepo.CreateUserSetting(ctx, &entity.UserSettings{
+		AppKey:     dto.AppKey,
+		PlanType:   dto.PlanType,
+		NodeLimit:  dto.NodeLimit,
+		NodeFree:   dto.NodeFree,
+		GroupLimit: dto.GroupLimit,
 	})
 }
 
-func (a userSettingsServiceImpl) RemoveAppKey(ctx context.Context, keyId uint) error {
-	return a.DB.Transaction(func(tx *gorm.DB) error {
-		var err error
-		if err = tx.Model(&entity.AppKey{}).Where("id = ?", keyId).Delete(&entity.AppKey{}).Error; err != nil {
-			return err
-		}
-		return nil
+func (a *userSettingsServiceImpl) UpdateAppKey(ctx context.Context, dto *dto.AppKeyDto) error {
+	return a.settingRepo.UpdateAppKey(ctx, &entity.AppKey{
+		Model: entity.Model{
+			ID: dto.ID,
+		},
+		Status: dto.Status,
 	})
 }
 
-func (a userSettingsServiceImpl) NewUserSettings(ctx context.Context, dto *dto.UserSettingsDto) error {
-	return a.DB.Transaction(func(tx *gorm.DB) error {
-		var err error
-		if err = tx.Model(&entity.UserSettings{}).Create(&entity.UserSettings{
-			AppKey:     dto.AppKey,
-			PlanType:   dto.PlanType,
-			NodeLimit:  dto.NodeLimit,
-			NodeFree:   dto.NodeFree,
-			GroupLimit: dto.GroupLimit,
-		}).Error; err != nil {
-			return err
-		}
-		return nil
-	})
-}
-
-func (a userSettingsServiceImpl) UpdateAppKey(ctx context.Context, dto *dto.AppKeyDto) error {
-	return a.DB.Transaction(func(tx *gorm.DB) error {
-		var err error
-		if err = tx.Model(&entity.AppKey{}).Where("id = ?", dto).Update("status", dto.Status).Error; err != nil {
-			return err
-		}
-		return nil
-	})
-}
-
-func (a userSettingsServiceImpl) ListAppKeys(ctx context.Context, params *dto.AppKeyParams) (*vo.PageVo, error) {
+func (a *userSettingsServiceImpl) ListAppKeys(ctx context.Context, params *dto.AppKeyParams) (*vo.PageVo, error) {
 	var (
 		err             error
-		userSettingsKey []entity.AppKey
+		userSettingsKey []*entity.AppKey
 		count           int64
+		result          = new(vo.PageVo)
 	)
-	sql, wrappers := utils.Generate(params)
-	result := new(vo.PageVo)
-	db := a.DB
-	if sql != "" {
-		db = db.Where(sql, wrappers)
-	}
 
-	if err = db.Model(&entity.AppKey{}).Count(&count).Error; err != nil {
-		return nil, err
-	}
-
-	if err := db.Model(&entity.AppKey{}).Offset((params.Page - 1) * params.Size).Limit(params.Size).Find(&userSettingsKey).Error; err != nil {
+	if userSettingsKey, count, err = a.settingRepo.ListAppKeys(ctx, params); err != nil {
 		return nil, err
 	}
 

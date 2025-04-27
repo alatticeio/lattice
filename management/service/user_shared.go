@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"linkany/management/dto"
 	"linkany/management/entity"
-	"linkany/management/utils"
+	"linkany/management/repository"
 	"linkany/management/vo"
 	"linkany/pkg/log"
 
@@ -15,10 +15,10 @@ import (
 type SharedService interface {
 
 	// Shared GroupVo
-	GetSharedGroup(ctx context.Context, id string) (*vo.SharedNodeGroupVo, error)
-	ListSharedGroup(ctx context.Context, userId string) ([]*vo.SharedNodeGroupVo, error)
+	GetSharedGroup(ctx context.Context, id uint64) (*vo.SharedNodeGroupVo, error)
+	ListSharedGroup(ctx context.Context, userId uint64) ([]*vo.SharedNodeGroupVo, error)
 	CreateSharedGroup(ctx context.Context, dto *dto.SharedGroupDto) error
-	DeleteSharedGroup(ctx context.Context, inviteId, groupId uint) error
+	DeleteSharedGroup(ctx context.Context, inviteId, groupId uint64) error
 
 	AddNodeToGroup(ctx context.Context, dto *dto.NodeGroupDto) error
 	AddPolicyToGroup(ctx context.Context, dto *dto.NodeGroupDto) error
@@ -28,310 +28,339 @@ type SharedService interface {
 	ListLabels(ctx context.Context, params *dto.SharedLabelParams) (*vo.PageVo, error)
 
 	// Shared Policy
-	GetSharedPolicy(ctx context.Context, id string) (*vo.SharedPolicyVo, error)
+	GetSharedPolicy(ctx context.Context, id uint64) (*vo.SharedPolicyVo, error)
 	CreateSharedPolicy(ctx context.Context, dto *dto.SharedPolicyDto) error
 	UpdateSharedPolicy(ctx context.Context, dto *dto.SharedPolicyDto) error
-	DeleteSharedPolicy(ctx context.Context, inviteId, policyId uint) error
+	DeleteSharedPolicy(ctx context.Context, inviteId, policyId uint64) error
 
 	// Shared Node
-	GetSharedNode(ctx context.Context, id string) (*vo.SharedNodeVo, error)
+	GetSharedNode(ctx context.Context, id uint64) (*vo.SharedNodeVo, error)
 	CreateSharedNode(ctx context.Context, dto *dto.SharedNodeDto) error
 	UpdateSharedNode(ctx context.Context, dto *dto.SharedNodeDto) error
-	DeleteSharedNode(ctx context.Context, inviteId, id uint) error
+	DeleteSharedNode(ctx context.Context, inviteId, id uint64) error
 
 	// Shared Label
-	GetSharedLabel(ctx context.Context, id string) (*vo.SharedLabelVo, error)
+	GetSharedLabel(ctx context.Context, id uint64) (*vo.SharedLabelVo, error)
 	CreateSharedLabel(ctx context.Context, dto *dto.SharedLabelDto) error
 	UpdateSharedLabel(ctx context.Context, dto *dto.SharedLabelDto) error
-	DeleteSharedLabel(ctx context.Context, inviteId, id uint) error
+	DeleteSharedLabel(ctx context.Context, inviteId, id uint64) error
 }
 
 var _ SharedService = (*shareServiceImpl)(nil)
 
 type shareServiceImpl struct {
-	*DatabaseService
-	logger *log.Logger
-
-	groupService  GroupService
-	policyService AccessPolicyService
+	db                 *gorm.DB
+	logger             *log.Logger
+	groupRepo          repository.GroupRepository
+	sharedRepo         repository.SharedRepository
+	userPermissionRepo repository.UserResourcePermissionRepository
 }
 
-func NewSharedService(db *DatabaseService) SharedService {
+func NewSharedService(db *gorm.DB) SharedService {
 	return &shareServiceImpl{
-		DatabaseService: db,
-		logger:          log.NewLogger(log.Loglevel, "SharedService"),
-		groupService:    NewGroupService(db),
-		policyService:   NewAccessPolicyService(db),
+		db:                 db,
+		logger:             log.NewLogger(log.Loglevel, "SharedService"),
+		groupRepo:          repository.NewGroupRepository(db),
+		sharedRepo:         repository.NewSharedRepository(db),
+		userPermissionRepo: repository.NewUserPermissionRepository(db),
 	}
 }
 
-func (s *shareServiceImpl) GetSharedGroup(ctx context.Context, id string) (*vo.SharedNodeGroupVo, error) {
-	var (
-		sharedGroup vo.SharedNodeGroupVo
-		err         error
-	)
-	if err = s.Model(&sharedGroup).Where("id = ?", id).First(&sharedGroup).Error; err != nil {
+func (s *shareServiceImpl) GetSharedGroup(ctx context.Context, id uint64) (*vo.SharedNodeGroupVo, error) {
+	group, err := s.sharedRepo.GetGroup(ctx, id)
+	if err != nil {
 		return nil, err
 	}
 
-	return &sharedGroup, nil
+	sharedGroupVo := &vo.SharedNodeGroupVo{
+		Name:     group.GroupName,
+		GroupId:  group.GroupId,
+		InviteId: group.InviteId,
+		Status:   group.AcceptStatus.String(),
+	}
+
+	return sharedGroupVo, nil
 }
 
-func (s *shareServiceImpl) ListSharedGroup(ctx context.Context, userId string) ([]*vo.SharedNodeGroupVo, error) {
-	var (
-		sharedGroups []*vo.SharedNodeGroupVo
-		err          error
-	)
-	if err = s.Model(&sharedGroups).Where("user_id = ?", userId).Find(&sharedGroups).Error; err != nil {
-		return nil, err
+func (s *shareServiceImpl) ListSharedGroup(ctx context.Context, userId uint64) ([]*vo.SharedNodeGroupVo, error) {
+
+	sharedGroups, _, err := s.sharedRepo.ListGroup(ctx, &dto.SharedGroupParams{
+		UserId: userId,
+	})
+
+	var vos []*vo.SharedNodeGroupVo
+	for _, group := range sharedGroups {
+		sharedGroupVo := &vo.SharedNodeGroupVo{
+			GroupRelationVo: nil,
+			ModelVo: vo.ModelVo{
+				ID: group.ID,
+			},
+			GroupId:     group.GroupId,
+			Name:        group.GroupName,
+			InviteId:    group.InviteId,
+			NodeCount:   0,
+			Status:      group.AcceptStatus.String(),
+			Description: group.Description,
+		}
+
+		groupRelationVo := vo.NewGroupRelationVo()
+		sharedGroupVo.GroupRelationVo = groupRelationVo
+
+		vos = append(vos, sharedGroupVo)
 	}
 
-	return sharedGroups, nil
+	return vos, err
 }
 
 func (s *shareServiceImpl) CreateSharedGroup(ctx context.Context, dto *dto.SharedGroupDto) error {
-	sharedGroup := &entity.SharedNodeGroup{}
-
-	if err := s.Create(sharedGroup).Error; err != nil {
-		return err
-	}
-	return nil
+	return s.sharedRepo.CreateGroup(ctx, &entity.SharedNodeGroup{
+		GroupId: dto.GroupId,
+	})
 }
 
-func (s *shareServiceImpl) DeleteSharedGroup(ctx context.Context, inviteId, groupId uint) error {
-	var (
-		err error
-	)
-	return s.DB.Transaction(func(tx *gorm.DB) error {
-		if err = s.Model(&entity.SharedNodeGroup{}).Where("invite_id = ? and group_id = ?", inviteId, groupId).Delete(&entity.SharedNodeGroup{}).Error; err != nil {
+func (s *shareServiceImpl) DeleteSharedGroup(ctx context.Context, inviteId, groupId uint64) error {
+	return s.db.Transaction(func(tx *gorm.DB) error {
+		sharedRepo := s.sharedRepo.WithTx(tx)
+
+		if _, err := sharedRepo.DeleteGroupByParams(ctx, &dto.SharedGroupParams{
+			InviteId: inviteId,
+			GroupId:  groupId,
+		}); err != nil {
 			return err
 		}
 
-		if err = s.Model(&entity.UserResourceGrantedPermission{}).Where("invite_id = ? and resource_id  = ?", inviteId, groupId).Delete(&entity.UserResourceGrantedPermission{}).Error; err != nil {
-			return err
-		}
-
-		return nil
+		userPermissionRepo := s.userPermissionRepo.WithTx(tx)
+		return userPermissionRepo.DeleteByParams(ctx, &dto.UserResourcePermission{
+			InviteId:   inviteId,
+			ResourceId: groupId,
+		})
 	})
 
 }
 
-func (s *shareServiceImpl) GetSharedPolicy(ctx context.Context, id string) (*vo.SharedPolicyVo, error) {
-	var (
-		sharedPolicy vo.SharedPolicyVo
-		err          error
-	)
+func (s *shareServiceImpl) GetSharedPolicy(ctx context.Context, id uint64) (*vo.SharedPolicyVo, error) {
 
-	if err = s.Model(&entity.SharedPolicy{}).Where("id = ?", id).First(&sharedPolicy).Error; err != nil {
+	policy, err := s.sharedRepo.GetPolicy(ctx, id)
+	if err != nil {
 		return nil, err
 	}
 
-	return &sharedPolicy, nil
+	return &vo.SharedPolicyVo{
+		ID:          policy.ID,
+		UserId:      policy.UserId,
+		PolicyId:    policy.PolicyId,
+		OwnerId:     policy.OwnerId,
+		Description: policy.Description,
+		GrantedAt:   policy.GrantedAt.Time,
+	}, nil
 }
 
 func (s *shareServiceImpl) CreateSharedPolicy(ctx context.Context, dto *dto.SharedPolicyDto) error {
-	sharedPolicy := &vo.SharedPolicyVo{
-		ID:          dto.ID,
+	sharedPolicy := &entity.SharedPolicy{
 		UserId:      dto.UserId,
 		PolicyId:    dto.PolicyId,
 		OwnerId:     dto.OwnerId,
 		Description: dto.Description,
-		GrantedAt:   dto.GrantedAt,
-		RevokedAt:   dto.RevokedAt,
 	}
 
-	if err := s.Create(sharedPolicy).Error; err != nil {
-		return err
-	}
-	return nil
+	return s.sharedRepo.CreatePolicy(ctx, sharedPolicy)
 }
 
 func (s *shareServiceImpl) UpdateSharedPolicy(ctx context.Context, dto *dto.SharedPolicyDto) error {
-	sharedPolicy := &vo.SharedPolicyVo{
-		ID:          dto.ID,
+	sharedPolicy := &entity.SharedPolicy{
 		UserId:      dto.UserId,
 		PolicyId:    dto.PolicyId,
 		OwnerId:     dto.OwnerId,
 		Description: dto.Description,
-		GrantedAt:   dto.GrantedAt,
-		RevokedAt:   dto.RevokedAt,
 	}
+	sharedPolicy.ID = dto.ID
 
-	if err := s.Save(sharedPolicy).Error; err != nil {
-		return err
-	}
-	return nil
+	return s.sharedRepo.UpdatePolicy(ctx, sharedPolicy)
 }
 
-func (s *shareServiceImpl) DeleteSharedPolicy(ctx context.Context, inviteId, policyId uint) error {
-	var (
-		err error
-	)
+func (s *shareServiceImpl) DeleteSharedPolicy(ctx context.Context, inviteId, policyId uint64) error {
 
-	return s.DB.Transaction(func(tx *gorm.DB) error {
-		if err = s.Model(&entity.SharedPolicy{}).Where("invite_id and policy_id = ?", inviteId, policyId).Delete(&entity.SharedPolicy{}).Error; err != nil {
+	return s.db.Transaction(func(tx *gorm.DB) error {
+		sharedRepo := s.sharedRepo.WithTx(tx)
+
+		if _, err := sharedRepo.DeleteGroupByParams(ctx, &dto.SharedPolicyParams{
+			InviteId: &inviteId,
+			PolicyId: &policyId,
+		}); err != nil {
 			return err
 		}
 
-		if err = s.Model(&entity.UserResourceGrantedPermission{}).Where("invite_id = ? and resource_id  = ?", inviteId, policyId).Delete(&entity.UserResourceGrantedPermission{}).Error; err != nil {
-			return err
-		}
-
-		return nil
+		userPermissionRepo := s.userPermissionRepo.WithTx(tx)
+		return userPermissionRepo.DeleteByParams(ctx, &dto.UserResourcePermission{
+			InviteId:   inviteId,
+			ResourceId: policyId,
+		})
 	})
 }
 
-func (s *shareServiceImpl) GetSharedNode(ctx context.Context, id string) (*vo.SharedNodeVo, error) {
-	var (
-		sharedNode vo.SharedNodeVo
-		err        error
-	)
-	if err = s.Model(&sharedNode).Where("id = ?", id).First(&sharedNode).Error; err != nil {
+func (s *shareServiceImpl) GetSharedNode(ctx context.Context, id uint64) (*vo.SharedNodeVo, error) {
+	node, err := s.sharedRepo.GetNode(ctx, id)
+	if err != nil {
 		return nil, err
 	}
 
-	return &sharedNode, nil
+	return &vo.SharedNodeVo{
+		ID:          node.ID,
+		UserId:      node.UserId,
+		NodeId:      node.NodeId,
+		InviteId:    node.InviteId,
+		AppId:       node.Node.AppID,
+		Address:     node.Node.Address,
+		Name:        node.Node.Name,
+		OwnerId:     node.OwnerId,
+		Description: node.Description,
+		GrantedAt:   node.GrantedAt.Time,
+		RevokedAt:   node.RevokedAt.Time,
+	}, nil
 }
 
 func (s *shareServiceImpl) CreateSharedNode(ctx context.Context, dto *dto.SharedNodeDto) error {
-	sharedNode := &vo.SharedNodeVo{
-		ID:          dto.ID,
+	sharedNode := &entity.SharedNode{
 		UserId:      dto.UserId,
 		NodeId:      dto.NodeId,
 		OwnerId:     dto.OwnerId,
 		Description: dto.Description,
-		GrantedAt:   dto.GrantedAt,
-		RevokedAt:   dto.RevokedAt,
 	}
 
-	if err := s.Create(sharedNode).Error; err != nil {
-		return err
-	}
-	return nil
+	return s.sharedRepo.CreateNode(ctx, sharedNode)
 }
 
 func (s *shareServiceImpl) UpdateSharedNode(ctx context.Context, dto *dto.SharedNodeDto) error {
-	sharedNode := &vo.SharedNodeVo{
-		ID:          dto.ID,
-		UserId:      dto.UserId,
-		NodeId:      dto.NodeId,
-		OwnerId:     dto.OwnerId,
-		Description: dto.Description,
-		GrantedAt:   dto.GrantedAt,
-		RevokedAt:   dto.RevokedAt,
-	}
+	//sharedNode := &vo.SharedNodeVo{
+	//	ID:          dto.ID,
+	//	UserId:      dto.UserId,
+	//	NodeId:      dto.NodeId,
+	//	OwnerId:     dto.OwnerId,
+	//	Description: dto.Description,
+	//	GrantedAt:   dto.GrantedAt,
+	//	RevokedAt:   dto.RevokedAt,
+	//}
 
-	if err := s.Save(sharedNode).Error; err != nil {
-		return err
-	}
 	return nil
 }
 
-func (s *shareServiceImpl) DeleteSharedNode(ctx context.Context, inviteId, nodeId uint) error {
-	var (
-		err error
-	)
-	return s.DB.Transaction(func(tx *gorm.DB) error {
-		if err = s.Model(&entity.SharedNode{}).Where("invite_id = ? and node_id = ?", inviteId, nodeId).Delete(&entity.SharedNode{}).Error; err != nil {
+func (s *shareServiceImpl) DeleteSharedNode(ctx context.Context, inviteId, nodeId uint64) error {
+	return s.db.Transaction(func(tx *gorm.DB) error {
+		sharedRepo := s.sharedRepo.WithTx(tx)
+
+		if _, err := sharedRepo.DeleteGroupByParams(ctx, &dto.SharedNodeParams{
+			InviteId: &inviteId,
+			NodeId:   &nodeId,
+		}); err != nil {
 			return err
 		}
 
-		if err = s.Model(&entity.UserResourceGrantedPermission{}).Where("invite_id = ? and resource_id  = ?", inviteId, nodeId).Delete(&entity.UserResourceGrantedPermission{}).Error; err != nil {
-			return err
-		}
-
+		userPermissionRepo := s.userPermissionRepo.WithTx(tx)
+		return userPermissionRepo.DeleteByParams(ctx, &dto.UserResourcePermission{
+			InviteId:   inviteId,
+			ResourceId: nodeId,
+		})
 		return nil
 	})
 }
 
-func (s *shareServiceImpl) GetSharedLabel(ctx context.Context, id string) (*vo.SharedLabelVo, error) {
-	var (
-		sharedLabel vo.SharedLabelVo
-		err         error
-	)
-	if err = s.Model(&sharedLabel).Where("id = ?", id).First(&sharedLabel).Error; err != nil {
+func (s *shareServiceImpl) GetSharedLabel(ctx context.Context, id uint64) (*vo.SharedLabelVo, error) {
+	label, err := s.sharedRepo.GetLabel(ctx, id)
+	if err != nil {
 		return nil, err
 	}
 
-	return &sharedLabel, nil
+	return &vo.SharedLabelVo{
+		ID:          label.ID,
+		UserId:      label.UserId,
+		LabelId:     label.LabelId,
+		LabelName:   label.LabelName,
+		OwnerId:     label.OwnerId,
+		Description: label.Description,
+	}, nil
 }
 
 func (s *shareServiceImpl) CreateSharedLabel(ctx context.Context, dto *dto.SharedLabelDto) error {
-	sharedLabel := &vo.SharedLabelVo{
-		ID:          dto.ID,
+	sharedLabel := &entity.SharedLabel{
 		UserId:      dto.UserId,
 		LabelId:     dto.LabelId,
 		OwnerId:     dto.OwnerId,
 		Description: dto.Description,
-		GrantedAt:   dto.GrantedAt,
-		RevokedAt:   dto.RevokedAt,
 	}
 
-	if err := s.Create(sharedLabel).Error; err != nil {
-		return err
-	}
-	return nil
+	return s.sharedRepo.CreateLabel(ctx, sharedLabel)
 }
 
 func (s *shareServiceImpl) UpdateSharedLabel(ctx context.Context, dto *dto.SharedLabelDto) error {
-	sharedLabel := &vo.SharedLabelVo{
-		ID:          dto.ID,
-		UserId:      dto.UserId,
-		LabelId:     dto.LabelId,
-		OwnerId:     dto.OwnerId,
-		Description: dto.Description,
-		GrantedAt:   dto.GrantedAt,
-		RevokedAt:   dto.RevokedAt,
-	}
-
-	if err := s.Save(sharedLabel).Error; err != nil {
-		return err
-	}
+	//sharedLabel := &vo.SharedLabelVo{
+	//	ID:          dto.ID,
+	//	UserId:      dto.UserId,
+	//	LabelId:     dto.LabelId,
+	//	OwnerId:     dto.OwnerId,
+	//	Description: dto.Description,
+	//	GrantedAt:   dto.GrantedAt,
+	//	RevokedAt:   dto.RevokedAt,
+	//}
+	//
+	//if err := s.Save(sharedLabel).Error; err != nil {
+	//	return err
+	//}
 	return nil
 }
 
-func (s *shareServiceImpl) DeleteSharedLabel(ctx context.Context, inviteId, labelId uint) error {
-	var (
-		err error
-	)
-	return s.DB.Transaction(func(tx *gorm.DB) error {
-		if err = s.Model(&entity.SharedLabel{}).Where("invite_id = ? and label_id = ?", inviteId, labelId).Delete(&entity.SharedLabel{}).Error; err != nil {
+func (s *shareServiceImpl) DeleteSharedLabel(ctx context.Context, inviteId, labelId uint64) error {
+
+	return s.db.Transaction(func(tx *gorm.DB) error {
+		sharedRepo := s.sharedRepo.WithTx(tx)
+
+		if _, err := sharedRepo.DeleteGroupByParams(ctx, &dto.SharedLabelParams{
+			InviteId: &inviteId,
+			LabelId:  &labelId,
+		}); err != nil {
 			return err
 		}
 
-		if err = s.Model(&entity.UserResourceGrantedPermission{}).Where("invite_id = ? and resource_id  = ?", inviteId, labelId).Delete(&entity.UserResourceGrantedPermission{}).Error; err != nil {
-			return err
-		}
-
+		userPermissionRepo := s.userPermissionRepo.WithTx(tx)
+		return userPermissionRepo.DeleteByParams(ctx, &dto.UserResourcePermission{
+			InviteId:   inviteId,
+			ResourceId: labelId,
+		})
 		return nil
 	})
 }
 
 func (s *shareServiceImpl) AddNodeToGroup(ctx context.Context, dto *dto.NodeGroupDto) error {
-	return s.groupService.UpdateGroup(ctx, dto)
+	_, err := s.groupRepo.Update(ctx, dto)
+	return err
 }
 
 func (s *shareServiceImpl) AddPolicyToGroup(ctx context.Context, dto *dto.NodeGroupDto) error {
-	return s.groupService.UpdateGroup(ctx, dto)
+	//return s.groupService.UpdateGroup(ctx, dto)
+	// TODO
+	return nil
 }
 
 func (s *shareServiceImpl) ListGroups(ctx context.Context, params *dto.SharedGroupParams) (*vo.PageVo, error) {
 	var (
 		err      error
-		groups   []entity.SharedNodeGroup
-		db       *gorm.DB
+		groups   []*entity.SharedNodeGroup
+		count    int64
 		groupVos []*vo.SharedNodeGroupVo
+		result   = new(vo.PageVo)
 	)
 
-	result := new(vo.PageVo)
-	db = s.DB
+	//db = s.DB
+	//
+	//sql, wrappers := utils.GenerateSql(params)
+	//if sql != "" {
+	//	db = s.DB.Where(sql, wrappers...)
+	//}
+	//
+	//if err = db.Model(&entity.SharedNodeGroup{}).Preload("GroupNodes").Preload("GroupPolicies").Where("user_id = ?", utils.GetUserIdFromCtx(ctx)).Count(&result.Total).Offset(params.Size * (params.Page - 1)).Limit(params.Size).Find(&groups).Error; err != nil {
+	//	return nil, err
+	//}
 
-	sql, wrappers := utils.GenerateSql(params)
-	if sql != "" {
-		db = s.DB.Where(sql, wrappers...)
-	}
-
-	if err = db.Model(&entity.SharedNodeGroup{}).Preload("GroupNodes").Preload("GroupPolicies").Where("user_id = ?", utils.GetUserIdFromCtx(ctx)).Count(&result.Total).Offset(params.Size * (params.Page - 1)).Limit(params.Size).Find(&groups).Error; err != nil {
+	if groups, count, err = s.sharedRepo.ListGroup(ctx, params); err != nil {
 		return nil, err
 	}
 
@@ -388,6 +417,7 @@ func (s *shareServiceImpl) ListGroups(ctx context.Context, params *dto.SharedGro
 	result.Page = params.Page
 	result.Size = params.Size
 	result.Current = params.Page
+	result.Total = count
 
 	return result, nil
 }
@@ -395,20 +425,13 @@ func (s *shareServiceImpl) ListGroups(ctx context.Context, params *dto.SharedGro
 func (s *shareServiceImpl) ListNodes(ctx context.Context, params *dto.SharedNodeParams) (*vo.PageVo, error) {
 	var (
 		err     error
-		nodes   []entity.SharedNode
-		db      *gorm.DB
+		nodes   []*entity.SharedNode
+		count   int64
 		nodeVos []*vo.SharedNodeVo
+		result  = new(vo.PageVo)
 	)
 
-	result := new(vo.PageVo)
-	db = s.DB
-
-	sql, wrappers := utils.GenerateSql(params)
-	if sql != "" {
-		db = s.DB.Where(sql, wrappers...)
-	}
-
-	if err = db.Model(&entity.SharedNode{}).Preload("Node").Preload("NodeLabels").Where("user_id = ?", utils.GetUserIdFromCtx(ctx)).Count(&result.Total).Offset(params.Size * (params.Page - 1)).Limit(params.Size).Find(&nodes).Error; err != nil {
+	if nodes, count, err = s.sharedRepo.ListNode(ctx, params); err != nil {
 		return nil, err
 	}
 
@@ -449,6 +472,7 @@ func (s *shareServiceImpl) ListNodes(ctx context.Context, params *dto.SharedNode
 	result.Page = params.Page
 	result.Size = params.Size
 	result.Current = params.Page
+	result.Total = count
 
 	return result, nil
 }
@@ -456,20 +480,13 @@ func (s *shareServiceImpl) ListNodes(ctx context.Context, params *dto.SharedNode
 func (s *shareServiceImpl) ListPolicies(ctx context.Context, params *dto.SharedPolicyParams) (*vo.PageVo, error) {
 	var (
 		err       error
-		policies  []entity.SharedPolicy
-		db        *gorm.DB
+		policies  []*entity.SharedPolicy
+		count     int64
 		policyVos []*vo.SharedPolicyVo
+		result    = new(vo.PageVo)
 	)
 
-	result := new(vo.PageVo)
-	db = s.DB
-
-	sql, wrappers := utils.GenerateSql(params)
-	if sql != "" {
-		db = s.DB.Where(sql, wrappers...)
-	}
-
-	if err = db.Model(&entity.SharedPolicy{}).Where("user_id = ?", utils.GetUserIdFromCtx(ctx)).Count(&result.Total).Offset(params.Size * (params.Page - 1)).Limit(params.Size).Find(&policies).Error; err != nil {
+	if policies, count, err = s.sharedRepo.ListPolicy(ctx, params); err != nil {
 		return nil, err
 	}
 
@@ -506,6 +523,7 @@ func (s *shareServiceImpl) ListPolicies(ctx context.Context, params *dto.SharedP
 	result.Page = params.Page
 	result.Size = params.Size
 	result.Current = params.Page
+	result.Total = count
 
 	return result, nil
 }
@@ -513,20 +531,13 @@ func (s *shareServiceImpl) ListPolicies(ctx context.Context, params *dto.SharedP
 func (s *shareServiceImpl) ListLabels(ctx context.Context, params *dto.SharedLabelParams) (*vo.PageVo, error) {
 	var (
 		err      error
-		labels   []entity.SharedLabel
-		db       *gorm.DB
+		labels   []*entity.SharedLabel
+		count    int64
 		labelVos []*vo.SharedLabelVo
+		result   = new(vo.PageVo)
 	)
 
-	result := new(vo.PageVo)
-	db = s.DB
-
-	sql, wrappers := utils.GenerateSql(params)
-	if sql != "" {
-		db = s.DB.Where(sql, wrappers...)
-	}
-
-	if err = db.Model(&entity.SharedLabel{}).Where("user_id = ?", utils.GetUserIdFromCtx(ctx)).Count(&result.Total).Offset(params.Size * (params.Page - 1)).Limit(params.Size).Find(&labels).Error; err != nil {
+	if labels, count, err = s.sharedRepo.ListLabel(ctx, params); err != nil {
 		return nil, err
 	}
 
@@ -548,6 +559,7 @@ func (s *shareServiceImpl) ListLabels(ctx context.Context, params *dto.SharedLab
 	result.Page = params.Page
 	result.Size = params.Size
 	result.Current = params.Page
+	result.Total = count
 
 	return result, nil
 }

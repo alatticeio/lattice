@@ -47,12 +47,12 @@ func (s *Server) deleteAppKey() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var err error
 		id := c.Param("id")
-		keyId, err := strconv.Atoi(id)
+		keyId, err := strconv.ParseUint(id, 10, 64)
 		if err != nil {
 			WriteError(c.JSON, "invalid key id")
 			return
 		}
-		err = s.settingsController.RemoveAppKey(c, uint(keyId))
+		err = s.settingsController.RemoveAppKey(c, keyId)
 		if err != nil {
 			WriteError(c.JSON, err.Error())
 			return

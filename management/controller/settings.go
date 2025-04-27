@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"gorm.io/gorm"
 	"linkany/management/dto"
 	"linkany/management/service"
 	"linkany/management/vo"
@@ -13,7 +14,7 @@ type SettingsController struct {
 	settingsService service.UserSettingsService
 }
 
-func NewSettingsController(db *service.DatabaseService) *SettingsController {
+func NewSettingsController(db *gorm.DB) *SettingsController {
 	return &SettingsController{settingsService: service.NewUserSettingsService(db), logger: log.NewLogger(log.Loglevel, "settings-controller")}
 }
 
@@ -21,7 +22,7 @@ func (s *SettingsController) NewAppKey(ctx context.Context) error {
 	return s.settingsService.NewAppKey(ctx)
 }
 
-func (s *SettingsController) RemoveAppKey(ctx context.Context, id uint) error {
+func (s *SettingsController) RemoveAppKey(ctx context.Context, id uint64) error {
 	return s.settingsService.RemoveAppKey(ctx, id)
 }
 

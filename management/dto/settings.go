@@ -24,13 +24,6 @@ func (p *AppKeyParams) Generate() []*utils.KeyValue {
 		result = append(result, utils.NewKeyValue("user_id", p.UserId))
 	}
 
-	if p.Page == 0 {
-		p.Page = utils.PageNo
-	}
-
-	if p.Size == 0 {
-		p.Size = utils.PageSize
-	}
 	return result
 }
 

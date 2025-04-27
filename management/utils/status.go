@@ -101,3 +101,16 @@ func (r RuleType) MarshalJSON() ([]byte, error) {
 	// 将枚举值转换为字符串
 	return json.Marshal(r.String())
 }
+
+type ActiveStatus int
+
+func (a ActiveStatus) String() string {
+	switch a {
+	case 0:
+		return "forbidden"
+	case 1:
+		return "active"
+	default:
+		return "unknown"
+	}
+}

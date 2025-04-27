@@ -22,23 +22,12 @@ func (l *LabelParams) Generate() []*utils.KeyValue {
 		result = append(result, utils.NewKeyValue("updated_by", l.UpdatedBy))
 	}
 
-	if l.Page == 0 {
-		l.Page = utils.PageNo
-	}
-
-	if l.Size == 0 {
-		l.Size = utils.PageSize
-	}
-
-	if l.Current == 0 {
-		l.Current = utils.PageNo
-	}
-
 	return result
 }
 
 type GroupParams struct {
 	vo.PageModel
+	GroupId     uint64
 	Name        string
 	Description string
 	OwnerID     uint
@@ -62,14 +51,6 @@ func (p *GroupParams) Generate() []*utils.KeyValue {
 
 	if p.IsPublic != nil {
 		result = append(result, utils.NewKeyValue("is_public", p.IsPublic))
-	}
-
-	if p.Page == 0 {
-		p.Page = utils.PageNo
-	}
-
-	if p.Size == 0 {
-		p.Size = utils.PageSize
 	}
 
 	return result
@@ -112,14 +93,6 @@ func (p *GroupMemberParams) Generate() []*utils.KeyValue {
 		result = append(result, utils.NewKeyValue("status", p.Status))
 	}
 
-	if p.Page == 0 {
-		p.Page = utils.PageNo
-	}
-
-	if p.Size == 0 {
-		p.Size = utils.PageSize
-	}
-
 	return result
 }
 
@@ -151,14 +124,6 @@ func (p *GroupNodeParams) Generate() []*utils.KeyValue {
 		result = append(result, utils.NewKeyValue("created_by", p.CreatedBy))
 	}
 
-	if p.Page == 0 {
-		p.Page = utils.PageNo
-	}
-
-	if p.Size == 0 {
-		p.Size = utils.PageSize
-	}
-
 	return result
 }
 
@@ -187,14 +152,6 @@ func (p *NodeLabelParams) Generate() []*utils.KeyValue {
 
 	if p.CreatedBy != "" {
 		result = append(result, utils.NewKeyValue("created_by", p.CreatedBy))
-	}
-
-	if p.Page == 0 {
-		p.Page = utils.PageNo
-	}
-
-	if p.Size == 0 {
-		p.Size = utils.PageSize
 	}
 
 	return result

@@ -1,16 +1,19 @@
 package service
 
 import (
+	"context"
 	"fmt"
 	"github.com/golang-jwt/jwt/v5"
+	"gorm.io/gorm"
 	"linkany/management/entity"
+	"linkany/management/repository"
 	"linkany/pkg/log"
 	"time"
 )
 
 type TokenService interface {
 	Generate(username, password string) (string, error)
-	Verify(username, password string) (bool, *entity.User, error)
+	Verify(ctx context.Context, username, password string) (bool, *entity.User, error)
 
 	Parse(token string) (*entity.User, error)
 }
@@ -18,13 +21,15 @@ type TokenService interface {
 var haSalt = []byte("linkany.io")
 
 type tokenServiceImpl struct {
-	logger *log.Logger
-	*DatabaseService
+	logger   *log.Logger
+	db       *gorm.DB
+	userRepo repository.UserRepository
 }
 
-func NewTokenService(db *DatabaseService) TokenService {
+func NewTokenService(db *gorm.DB) TokenService {
 	return &tokenServiceImpl{
-		DatabaseService: db, logger: log.NewLogger(log.Loglevel, "token-service"),
+		db: db, logger: log.NewLogger(log.Loglevel, "token-service"),
+		userRepo: repository.NewUserRepository(db),
 	}
 }
 
@@ -39,13 +44,12 @@ func (t *tokenServiceImpl) Generate(username, password string) (string, error) {
 	return token.SignedString(haSalt)
 }
 
-func (t *tokenServiceImpl) Verify(username, password string) (bool, *entity.User, error) {
+func (t *tokenServiceImpl) Verify(ctx context.Context, username, password string) (bool, *entity.User, error) {
 
-	var user entity.User
-	if err := t.Model(&entity.User{}).Where("username = ?", username).Find(&user).Error; err != nil {
-		return false, nil, fmt.Errorf("user not found")
+	user, err := t.userRepo.GetByUsername(ctx, username)
+	if err != nil {
+		return false, nil, err
 	}
-
 	if user.Username != username {
 		return false, nil, fmt.Errorf("user %s not found", username)
 	}
@@ -54,7 +58,7 @@ func (t *tokenServiceImpl) Verify(username, password string) (bool, *entity.User
 		return false, nil, fmt.Errorf("password not match")
 	}
 
-	return true, &user, nil
+	return true, user, nil
 }
 
 func (t *tokenServiceImpl) Parse(tokenString string) (*entity.User, error) {

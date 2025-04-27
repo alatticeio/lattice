@@ -1,6 +1,7 @@
 package service
 
 import (
+	"gorm.io/gorm"
 	"linkany/management/entity"
 )
 
@@ -16,38 +17,38 @@ type UserConfigInterface interface {
 }
 
 type UserConfigMapper struct {
-	*DatabaseService
+	db         *gorm.DB
 	tokener    *tokenServiceImpl
 	userMapper UserService
 }
 
-func NewUserConfigMapper(dataBaseService *DatabaseService) *UserConfigMapper {
+func NewUserConfigMapper(dataBaseService *gorm.DB) *UserConfigMapper {
 	//return &UserConfigMapper{DatabaseService: dataBaseService, tokenService: NewTokenService(dataBaseService), userMapper: NewUserService(dataBaseService, nil)}
 	return nil
 }
 
-func (ucm *UserConfigMapper) Get(token string) (*entity.UserConfig, error) {
-
-	user, err := ucm.userMapper.Get(token)
-	if err != nil {
-		return nil, err
-	}
-
-	var userConfig entity.UserConfig
-	if err := ucm.Where("user_id = ?", user.ID).First(&userConfig).Error; err != nil {
-		return nil, err
-	}
-	return &userConfig, nil
-}
-
-func (ucm *UserConfigMapper) Create(userConfig *entity.UserConfig) error {
-	return ucm.Model(ucm).Create(userConfig).Error
-}
-
-func (ucm *UserConfigMapper) Update(userConfig *entity.UserConfig) error {
-	return ucm.Model(ucm).Save(userConfig).Error
-}
-
-func (ucm *UserConfigMapper) Delete(userConfig *entity.UserConfig) error {
-	return ucm.Model(ucm).Delete(userConfig).Error
-}
+//func (ucm *UserConfigMapper) Get(token string) (*entity.UserConfig, error) {
+//
+//	user, err := ucm.userMapper.Get(token)
+//	if err != nil {
+//		return nil, err
+//	}
+//
+//	var userConfig entity.UserConfig
+//	if err := ucm.Where("user_id = ?", user.ID).First(&userConfig).Error; err != nil {
+//		return nil, err
+//	}
+//	return &userConfig, nil
+//}
+//
+//func (ucm *UserConfigMapper) Create(userConfig *entity.UserConfig) error {
+//	return ucm.Model(ucm).Create(userConfig).Error
+//}
+//
+//func (ucm *UserConfigMapper) Update(userConfig *entity.UserConfig) error {
+//	return ucm.Model(ucm).Save(userConfig).Error
+//}
+//
+//func (ucm *UserConfigMapper) Delete(userConfig *entity.UserConfig) error {
+//	return ucm.Model(ucm).Delete(userConfig).Error
+//}

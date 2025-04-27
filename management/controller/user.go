@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"gorm.io/gorm"
 	"linkany/management/dto"
 	"linkany/management/entity"
 	"linkany/management/service"
@@ -15,32 +16,32 @@ type UserController struct {
 	userService service.UserService
 }
 
-func NewUserController(db *service.DatabaseService, rdb *redis.Client) *UserController {
+func NewUserController(db *gorm.DB, rdb *redis.Client) *UserController {
 	return &UserController{
 		userService: service.NewUserService(db, rdb),
 		logger:      log.NewLogger(log.Loglevel, "user-controller")}
 }
 
 // User module
-func (u *UserController) Login(dto *dto.UserDto) (*entity.Token, error) {
-	return u.userService.Login(dto)
+func (u *UserController) Login(ctx context.Context, dto *dto.UserDto) (*entity.Token, error) {
+	return u.userService.Login(ctx, dto)
 }
 
-func (u *UserController) Register(e *dto.UserDto) (*entity.User, error) {
-	return u.userService.Register(e)
+func (u *UserController) Register(ctx context.Context, e *dto.UserDto) (*entity.User, error) {
+	return u.userService.Register(ctx, e)
 }
 
-func (u *UserController) Get(token string) (*entity.User, error) {
-	return u.userService.Get(token)
+func (u *UserController) Get(ctx context.Context, token string) (*entity.User, error) {
+	return u.userService.Get(ctx, token)
 }
 
-func (u *UserController) QueryUsers(params *dto.UserParams) ([]*vo.UserVo, error) {
-	return u.userService.QueryUsers(params)
+func (u *UserController) QueryUsers(ctx context.Context, params *dto.UserParams) ([]*vo.UserVo, error) {
+	return u.userService.QueryUsers(ctx, params)
 }
 
 // Invite module
-func (u *UserController) Invite(dto *dto.InviteDto) error {
-	return u.userService.Invite(dto)
+func (u *UserController) Invite(ctx context.Context, dto *dto.InviteDto) error {
+	return u.userService.Invite(ctx, dto)
 }
 
 //func (u *UserController) GetInvite(ctx context.Context, id string) (*vo.InviteVo, error) {
@@ -51,28 +52,28 @@ func (u *UserController) UpdateInvite(ctx context.Context, dto *dto.InviteDto) e
 	return u.userService.UpdateInvite(ctx, dto)
 }
 
-func (u *UserController) CancelInvite(id string) error {
-	return u.userService.CancelInvite(id)
+func (u *UserController) CancelInvite(ctx context.Context, id uint64) error {
+	return u.userService.CancelInvite(ctx, id)
 }
 
-func (u *UserController) DeleteInvite(id string) error {
-	return u.userService.DeleteInvite(id)
+func (u *UserController) DeleteInvite(ctx context.Context, id uint64) error {
+	return u.userService.DeleteInvite(ctx, id)
 }
 
-func (u *UserController) RejectInvitation(id uint64) error {
-	return u.userService.RejectInvitation(id)
+func (u *UserController) RejectInvitation(ctx context.Context, id uint64) error {
+	return u.userService.RejectInvitation(ctx, id)
 }
 
-func (u *UserController) AcceptInvitation(id uint64) error {
-	return u.userService.AcceptInvitation(id)
+func (u *UserController) AcceptInvitation(ctx context.Context, id uint64) error {
+	return u.userService.AcceptInvitation(ctx, id)
 }
 
-func (u *UserController) GetInvitation(userId, email string) (*entity.InviteeEntity, error) {
-	return u.userService.GetInvitation(userId, email)
+func (u *UserController) GetInvitation(ctx context.Context, userId uint64, email string) (*entity.InviteeEntity, error) {
+	return u.userService.GetInvitation(ctx, userId, email)
 }
 
-func (u *UserController) UpdateInvitation(dto *dto.InvitationDto) error {
-	return u.userService.UpdateInvitation(dto)
+func (u *UserController) UpdateInvitation(ctx context.Context, dto *dto.InvitationDto) error {
+	return u.userService.UpdateInvitation(ctx, dto)
 }
 
 func (u *UserController) ListUserInvites(ctx context.Context, params *dto.InvitationParams) (*vo.PageVo, error) {
@@ -84,18 +85,18 @@ func (u *UserController) ListUserInvitations(ctx context.Context, params *dto.In
 }
 
 // Permit module
-func (u *UserController) Permit(userID uint64, resource string, accessLevel string) error {
-	return u.userService.Permit(userID, resource, accessLevel)
+func (u *UserController) Permit(ctx context.Context, userID uint64, resource string, accessLevel string) error {
+	return u.userService.Permit(ctx, userID, resource, accessLevel)
 }
 
-func (u *UserController) GetPermit(userID string, resource string) (*entity.UserPermission, error) {
-	return u.userService.GetPermit(userID, resource)
+func (u *UserController) GetPermit(ctx context.Context, userID string, resource string) (*entity.UserPermission, error) {
+	return u.userService.GetPermit(ctx, userID, resource)
 }
 
-func (u *UserController) RevokePermit(userID string, resource string) error {
-	return u.userService.RevokePermit(userID, resource)
+func (u *UserController) RevokePermit(ctx context.Context, userID string, resource string) error {
+	return u.userService.RevokePermit(ctx, userID, resource)
 }
 
-func (u *UserController) ListPermits(userID string) ([]*entity.UserPermission, error) {
-	return u.userService.ListPermits(userID)
+func (u *UserController) ListPermits(ctx context.Context, userID string) ([]*entity.UserPermission, error) {
+	return u.userService.ListPermits(ctx, userID)
 }

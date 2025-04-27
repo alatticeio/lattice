@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"gorm.io/gorm"
 	"linkany/management/dto"
 	"linkany/management/entity"
 	"linkany/management/service"
@@ -15,7 +16,7 @@ type AccessController struct {
 	accessService service.AccessPolicyService
 }
 
-func NewAccessController(db *service.DatabaseService) *AccessController {
+func NewAccessController(db *gorm.DB) *AccessController {
 	return &AccessController{accessService: service.NewAccessPolicyService(db),
 		logger: log.NewLogger(log.Loglevel, "access-controller")}
 }
@@ -25,7 +26,7 @@ func (a *AccessController) AddRule(ctx context.Context, ruleDto *dto.AccessRuleD
 	return a.accessService.AddRule(ctx, ruleDto)
 }
 
-func (a *AccessController) GetRule(ctx context.Context, id int64) (vo.AccessRuleVo, error) {
+func (a *AccessController) GetRule(ctx context.Context, id uint64) (*vo.AccessRuleVo, error) {
 	return a.accessService.GetRule(ctx, id)
 }
 
@@ -33,7 +34,7 @@ func (a *AccessController) UpdateRule(ctx context.Context, ruleDto *dto.AccessRu
 	return a.accessService.UpdateRule(ctx, ruleDto)
 }
 
-func (a *AccessController) DeleteRule(ruleID uint) error {
+func (a *AccessController) DeleteRule(ruleID uint64) error {
 	return a.accessService.DeleteRule(context.Background(), ruleID)
 }
 
@@ -42,7 +43,7 @@ func (a *AccessController) ListPolicyRules(ctx context.Context, params *dto.Acce
 }
 
 // AccessControl module
-func (a *AccessController) CheckAccess(ctx context.Context, resourceType utils.ResourceType, resourceId string, action string) (bool, error) {
+func (a *AccessController) CheckAccess(ctx context.Context, resourceType utils.ResourceType, resourceId uint64, action string) (bool, error) {
 	return a.accessService.CheckAccess(ctx, resourceType, resourceId, action)
 }
 
@@ -63,7 +64,7 @@ func (a *AccessController) UpdatePolicy(ctx context.Context, policyDto *dto.Acce
 	return a.accessService.UpdatePolicy(ctx, policyDto)
 }
 
-func (a *AccessController) DeletePolicy(ctx context.Context, policyID uint) error {
+func (a *AccessController) DeletePolicy(ctx context.Context, policyID uint64) error {
 	return a.accessService.DeletePolicy(ctx, policyID)
 }
 
@@ -75,7 +76,7 @@ func (a *AccessController) ListPolicies(ctx context.Context, params *dto.AccessP
 	return a.accessService.QueryPolicies(ctx, params)
 }
 
-func (a *AccessController) GetPolicy(ctx context.Context, policyID uint) (*entity.AccessPolicy, error) {
+func (a *AccessController) GetPolicy(ctx context.Context, policyID uint64) (*entity.AccessPolicy, error) {
 	return a.accessService.GetPolicy(ctx, policyID)
 }
 

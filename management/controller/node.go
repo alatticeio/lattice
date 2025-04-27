@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"gorm.io/gorm"
 	"linkany/management/dto"
 	"linkany/management/entity"
 	"linkany/management/service"
@@ -14,27 +15,27 @@ type NodeController struct {
 	nodeService service.NodeService
 }
 
-func NewPeerController(db *service.DatabaseService) *NodeController {
+func NewPeerController(db *gorm.DB) *NodeController {
 	return &NodeController{
 		nodeService: service.NewNodeService(db),
 		logger:      log.NewLogger(log.Loglevel, "node-controller")}
 }
 
 // Node module
-func (p *NodeController) GetByAppId(appId, userId string) (*entity.Node, int64, error) {
-	return p.nodeService.GetByAppId(appId, userId)
+func (p *NodeController) GetByAppId(ctx context.Context, appId string) (*entity.Node, error) {
+	return p.nodeService.GetByAppId(ctx, appId)
 }
 
-func (p *NodeController) ListNodes(params *dto.QueryParams) (*vo.PageVo, error) {
-	return p.nodeService.ListNodes(params)
+func (p *NodeController) ListNodes(ctx context.Context, params *dto.QueryParams) (*vo.PageVo, error) {
+	return p.nodeService.ListNodes(ctx, params)
 }
 
-func (p *NodeController) QueryNodes(params *dto.QueryParams) ([]*vo.NodeVo, error) {
-	return p.nodeService.QueryNodes(params)
+func (p *NodeController) QueryNodes(ctx context.Context, params *dto.QueryParams) ([]*vo.NodeVo, error) {
+	return p.nodeService.QueryNodes(ctx, params)
 }
 
-func (p *NodeController) Update(dto *dto.NodeDto) (*entity.Node, error) {
-	return p.nodeService.Update(dto)
+func (p *NodeController) Update(ctx context.Context, dto *dto.NodeDto) error {
+	return p.nodeService.Update(ctx, dto)
 }
 
 func (p *NodeController) GetNetworkMap(appId, userId string) (*vo.NetworkMap, error) {
@@ -45,8 +46,8 @@ func (p *NodeController) Delete(ctx context.Context, appId string) error {
 	return p.nodeService.DeleteNode(ctx, appId)
 }
 
-func (p *NodeController) Registry(peer *dto.NodeDto) (*entity.Node, error) {
-	return p.nodeService.Register(peer)
+func (p *NodeController) Registry(ctx context.Context, peer *dto.NodeDto) (*entity.Node, error) {
+	return p.nodeService.Register(ctx, peer)
 }
 
 func (p *NodeController) CreateAppId(ctx context.Context) (*entity.Node, error) {
@@ -58,7 +59,7 @@ func (p *NodeController) AddGroupMember(ctx context.Context, dto *dto.GroupMembe
 	return p.nodeService.AddGroupMember(ctx, dto)
 }
 
-func (p *NodeController) RemoveGroupMember(ctx context.Context, ID string) error {
+func (p *NodeController) RemoveGroupMember(ctx context.Context, ID uint64) error {
 	return p.nodeService.RemoveGroupMember(ctx, ID)
 }
 
@@ -79,7 +80,7 @@ func (p *NodeController) UpdateLabel(ctx context.Context, dto *dto.TagDto) error
 	return p.nodeService.UpdateLabel(ctx, dto)
 }
 
-func (p *NodeController) DeleteLabel(ctx context.Context, id string) error {
+func (p *NodeController) DeleteLabel(ctx context.Context, id uint64) error {
 	return p.nodeService.DeleteLabel(ctx, id)
 }
 
@@ -87,7 +88,7 @@ func (p *NodeController) ListLabel(ctx context.Context, params *dto.LabelParams)
 	return p.nodeService.ListLabel(ctx, params)
 }
 
-func (p *NodeController) GetLabel(ctx context.Context, id string) (*entity.Label, error) {
+func (p *NodeController) GetLabel(ctx context.Context, id uint64) (*entity.Label, error) {
 	return p.nodeService.GetLabel(ctx, id)
 }
 
@@ -96,7 +97,7 @@ func (p *NodeController) AddGroupNode(ctx context.Context, dto *dto.GroupNodeDto
 	return p.nodeService.AddGroupNode(ctx, dto)
 }
 
-func (p *NodeController) RemoveGroupNode(ctx context.Context, ID string) error {
+func (p *NodeController) RemoveGroupNode(ctx context.Context, ID uint64) error {
 	return p.nodeService.RemoveGroupNode(ctx, ID)
 }
 
@@ -104,7 +105,7 @@ func (p *NodeController) ListGroupNodes(ctx context.Context, params *dto.GroupNo
 	return p.nodeService.ListGroupNodes(ctx, params)
 }
 
-func (p *NodeController) GetGroupNode(ctx context.Context, ID string) (*entity.GroupNode, error) {
+func (p *NodeController) GetGroupNode(ctx context.Context, ID uint64) (*entity.GroupNode, error) {
 	return p.nodeService.GetGroupNode(ctx, ID)
 }
 
@@ -113,7 +114,7 @@ func (p *NodeController) AddNodeLabel(ctx context.Context, dto *dto.NodeLabelUpd
 	return p.nodeService.AddNodeLabel(ctx, dto)
 }
 
-func (p *NodeController) RemoveNodeLabel(ctx context.Context, nodeId, labelId string) error {
+func (p *NodeController) RemoveNodeLabel(ctx context.Context, nodeId, labelId uint64) error {
 	return p.nodeService.RemoveNodeLabel(ctx, nodeId, labelId)
 }
 
@@ -121,6 +122,6 @@ func (p *NodeController) ListNodeLabels(ctx context.Context, params *dto.NodeLab
 	return p.nodeService.ListNodeLabels(ctx, params)
 }
 
-func (p *NodeController) QueryLabels(ctx context.Context, params *dto.NodeLabelParams) ([]*vo.LabelVo, error) {
+func (p *NodeController) QueryLabels(ctx context.Context, params *dto.LabelParams) ([]*vo.LabelVo, error) {
 	return p.nodeService.QueryLabels(ctx, params)
 }

@@ -5,19 +5,19 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"gorm.io/gorm"
 	"io"
 	"linkany/management/controller"
+	"linkany/management/db"
 	"linkany/management/dto"
 	"linkany/management/entity"
 	"linkany/management/grpc/mgt"
-	"linkany/management/service"
 	"linkany/management/utils"
 	"linkany/management/vo"
 	"linkany/pkg/linkerrors"
 	"linkany/pkg/log"
 	"linkany/pkg/redis"
 	"net"
-	"strconv"
 	"sync"
 	"time"
 
@@ -48,8 +48,8 @@ type Server struct {
 type ServerConfig struct {
 	Logger          *log.Logger
 	Port            int
-	Database        service.DatabaseConfig
-	DataBaseService *service.DatabaseService
+	Database        db.DatabaseConfig
+	DataBaseService *gorm.DB
 	Rdb             *redis.Client
 }
 
@@ -98,7 +98,7 @@ func (s *Server) Login(ctx context.Context, in *mgt.ManagementMessage) (*mgt.Man
 	}
 	s.logger.Infof("Received login username: %s, password: %s", req.Username, req.Password)
 
-	token, err := s.userController.Login(&dto.UserDto{
+	token, err := s.userController.Login(ctx, &dto.UserDto{
 		Username: req.Username,
 		Password: req.Password,
 	})
@@ -124,13 +124,13 @@ func (s *Server) Registry(ctx context.Context, in *mgt.ManagementMessage) (*mgt.
 		return nil, err
 	}
 	s.logger.Infof("Received peer info: %+v", req)
-	user, err := s.userController.Get(req.Token)
+	user, err := s.userController.Get(ctx, req.Token)
 	if err != nil {
 		s.logger.Errorf("get user info err: %s\n", err.Error())
 		return nil, err
 	}
 
-	peer, err := s.peerController.Registry(&dto.NodeDto{
+	peer, err := s.peerController.Registry(ctx, &dto.NodeDto{
 		Hostname:            req.Hostname,
 		UserID:              user.ID,
 		AppID:               req.AppID,
@@ -165,12 +165,12 @@ func (s *Server) Get(ctx context.Context, in *mgt.ManagementMessage) (*mgt.Manag
 	if err := proto.Unmarshal(in.Body, &req); err != nil {
 		return nil, err
 	}
-	user, err := s.userController.Get(req.Token)
+	_, err := s.userController.Get(ctx, req.Token)
 	if err != nil {
 		return nil, err
 	}
 
-	peer, count, err := s.peerController.GetByAppId(req.AppId, strconv.Itoa(int(user.ID)))
+	peer, err := s.peerController.GetByAppId(ctx, req.AppId)
 	if err != nil {
 		return nil, err
 	}
@@ -180,8 +180,7 @@ func (s *Server) Get(ctx context.Context, in *mgt.ManagementMessage) (*mgt.Manag
 		Count int64
 	}
 	body := &result{
-		Peer:  peer,
-		Count: count,
+		Peer: peer,
 	}
 	b, err := json.Marshal(body)
 	if err != nil {
@@ -199,7 +198,7 @@ func (s *Server) List(ctx context.Context, in *mgt.ManagementMessage) (*mgt.Mana
 	if err := proto.Unmarshal(in.Body, &req); err != nil {
 		return nil, status.Errorf(codes.Internal, "unmarshal failed: %v", err)
 	}
-	user, err := s.userController.Get(req.GetToken())
+	user, err := s.userController.Get(ctx, req.GetToken())
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "get user info err: %v", err)
 	}
@@ -236,7 +235,7 @@ func (s *Server) Watch(server mgt.ManagementService_WatchServer) error {
 	clientId := req.PubKey
 
 	// query node which group it lived in
-	currents, err := s.peerController.QueryNodes(&dto.QueryParams{PubKey: &clientId})
+	currents, err := s.peerController.QueryNodes(context.Background(), &dto.QueryParams{PubKey: &clientId})
 	if err != nil {
 		return status.Errorf(codes.Internal, "query node failed: %v", err)
 	}
@@ -294,7 +293,7 @@ func (s *Server) Keepalive(stream mgt.ManagementService_KeepaliveServer) error {
 	pubKey = req.PubKey
 	logger := s.logger
 
-	currents, err := s.peerController.QueryNodes(&dto.QueryParams{PubKey: &pubKey})
+	currents, err := s.peerController.QueryNodes(ctx, &dto.QueryParams{PubKey: &pubKey})
 	if err != nil {
 		return err
 	}
@@ -415,7 +414,7 @@ func (s *Server) UpdateStatus(current *vo.NodeVo, status utils.NodeStatus) error
 	// update nodeVo online status
 	dtoParam := &dto.NodeDto{PublicKey: current.PublicKey, Status: status}
 	s.logger.Verbosef("update node status, publicKey: %v, status: %v", current.PublicKey, status)
-	_, err := s.peerController.Update(dtoParam)
+	err := s.peerController.Update(context.Background(), dtoParam)
 
 	current.Status = status
 	return err
@@ -443,7 +442,7 @@ func (s *Server) VerifyToken(ctx context.Context, in *mgt.ManagementMessage) (*m
 		return nil, err
 	}
 
-	b, _, err := s.tokenController.Verify(user.Username, user.Password)
+	b, _, err := s.tokenController.Verify(ctx, user.Username, user.Password)
 	if err != nil {
 		return nil, err
 	}

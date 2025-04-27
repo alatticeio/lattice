@@ -34,7 +34,7 @@ func (s *Server) RegisterUserRoutes() {
 func (s *Server) getUserInfo() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		token := c.GetHeader("Authorization")
-		user, err := s.userController.Get(token)
+		user, err := s.userController.Get(c, token)
 		if err != nil {
 			WriteError(c.JSON, err.Error())
 			return
@@ -51,7 +51,7 @@ func (s *Server) queryUsers() gin.HandlerFunc {
 			WriteError(c.JSON, err.Error())
 			return
 		}
-		users, err := s.userController.QueryUsers(&params)
+		users, err := s.userController.QueryUsers(c, &params)
 		if err != nil {
 			WriteError(c.JSON, err.Error())
 			return
@@ -119,7 +119,7 @@ func (s *Server) invite() gin.HandlerFunc {
 			}
 		}
 
-		if err := s.userController.Invite(&req); err != nil {
+		if err := s.userController.Invite(c, &req); err != nil {
 			WriteError(c.JSON, err.Error())
 			return
 		}
@@ -196,7 +196,12 @@ func (s *Server) updateInvite() gin.HandlerFunc {
 func (s *Server) cancelInvite() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id := c.Param("id")
-		if err := s.userController.CancelInvite(id); err != nil {
+		inviteId, err := strconv.ParseUint(id, 10, 64)
+		if err != nil {
+			WriteError(c.JSON, "invalid invite id")
+			return
+		}
+		if err := s.userController.CancelInvite(c, inviteId); err != nil {
 			WriteError(c.JSON, err.Error())
 			return
 		}
@@ -208,7 +213,12 @@ func (s *Server) cancelInvite() gin.HandlerFunc {
 func (s *Server) deleteInvite() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id := c.Param("id")
-		if err := s.userController.DeleteInvite(id); err != nil {
+		inviteId, err := strconv.ParseUint(id, 10, 64)
+		if err != nil {
+			WriteError(c.JSON, "invalid invite id")
+			return
+		}
+		if err := s.userController.DeleteInvite(c, inviteId); err != nil {
 			WriteError(c.JSON, err.Error())
 			return
 		}
@@ -221,7 +231,12 @@ func (s *Server) getInvitation() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		userId := c.Query("userId")
 		email := c.Query("email")
-		invitation, err := s.userController.GetInvitation(userId, email)
+		uid, err := strconv.ParseUint(userId, 10, 64)
+		if err != nil {
+			WriteError(c.JSON, "invalid user id")
+			return
+		}
+		invitation, err := s.userController.GetInvitation(c, uid, email)
 		if err != nil {
 			WriteError(c.JSON, err.Error())
 			return
@@ -238,7 +253,7 @@ func (s *Server) rejectInvitation() gin.HandlerFunc {
 			WriteError(c.JSON, err.Error())
 			return
 		}
-		if err := s.userController.RejectInvitation(uid); err != nil {
+		if err := s.userController.RejectInvitation(c, uid); err != nil {
 			WriteError(c.JSON, err.Error())
 			return
 		}
@@ -254,7 +269,7 @@ func (s *Server) acceptInvitation() gin.HandlerFunc {
 			WriteError(c.JSON, err.Error())
 			return
 		}
-		if err := s.userController.AcceptInvitation(uid); err != nil {
+		if err := s.userController.AcceptInvitation(c, uid); err != nil {
 			WriteError(c.JSON, err.Error())
 			return
 		}

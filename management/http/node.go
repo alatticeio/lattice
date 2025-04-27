@@ -49,12 +49,12 @@ func (s *Server) RegisterNodeRoutes() {
 func (s *Server) getNodeByAppId() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		appId := c.Param("appId")
-		peer, _, err := s.nodeController.GetByAppId(appId, "")
+		node, err := s.nodeController.GetByAppId(c, appId)
 		if err != nil {
-			c.JSON(client.InternalServerError(err))
+			WriteError(c.JSON, err.Error())
 			return
 		}
-		c.JSON(client.Success(peer))
+		WriteOK(c.JSON, node)
 	}
 }
 
@@ -66,23 +66,23 @@ func (s *Server) createNode() gin.HandlerFunc {
 			return
 		}
 
-		peer, err := s.nodeController.Registry(&peerDto)
+		node, err := s.nodeController.Registry(c, &peerDto)
 		if err != nil {
 			WriteError(c.JSON, err.Error())
 			return
 		}
-		c.JSON(client.Success(peer))
+		WriteOK(c.JSON, node)
 	}
 }
 
 func (s *Server) createAppId() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		peer, err := s.nodeController.CreateAppId(c)
+		node, err := s.nodeController.CreateAppId(c)
 		if err != nil {
 			WriteError(c.JSON, err.Error())
 			return
 		}
-		c.JSON(client.Success(peer))
+		WriteOK(c.JSON, node)
 	}
 }
 
@@ -94,10 +94,10 @@ func (s *Server) listNodes() gin.HandlerFunc {
 			return
 		}
 		token := c.GetHeader("Authorization")
-		user, err := s.userController.Get(token)
+		user, err := s.userController.Get(c, token)
 		params.UserId = strconv.Itoa(int(user.ID))
 
-		nodes, err := s.nodeController.ListNodes(params)
+		nodes, err := s.nodeController.ListNodes(c, params)
 		if err != nil {
 			WriteError(c.JSON, err.Error())
 			return
@@ -110,11 +110,11 @@ func (s *Server) queryNodes() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		params := &dto.QueryParams{}
 		if err := c.ShouldBindQuery(params); err != nil {
-			c.JSON(client.BadRequest(err))
+			WriteError(c.JSON, err.Error())
 			return
 		}
 
-		nodes, err := s.nodeController.QueryNodes(params)
+		nodes, err := s.nodeController.QueryNodes(c, params)
 		if err != nil {
 			WriteError(c.JSON, err.Error())
 			return
@@ -125,18 +125,21 @@ func (s *Server) queryNodes() gin.HandlerFunc {
 
 func (s *Server) updateNode() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		var nodeDto dto.NodeDto
-		if err := c.ShouldBind(&nodeDto); err != nil {
+		var (
+			nodeDto dto.NodeDto
+			err     error
+		)
+		if err = c.ShouldBind(&nodeDto); err != nil {
 			c.JSON(client.BadRequest(err))
 			return
 		}
 
-		peer, err := s.nodeController.Update(&nodeDto)
+		err = s.nodeController.Update(c, &nodeDto)
 		if err != nil {
 			c.JSON(client.InternalServerError(err))
 			return
 		}
-		c.JSON(client.Success(peer))
+		WriteOK(c.JSON, nil)
 	}
 }
 
@@ -146,10 +149,10 @@ func (s *Server) deleteNode() gin.HandlerFunc {
 
 		err := s.nodeController.Delete(c, appId)
 		if err != nil {
-			c.JSON(client.InternalServerError(err))
+			WriteError(c.JSON, err.Error())
 			return
 		}
-		c.JSON(client.Success(nil))
+		WriteOK(c.JSON, nil)
 	}
 }
 
@@ -161,26 +164,35 @@ func (s *Server) addGroupMember() gin.HandlerFunc {
 			return
 		}
 		token := c.GetHeader("Authorization")
-		user, err := s.userController.Get(token)
+		user, err := s.userController.Get(c, token)
 		groupMember.CreatedBy = user.Username
 		err = s.nodeController.AddGroupMember(c, &groupMember)
 		if err != nil {
-			c.JSON(client.InternalServerError(err))
+			WriteError(c.JSON, err.Error())
 			return
 		}
-		c.JSON(client.Success(nil))
+		WriteOK(c.JSON, nil)
 	}
 }
 
 func (s *Server) removeGroupMember() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id := c.Query("id")
-		err := s.nodeController.RemoveGroupMember(c, id)
-		if err != nil {
-			c.JSON(client.InternalServerError(err))
+		if id == "" {
+			WriteError(c.JSON, "id is required")
 			return
 		}
-		c.JSON(client.Success(nil))
+		gid, err := strconv.ParseUint(id, 10, 64)
+		if err != nil {
+			WriteError(c.JSON, "invalid id")
+			return
+		}
+		err = s.nodeController.RemoveGroupMember(c, gid)
+		if err != nil {
+			WriteError(c.JSON, err.Error())
+			return
+		}
+		WriteOK(c.JSON, nil)
 	}
 }
 
@@ -194,10 +206,10 @@ func (s *Server) listGroupMembers() gin.HandlerFunc {
 
 		members, err := s.nodeController.ListGroupMembers(c, &params)
 		if err != nil {
-			c.JSON(client.InternalServerError(err))
+			WriteError(c.JSON, err.Error())
 			return
 		}
-		c.JSON(client.Success(members))
+		WriteOK(c.JSON, members)
 	}
 }
 
@@ -213,10 +225,10 @@ func (s *Server) UpdateGroupMember() gin.HandlerFunc {
 		groupMember.ID, _ = strconv.ParseUint(id, 10, 64)
 		err := s.nodeController.UpdateGroupMember(c, &groupMember)
 		if err != nil {
-			c.JSON(client.InternalServerError(err))
+			WriteError(c.JSON, err.Error())
 			return
 		}
-		c.JSON(client.Success(nil))
+		WriteOK(c.JSON, nil)
 	}
 }
 
@@ -231,7 +243,7 @@ func (s *Server) createLabel() gin.HandlerFunc {
 		}
 		fmt.Println("label:", tagDto)
 		token := c.GetHeader("Authorization")
-		user, err := s.userController.Get(token)
+		user, err := s.userController.Get(c, token)
 		tagDto.OwnerId = uint64(user.ID)
 		tagDto.CreatedBy = user.Username
 
@@ -252,7 +264,7 @@ func (s *Server) updateLabel() gin.HandlerFunc {
 			return
 		}
 		token := c.GetHeader("Authorization")
-		user, err := s.userController.Get(token)
+		user, err := s.userController.Get(c, token)
 		tagDto.UpdatedBy = user.Username
 
 		err = s.nodeController.UpdateLabel(c, &tagDto)
@@ -268,8 +280,12 @@ func (s *Server) updateLabel() gin.HandlerFunc {
 func (s *Server) deleteLabel() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id := c.Query("id")
-
-		err := s.nodeController.DeleteLabel(c, id)
+		labelId, err := strconv.ParseUint(id, 10, 64)
+		if err != nil {
+			WriteError(c.JSON, "invalid id")
+			return
+		}
+		err = s.nodeController.DeleteLabel(c, labelId)
 		if err != nil {
 			WriteError(c.JSON, err.Error())
 			return
@@ -299,8 +315,12 @@ func (s *Server) listLabel() gin.HandlerFunc {
 func (s *Server) getLabel() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id := c.Param("id")
-
-		label, err := s.nodeController.GetLabel(c, id)
+		labelId, err := strconv.ParseUint(id, 10, 64)
+		if err != nil {
+			WriteError(c.JSON, "invalid id")
+			return
+		}
+		label, err := s.nodeController.GetLabel(c, labelId)
 		if err != nil {
 			WriteError(c.JSON, err.Error())
 			return
@@ -318,7 +338,7 @@ func (s *Server) addGroupNode() gin.HandlerFunc {
 			return
 		}
 		token := c.GetHeader("Authorization")
-		user, err := s.userController.Get(token)
+		user, err := s.userController.Get(c, token)
 		groupNode.CreatedBy = user.Username
 		err = s.nodeController.AddGroupNode(c, &groupNode)
 		if err != nil {
@@ -332,12 +352,17 @@ func (s *Server) addGroupNode() gin.HandlerFunc {
 func (s *Server) removeGroupNode() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id := c.Query("id")
-		err := s.nodeController.RemoveGroupNode(c, id)
+		groupNodeId, err := strconv.ParseUint(id, 10, 64)
 		if err != nil {
-			c.JSON(client.InternalServerError(err))
+			WriteError(c.JSON, "invalid id")
 			return
 		}
-		c.JSON(client.Success(nil))
+		err = s.nodeController.RemoveGroupNode(c, groupNodeId)
+		if err != nil {
+			WriteError(c.JSON, err.Error())
+			return
+		}
+		WriteOK(c.JSON, nil)
 	}
 }
 
@@ -360,7 +385,12 @@ func (s *Server) listGroupNodes() gin.HandlerFunc {
 func (s *Server) getGroupNode() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id := c.Param("id")
-		member, err := s.nodeController.GetGroupNode(c, id)
+		groupNodeId, err := strconv.ParseUint(id, 10, 64)
+		if err != nil {
+			WriteError(c.JSON, "invalid id")
+			return
+		}
+		member, err := s.nodeController.GetGroupNode(c, groupNodeId)
 		if err != nil {
 			WriteBadRequest(c.JSON, err.Error())
 			return
@@ -377,7 +407,7 @@ func (s *Server) addNodeLabel() gin.HandlerFunc {
 			return
 		}
 		token := c.GetHeader("Authorization")
-		user, err := s.userController.Get(token)
+		user, err := s.userController.Get(c, token)
 
 		nodeLabel.CreatedBy = user.Username
 		err = s.nodeController.AddNodeLabel(c, &nodeLabel)
@@ -393,7 +423,20 @@ func (s *Server) removeNodeLabel() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		nodeId := c.Query("nodeId")
 		labelId := c.Query("labelId")
-		err := s.nodeController.RemoveNodeLabel(c, nodeId, labelId)
+
+		nodeIdUint, err := strconv.ParseUint(nodeId, 10, 64)
+		if err != nil {
+			WriteError(c.JSON, "invalid node id")
+			return
+		}
+
+		labelIdUint, err := strconv.ParseUint(labelId, 10, 64)
+		if err != nil {
+			WriteError(c.JSON, "invalid label id")
+			return
+		}
+
+		err = s.nodeController.RemoveNodeLabel(c, nodeIdUint, labelIdUint)
 		if err != nil {
 			WriteError(c.JSON, err.Error())
 			return
@@ -420,7 +463,7 @@ func (s *Server) listNodeLabels() gin.HandlerFunc {
 
 func (s *Server) queryLabels() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		var params dto.NodeLabelParams
+		var params dto.LabelParams
 		if err := c.ShouldBindQuery(&params); err != nil {
 			c.JSON(client.BadRequest(err))
 			return

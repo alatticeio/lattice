@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"gorm.io/gorm"
 	"linkany/management/dto"
 	"linkany/management/entity"
 	"linkany/management/service"
@@ -14,7 +15,7 @@ type GroupController struct {
 	groupService service.GroupService
 }
 
-func NewGroupController(db *service.DatabaseService) *GroupController {
+func NewGroupController(db *gorm.DB) *GroupController {
 	return &GroupController{
 		groupService: service.NewGroupService(db),
 		logger:       log.NewLogger(log.Loglevel, "group-policy-controller")}
@@ -24,15 +25,15 @@ func (g *GroupController) ListGroupPolicies(ctx context.Context, params *dto.Gro
 	return g.groupService.ListGroupPolicy(ctx, params)
 }
 
-func (g *GroupController) DeleteGroupPolicy(ctx context.Context, groupId uint, policyId uint) error {
+func (g *GroupController) DeleteGroupPolicy(ctx context.Context, groupId, policyId uint64) error {
 	return g.groupService.DeleteGroupPolicy(ctx, groupId, policyId)
 }
 
-func (g *GroupController) DeleteGroupNode(ctx context.Context, groupId uint, nodeId uint) error {
+func (g *GroupController) DeleteGroupNode(ctx context.Context, groupId, nodeId uint64) error {
 	return g.groupService.DeleteGroupNode(ctx, groupId, nodeId)
 }
 
-func (p *GroupController) GetNodeGroup(ctx context.Context, id string) (*vo.GroupVo, error) {
+func (p *GroupController) GetNodeGroup(ctx context.Context, id uint64) (*vo.GroupVo, error) {
 	return p.groupService.GetNodeGroup(ctx, id)
 }
 

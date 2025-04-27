@@ -3,23 +3,24 @@ package service
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
-	"gorm.io/gorm"
 	"linkany/management/dto"
 	"linkany/management/entity"
+	"linkany/management/repository"
 	"linkany/management/utils"
 	"linkany/management/vo"
 	"linkany/pkg/linkerrors"
 	"linkany/pkg/log"
+
+	"gorm.io/gorm"
 )
 
 type AccessPolicyService interface {
 	// Policy manager
 	CreatePolicy(ctx context.Context, policyDto *dto.AccessPolicyDto) error
 	UpdatePolicy(ctx context.Context, policyDto *dto.AccessPolicyDto) error
-	DeletePolicy(ctx context.Context, policyID uint) error
-	GetPolicy(ctx context.Context, policyID uint) (*entity.AccessPolicy, error)
+	DeletePolicy(ctx context.Context, policyID uint64) error
+	GetPolicy(ctx context.Context, policyID uint64) (*entity.AccessPolicy, error)
 	ListGroupPolicies(ctx context.Context, params *dto.AccessPolicyParams) (*vo.PageVo, error)
 
 	//ListPagePolicies list with query
@@ -28,13 +29,13 @@ type AccessPolicyService interface {
 
 	// Rule manager
 	AddRule(ctx context.Context, ruleDto *dto.AccessRuleDto) error
-	GetRule(ctx context.Context, id int64) (vo.AccessRuleVo, error)
+	GetRule(ctx context.Context, id uint64) (*vo.AccessRuleVo, error)
 	UpdateRule(ctx context.Context, ruleDto *dto.AccessRuleDto) error
-	DeleteRule(ctx context.Context, ruleID uint) error
+	DeleteRule(ctx context.Context, ruleID uint64) error
 	ListPolicyRules(ctx context.Context, params *dto.AccessPolicyRuleParams) (*vo.PageVo, error)
 
 	// Access control
-	CheckAccess(ctx context.Context, resourceType utils.ResourceType, resourceId string, action string) (bool, error)
+	CheckAccess(ctx context.Context, resourceType utils.ResourceType, resourceId uint64, action string) (bool, error)
 	BatchCheckAccess(ctx context.Context, requests []AccessRequest) ([]AccessResult, error)
 
 	// Audit log
@@ -71,21 +72,43 @@ var (
 )
 
 type accessPolicyServiceImpl struct {
-	logger *log.Logger
-	*DatabaseService
+	logger             *log.Logger
+	db                 *gorm.DB
+	policyRepo         repository.PolicyRepository
+	ruleRepo           repository.RuleRepository
+	policyRuleRepo     repository.PolicyRuleRepository
+	permissionRepo     repository.PermissionRepository
+	sharedRepo         repository.SharedRepository
+	userPermissionRepo repository.UserResourcePermissionRepository
 }
 
-func (a accessPolicyServiceImpl) CreatePolicy(ctx context.Context, policyDto *dto.AccessPolicyDto) error {
-	var count int64
-	if err := a.Model(&entity.AccessPolicy{}).Where("name = ? and group_id = ?", policyDto.Name, policyDto.GroupID).Count(&count).Error; err != nil {
-		return err
+func NewAccessPolicyService(db *gorm.DB) AccessPolicyService {
+	return &accessPolicyServiceImpl{
+		logger:             log.NewLogger(log.Loglevel, "access_policy_service"),
+		db:                 db,
+		policyRepo:         repository.NewPolicyRepository(db),
+		ruleRepo:           repository.NewRuleRepository(db),
+		permissionRepo:     repository.NewPermissionRepository(db),
+		policyRuleRepo:     repository.NewPolicyRuleRepository(db),
+		sharedRepo:         repository.NewSharedRepository(db),
+		userPermissionRepo: repository.NewUserPermissionRepository(db),
 	}
+}
+
+func (a *accessPolicyServiceImpl) CreatePolicy(ctx context.Context, policyDto *dto.AccessPolicyDto) error {
+	var (
+		count int64
+	)
+	_, count, _ = a.policyRepo.List(ctx, &dto.AccessPolicyParams{
+		Name:    policyDto.Name,
+		GroupId: policyDto.GroupID,
+	})
 
 	if count > 0 {
-		return fmt.Errorf("policy name %s already exists", policyDto.Name)
+		return fmt.Errorf("policy with name %s already exists", policyDto.Name)
 	}
 
-	return a.Create(&entity.AccessPolicy{
+	return a.policyRepo.Create(ctx, &entity.AccessPolicy{
 		Name:        policyDto.Name,
 		GroupID:     policyDto.GroupID,
 		Priority:    policyDto.Priority,
@@ -94,11 +117,12 @@ func (a accessPolicyServiceImpl) CreatePolicy(ctx context.Context, policyDto *dt
 		Status:      policyDto.Status,
 		CreatedBy:   policyDto.CreatedBy,
 		UpdatedBy:   policyDto.UpdatedBy,
-	}).Error
+	})
 }
 
-func (a accessPolicyServiceImpl) UpdatePolicy(ctx context.Context, policyDto *dto.AccessPolicyDto) error {
-	return a.Where("id = ?", policyDto.ID).Save(&entity.AccessPolicy{
+func (a *accessPolicyServiceImpl) UpdatePolicy(ctx context.Context, policyDto *dto.AccessPolicyDto) error {
+
+	policy := &entity.AccessPolicy{
 		Name:        policyDto.Name,
 		GroupID:     policyDto.GroupID,
 		Priority:    policyDto.Priority,
@@ -107,55 +131,77 @@ func (a accessPolicyServiceImpl) UpdatePolicy(ctx context.Context, policyDto *dt
 		Status:      policyDto.Status,
 		CreatedBy:   policyDto.CreatedBy,
 		UpdatedBy:   policyDto.UpdatedBy,
-	}).Error
-}
-
-func (a accessPolicyServiceImpl) DeletePolicy(ctx context.Context, policyID uint) error {
-	return a.Where("id = ?", policyID).Delete(&entity.AccessPolicy{}).Error
-}
-
-func (a accessPolicyServiceImpl) GetPolicy(ctx context.Context, policyID uint) (*entity.AccessPolicy, error) {
-	var policy entity.AccessPolicy
-	err := a.Where("id = ?", policyID).Find(&policy).Error
-	return &policy, err
-}
-
-func (a accessPolicyServiceImpl) ListGroupPolicies(ctx context.Context, params *dto.AccessPolicyParams) (*vo.PageVo, error) {
-	var policies []entity.AccessPolicy
-	var result = new(vo.PageVo)
-	sql, wrappers := utils.Generate(params)
-	db := a.DB
-	if sql != "" {
-		db = db.Model(&entity.AccessPolicy{}).Where(sql, wrappers)
 	}
+	policy.ID = policyDto.ID
+	return a.policyRepo.Update(ctx, policy)
+}
 
-	err := db.Model(&entity.AccessPolicy{}).Count(&result.Total).Offset((params.Page - 1) * params.Size).Limit(params.Size).Find(&policies).Error
+func (a *accessPolicyServiceImpl) DeletePolicy(ctx context.Context, id uint64) error {
+	return a.policyRepo.Delete(ctx, id)
+}
+
+func (a *accessPolicyServiceImpl) GetPolicy(ctx context.Context, id uint64) (*entity.AccessPolicy, error) {
+	return a.policyRepo.Find(ctx, id)
+}
+
+func (a *accessPolicyServiceImpl) ListGroupPolicies(ctx context.Context, params *dto.AccessPolicyParams) (*vo.PageVo, error) {
+	var (
+		policies []*entity.AccessPolicy
+		result   = new(vo.PageVo)
+		err      error
+		count    int64
+	)
+
+	policies, count, err = a.policyRepo.List(ctx, params)
+	if err != nil {
+		return nil, err
+	}
 
 	result.Data = policies
 	result.Current = params.Page
 	result.Page = params.Page
 	result.Size = params.Size
+	result.Total = count
 	return result, err
 }
 
-func (a accessPolicyServiceImpl) QueryPolicies(ctx context.Context, params *dto.AccessPolicyParams) ([]*vo.AccessPolicyVo, error) {
-	var policies []*vo.AccessPolicyVo
-	sql, wrappers := utils.GenerateSql(params)
+func (a *accessPolicyServiceImpl) QueryPolicies(ctx context.Context, params *dto.AccessPolicyParams) ([]*vo.AccessPolicyVo, error) {
+	var (
+		policies []*entity.AccessPolicy
+		err      error
+	)
 
-	if sql != "" {
-		err := a.Model(&entity.AccessPolicy{}).Where(sql, wrappers).Find(&policies).Error
-		return policies, err
+	policies, err = a.policyRepo.Query(ctx, params)
+	if err != nil {
+		return nil, err
 	}
 
-	return policies, nil
+	var vos []*vo.AccessPolicyVo
+	for _, policy := range policies {
+		vos = append(vos, &vo.AccessPolicyVo{
+			ID:          policy.ID,
+			Name:        policy.Name,
+			GroupID:     policy.GroupID,
+			Priority:    policy.Priority,
+			Effect:      policy.Effect,
+			Description: policy.Description,
+			Status:      policy.Status,
+			CreatedBy:   policy.CreatedBy,
+			UpdatedBy:   policy.UpdatedBy,
+			CreatedAt:   policy.CreatedAt,
+			UpdatedAt:   policy.UpdatedAt,
+		})
+	}
+
+	return vos, nil
 }
 
-func (a accessPolicyServiceImpl) AddRule(ctx context.Context, ruleDto *dto.AccessRuleDto) error {
+func (a *accessPolicyServiceImpl) AddRule(ctx context.Context, ruleDto *dto.AccessRuleDto) error {
 	data, err := json.Marshal(ruleDto.Conditions)
 	if err != nil {
 		return err
 	}
-	return a.Create(&entity.AccessRule{
+	return a.ruleRepo.Create(ctx, &entity.AccessRule{
 		PolicyId:   ruleDto.PolicyID,
 		SourceType: ruleDto.SourceType,
 		SourceId:   ruleDto.SourceID,
@@ -163,13 +209,15 @@ func (a accessPolicyServiceImpl) AddRule(ctx context.Context, ruleDto *dto.Acces
 		TargetId:   ruleDto.TargetID,
 		Actions:    ruleDto.Actions,
 		Conditions: string(data),
-	}).Error
+	})
 }
 
-func (a accessPolicyServiceImpl) GetRule(ctx context.Context, ruleId int64) (vo.AccessRuleVo, error) {
-	var rule entity.AccessRule
-	err := a.Where("id = ?", ruleId).Find(&rule).Error
-	return vo.AccessRuleVo{
+func (a *accessPolicyServiceImpl) GetRule(ctx context.Context, ruleId uint64) (*vo.AccessRuleVo, error) {
+	rule, err := a.ruleRepo.Find(ctx, ruleId)
+	if err != nil {
+		return nil, err
+	}
+	return &vo.AccessRuleVo{
 		ID:         rule.ID,
 		RuleType:   rule.RuleType,
 		PolicyID:   rule.PolicyId,
@@ -185,54 +233,36 @@ func (a accessPolicyServiceImpl) GetRule(ctx context.Context, ruleId int64) (vo.
 	}, err
 }
 
-func (a accessPolicyServiceImpl) UpdateRule(ctx context.Context, ruleDto *dto.AccessRuleDto) error {
-	data, err := json.Marshal(ruleDto.Conditions)
-	if err != nil {
-		return err
-	}
-	return a.Where("id = ?", ruleDto.ID).Save(&entity.AccessRule{
-		PolicyId:   ruleDto.PolicyID,
-		SourceType: ruleDto.SourceType,
-		SourceId:   ruleDto.SourceID,
-		TargetType: ruleDto.TargetType,
-		TargetId:   ruleDto.TargetID,
-		Actions:    ruleDto.Actions,
-		Conditions: string(data),
-	}).Error
-
+func (a *accessPolicyServiceImpl) UpdateRule(ctx context.Context, ruleDto *dto.AccessRuleDto) error {
+	return a.ruleRepo.Update(ctx, ruleDto)
 }
 
-func (a accessPolicyServiceImpl) DeleteRule(ctx context.Context, ruleID uint) error {
-	return a.Model(&entity.AccessRule{}).Where("id = ?", ruleID).Delete(&entity.AccessRule{}).Error
+func (a *accessPolicyServiceImpl) DeleteRule(ctx context.Context, id uint64) error {
+	return a.ruleRepo.Delete(ctx, id)
 }
 
-func (a accessPolicyServiceImpl) ListPolicyRules(ctx context.Context, params *dto.AccessPolicyRuleParams) (*vo.PageVo, error) {
-	var policies []vo.AccessRuleVo
-	var result = new(vo.PageVo)
-	sql, wrappers := utils.Generate(params)
-	db := a.DB
-	if sql != "" {
-		db = db.Model(&entity.AccessRule{}).Where(sql, wrappers)
-	}
+func (a *accessPolicyServiceImpl) ListPolicyRules(ctx context.Context, params *dto.AccessPolicyRuleParams) (*vo.PageVo, error) {
+	var (
+		err    error
+		count  int64
+		rules  []*entity.AccessRule
+		result = new(vo.PageVo)
+	)
 
-	if err := db.Model(&entity.AccessRule{}).Count(&result.Total).Error; err != nil {
+	if rules, count, err = a.policyRuleRepo.List(ctx, params); err != nil {
 		return nil, err
 	}
 
-	if err := db.Model(&entity.AccessRule{}).Offset((params.Page - 1) * params.Size).Limit(params.Size).Find(&policies).Error; err != nil {
-		return nil, err
-	}
-
-	result.Data = policies
+	result.Data = rules
 	result.Current = params.Page
 	result.Page = params.Page
 	result.Size = params.Size
+	result.Total = count
 	return result, nil
 }
 
-func (a accessPolicyServiceImpl) CheckAccess(ctx context.Context, resourceType utils.ResourceType, resourceId string, action string) (bool, error) {
+func (a *accessPolicyServiceImpl) CheckAccess(ctx context.Context, resourceType utils.ResourceType, resourceId uint64, action string) (bool, error) {
 	var (
-		err   error
 		count int64
 	)
 
@@ -240,64 +270,78 @@ func (a accessPolicyServiceImpl) CheckAccess(ctx context.Context, resourceType u
 	//check whether resource is own
 	switch resourceType {
 	case utils.Group:
-		var group entity.SharedNodeGroup
-		if err = a.Model(&entity.SharedNodeGroup{}).Where("group_id = ?", resourceId).Find(&group).Error; err != nil {
+		groups, count, err := a.sharedRepo.ListGroup(ctx, &dto.SharedGroupParams{
+			GroupParams: dto.GroupParams{
+				GroupId: resourceId,
+			},
+		})
+
+		if err != nil || count == 0 {
 			return false, err
 		}
 
-		if group.OwnerId == userId {
+		if groups[0].OwnerId == userId {
 			return true, nil
 		}
 	case utils.Policy:
-		var policy entity.SharedPolicy
-		if err = a.Model(&entity.SharedPolicy{}).Where("policy_id = ?", resourceId).Find(&policy).Error; err != nil {
+		// TODO
+		policies, count, err := a.sharedRepo.ListPolicy(ctx, &dto.SharedPolicyParams{})
+
+		if err != nil || count == 0 {
 			return false, err
 		}
 
-		if policy.OwnerId == userId {
+		if policies[0].OwnerId == userId {
 			return true, nil
 		}
 
 	case utils.Node:
-		var node entity.SharedNode
-		if err = a.Model(&entity.SharedNode{}).Where("node_id = ?", resourceId).Find(&node).Error; err != nil {
+		nodes, count, err := a.sharedRepo.ListNode(ctx, &dto.SharedNodeParams{})
+
+		if err != nil || count == 0 {
 			return false, err
 		}
 
-		if node.OwnerId == userId {
+		if nodes[0].OwnerId == userId {
 			return true, nil
 		}
-
 	case utils.Label:
-		var label entity.SharedLabel
-		if err = a.Model(&entity.SharedLabel{}).Where("label_id = ?", resourceId).Find(&label).Error; err != nil {
+		labels, count, err := a.sharedRepo.ListGroup(ctx, &dto.SharedGroupParams{
+			GroupParams: dto.GroupParams{
+				GroupId: resourceId,
+			},
+		})
+
+		if err != nil || count == 0 {
 			return false, err
 		}
 
-		if label.OwnerId == userId {
+		if labels[0].OwnerId == userId {
 			return true, nil
 		}
-
-	case utils.Rule:
-		var rule entity.AccessRule
-		if err = a.Model(&entity.AccessRule{}).Where("rule_id = ?", resourceId).Find(&rule).Error; err != nil {
-			return false, err
-		}
-
-		if rule.OwnerId == userId {
-			return true, nil
-		}
+	//case utils.Rule:
+	//	var rule entity.AccessRule
+	//	if err = a.Model(&entity.AccessRule{}).Where("rule_id = ?", resourceId).Find(&rule).Error; err != nil {
+	//		return false, err
+	//	}
+	//
+	//	if rule.OwnerId == userId {
+	//		return true, nil
+	//	}
 
 	default:
 		return false, nil
 	}
 
 	//check whether user has permission
-	if err = a.Model(&entity.UserResourceGrantedPermission{}).Where("invitation_id = ? and resource_id = ? and permission_value =  ?", userId, resourceId, action).Count(&count).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return false, nil
-		}
-	}
+	//if err = a.Model(&entity.UserResourceGrantedPermission{}).Where("invitation_id = ? and resource_id = ? and permission_value =  ?", userId, resourceId, action).Count(&count).Error; err != nil {
+	//	if errors.Is(err, gorm.ErrRecordNotFound) {
+	//		return false, nil
+	//	}
+	//}
+
+	// TODO make real params
+	a.userPermissionRepo.List(ctx, &dto.AccessPolicyParams{})
 
 	//check whether user has permission
 	if count == 0 {
@@ -308,30 +352,24 @@ func (a accessPolicyServiceImpl) CheckAccess(ctx context.Context, resourceType u
 
 }
 
-func (a accessPolicyServiceImpl) BatchCheckAccess(ctx context.Context, requests []AccessRequest) ([]AccessResult, error) {
+func (a *accessPolicyServiceImpl) BatchCheckAccess(ctx context.Context, requests []AccessRequest) ([]AccessResult, error) {
 	//TODO implement me
 	panic("implement me")
 }
 
-func (a accessPolicyServiceImpl) GetAccessLogs(ctx context.Context, filter AccessLogFilter) ([]entity.AccessLog, error) {
+func (a *accessPolicyServiceImpl) GetAccessLogs(ctx context.Context, filter AccessLogFilter) ([]entity.AccessLog, error) {
 	//TODO implement me
 	panic("implement me")
 }
 
-func (a accessPolicyServiceImpl) ListPermissions(ctx context.Context, params *dto.PermissionParams) (*vo.PageVo, error) {
-	sql, wrappers := utils.GenerateSql(params)
-	var permissions []entity.Permissions
-	var result = new(vo.PageVo)
-	db := a.DB
-	if sql != "" {
-		db = db.Model(&entity.Permissions{}).Where(sql, wrappers)
-	}
-
-	if err := db.Model(&entity.Permissions{}).Count(&result.Total).Error; err != nil {
-		return nil, err
-	}
-
-	if err := db.Model(&entity.Permissions{}).Offset((params.Page - 1) * params.Size).Limit(params.Size).Find(&permissions).Error; err != nil {
+func (a *accessPolicyServiceImpl) ListPermissions(ctx context.Context, params *dto.PermissionParams) (*vo.PageVo, error) {
+	var (
+		err         error
+		count       int64
+		permissions []*entity.Permissions
+		result      = new(vo.PageVo)
+	)
+	if permissions, count, err = a.permissionRepo.List(ctx, params); err != nil {
 		return nil, err
 	}
 
@@ -348,22 +386,20 @@ func (a accessPolicyServiceImpl) ListPermissions(ctx context.Context, params *dt
 	result.Current = params.Page
 	result.Page = params.Page
 	result.Size = params.Size
+	result.Total = count
 	return result, nil
 }
 
-func (a accessPolicyServiceImpl) QueryPermissions(ctx context.Context, params *dto.PermissionParams) ([]*vo.PermissionVo, error) {
-	sql, wrappers := utils.GenerateSql(params)
-	var permissions []entity.Permissions
-	db := a.DB
-	if sql != "" {
-		db = db.Model(&entity.Permissions{}).Where(sql, wrappers)
-	}
-
-	if err := db.Model(&entity.Permissions{}).Find(&permissions).Error; err != nil {
+func (a *accessPolicyServiceImpl) QueryPermissions(ctx context.Context, params *dto.PermissionParams) ([]*vo.PermissionVo, error) {
+	var (
+		err         error
+		permissions []*entity.Permissions
+		vos         []*vo.PermissionVo
+	)
+	if permissions, err = a.permissionRepo.Query(ctx, params); err != nil {
 		return nil, err
 	}
 
-	var vos []*vo.PermissionVo
 	for _, permission := range permissions {
 		vos = append(vos, &vo.PermissionVo{
 			ID:          permission.ID,
@@ -375,12 +411,12 @@ func (a accessPolicyServiceImpl) QueryPermissions(ctx context.Context, params *d
 	return vos, nil
 }
 
-func (a accessPolicyServiceImpl) DeleteUserResourcePermission(ctx context.Context, inviteId, permissionId uint) error {
+func (a *accessPolicyServiceImpl) DeleteUserResourcePermission(ctx context.Context, inviteId, permissionId uint) error {
 	var (
 		err error
 	)
 
-	return a.DB.Transaction(func(tx *gorm.DB) error {
+	return a.db.Transaction(func(tx *gorm.DB) error {
 		if err = tx.Model(&entity.UserResourceGrantedPermission{}).Where("invite_id = ? and permission_id = ?", inviteId, permissionId).Delete(&entity.UserResourceGrantedPermission{}).Error; err != nil {
 			return err
 		}
@@ -388,11 +424,4 @@ func (a accessPolicyServiceImpl) DeleteUserResourcePermission(ctx context.Contex
 		return nil
 	})
 
-}
-
-func NewAccessPolicyService(db *DatabaseService) AccessPolicyService {
-	return &accessPolicyServiceImpl{
-		logger:          log.NewLogger(log.Loglevel, "access_policy_service"),
-		DatabaseService: db,
-	}
 }

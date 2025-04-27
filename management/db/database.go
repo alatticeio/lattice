@@ -1,14 +1,15 @@
-package service
+package db
 
 import (
 	"fmt"
-	"gorm.io/driver/mysql"
-	"gorm.io/gorm"
-	"gorm.io/gorm/logger"
 	"log"
 	"os"
 	"sync"
 	"time"
+
+	"gorm.io/driver/mysql"
+	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 )
 
 type DatabaseConfig struct {
@@ -19,27 +20,29 @@ type DatabaseConfig struct {
 	Password string `yaml:"password,omitempty"`
 }
 
-var dataBaseService *DatabaseService
+var db *gorm.DB
 var once sync.Once
+var lock sync.Mutex
 
-type DatabaseService struct {
-	*gorm.DB
-	cfg *DatabaseConfig
-}
-
-func NewDatabaseService(cfg *DatabaseConfig) *DatabaseService {
+func GetDB(cfg *DatabaseConfig) *gorm.DB {
+	lock.Lock()
+	defer lock.Unlock()
+	if db != nil {
+		return db
+	}
+	// Use sync.Once to ensure that the database connection is only initialized once
+	// regardless of how many times GetDB is called concurrently
 	once.Do(func() {
-		db, err := connect(cfg)
+		var err error
+		// Initialize the database connection
+		db, err = connect(cfg)
 		if err != nil {
 			panic(err)
 		}
 
-		dataBaseService = &DatabaseService{
-			DB: db,
-		}
 	})
 
-	return dataBaseService
+	return db
 }
 
 func connect(cfg *DatabaseConfig) (*gorm.DB, error) {
@@ -61,7 +64,3 @@ func connect(cfg *DatabaseConfig) (*gorm.DB, error) {
 
 	return db, nil
 }
-
-//func (d *DatabaseService) GetDB() *gorm.DB {
-//	return d.DB
-//}
