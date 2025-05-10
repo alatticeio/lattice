@@ -24,6 +24,7 @@ type AccessPolicyVo struct {
 
 type AccessRuleVo struct {
 	ID         uint64         `json:"id"`
+	Name       string         `json:"name"`                 // 规则名称
 	RuleType   utils.RuleType `json:"ruleType"`             // 规则类型
 	PolicyID   uint64         `json:"policyId"`             // 所属策略ID
 	SourceType string         `json:"sourceType"`           // 源类型：node/tag/all
@@ -38,4 +39,9 @@ type AccessRuleVo struct {
 	CreatedBy  string         `json:"createdBy"`
 	UpdatedBy  string         `json:"updatedBy"`
 	DeletedAt  time.Time      `json:"deletedAt"`
+
+	SourceNodeValues  *NodeResourceVo  `json:"sourceNodeValues"`
+	TargetNodeValues  *NodeResourceVo  `json:"targetNodeValues"`
+	SourceLabelValues *LabelResourceVo `json:"sourceLabelValues"`
+	TargetLabelValues *LabelResourceVo `json:"targetLabelValues"`
 }

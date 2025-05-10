@@ -22,8 +22,8 @@ func Generate(params ParamBuilder) (string, []interface{}) {
 	return sb.String(), wrappers
 }
 
-// GenerateSql  used for tom-select
-func GenerateSql(params ParamBuilder) (string, []interface{}) {
+// GenerateLikeSql  used for tom-select
+func GenerateLikeSql(params ParamBuilder) (string, []interface{}) {
 	var sb strings.Builder
 	var wrappers []interface{}
 	filters := params.Generate()

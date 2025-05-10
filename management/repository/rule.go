@@ -14,6 +14,7 @@ import (
 type RuleRepository interface {
 	WithTx(tx *gorm.DB) RuleRepository
 	Create(ctx context.Context, groupPolicy *entity.AccessRule) error
+	CreateRuleRel(ctx context.Context, ruleRel *entity.AccessRuleRel) error
 	Delete(ctx context.Context, id uint64) error
 	Update(ctx context.Context, dto *dto.AccessRuleDto) error
 	Find(ctx context.Context, id uint64) (*entity.AccessRule, error)
@@ -44,6 +45,10 @@ func (r *ruleRepository) WithTx(tx *gorm.DB) RuleRepository {
 
 func (r *ruleRepository) Create(ctx context.Context, rule *entity.AccessRule) error {
 	return r.db.WithContext(ctx).Create(rule).Error
+}
+
+func (r *ruleRepository) CreateRuleRel(ctx context.Context, ruleRel *entity.AccessRuleRel) error {
+	return r.db.WithContext(ctx).Create(ruleRel).Error
 }
 
 func (r *ruleRepository) Delete(ctx context.Context, id uint64) error {

@@ -49,11 +49,11 @@ func (r *inviteRepository) GetByName(ctx context.Context, name string) (*entity.
 func (r *inviteRepository) ListInvitees(ctx context.Context, params *dto.InvitationParams) ([]*entity.InviteeEntity, int64, error) {
 	var (
 		err             error
-		inviterEntities []*entity.InviteeEntity
+		inviteeEntities []*entity.InviteeEntity
 		count           int64
 	)
 	sql, wrappers := utils.Generate(params)
-	query := r.db.WithContext(ctx).Model(&entity.InviterEntity{}).Preload("User")
+	query := r.db.WithContext(ctx).Model(&entity.InviteeEntity{}).Preload("User")
 
 	if sql != "" {
 		query = query.Where(sql, wrappers)
@@ -68,8 +68,8 @@ func (r *inviteRepository) ListInvitees(ctx context.Context, params *dto.Invitat
 		query = query.Offset(pageOffset.Offset).Limit(pageOffset.Limit)
 	}
 
-	err = query.Find(&inviterEntities).Error
-	return inviterEntities, count, err
+	err = query.Find(&inviteeEntities).Error
+	return inviteeEntities, count, err
 }
 
 func (r *inviteRepository) ListInviters(ctx context.Context, params *dto.InviterParams) ([]*entity.InviterEntity, int64, error) {
@@ -79,7 +79,7 @@ func (r *inviteRepository) ListInviters(ctx context.Context, params *dto.Inviter
 		count           int64
 	)
 	sql, wrappers := utils.Generate(params)
-	query := r.db.WithContext(ctx).Model(&entity.InviterEntity{}).Preload("SharedGroups").Preload("SharedNodes").Preload("SharedPolicies").Preload("SharedLabels").Preload("SharedPermissions")
+	query := r.db.WithContext(ctx).Model(&entity.InviterEntity{}).Preload("SharedGroups").Preload("SharedNodes").Preload("SharedPolicies").Preload("SharedLabels").Preload("SharedPermissions").Preload("InviterUser").Preload("InviteeUser")
 
 	if sql != "" {
 		query = query.Where(sql, wrappers)

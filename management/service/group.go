@@ -46,6 +46,7 @@ type groupServiceImpl struct {
 
 func NewGroupService(db *gorm.DB) GroupService {
 	return &groupServiceImpl{
+		db:              db,
 		logger:          log.NewLogger(log.Loglevel, "group-policy-service"),
 		nodeRepo:        repository.NewNodeRepository(db),
 		groupRepo:       repository.NewGroupRepository(db),

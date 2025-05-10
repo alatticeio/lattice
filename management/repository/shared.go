@@ -58,7 +58,7 @@ func (r *sharedRepository) DeleteGroupByParams(ctx context.Context, params dto.P
 	var (
 		nodeGroup entity.SharedNodeGroup
 	)
-	sql, wrappers := utils.GenerateSql(params)
+	sql, wrappers := utils.GenerateLikeSql(params)
 	if sql != "" {
 		return &nodeGroup, r.db.WithContext(ctx).Model(&entity.SharedNodeGroup{}).Where(sql, wrappers).First(&entity.SharedNode{}).Error
 	}
@@ -70,7 +70,7 @@ func (r *sharedRepository) GetNodeByParams(ctx context.Context, params dto.Param
 	var (
 		node entity.SharedNode
 	)
-	sql, wrappers := utils.GenerateSql(params)
+	sql, wrappers := utils.GenerateLikeSql(params)
 	if sql != "" {
 		return &node, r.db.WithContext(ctx).Model(&entity.SharedNode{}).Where(sql, wrappers).First(&entity.SharedNode{}).Error
 	}
@@ -82,7 +82,7 @@ func (r *sharedRepository) GetGroupByParams(ctx context.Context, params dto.Para
 	var (
 		nodeGroup entity.SharedNodeGroup
 	)
-	sql, wrappers := utils.GenerateSql(params)
+	sql, wrappers := utils.GenerateLikeSql(params)
 	if sql != "" {
 		return &nodeGroup, r.db.WithContext(ctx).Model(&entity.SharedNodeGroup{}).Where(sql, wrappers).First(&entity.SharedNode{}).Error
 	}
@@ -94,7 +94,7 @@ func (r *sharedRepository) GetPolicyByParams(ctx context.Context, params dto.Par
 	var (
 		sharedPolicy entity.SharedPolicy
 	)
-	sql, wrappers := utils.GenerateSql(params)
+	sql, wrappers := utils.GenerateLikeSql(params)
 	if sql != "" {
 		return &sharedPolicy, r.db.WithContext(ctx).Model(&entity.SharedPolicy{}).Where(sql, wrappers).First(&entity.SharedNode{}).Error
 	}
@@ -106,7 +106,7 @@ func (r *sharedRepository) GetLabelByParams(ctx context.Context, params dto.Para
 	var (
 		sharedLabel entity.SharedLabel
 	)
-	sql, wrappers := utils.GenerateSql(params)
+	sql, wrappers := utils.GenerateLikeSql(params)
 	if sql != "" {
 		return &sharedLabel, r.db.WithContext(ctx).Model(&entity.SharedLabel{}).Where(sql, wrappers).First(&entity.SharedNode{}).Error
 	}
@@ -202,7 +202,7 @@ func (r *sharedRepository) ListNode(ctx context.Context, params *dto.SharedNodeP
 		count int64
 	)
 	sql, wrappers := utils.Generate(params)
-	query := r.db.WithContext(ctx).Model(&entity.SharedNode{}).Preload("NodeLabels")
+	query := r.db.WithContext(ctx).Model(&entity.SharedNode{}).Preload("NodeLabels").Preload("Node")
 
 	if sql != "" {
 		query = query.Where(sql, wrappers)
@@ -233,9 +233,9 @@ func (r *sharedRepository) ListGroup(ctx context.Context, params *dto.SharedGrou
 		count int64
 	)
 	sql, wrappers := utils.Generate(params)
-	query := r.db.WithContext(ctx).Model(&entity.SharedNodeGroup{}).Preload("Groups")
+	query := r.db.WithContext(ctx).Model(&entity.SharedNodeGroup{}).Preload("GroupNodes").Preload("GroupPolicies")
 
-	if sql != "" {
+	if wrappers != nil {
 		query = query.Where(sql, wrappers)
 	}
 
@@ -264,7 +264,7 @@ func (r *sharedRepository) ListPolicy(ctx context.Context, params *dto.SharedPol
 		count int64
 	)
 	sql, wrappers := utils.Generate(params)
-	query := r.db.WithContext(ctx).Model(&entity.SharedPolicy{}).Preload("Groups")
+	query := r.db.WithContext(ctx).Model(&entity.SharedPolicy{})
 
 	if sql != "" {
 		query = query.Where(sql, wrappers)
@@ -295,7 +295,7 @@ func (r *sharedRepository) ListLabel(ctx context.Context, params *dto.SharedLabe
 		count int64
 	)
 	sql, wrappers := utils.Generate(params)
-	query := r.db.WithContext(ctx).Model(&entity.SharedLabel{}).Preload("Groups")
+	query := r.db.WithContext(ctx).Model(&entity.SharedLabel{})
 
 	if sql != "" {
 		query = query.Where(sql, wrappers)

@@ -73,13 +73,35 @@ func (r *policyRuleRepository) List(ctx context.Context, params *dto.AccessPolic
 	)
 
 	//1.base query
-	query := r.db.WithContext(ctx).Model(&entity.AccessRule{})
+	query := r.db.WithContext(ctx).Model(&entity.AccessRule{}).Preload("SourceNode", func(db *gorm.DB) *gorm.DB {
+		// 使用子查询，根据主表的 source_type 进行过滤
+		return db.Where("EXISTS (SELECT 1 FROM la_access_rule WHERE "+
+			"la_access_rule.source_id = la_node.id AND "+
+			"la_access_rule.source_type = ?)", utils.Node.String())
+	}).Preload("TargetNode", func(db *gorm.DB) *gorm.DB {
+		// 使用子查询，根据主表的 source_type 进行过滤
+		return db.Where("EXISTS (SELECT 1 FROM la_access_rule WHERE "+
+			"la_access_rule.target_id = la_node.id AND "+
+			"la_access_rule.target_type = ?)", utils.Node.String())
+	}).Preload("SourceLabel", func(db *gorm.DB) *gorm.DB {
+		// 使用子查询，根据主表的 source_type 进行过滤
+		return db.Where("EXISTS (SELECT 1 FROM la_access_rule WHERE "+
+			"la_access_rule.source_id = la_label.id AND "+
+			"la_access_rule.source_type = ?)", utils.Label.String())
+	}).Preload("TargetLabel", func(db *gorm.DB) *gorm.DB {
+		// 使用子查询，根据主表的 source_type 进行过滤
+		return db.Where("EXISTS (SELECT 1 FROM la_access_rule WHERE "+
+			"la_access_rule.target_id = la_label.id AND "+
+			"la_access_rule.target_type = ?)", utils.Label.String())
+	})
 
 	sql, wrappers = utils.Generate(params)
 	r.logger.Verbosef("sql: %s, wrappers: %v", sql, wrappers)
 
 	//2. add filter params
-	query = query.Where(sql, wrappers)
+	if wrappers != nil {
+		query = query.Where(sql, wrappers)
+	}
 
 	//3.got total
 	if err = query.Count(&count).Error; err != nil {
@@ -87,9 +109,9 @@ func (r *policyRuleRepository) List(ctx context.Context, params *dto.AccessPolic
 	}
 
 	//4. add pagination
+	pageOffset := params.GetPageOffset()
 	if params.Page != nil {
-		offset := (*params.Size - 1) * *params.Size
-		query = query.Offset(offset).Limit(*params.Size)
+		query = query.Offset(pageOffset.Offset).Limit(pageOffset.Limit)
 	}
 
 	//5. query

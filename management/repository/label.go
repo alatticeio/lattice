@@ -83,7 +83,9 @@ func (r *labelRepository) List(ctx context.Context, params *dto.LabelParams) ([]
 	r.logger.Verbosef("sql: %s, wrappers: %v", sql, wrappers)
 
 	//2. add filter params
-	query = query.Where(sql, wrappers)
+	if wrappers != nil {
+		query = query.Where(sql, wrappers)
+	}
 
 	//3.got total
 	if err = query.Count(&count).Error; err != nil {
@@ -92,7 +94,7 @@ func (r *labelRepository) List(ctx context.Context, params *dto.LabelParams) ([]
 
 	//4. add pagination
 	if params.Page != nil {
-		offset := (*params.Size - 1) * *params.Size
+		offset := (*params.Page - 1) * *params.Size
 		query = query.Offset(offset).Limit(*params.Size)
 	}
 
@@ -109,7 +111,7 @@ func (r *labelRepository) Query(ctx context.Context, params *dto.LabelParams) ([
 	var sql string
 	var wrappers []interface{}
 
-	sql, wrappers = utils.Generate(params)
+	sql, wrappers = utils.GenerateLikeSql(params)
 
 	r.logger.Verbosef("sql: %s, wrappers: %v", sql, wrappers)
 	if err := r.db.WithContext(ctx).Model(&entity.Label{}).Where(sql, wrappers...).Find(&labels).Error; err != nil {

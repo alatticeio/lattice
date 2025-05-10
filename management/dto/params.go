@@ -36,7 +36,7 @@ func (p *QueryParams) Generate() []*utils.KeyValue {
 	}
 
 	// if over 50, set to default
-	if *p.Size > 50 {
+	if p.Size != nil && *p.Size > 50 {
 		*p.Size = utils.PageSize
 	}
 

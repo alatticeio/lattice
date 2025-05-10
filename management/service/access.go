@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"gorm.io/gorm"
 	"linkany/management/dto"
 	"linkany/management/entity"
 	"linkany/management/repository"
@@ -11,8 +12,6 @@ import (
 	"linkany/management/vo"
 	"linkany/pkg/linkerrors"
 	"linkany/pkg/log"
-
-	"gorm.io/gorm"
 )
 
 type AccessPolicyService interface {
@@ -79,6 +78,8 @@ type accessPolicyServiceImpl struct {
 	policyRuleRepo     repository.PolicyRuleRepository
 	permissionRepo     repository.PermissionRepository
 	sharedRepo         repository.SharedRepository
+	nodeRepo           repository.NodeRepository
+	labelRepo          repository.LabelRepository
 	userPermissionRepo repository.UserResourcePermissionRepository
 }
 
@@ -91,6 +92,8 @@ func NewAccessPolicyService(db *gorm.DB) AccessPolicyService {
 		permissionRepo:     repository.NewPermissionRepository(db),
 		policyRuleRepo:     repository.NewPolicyRuleRepository(db),
 		sharedRepo:         repository.NewSharedRepository(db),
+		nodeRepo:           repository.NewNodeRepository(db),
+		labelRepo:          repository.NewLabelRepository(db),
 		userPermissionRepo: repository.NewUserPermissionRepository(db),
 	}
 }
@@ -210,6 +213,7 @@ func (a *accessPolicyServiceImpl) AddRule(ctx context.Context, ruleDto *dto.Acce
 		Actions:    ruleDto.Actions,
 		Conditions: string(data),
 	})
+
 }
 
 func (a *accessPolicyServiceImpl) GetRule(ctx context.Context, ruleId uint64) (*vo.AccessRuleVo, error) {
@@ -253,7 +257,74 @@ func (a *accessPolicyServiceImpl) ListPolicyRules(ctx context.Context, params *d
 		return nil, err
 	}
 
-	result.Data = rules
+	var vos []*vo.AccessRuleVo
+	for _, rule := range rules {
+
+		ruleVo := &vo.AccessRuleVo{
+			ID:         rule.ID,
+			Name:       "",
+			RuleType:   rule.RuleType,
+			PolicyID:   rule.PolicyId,
+			SourceType: rule.SourceType,
+			SourceID:   rule.SourceId,
+			TargetType: rule.TargetType,
+			TargetID:   rule.TargetId,
+			Actions:    rule.Actions,
+			TimeType:   rule.TimeType,
+			Conditions: rule.Conditions,
+			CreatedAt:  rule.CreatedAt,
+			UpdatedAt:  rule.UpdatedAt,
+		}
+
+		if rule.SourceNode != nil {
+			// node resource vo
+			nodeResourceVo := new(vo.NodeResourceVo)
+
+			nodeValues := make(map[string]string, 1)
+			nodeValues[fmt.Sprintf("%d", rule.SourceNode.ID)] = rule.SourceNode.Name
+			nodeResourceVo.NodeValues = nodeValues
+
+			ruleVo.SourceNodeValues = nodeResourceVo
+
+		}
+
+		if rule.TargetNode != nil {
+			// node resource vo
+			nodeResourceVo := new(vo.NodeResourceVo)
+
+			nodeValues := make(map[string]string, 1)
+			nodeValues[fmt.Sprintf("%d", rule.TargetNode.ID)] = rule.TargetNode.Name
+			nodeResourceVo.NodeValues = nodeValues
+
+			ruleVo.TargetNodeValues = nodeResourceVo
+		}
+
+		if rule.SourceLabel != nil {
+			// node resource vo
+			labelResourceVo := new(vo.LabelResourceVo)
+
+			nodeValues := make(map[string]string, 1)
+			nodeValues[fmt.Sprintf("%d", rule.SourceLabel.ID)] = rule.SourceLabel.Label
+			labelResourceVo.LabelValues = nodeValues
+
+			ruleVo.SourceLabelValues = labelResourceVo
+		}
+
+		if rule.TargetLabel != nil {
+			// node resource vo
+			labelResourceVo := new(vo.LabelResourceVo)
+
+			nodeValues := make(map[string]string, 1)
+			nodeValues[fmt.Sprintf("%d", rule.TargetLabel.ID)] = rule.TargetLabel.Label
+			labelResourceVo.LabelValues = nodeValues
+
+			ruleVo.TargetLabelValues = labelResourceVo
+		}
+
+		vos = append(vos, ruleVo)
+	}
+
+	result.Data = vos
 	result.Current = params.Page
 	result.Page = params.Page
 	result.Size = params.Size

@@ -745,19 +745,6 @@ func updateResourcePermission(ctx context.Context, tx *gorm.DB, inviteId uint64,
 		return err
 	}
 
-	// update shared perissions
-	//if err = tx.Model(&entity.UserResourceGrantedPermission{}).Where("invite_id = ?", inviteId).Update("accept_status", status).Error; err != nil {
-	//	return err
-	//}
-	//TODO
-	//if err = sharedRepo.UpdatePermissions(ctx, &entity.SharedNode{
-	//	AcceptStatus: status,
-	//}, &dto.SharedNodeParams{
-	//	InviteId: inviteId,
-	//}); err != nil {
-	//	return err
-	//}
-
 	switch status {
 	case entity.Canceled:
 		if err = tx.Model(&entity.InviteeEntity{}).Where("invite_id = ?", inviteId).Update("accept_status", entity.Canceled).Error; err != nil {

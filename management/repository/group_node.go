@@ -120,7 +120,7 @@ func (r *groupNodeRepository) QueryNodes(ctx context.Context, params *dto.QueryP
 	var wrappers []interface{}
 
 	if params.Keyword != nil {
-		sql, wrappers = utils.GenerateSql(params)
+		sql, wrappers = utils.GenerateLikeSql(params)
 	} else {
 		sql, wrappers = utils.Generate(params)
 	}

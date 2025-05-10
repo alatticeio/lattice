@@ -17,6 +17,7 @@ type NodeRepository interface {
 	DeleteByAppId(ctx context.Context, appId string) error
 	Update(ctx context.Context, node *entity.Node) error
 	Find(ctx context.Context, nodeId uint64) (*entity.Node, error)
+	FindIn(ctx context.Context, nodeIds []uint64) ([]*entity.Node, error)
 	FindByAppId(ctx context.Context, appId string) (*entity.Node, error)
 
 	ListNodes(ctx context.Context, params *dto.QueryParams) ([]*entity.Node, int64, error)
@@ -36,7 +37,8 @@ type nodeRepository struct {
 
 func NewNodeRepository(db *gorm.DB) NodeRepository {
 	return &nodeRepository{
-		db: db,
+		db:     db,
+		logger: log.NewLogger(log.Loglevel, "node-repository"),
 	}
 }
 
@@ -77,6 +79,15 @@ func (r *nodeRepository) Find(ctx context.Context, nodeId uint64) (*entity.Node,
 	return &node, nil
 }
 
+func (r *nodeRepository) FindIn(ctx context.Context, nodeIds []uint64) ([]*entity.Node, error) {
+	var nodes []*entity.Node
+	err := r.db.WithContext(ctx).Where("id IN ?", nodeIds).Find(&nodes).Error
+	if err != nil {
+		return nil, err
+	}
+	return nodes, nil
+}
+
 func (r *nodeRepository) FindByAppId(ctx context.Context, appId string) (*entity.Node, error) {
 	var node *entity.Node
 	err := r.db.WithContext(ctx).Where("app_id = ?", appId).Find(&node).Error
@@ -99,7 +110,7 @@ func (r *nodeRepository) ListNodes(ctx context.Context, params *dto.QueryParams)
 	query := r.db.WithContext(ctx).Model(&entity.Node{}).Preload("NodeLabels").Preload("Group")
 
 	if params.Keyword != nil {
-		sql, wrappers = utils.GenerateSql(params)
+		sql, wrappers = utils.GenerateLikeSql(params)
 	} else {
 		sql, wrappers = utils.Generate(params)
 	}
@@ -115,7 +126,7 @@ func (r *nodeRepository) ListNodes(ctx context.Context, params *dto.QueryParams)
 
 	//4. add pagination
 	if params.Page != nil {
-		offset := (*params.Size - 1) * *params.Size
+		offset := (*params.Page - 1) * *params.Size
 		query = query.Offset(offset).Limit(*params.Size)
 	}
 
@@ -133,7 +144,7 @@ func (r *nodeRepository) QueryNodes(ctx context.Context, params *dto.QueryParams
 	var wrappers []interface{}
 
 	if params.Keyword != nil {
-		sql, wrappers = utils.GenerateSql(params)
+		sql, wrappers = utils.GenerateLikeSql(params)
 	} else {
 		sql, wrappers = utils.Generate(params)
 	}

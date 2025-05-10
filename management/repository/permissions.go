@@ -109,11 +109,11 @@ func (r *permissionRepository) List(ctx context.Context, params *dto.PermissionP
 }
 
 func (r *permissionRepository) Query(ctx context.Context, params *dto.PermissionParams) ([]*entity.Permissions, error) {
-	var permissions []*entity.Permissions
-	var sql string
-	var wrappers []interface{}
+	var (
+		permissions []*entity.Permissions
+	)
 
-	sql, wrappers = utils.Generate(params)
+	sql, wrappers := utils.GenerateLikeSql(params)
 
 	r.logger.Verbosef("sql: %s, wrappers: %v", sql, wrappers)
 	if err := r.db.WithContext(ctx).Where(sql, wrappers...).Find(&permissions).Error; err != nil {

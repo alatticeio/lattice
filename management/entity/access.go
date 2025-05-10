@@ -26,17 +26,22 @@ func (a *AccessPolicy) TableName() string {
 // AccessRule rule for access policy
 type AccessRule struct {
 	Model
-	OwnerId    uint64         `json:"owner_id"`             // 所属ID
+	//OwnerId    uint64         `json:"owner_id"`             // 所属ID
 	RuleType   utils.RuleType `json:"rule_type"`            // 规则类型
 	PolicyId   uint64         `json:"policy_id"`            // 所属策略ID
 	SourceType string         `json:"source_type"`          // 源类型：node/tag/all
-	SourceId   string         `json:"source_id"`            // 源标识（节点ID或标签）
+	SourceId   string         `json:"source_id"`            // 源标识（节点ID或标签）“,” 分隔
 	TargetType string         `json:"target_type"`          // 目标类型：node/tag/all
 	TargetId   string         `json:"target_id"`            // 目标标识（节点ID或标签）
 	Actions    string         `json:"actions"`              // 允许的操作列表
 	TimeType   string         `json:"time_type"`            // 时间类型
 	Conditions string         `json:"conditions,omitempty"` // 额外条件（如时间限制、带宽限制等）
 	Status     utils.Status   `json:"status"`
+
+	SourceNode  *Node  `gorm:"foreignKey:SourceId"`
+	TargetNode  *Node  `gorm:"foreignKey:TargetId"`
+	SourceLabel *Label `gorm:"foreignKey:SourceId"`
+	TargetLabel *Label `gorm:"foreignKey:TargetId"`
 }
 
 func (a *AccessRule) TableName() string {
@@ -82,4 +87,17 @@ type AccessLog struct {
 
 func (a *AccessLog) TableName() string {
 	return "la_access_log"
+}
+
+// RuleNode
+type AccessRuleRel struct {
+	Model
+	RuleId      uint64
+	RuleType    utils.RuleType
+	SourceId    uint64
+	TargetId    uint64
+	SourceNode  Node  `gorm:"foreignKey:SourceId"`
+	SourceLabel Label `gorm:"foreignKey:SourceId"`
+	TargetNode  Node  `gorm:"foreignKey:TargetId"`
+	TargetLabel Label `gorm:"foreignKey:TargetId"`
 }

@@ -26,6 +26,8 @@ func (s *Server) authFilter() gin.HandlerFunc {
 			resType = utils.Policy
 		case "node":
 			resType = utils.Node
+		case "rule":
+			resType = utils.Rule
 		case "label":
 			resType = utils.Label
 		default:
@@ -33,7 +35,7 @@ func (s *Server) authFilter() gin.HandlerFunc {
 			c.Abort()
 			return
 		}
-		if action != "" {
+		if action != "" && resourceId != "" {
 			resId, err := strconv.ParseUint(resourceId, 10, 64)
 
 			b, err := s.accessController.CheckAccess(c, resType, resId, action)
