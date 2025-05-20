@@ -81,33 +81,26 @@ func (r *groupRepository) FindByName(ctx context.Context, name string) (*entity.
 
 func (r *groupRepository) List(ctx context.Context, params *dto.GroupParams) ([]*entity.NodeGroup, int64, error) {
 	var (
-		groups   []*entity.NodeGroup
-		count    int64
-		sql      string
-		wrappers []interface{}
-		err      error
+		groups []*entity.NodeGroup
+		count  int64
+		err    error
 	)
 
-	//1.base query
-	query := r.db.WithContext(ctx).Model(&entity.NodeGroup{}).Preload("GroupNodes").Preload("GroupPolicies")
+	//1. build conditions
+	conditions := utils.GenerateQuery(params, false)
 
-	sql, wrappers = utils.Generate(params)
-	r.logger.Verbosef("sql: %s, wrappers: %v", sql, wrappers)
+	//2. build query
+	query := conditions.BuildQuery(r.db.WithContext(ctx).Model(&entity.NodeGroup{}).Preload("GroupNodes").Preload("GroupPolicies"))
 
-	//2. add filter params
-	if wrappers != nil {
-		query = query.Where(sql, wrappers)
-	}
-
-	//3.got total
+	//3. query count
 	if err = query.Count(&count).Error; err != nil {
 		return nil, 0, err
 	}
 
 	//4. add pagination
 	pageOffset := params.GetPageOffset()
-	if params.Page != nil {
-		query = query.Offset(pageOffset.Offset).Limit(pageOffset.Limit)
+	if pageOffset != nil {
+		query.Offset(pageOffset.Offset).Limit(pageOffset.Limit)
 	}
 
 	//5. query
@@ -120,13 +113,9 @@ func (r *groupRepository) List(ctx context.Context, params *dto.GroupParams) ([]
 
 func (r *groupRepository) Query(ctx context.Context, params *dto.GroupParams) ([]*entity.NodeGroup, error) {
 	var groups []*entity.NodeGroup
-	var sql string
-	var wrappers []interface{}
-
-	sql, wrappers = utils.Generate(params)
-
-	r.logger.Verbosef("sql: %s, wrappers: %v", sql, wrappers)
-	if err := r.db.WithContext(ctx).Where(sql, wrappers...).Find(&groups).Error; err != nil {
+	conditions := utils.GenerateQuery(params, true)
+	query := conditions.BuildQuery(r.db.WithContext(ctx).Model(&entity.NodeGroup{}))
+	if err := query.Find(&groups).Error; err != nil {
 		return nil, err
 	}
 

@@ -52,13 +52,8 @@ func (r *inviteRepository) ListInvitees(ctx context.Context, params *dto.Invitat
 		inviteeEntities []*entity.InviteeEntity
 		count           int64
 	)
-	sql, wrappers := utils.Generate(params)
-	query := r.db.WithContext(ctx).Model(&entity.InviteeEntity{}).Preload("User")
-
-	if sql != "" {
-		query = query.Where(sql, wrappers)
-	}
-
+	conditions := utils.GenerateQuery(params, false)
+	query := conditions.BuildQuery(r.db.WithContext(ctx).Model(&entity.InviteeEntity{}))
 	if err = query.Count(&count).Error; err != nil {
 		return nil, 0, err
 	}
@@ -68,7 +63,9 @@ func (r *inviteRepository) ListInvitees(ctx context.Context, params *dto.Invitat
 		query = query.Offset(pageOffset.Offset).Limit(pageOffset.Limit)
 	}
 
-	err = query.Find(&inviteeEntities).Error
+	if err := query.Find(&inviteeEntities).Error; err != nil {
+		return nil, 0, err
+	}
 	return inviteeEntities, count, err
 }
 
@@ -78,13 +75,8 @@ func (r *inviteRepository) ListInviters(ctx context.Context, params *dto.Inviter
 		inviterEntities []*entity.InviterEntity
 		count           int64
 	)
-	sql, wrappers := utils.Generate(params)
-	query := r.db.WithContext(ctx).Model(&entity.InviterEntity{}).Preload("SharedGroups").Preload("SharedNodes").Preload("SharedPolicies").Preload("SharedLabels").Preload("SharedPermissions").Preload("InviterUser").Preload("InviteeUser")
-
-	if sql != "" {
-		query = query.Where(sql, wrappers)
-	}
-
+	conditions := utils.GenerateQuery(params, false)
+	query := conditions.BuildQuery(r.db.WithContext(ctx).Model(&entity.InviterEntity{}))
 	if err = query.Count(&count).Error; err != nil {
 		return nil, 0, err
 	}
@@ -94,7 +86,9 @@ func (r *inviteRepository) ListInviters(ctx context.Context, params *dto.Inviter
 		query = query.Offset(pageOffset.Offset).Limit(pageOffset.Limit)
 	}
 
-	err = query.Find(&inviterEntities).Error
+	if err := query.Find(&inviterEntities).Error; err != nil {
+		return nil, 0, err
+	}
 	return inviterEntities, count, err
 }
 

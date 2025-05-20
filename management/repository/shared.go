@@ -2,7 +2,6 @@ package repository
 
 import (
 	"context"
-	"errors"
 	"linkany/management/dto"
 	"linkany/management/entity"
 	"linkany/management/utils"
@@ -58,60 +57,46 @@ func (r *sharedRepository) DeleteGroupByParams(ctx context.Context, params dto.P
 	var (
 		nodeGroup entity.SharedNodeGroup
 	)
-	sql, wrappers := utils.GenerateLikeSql(params)
-	if sql != "" {
-		return &nodeGroup, r.db.WithContext(ctx).Model(&entity.SharedNodeGroup{}).Where(sql, wrappers).First(&entity.SharedNode{}).Error
-	}
+	conditions := utils.GenerateQuery(params, true)
+	query := conditions.BuildQuery(r.db.WithContext(ctx).Model(&entity.SharedNodeGroup{}))
+	return &nodeGroup, query.First(&entity.SharedNode{}).Error
 
-	return &nodeGroup, errors.New("invalid params")
 }
 
 func (r *sharedRepository) GetNodeByParams(ctx context.Context, params dto.Params) (*entity.SharedNode, error) {
 	var (
 		node entity.SharedNode
 	)
-	sql, wrappers := utils.GenerateLikeSql(params)
-	if sql != "" {
-		return &node, r.db.WithContext(ctx).Model(&entity.SharedNode{}).Where(sql, wrappers).First(&entity.SharedNode{}).Error
-	}
-
-	return &node, r.db.WithContext(ctx).Model(&entity.SharedNode{}).First(&entity.SharedNode{}).Error
+	conditions := utils.GenerateQuery(params, true)
+	query := conditions.BuildQuery(r.db.WithContext(ctx).Model(&entity.SharedNodeGroup{}))
+	return &node, query.First(&entity.SharedNode{}).Error
 }
 
 func (r *sharedRepository) GetGroupByParams(ctx context.Context, params dto.Params) (*entity.SharedNodeGroup, error) {
 	var (
 		nodeGroup entity.SharedNodeGroup
 	)
-	sql, wrappers := utils.GenerateLikeSql(params)
-	if sql != "" {
-		return &nodeGroup, r.db.WithContext(ctx).Model(&entity.SharedNodeGroup{}).Where(sql, wrappers).First(&entity.SharedNode{}).Error
-	}
-
-	return &nodeGroup, r.db.WithContext(ctx).Model(&entity.SharedNodeGroup{}).First(&entity.SharedNode{}).Error
+	conditions := utils.GenerateQuery(params, true)
+	query := conditions.BuildQuery(r.db.WithContext(ctx).Model(&entity.SharedNodeGroup{}))
+	return &nodeGroup, query.First(&entity.SharedNodeGroup{}).Error
 }
 
 func (r *sharedRepository) GetPolicyByParams(ctx context.Context, params dto.Params) (*entity.SharedPolicy, error) {
 	var (
 		sharedPolicy entity.SharedPolicy
 	)
-	sql, wrappers := utils.GenerateLikeSql(params)
-	if sql != "" {
-		return &sharedPolicy, r.db.WithContext(ctx).Model(&entity.SharedPolicy{}).Where(sql, wrappers).First(&entity.SharedNode{}).Error
-	}
-
-	return &sharedPolicy, r.db.WithContext(ctx).Model(&entity.SharedPolicy{}).First(&entity.SharedNode{}).Error
+	conditions := utils.GenerateQuery(params, true)
+	query := conditions.BuildQuery(r.db.WithContext(ctx).Model(&entity.SharedNodeGroup{}))
+	return &sharedPolicy, query.First(&entity.SharedPolicy{}).Error
 }
 
 func (r *sharedRepository) GetLabelByParams(ctx context.Context, params dto.Params) (*entity.SharedLabel, error) {
 	var (
 		sharedLabel entity.SharedLabel
 	)
-	sql, wrappers := utils.GenerateLikeSql(params)
-	if sql != "" {
-		return &sharedLabel, r.db.WithContext(ctx).Model(&entity.SharedLabel{}).Where(sql, wrappers).First(&entity.SharedNode{}).Error
-	}
-
-	return &sharedLabel, r.db.WithContext(ctx).Model(&entity.SharedLabel{}).First(&entity.SharedNode{}).Error
+	conditions := utils.GenerateQuery(params, true)
+	query := conditions.BuildQuery(r.db.WithContext(ctx).Model(&entity.SharedLabel{}))
+	return &sharedLabel, query.First(&entity.SharedLabel{}).Error
 }
 
 func (r *sharedRepository) UpdatePolicy(ctx context.Context, policy *entity.SharedPolicy) error {
@@ -171,13 +156,9 @@ func (r *sharedRepository) UpdateLabels(ctx context.Context, node *entity.Shared
 }
 
 func (r *sharedRepository) UpdateNodes(ctx context.Context, node *entity.SharedNode, params *dto.SharedNodeParams) error {
-	sql, wrappers := utils.Generate(params)
-
-	if sql != "" {
-		return r.db.WithContext(ctx).Model(node).Where(sql, wrappers).Updates(node).Error
-	}
-
-	return r.db.WithContext(ctx).Model(node).Updates(node).Error
+	conditions := utils.GenerateQuery(params, false)
+	query := conditions.BuildQuery(r.db.WithContext(ctx).Model(&entity.SharedNode{}))
+	return query.Updates(node).Error
 }
 
 func NewSharedRepository(db *gorm.DB) SharedRepository {
@@ -201,12 +182,8 @@ func (r *sharedRepository) ListNode(ctx context.Context, params *dto.SharedNodeP
 		nodes []*entity.SharedNode
 		count int64
 	)
-	sql, wrappers := utils.Generate(params)
-	query := r.db.WithContext(ctx).Model(&entity.SharedNode{}).Preload("NodeLabels").Preload("Node")
-
-	if sql != "" {
-		query = query.Where(sql, wrappers)
-	}
+	conditions := utils.GenerateQuery(params, false)
+	query := conditions.BuildQuery(r.db.WithContext(ctx).Model(&entity.SharedNode{}).Preload("NodeLabels").Preload("Node"))
 
 	if err = query.Count(&count).Error; err != nil {
 		return nil, 0, err
@@ -232,12 +209,9 @@ func (r *sharedRepository) ListGroup(ctx context.Context, params *dto.SharedGrou
 		nodes []*entity.SharedNodeGroup
 		count int64
 	)
-	sql, wrappers := utils.Generate(params)
-	query := r.db.WithContext(ctx).Model(&entity.SharedNodeGroup{}).Preload("GroupNodes").Preload("GroupPolicies")
 
-	if wrappers != nil {
-		query = query.Where(sql, wrappers)
-	}
+	conditions := utils.GenerateQuery(params, false)
+	query := conditions.BuildQuery(r.db.WithContext(ctx).Model(&entity.SharedNodeGroup{}).Preload("GroupNodes").Preload("GroupPolicies"))
 
 	if err = query.Count(&count).Error; err != nil {
 		return nil, 0, err
@@ -245,7 +219,7 @@ func (r *sharedRepository) ListGroup(ctx context.Context, params *dto.SharedGrou
 
 	pageOffset := params.GetPageOffset()
 	if pageOffset != nil {
-		query = query.Offset(pageOffset.Offset).Limit(pageOffset.Limit)
+		query.Offset(pageOffset.Offset).Limit(pageOffset.Limit)
 	}
 
 	err = query.Find(&nodes).Error
@@ -263,20 +237,15 @@ func (r *sharedRepository) ListPolicy(ctx context.Context, params *dto.SharedPol
 		nodes []*entity.SharedPolicy
 		count int64
 	)
-	sql, wrappers := utils.Generate(params)
-	query := r.db.WithContext(ctx).Model(&entity.SharedPolicy{})
-
-	if sql != "" {
-		query = query.Where(sql, wrappers)
-	}
-
+	conditions := utils.GenerateQuery(params, false)
+	query := conditions.BuildQuery(r.db.WithContext(ctx).Model(&entity.SharedPolicy{}))
 	if err = query.Count(&count).Error; err != nil {
 		return nil, 0, err
 	}
 
 	pageOffset := params.GetPageOffset()
 	if pageOffset != nil {
-		query = query.Offset(pageOffset.Offset).Limit(pageOffset.Limit)
+		query.Offset(pageOffset.Offset).Limit(pageOffset.Limit)
 	}
 
 	err = query.Find(&nodes).Error
@@ -294,13 +263,8 @@ func (r *sharedRepository) ListLabel(ctx context.Context, params *dto.SharedLabe
 		nodes []*entity.SharedLabel
 		count int64
 	)
-	sql, wrappers := utils.Generate(params)
-	query := r.db.WithContext(ctx).Model(&entity.SharedLabel{})
-
-	if sql != "" {
-		query = query.Where(sql, wrappers)
-	}
-
+	conditions := utils.GenerateQuery(params, false)
+	query := conditions.BuildQuery(r.db.WithContext(ctx).Model(&entity.SharedLabel{}))
 	if err = query.Count(&count).Error; err != nil {
 		return nil, 0, err
 	}

@@ -71,31 +71,19 @@ func (r *policyRepository) List(ctx context.Context, params *dto.AccessPolicyPar
 	var (
 		policies []*entity.AccessPolicy
 		count    int64
-		sql      string
-		wrappers []interface{}
 		err      error
 	)
 
-	//1.base query
-	query := r.db.WithContext(ctx).Model(&entity.AccessPolicy{})
+	conditions := utils.GenerateQuery(params, false)
+	query := conditions.BuildQuery(r.db.WithContext(ctx).Model(&entity.AccessPolicy{}))
 
-	sql, wrappers = utils.Generate(params)
-	r.logger.Verbosef("sql: %s, wrappers: %v", sql, wrappers)
-
-	//2. add filter params
-	if wrappers != nil {
-		query = query.Where(sql, wrappers)
-	}
-
-	//3.got total
 	if err = query.Count(&count).Error; err != nil {
 		return nil, 0, err
 	}
 
-	//4. add pagination
-	if params.Page != nil {
-		offset := (*params.Page - 1) * *params.Size
-		query = query.Offset(offset).Limit(*params.Size)
+	pageOffset := params.GetPageOffset()
+	if pageOffset != nil {
+		query.Offset(pageOffset.Offset).Limit(pageOffset.Limit)
 	}
 
 	//5. query
@@ -108,13 +96,9 @@ func (r *policyRepository) List(ctx context.Context, params *dto.AccessPolicyPar
 
 func (r *policyRepository) Query(ctx context.Context, params *dto.AccessPolicyParams) ([]*entity.AccessPolicy, error) {
 	var policies []*entity.AccessPolicy
-	var sql string
-	var wrappers []interface{}
-
-	sql, wrappers = utils.GenerateLikeSql(params)
-
-	r.logger.Verbosef("sql: %s, wrappers: %v", sql, wrappers)
-	if err := r.db.WithContext(ctx).Where(sql, wrappers...).Find(&policies).Error; err != nil {
+	conditions := utils.GenerateQuery(params, true)
+	query := conditions.BuildQuery(r.db.WithContext(ctx).Model(&entity.AccessPolicy{}))
+	if err := query.Find(&policies).Error; err != nil {
 		return nil, err
 	}
 

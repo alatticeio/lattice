@@ -31,13 +31,8 @@ type userPermissionRepository struct {
 }
 
 func (r *userPermissionRepository) DeleteByParams(ctx context.Context, params dto.Params) error {
-	sql, wrappers := utils.Generate(params)
-	query := r.db.WithContext(ctx).Model(&entity.UserResourceGrantedPermission{})
-
-	if sql != "" {
-		query = query.Where(sql, wrappers)
-	}
-
+	conditions := utils.GenerateQuery(params, false)
+	query := conditions.BuildQuery(r.db.WithContext(ctx).Model(&entity.UserResourceGrantedPermission{}))
 	return query.Delete(&entity.UserResourceGrantedPermission{}).Error
 }
 
@@ -77,32 +72,20 @@ func (r *userPermissionRepository) List(ctx context.Context, params *dto.AccessP
 	var (
 		userPermissions []*entity.UserResourceGrantedPermission
 		count           int64
-		sql             string
-		wrappers        []interface{}
 		err             error
 	)
 
-	//1.base query
-	query := r.db.WithContext(ctx).Model(&entity.UserResourceGrantedPermission{})
-
-	sql, wrappers = utils.Generate(params)
-	r.logger.Verbosef("sql: %s, wrappers: %v", sql, wrappers)
-
-	//2. add filter params
-	query = query.Where(sql, wrappers)
-
-	//3.got total
+	conditions := utils.GenerateQuery(params, false)
+	query := conditions.BuildQuery(r.db.WithContext(ctx).Model(&entity.UserResourceGrantedPermission{}))
 	if err = query.Count(&count).Error; err != nil {
 		return nil, 0, err
 	}
 
-	//4. add pagination
-	if params.Page != nil {
-		offset := (*params.Size - 1) * *params.Size
-		query = query.Offset(offset).Limit(*params.Size)
+	pageOffset := params.GetPageOffset()
+	if pageOffset != nil {
+		query.Offset(pageOffset.Offset).Limit(pageOffset.Limit)
 	}
 
-	//5. query
 	if err := query.Find(&userPermissions).Error; err != nil {
 		return nil, 0, err
 	}
@@ -112,13 +95,9 @@ func (r *userPermissionRepository) List(ctx context.Context, params *dto.AccessP
 
 func (r *userPermissionRepository) Query(ctx context.Context, params *dto.AccessPolicyParams) ([]*entity.UserResourceGrantedPermission, error) {
 	var userPermissions []*entity.UserResourceGrantedPermission
-	var sql string
-	var wrappers []interface{}
-
-	sql, wrappers = utils.Generate(params)
-
-	r.logger.Verbosef("sql: %s, wrappers: %v", sql, wrappers)
-	if err := r.db.WithContext(ctx).Where(sql, wrappers...).Find(&userPermissions).Error; err != nil {
+	conditions := utils.GenerateQuery(params, true)
+	query := conditions.BuildQuery(r.db.WithContext(ctx).Model(&entity.UserResourceGrantedPermission{}))
+	if err := query.Find(&userPermissions).Error; err != nil {
 		return nil, err
 	}
 

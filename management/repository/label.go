@@ -69,33 +69,21 @@ func (r *labelRepository) Find(ctx context.Context, labelId uint64) (*entity.Lab
 
 func (r *labelRepository) List(ctx context.Context, params *dto.LabelParams) ([]*entity.Label, int64, error) {
 	var (
-		labels   []*entity.Label
-		count    int64
-		sql      string
-		wrappers []interface{}
-		err      error
+		labels []*entity.Label
+		count  int64
+		err    error
 	)
 
 	//1.base query
-	query := r.db.WithContext(ctx).Model(&entity.Label{})
-
-	sql, wrappers = utils.Generate(params)
-	r.logger.Verbosef("sql: %s, wrappers: %v", sql, wrappers)
-
-	//2. add filter params
-	if wrappers != nil {
-		query = query.Where(sql, wrappers)
-	}
-
-	//3.got total
+	conditions := utils.GenerateQuery(params, false)
+	query := conditions.BuildQuery(r.db.WithContext(ctx).Model(&entity.Label{}))
 	if err = query.Count(&count).Error; err != nil {
 		return nil, 0, err
 	}
 
-	//4. add pagination
-	if params.Page != nil {
-		offset := (*params.Page - 1) * *params.Size
-		query = query.Offset(offset).Limit(*params.Size)
+	pageOffset := params.GetPageOffset()
+	if pageOffset != nil {
+		query.Offset(pageOffset.Offset).Limit(pageOffset.Limit)
 	}
 
 	//5. query
@@ -108,13 +96,9 @@ func (r *labelRepository) List(ctx context.Context, params *dto.LabelParams) ([]
 
 func (r *labelRepository) Query(ctx context.Context, params *dto.LabelParams) ([]*entity.Label, error) {
 	var labels []*entity.Label
-	var sql string
-	var wrappers []interface{}
-
-	sql, wrappers = utils.GenerateLikeSql(params)
-
-	r.logger.Verbosef("sql: %s, wrappers: %v", sql, wrappers)
-	if err := r.db.WithContext(ctx).Model(&entity.Label{}).Where(sql, wrappers...).Find(&labels).Error; err != nil {
+	conditions := utils.GenerateQuery(params, true)
+	query := conditions.BuildQuery(r.db.WithContext(ctx).Model(&entity.Label{}))
+	if err := query.Find(&labels).Error; err != nil {
 		return nil, err
 	}
 

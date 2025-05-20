@@ -54,11 +54,8 @@ func (s settingRepository) ListAppKeys(ctx context.Context, params *dto.AppKeyPa
 		err   error
 		count int64
 	)
-	query := s.db.WithContext(ctx).Model(&entity.AppKey{})
-	sql, wrappers := utils.Generate(params)
-	if sql != "" {
-		query = query.Where(sql, wrappers...)
-	}
+	conditions := utils.GenerateQuery(params, false)
+	query := conditions.BuildQuery(s.db.WithContext(ctx).Model(&entity.AppKey{}))
 
 	if err = query.Count(&count).Error; err != nil {
 		return nil, 0, err
@@ -66,7 +63,7 @@ func (s settingRepository) ListAppKeys(ctx context.Context, params *dto.AppKeyPa
 
 	pageOffset := params.GetPageOffset()
 	if pageOffset != nil {
-		query = query.Offset(int(pageOffset.Offset)).Limit(int(pageOffset.Limit))
+		query.Offset(int(pageOffset.Offset)).Limit(int(pageOffset.Limit))
 	}
 
 	var appKeys []*entity.AppKey

@@ -34,13 +34,8 @@ func (r *userRepository) Query(ctx context.Context, params *dto.UserParams) ([]*
 		err   error
 		users []*entity.User
 	)
-
-	sql, wrappers := utils.Generate(params)
-	query := r.db.WithContext(ctx).Model(&entity.User{})
-
-	if sql != "" {
-		query = query.Where(sql, wrappers)
-	}
+	conditions := utils.GenerateQuery(params, false)
+	query := conditions.BuildQuery(r.db.WithContext(ctx).Model(&entity.User{}))
 
 	if err = query.Find(&users).Error; err != nil {
 		return nil, err
@@ -56,12 +51,8 @@ func (r *userRepository) List(ctx context.Context, params *dto.UserParams) ([]*e
 		count int64
 	)
 
-	sql, wrappers := utils.Generate(params)
-	query := r.db.WithContext(ctx).Model(&entity.User{})
-
-	if sql != "" {
-		query = query.Where(sql, wrappers)
-	}
+	conditions := utils.GenerateQuery(params, true)
+	query := conditions.BuildQuery(r.db.WithContext(ctx).Model(&entity.User{}))
 
 	if err = query.Count(&count).Error; err != nil {
 		return nil, 0, err

@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"fmt"
 	"gorm.io/gorm"
 	"strings"
 )
@@ -9,7 +10,7 @@ import (
 type QueryConditions struct {
 	// 查询条件
 	Where   map[string]interface{}    // 精确匹配条件
-	Like    map[string]string         // 模糊查询条件
+	Like    map[string]interface{}    // 模糊查询条件
 	In      map[string][]interface{}  // IN查询条件
 	Between map[string][2]interface{} // 范围查询条件
 	Or      []map[string]interface{}  // OR条件
@@ -30,7 +31,7 @@ type QueryConditions struct {
 func NewQueryConditions() *QueryConditions {
 	return &QueryConditions{
 		Where:    make(map[string]interface{}),
-		Like:     make(map[string]string),
+		Like:     make(map[string]interface{}),
 		In:       make(map[string][]interface{}),
 		Between:  make(map[string][2]interface{}),
 		Or:       make([]map[string]interface{}, 0),
@@ -59,7 +60,7 @@ func (q *QueryConditions) BuildQuery(db *gorm.DB) *gorm.DB {
 
 	// 添加Like条件
 	for field, value := range q.Like {
-		query = query.Where(field+" LIKE ?", "%"+value+"%")
+		query = query.Where(field+" LIKE ?", fmt.Sprintf("%s%", value))
 	}
 
 	// 添加In条件
@@ -113,8 +114,8 @@ func (q *QueryConditions) AddWhere(field string, value interface{}) *QueryCondit
 }
 
 // AddLike 添加模糊查询条件
-func (q *QueryConditions) AddLike(field string, value string) *QueryConditions {
-	q.Like[field] = value
+func (q *QueryConditions) AddLike(field string, value interface{}) *QueryConditions {
+	q.Like[field] = value.(string)
 	return q
 }
 

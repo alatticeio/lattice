@@ -81,52 +81,32 @@ func (r *groupPolicyRepository) List(ctx context.Context, params *dto.GroupPolic
 	var (
 		groupPolicies []*entity.GroupPolicy
 		count         int64
-		sql           string
-		wrappers      []interface{}
 		err           error
 	)
 
-	//1.base query
-	query := r.db.WithContext(ctx).Model(&entity.GroupPolicy{})
-
-	sql, wrappers = utils.Generate(params)
-	r.logger.Verbosef("sql: %s, wrappers: %v", sql, wrappers)
-
-	//2. add filter params
-	query = query.Where(sql, wrappers)
-
-	//3.got total
+	conditions := utils.GenerateQuery(params, false)
+	query := conditions.BuildQuery(r.db.WithContext(ctx).Model(&entity.GroupPolicy{}))
 	if err = query.Count(&count).Error; err != nil {
 		return nil, 0, err
 	}
 
-	//4. add pagination
-	if params.Page != nil {
-		offset := (*params.Size - 1) * *params.Size
-		query = query.Offset(offset).Limit(*params.Size)
+	pageOffset := params.GetPageOffset()
+	if pageOffset != nil {
+		query = query.Offset(pageOffset.Offset).Limit(pageOffset.Limit)
 	}
 
-	//5. query
 	if err := query.Find(&groupPolicies).Error; err != nil {
 		return nil, 0, err
 	}
-
 	return groupPolicies, count, nil
 }
 
 func (r *groupPolicyRepository) QueryNodes(ctx context.Context, params *dto.QueryParams) ([]*entity.Node, error) {
 	var nodes []*entity.Node
-	var sql string
-	var wrappers []interface{}
+	conditions := utils.GenerateQuery(params, true)
+	query := conditions.BuildQuery(r.db.WithContext(ctx).Model(&entity.Node{}))
 
-	if params.Keyword != nil {
-		sql, wrappers = utils.GenerateLikeSql(params)
-	} else {
-		sql, wrappers = utils.Generate(params)
-	}
-
-	r.logger.Verbosef("sql: %s, wrappers: %v", sql, wrappers)
-	if err := r.db.WithContext(ctx).Where(sql, wrappers...).Find(&nodes).Error; err != nil {
+	if err := query.Find(&nodes).Error; err != nil {
 		return nil, err
 	}
 
