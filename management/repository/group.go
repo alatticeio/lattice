@@ -52,7 +52,13 @@ func (r *groupRepository) Delete(ctx context.Context, id uint64) error {
 
 func (r *groupRepository) Update(ctx context.Context, dto *dto.NodeGroupDto) (*entity.NodeGroup, error) {
 	group := entity.NodeGroup{}
-	return &group, r.db.WithContext(ctx).Model(&entity.NodeGroup{}).Where("id = ?", dto.ID).Updates(&group).Find(&group).Error
+	return &group, r.db.WithContext(ctx).Model(&entity.NodeGroup{}).Where("id = ?", dto.ID).Updates(
+		map[string]interface{}{
+			"status":      dto.Status,
+			"name":        dto.Name,
+			"description": dto.Description,
+			"is_public":   dto.IsPublic,
+		}).Find(&group).Error
 }
 
 func (r *groupRepository) Find(ctx context.Context, id uint64) (*entity.NodeGroup, error) {

@@ -7,13 +7,14 @@ import (
 // AccessPolicy policy for node
 type AccessPolicy struct {
 	Model
-	Name        string       `json:"name"`                  // 策略名称
-	GroupID     uint64       `json:"group_id"`              // 所属分组
-	Priority    int          `json:"priority"`              // 策略优先级（数字越大优先级越高）
-	Effect      string       `json:"effect"`                // 效果：allow/deny
-	Description string       `json:"description,omitempty"` // 策略描述
-	Status      utils.Status `json:"status"`                // 策略状态：启用/禁用
-	CreatedBy   string       `json:"created_by"`            // 创建者
+	OwnId       uint64       `json:"owner_id"`               // 所属ID
+	Name        string       `json:"name"`                   // 策略名称
+	GroupID     uint64       `json:"group_id"`               // 所属分组
+	Priority    int          `json:"priority"`               // 策略优先级（数字越大优先级越高）
+	Effect      string       `json:"effect"`                 // 效果：allow/deny
+	Description string       `json:"description,omitempty"`  // 策略描述
+	Status      utils.Status `json:"status" gorm:"type:int"` // 策略状态：启用/禁用
+	CreatedBy   string       `json:"created_by"`             // 创建者
 	UpdatedBy   string
 
 	AccessRules []AccessRule `gorm:"foreignKey:PolicyId"`
@@ -26,7 +27,7 @@ func (a *AccessPolicy) TableName() string {
 // AccessRule rule for access policy
 type AccessRule struct {
 	Model
-	//OwnerId    uint64         `json:"owner_id"`             // 所属ID
+	OwnId      uint64         `json:"own_id"`               // 所属ID
 	RuleType   utils.RuleType `json:"rule_type"`            // 规则类型
 	PolicyId   uint64         `json:"policy_id"`            // 所属策略ID
 	SourceType string         `json:"source_type"`          // 源类型：node/tag/all

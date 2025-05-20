@@ -27,14 +27,16 @@ var (
 )
 
 type nodeLabelRepository struct {
-	db     *gorm.DB
-	logger *log.Logger
+	db       *gorm.DB
+	logger   *log.Logger
+	baseRepo BaseRepository[entity.NodeLabel]
 }
 
 func NewNodeLabelRepository(db *gorm.DB) NodeLabelRepository {
 	return &nodeLabelRepository{
-		db:     db,
-		logger: log.NewLogger(log.Loglevel, "group-member-repository"),
+		db:       db,
+		logger:   log.NewLogger(log.Loglevel, "group-member-repository"),
+		baseRepo: NewNodeBaseRepository[entity.NodeLabel](db),
 	}
 }
 

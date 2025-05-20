@@ -39,6 +39,7 @@ type AccessRuleVo struct {
 	CreatedBy  string         `json:"createdBy"`
 	UpdatedBy  string         `json:"updatedBy"`
 	DeletedAt  time.Time      `json:"deletedAt"`
+	Status     utils.Status   `json:"status"`
 
 	SourceNodeValues  *NodeResourceVo  `json:"sourceNodeValues"`
 	TargetNodeValues  *NodeResourceVo  `json:"targetNodeValues"`

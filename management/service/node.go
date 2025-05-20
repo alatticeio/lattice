@@ -70,21 +70,25 @@ var (
 )
 
 type nodeServiceImpl struct {
+	db              *gorm.DB
 	logger          *log.Logger
 	nodeRepo        repository.NodeRepository
 	groupMemberRepo repository.GroupMemberRepository
 	groupNodeRepo   repository.GroupNodeRepository
 	labelRepo       repository.LabelRepository
 	nodeLabelRepo   repository.NodeLabelRepository
+	baseRepo        repository.BaseRepository[entity.NodeLabel]
 }
 
 func NewNodeService(db *gorm.DB) NodeService {
 	return &nodeServiceImpl{
+		db:              db,
 		nodeRepo:        repository.NewNodeRepository(db),
 		groupMemberRepo: repository.NewGroupMemberRepository(db),
 		labelRepo:       repository.NewLabelRepository(db),
 		groupNodeRepo:   repository.NewGroupNodeRepository(db),
 		nodeLabelRepo:   repository.NewNodeLabelRepository(db),
+		baseRepo:        repository.NewNodeBaseRepository[entity.NodeLabel](db),
 		logger:          log.NewLogger(log.Loglevel, "peermapper")}
 }
 
@@ -145,13 +149,65 @@ func (n *nodeServiceImpl) CreateAppId(ctx context.Context) (*entity.Node, error)
 	return peer, nil
 }
 
-func (n *nodeServiceImpl) Update(ctx context.Context, dto *dto.NodeDto) error {
-	return n.nodeRepo.Update(ctx, &entity.Node{
-		Description: dto.Description,
-		UserId:      dto.UserID,
-		Name:        dto.Name,
-	})
+func (n *nodeServiceImpl) Update(ctx context.Context, nodeDto *dto.NodeDto) error {
+	return n.db.Transaction(func(tx *gorm.DB) error {
+		var (
+			err       error
+			nodeLabes []entity.NodeLabel
+		)
 
+		// find current NodeLabel
+		conditions := utils.NewQueryConditions()
+		conditions.AddWhere("node_id", nodeDto.ID)
+		query := conditions.BuildQuery(tx.Model(&entity.NodeLabel{}))
+		if err = query.Find(&nodeLabes).Error; err != nil {
+			return err
+		}
+
+		exists := make(map[uint64]bool, 1)
+		for _, nodeLabel := range nodeLabes {
+			if !exists[nodeLabel.LabelId] {
+				exists[nodeLabel.LabelId] = true
+			}
+		}
+
+		var allIds []interface{}
+		if nodeDto.LabelIds != "" {
+			ids := strings.Split(nodeDto.LabelIds, ",")
+			for _, id := range ids {
+				labelId, err := strconv.ParseUint(id, 10, 64)
+				if err != nil {
+					return err
+				}
+				if !exists[labelId] {
+					allIds = append(allIds, labelId)
+				}
+			}
+
+			// insert into new node labels
+			var labels []entity.Label
+			conditions := utils.NewQueryConditions()
+			conditions.AddIn("id", allIds)
+			query := conditions.BuildQuery(tx.Model(&entity.Label{}))
+			if err = query.Find(&labels).Error; err != nil {
+				return err
+			}
+
+			for _, label := range labels {
+				nodeLabelRepo := n.nodeLabelRepo.WithTx(tx)
+				if err = nodeLabelRepo.Create(ctx, &entity.NodeLabel{
+					LabelId:   label.ID,
+					LabelName: label.Label,
+					NodeId:    nodeDto.ID,
+				}); err != nil {
+					return err
+				}
+			}
+		}
+
+		nodeRepo := n.nodeRepo.WithTx(tx)
+		return nodeRepo.Update(ctx, nodeDto)
+	})
 }
 
 func (n *nodeServiceImpl) DeleteNode(ctx context.Context, appId string) error {

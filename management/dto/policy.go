@@ -7,15 +7,18 @@ import (
 
 type AccessPolicyParams struct {
 	vo.PageModel
-	Name      string `json:"name" form:"name"`
-	GroupId   uint64 `json:"groupId" form:"groupId"`
-	Effect    string `json:"effect" form:"effect"`
-	CreatedBy string `json:"createdBy" form:"createdBy"`
-	UpdatedBy string `json:"updatedBy" form:"updatedBy"`
+	OwnId     *uint64 `json:"ownId" form:"ownId"`
+	Name      string  `json:"name" form:"name"`
+	GroupId   uint64  `json:"groupId" form:"groupId"`
+	Effect    string  `json:"effect" form:"effect"`
+	CreatedBy string  `json:"createdBy" form:"createdBy"`
+	UpdatedBy string  `json:"updatedBy" form:"updatedBy"`
 }
 
 type AccessPolicyRuleParams struct {
 	vo.PageModel
+	Name       string `json:"name" form:"name"`
+	OwnId      *uint64
 	PolicyId   uint64 `json:"policyId" form:"policyId"`
 	SourceId   string `json:"sourceId" form:"sourceId"`
 	TargetId   string `json:"targetId" form:"targetId"`
@@ -25,6 +28,10 @@ type AccessPolicyRuleParams struct {
 
 func (p *AccessPolicyParams) Generate() []*utils.KeyValue {
 	var result []*utils.KeyValue
+
+	if p.OwnId != nil {
+		result = append(result, utils.NewKeyValue("own_id", *p.OwnId))
+	}
 
 	if p.Name != "" {
 		result = append(result, utils.NewKeyValue("name", p.Name))
@@ -52,6 +59,10 @@ func (p *AccessPolicyParams) Generate() []*utils.KeyValue {
 func (p *AccessPolicyRuleParams) Generate() []*utils.KeyValue {
 	var result []*utils.KeyValue
 
+	if p.OwnId != nil {
+		result = append(result, utils.NewKeyValue("own_id", *p.OwnId))
+	}
+	
 	if p.PolicyId != 0 {
 		result = append(result, utils.NewKeyValue("policy_id", p.PolicyId))
 	}

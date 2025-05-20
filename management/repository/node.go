@@ -2,12 +2,11 @@ package repository
 
 import (
 	"context"
+	"gorm.io/gorm"
 	"linkany/management/dto"
 	"linkany/management/entity"
 	"linkany/management/utils"
 	"linkany/pkg/log"
-
-	"gorm.io/gorm"
 )
 
 type NodeRepository interface {
@@ -15,7 +14,7 @@ type NodeRepository interface {
 	Create(ctx context.Context, node *entity.Node) error
 	Delete(ctx context.Context, nodeId uint64) error
 	DeleteByAppId(ctx context.Context, appId string) error
-	Update(ctx context.Context, node *entity.Node) error
+	Update(ctx context.Context, node *dto.NodeDto) error
 	Find(ctx context.Context, nodeId uint64) (*entity.Node, error)
 	FindIn(ctx context.Context, nodeIds []uint64) ([]*entity.Node, error)
 	FindByAppId(ctx context.Context, appId string) (*entity.Node, error)
@@ -60,14 +59,11 @@ func (r *nodeRepository) DeleteByAppId(ctx context.Context, appId string) error 
 	return r.db.WithContext(ctx).Where("app_id = ?", appId).Delete(&entity.Node{}).Error
 }
 
-func (r *nodeRepository) Update(ctx context.Context, e *entity.Node) error {
-	var node entity.Node
-	if err := r.db.WithContext(ctx).Where("public_key = ?", node.PublicKey).First(&node).Error; err != nil {
-		return err
-	}
-	node.Status = e.Status
-
-	return r.db.WithContext(ctx).Save(node).Error
+func (r *nodeRepository) Update(ctx context.Context, nodeDto *dto.NodeDto) error {
+	return r.db.WithContext(ctx).Model(&entity.Node{}).Where("id = ?", nodeDto.ID).Updates(map[string]interface{}{
+		"status": nodeDto.Status,
+		"name":   nodeDto.Name,
+	}).Error
 }
 
 func (r *nodeRepository) Find(ctx context.Context, nodeId uint64) (*entity.Node, error) {
@@ -99,38 +95,39 @@ func (r *nodeRepository) FindByAppId(ctx context.Context, appId string) (*entity
 
 func (r *nodeRepository) ListNodes(ctx context.Context, params *dto.QueryParams) ([]*entity.Node, int64, error) {
 	var (
-		nodes    []*entity.Node
-		count    int64
-		sql      string
-		wrappers []interface{}
-		err      error
+		nodes []*entity.Node
+		count int64
+		//sql      string
+		//wrappers []interface{}
+		err error
 	)
 
 	//1.base query
-	query := r.db.WithContext(ctx).Model(&entity.Node{}).Preload("NodeLabels").Preload("Group")
+	//query := r.db.WithContext(ctx).Model(&entity.Node{}).Preload("NodeLabels").Preload("Group")
 
-	if params.Keyword != nil {
-		sql, wrappers = utils.GenerateLikeSql(params)
-	} else {
-		sql, wrappers = utils.Generate(params)
-	}
-	r.logger.Verbosef("sql: %s, wrappers: %v", sql, wrappers)
+	//if params.Keyword != nil {
+	//	sql, wrappers = utils.GenerateLikeSql(params)
+	//} else {
+	//	sql, wrappers = utils.Generate(params)
+	//}
+	//r.logger.Verbosef("sql: %s, wrappers: %v", sql, wrappers)
 
 	//2. add filter params
-	query = query.Where(sql, wrappers)
+	//query = query.Where(sql, wrappers)
 
-	//3.got total
+	conditions := utils.GenerateQuery(params)
+
+	//4. add pagination
+	if params.Page != nil {
+		conditions.SetPage(*params.Page-1, *params.Size)
+	}
+
+	query := conditions.BuildQuery(r.db.WithContext(ctx).Model(&entity.Node{}).Preload("NodeLabels").Preload("Group"))
+
 	if err = query.Count(&count).Error; err != nil {
 		return nil, 0, err
 	}
 
-	//4. add pagination
-	if params.Page != nil {
-		offset := (*params.Page - 1) * *params.Size
-		query = query.Offset(offset).Limit(*params.Size)
-	}
-
-	//5. query
 	if err := query.Find(&nodes).Error; err != nil {
 		return nil, 0, err
 	}

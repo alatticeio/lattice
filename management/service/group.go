@@ -34,14 +34,15 @@ var (
 )
 
 type groupServiceImpl struct {
-	db                *gorm.DB
-	logger            *log.Logger
-	manager           *utils.WatchManager
-	nodeRepo          repository.NodeRepository
-	groupRepo         repository.GroupRepository
-	groupNodeRepo     repository.GroupNodeRepository
-	groupPolicyRepo   repository.GroupPolicyRepository
-	policyServiceImpl AccessPolicyService
+	db              *gorm.DB
+	logger          *log.Logger
+	manager         *utils.WatchManager
+	nodeRepo        repository.NodeRepository
+	groupRepo       repository.GroupRepository
+	groupNodeRepo   repository.GroupNodeRepository
+	groupPolicyRepo repository.GroupPolicyRepository
+	policyRepo      repository.PolicyRepository
+	//policyServiceImpl AccessPolicyService
 }
 
 func NewGroupService(db *gorm.DB) GroupService {
@@ -52,6 +53,7 @@ func NewGroupService(db *gorm.DB) GroupService {
 		groupRepo:       repository.NewGroupRepository(db),
 		groupNodeRepo:   repository.NewGroupNodeRepository(db),
 		groupPolicyRepo: repository.NewGroupPolicyRepository(db),
+		policyRepo:      repository.NewPolicyRepository(db),
 		manager:         utils.NewWatchManager(),
 	}
 }
@@ -184,8 +186,16 @@ func (g *groupServiceImpl) handleGP(ctx context.Context, tx *gorm.DB, dto *dto.N
 			var groupPolicy entity.GroupPolicy
 			if err = tx.Model(&entity.GroupPolicy{}).Where("group_id = ? and policy_id = ?", group.ID, policyId).First(&groupPolicy).Error; err != nil {
 				if errors.Is(err, gorm.ErrRecordNotFound) {
-					var policy entity.AccessPolicy
-					if err = tx.Model(&entity.AccessPolicy{}).Where("id = ?", policyId).Find(&policy).Error; err != nil {
+					var (
+						policy *entity.AccessPolicy
+						err    error
+						poId   uint64
+					)
+					policyRepo := g.policyRepo.WithTx(tx)
+					if poId, err = strconv.ParseUint(policyId, 10, 64); err != nil {
+						return err
+					}
+					if policy, err = policyRepo.Find(ctx, poId); err != nil {
 						return err
 					}
 

@@ -45,11 +45,17 @@ func (r *policyRepository) Create(ctx context.Context, access *entity.AccessPoli
 }
 
 func (r *policyRepository) Delete(ctx context.Context, accessId uint64) error {
-	return r.db.WithContext(ctx).Delete(&entity.Node{}, accessId).Error
+	return r.db.WithContext(ctx).Delete(&entity.AccessPolicy{}, accessId).Error
 }
 
 func (r *policyRepository) Update(ctx context.Context, accessPolicy *entity.AccessPolicy) error {
-	return r.db.WithContext(ctx).Model(&entity.AccessPolicy{}).Where("id = ?", accessPolicy.ID).Updates(accessPolicy).Error
+	return r.db.WithContext(ctx).Model(&entity.AccessPolicy{}).Where("id=?", accessPolicy.ID).Updates(map[string]interface{}{
+		"name":        accessPolicy.Name,
+		"effect":      accessPolicy.Effect,
+		"status":      accessPolicy.Status,
+		"description": accessPolicy.Description,
+		"priority":    accessPolicy.Priority,
+	}).Error
 }
 
 func (r *policyRepository) Find(ctx context.Context, accessId uint64) (*entity.AccessPolicy, error) {

@@ -30,7 +30,7 @@ type GroupParams struct {
 	GroupId     uint64
 	Name        string
 	Description string
-	OwnerID     uint
+	OwnId       *uint64
 	IsPublic    *bool
 }
 
@@ -45,8 +45,8 @@ func (p *GroupParams) Generate() []*utils.KeyValue {
 		result = append(result, utils.NewKeyValue("description", p.Description))
 	}
 
-	if p.OwnerID != 0 {
-		result = append(result, utils.NewKeyValue("owner_id", p.OwnerID))
+	if p.OwnId != nil {
+		result = append(result, utils.NewKeyValue("own_id", p.OwnId))
 	}
 
 	if p.IsPublic != nil {

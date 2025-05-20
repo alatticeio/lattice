@@ -13,7 +13,7 @@ func (s *Server) RegisterNodeRoutes() {
 	nodeGroup.GET("/appId/:appId", s.tokenFilter(), s.getNodeByAppId())
 	nodeGroup.POST("/a", s.tokenFilter(), s.createAppId())
 	nodeGroup.POST("/", s.tokenFilter(), s.createNode())
-	nodeGroup.PUT("/", s.tokenFilter(), s.updateNode())
+	nodeGroup.PUT("/u", s.tokenFilter(), s.updateNode())
 	nodeGroup.DELETE("/:appId", s.tokenFilter(), s.deleteNode())
 	nodeGroup.GET("/list", s.tokenFilter(), s.listNodes())
 	nodeGroup.GET("/q", s.tokenFilter(), s.queryNodes())
@@ -130,13 +130,13 @@ func (s *Server) updateNode() gin.HandlerFunc {
 			err     error
 		)
 		if err = c.ShouldBind(&nodeDto); err != nil {
-			c.JSON(client.BadRequest(err))
+			WriteBadRequest(c.JSON, err.Error())
 			return
 		}
 
 		err = s.nodeController.Update(c, &nodeDto)
 		if err != nil {
-			c.JSON(client.InternalServerError(err))
+			WriteError(c.JSON, err.Error())
 			return
 		}
 		WriteOK(c.JSON, nil)

@@ -55,6 +55,11 @@ func (s Status) MarshalJSON() ([]byte, error) {
 	return json.Marshal(s.String())
 }
 
+var statusMap = map[string]Status{
+	"disabled": DISABLED,
+	"enabled":  ENABLED,
+}
+
 func (s *Status) UnmarshalJSON(data []byte) error {
 	var str string
 	if err := json.Unmarshal(data, &str); err != nil {
@@ -62,15 +67,12 @@ func (s *Status) UnmarshalJSON(data []byte) error {
 	}
 
 	// 根据字符串设置Status值
-	switch str {
-	case "disabled":
-		*s = DISABLED
-	case "enabled":
-		*s = ENABLED
-	default:
-		return fmt.Errorf("invalid Status value: %s", str)
+	if status, ok := statusMap[str]; ok {
+		*s = status
+		return nil
 	}
-	return nil
+
+	return fmt.Errorf("invalid status: %s", str)
 }
 
 type RuleType int

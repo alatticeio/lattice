@@ -60,14 +60,16 @@ func (r *ruleRepository) Update(ctx context.Context, ruleDto *dto.AccessRuleDto)
 	if err != nil {
 		return err
 	}
-	return r.db.WithContext(ctx).Updates(&entity.AccessRule{
-		PolicyId:   ruleDto.PolicyID,
-		SourceType: ruleDto.SourceType,
-		SourceId:   ruleDto.SourceID,
-		TargetType: ruleDto.TargetType,
-		TargetId:   ruleDto.TargetID,
-		Actions:    ruleDto.Actions,
-		Conditions: string(data),
+	return r.db.WithContext(ctx).Model(&entity.AccessRule{}).Where("id=?", ruleDto.ID).Updates(map[string]interface{}{
+		"own_id":      utils.GetUserIdFromCtx(ctx),
+		"policy_id":   ruleDto.PolicyID,
+		"source_type": ruleDto.SourceType,
+		"source_id":   ruleDto.SourceID,
+		"target_type": ruleDto.TargetType,
+		"target_id":   ruleDto.TargetID,
+		"actions":     ruleDto.Actions,
+		"status":      ruleDto.Status,
+		"conditions":  string(data),
 	}).Error
 
 }

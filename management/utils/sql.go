@@ -22,6 +22,16 @@ func Generate(params ParamBuilder) (string, []interface{}) {
 	return sb.String(), wrappers
 }
 
+func GenerateQuery(params ParamBuilder) *QueryConditions {
+	conditions := NewQueryConditions()
+	filters := params.Generate()
+	for _, filter := range filters {
+		conditions.AddWhere(filter.Key, filter.Value)
+	}
+
+	return conditions
+}
+
 // GenerateLikeSql  used for tom-select
 func GenerateLikeSql(params ParamBuilder) (string, []interface{}) {
 	var sb strings.Builder

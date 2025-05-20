@@ -32,6 +32,7 @@ type AccessPolicyService interface {
 	UpdateRule(ctx context.Context, ruleDto *dto.AccessRuleDto) error
 	DeleteRule(ctx context.Context, ruleID uint64) error
 	ListPolicyRules(ctx context.Context, params *dto.AccessPolicyRuleParams) (*vo.PageVo, error)
+	QueryPolicyRules(ctx context.Context, params *dto.AccessPolicyRuleParams) ([]*vo.AccessRuleVo, error)
 
 	// Access control
 	CheckAccess(ctx context.Context, resourceType utils.ResourceType, resourceId uint64, action string) (bool, error)
@@ -73,6 +74,7 @@ var (
 type accessPolicyServiceImpl struct {
 	logger             *log.Logger
 	db                 *gorm.DB
+	groupRepo          repository.GroupRepository
 	policyRepo         repository.PolicyRepository
 	ruleRepo           repository.RuleRepository
 	policyRuleRepo     repository.PolicyRuleRepository
@@ -87,6 +89,7 @@ func NewAccessPolicyService(db *gorm.DB) AccessPolicyService {
 	return &accessPolicyServiceImpl{
 		logger:             log.NewLogger(log.Loglevel, "access_policy_service"),
 		db:                 db,
+		groupRepo:          repository.NewGroupRepository(db),
 		policyRepo:         repository.NewPolicyRepository(db),
 		ruleRepo:           repository.NewRuleRepository(db),
 		permissionRepo:     repository.NewPermissionRepository(db),
@@ -160,12 +163,66 @@ func (a *accessPolicyServiceImpl) ListGroupPolicies(ctx context.Context, params 
 		return nil, err
 	}
 
-	result.Data = policies
+	var vos []*vo.AccessPolicyVo
+	for _, policy := range policies {
+		vos = append(vos, &vo.AccessPolicyVo{
+			ID:          policy.ID,
+			Name:        policy.Name,
+			GroupID:     policy.GroupID,
+			Priority:    policy.Priority,
+			Effect:      policy.Effect,
+			Description: policy.Description,
+			Status:      policy.Status,
+			CreatedBy:   policy.CreatedBy,
+			UpdatedBy:   policy.UpdatedBy,
+			CreatedAt:   policy.CreatedAt,
+			UpdatedAt:   policy.UpdatedAt,
+		})
+	}
+
+	result.Data = vos
 	result.Current = params.Page
 	result.Page = params.Page
 	result.Size = params.Size
 	result.Total = count
 	return result, err
+}
+
+func (a *accessPolicyServiceImpl) QueryPolicyRules(ctx context.Context, params *dto.AccessPolicyRuleParams) ([]*vo.AccessRuleVo, error) {
+	var (
+		rules []*entity.AccessRule
+		err   error
+	)
+
+	rules, err = a.policyRuleRepo.Query(ctx, params)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(rules) == 0 {
+		return nil, fmt.Errorf("no rules found")
+	}
+
+	var vos []*vo.AccessRuleVo
+	for _, rule := range rules {
+		vos = append(vos, &vo.AccessRuleVo{
+			ID:         rule.ID,
+			Name:       "",
+			RuleType:   rule.RuleType,
+			PolicyID:   rule.PolicyId,
+			SourceType: rule.SourceType,
+			SourceID:   rule.SourceId,
+			TargetType: rule.TargetType,
+			TargetID:   rule.TargetId,
+			Actions:    rule.Actions,
+			TimeType:   rule.TimeType,
+			Conditions: rule.Conditions,
+			CreatedAt:  rule.CreatedAt,
+			UpdatedAt:  rule.UpdatedAt,
+		})
+	}
+
+	return vos, nil
 }
 
 func (a *accessPolicyServiceImpl) QueryPolicies(ctx context.Context, params *dto.AccessPolicyParams) ([]*vo.AccessPolicyVo, error) {
@@ -205,6 +262,7 @@ func (a *accessPolicyServiceImpl) AddRule(ctx context.Context, ruleDto *dto.Acce
 		return err
 	}
 	return a.ruleRepo.Create(ctx, &entity.AccessRule{
+		OwnId:      utils.GetUserIdFromCtx(ctx),
 		PolicyId:   ruleDto.PolicyID,
 		SourceType: ruleDto.SourceType,
 		SourceId:   ruleDto.SourceID,
@@ -267,6 +325,7 @@ func (a *accessPolicyServiceImpl) ListPolicyRules(ctx context.Context, params *d
 			PolicyID:   rule.PolicyId,
 			SourceType: rule.SourceType,
 			SourceID:   rule.SourceId,
+			Status:     rule.Status,
 			TargetType: rule.TargetType,
 			TargetID:   rule.TargetId,
 			Actions:    rule.Actions,
@@ -335,12 +394,24 @@ func (a *accessPolicyServiceImpl) ListPolicyRules(ctx context.Context, params *d
 func (a *accessPolicyServiceImpl) CheckAccess(ctx context.Context, resourceType utils.ResourceType, resourceId uint64, action string) (bool, error) {
 	var (
 		count int64
+		err   error
 	)
 
-	userId := ctx.Value("userId")
-	//check whether resource is own
+	userId := utils.GetUserIdFromCtx(ctx)
+	//check shared
 	switch resourceType {
 	case utils.Group:
+		// first check own
+		_, count, err = a.groupRepo.List(ctx, &dto.GroupParams{
+			OwnId: &userId,
+		})
+
+		if err != nil || count == 0 {
+			return false, err
+		} else {
+			return true, nil
+		}
+
 		groups, count, err := a.sharedRepo.ListGroup(ctx, &dto.SharedGroupParams{
 			GroupParams: dto.GroupParams{
 				GroupId: resourceId,
@@ -355,8 +426,19 @@ func (a *accessPolicyServiceImpl) CheckAccess(ctx context.Context, resourceType 
 			return true, nil
 		}
 	case utils.Policy:
-		// TODO
-		policies, count, err := a.sharedRepo.ListPolicy(ctx, &dto.SharedPolicyParams{})
+		var policies []*entity.SharedPolicy
+		// first check own
+		_, count, err = a.policyRepo.List(ctx, &dto.AccessPolicyParams{
+			OwnId: &userId,
+		})
+
+		if err != nil || count == 0 {
+			return false, err
+		} else {
+			return true, nil
+		}
+
+		policies, count, err = a.sharedRepo.ListPolicy(ctx, &dto.SharedPolicyParams{})
 
 		if err != nil || count == 0 {
 			return false, err
@@ -390,15 +472,28 @@ func (a *accessPolicyServiceImpl) CheckAccess(ctx context.Context, resourceType 
 		if labels[0].OwnerId == userId {
 			return true, nil
 		}
-	//case utils.Rule:
-	//	var rule entity.AccessRule
-	//	if err = a.Model(&entity.AccessRule{}).Where("rule_id = ?", resourceId).Find(&rule).Error; err != nil {
-	//		return false, err
-	//	}
-	//
-	//	if rule.OwnerId == userId {
-	//		return true, nil
-	//	}
+	case utils.Rule:
+		// first check own
+		userId := utils.GetUserIdFromCtx(ctx)
+		_, count, err = a.ruleRepo.List(ctx, &dto.AccessPolicyRuleParams{
+			OwnId: &userId,
+		})
+
+		if err != nil || count == 0 {
+			return false, err
+		} else {
+			return true, nil
+		}
+
+		//policies, count, err = a.sharedRepo.ListPolicy(ctx, &dto.SharedPolicyParams{})
+		//
+		//if err != nil || count == 0 {
+		//	return false, err
+		//}
+		//
+		//if policies[0].OwnerId == userId {
+		//	return true, nil
+		//}
 
 	default:
 		return false, nil
