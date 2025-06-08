@@ -1,0 +1,16 @@
+package internal
+
+import (
+	"fmt"
+	"linkany/pkg/log"
+)
+
+func SetRoute(*log.Logger) RouterPrintf {
+	return func(action, address, name string) {
+		// example: netsh interface ipv4 set address name="linkany-xx" static 192.168.1.10
+		ExecCommand("cmd", "/C", fmt.Sprintf("netsh interface ipv4 set address name=\"%s\" static %s", name, address))
+		ExecCommand("cmd", "/C", fmt.Sprintf("netsh interface set interface \"%s\" enable", name))
+		// example: route add 192.168.1.0 mask 255.255.255.0 192.168.1.1
+		ExecCommand("cmd", "/C", fmt.Sprintf("route %s %s mask %s %s", action, address, "255.255.255.0", GetGatewayFromIP(address)))
+	}
+}

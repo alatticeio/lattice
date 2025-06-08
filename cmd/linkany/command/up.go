@@ -2,12 +2,12 @@ package command
 
 import (
 	"github.com/spf13/cobra"
-	"linkany/client"
+	"linkany/node"
 	"linkany/pkg/log"
 )
 
 func UP() *cobra.Command {
-	var flags client.ClientFlags
+	var flags node.LinkFlags
 	cmd := &cobra.Command{
 		Short:        "up",
 		Use:          "up [command]",
@@ -29,10 +29,10 @@ func UP() *cobra.Command {
 	return cmd
 }
 
-func runLinkanyd(flags *client.ClientFlags) error {
+func runLinkanyd(flags *node.LinkFlags) error {
 	if flags.LogLevel == "" {
 		flags.LogLevel = "error"
 	}
 	log.Loglevel = log.SetLogLevel(flags.LogLevel)
-	return client.Start(flags)
+	return node.Start(flags)
 }

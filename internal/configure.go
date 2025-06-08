@@ -1,9 +1,11 @@
-package iface
+package internal
 
-import "linkany/pkg/config"
+import (
+	"linkany/pkg/config"
+)
 
-// WGConfigureInterface is the interface for configuring WireGuard interfaces.
-type WGConfigureInterface interface {
+// ConfigureManager is the interface for configuring WireGuard interfaces.
+type ConfigureManager interface {
 	// ConfigureWG configures the WireGuard interface.
 	ConfigureWG() error
 
@@ -13,7 +15,7 @@ type WGConfigureInterface interface {
 
 	GetIfaceName() string
 
-	GetPeersManager() *config.PeersManager
+	GetPeersManager() *config.NodeManager
 
 	RemovePeer(peer *SetPeer) error
 	//

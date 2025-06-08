@@ -21,15 +21,17 @@ func NewPeerController(db *gorm.DB) *NodeController {
 		logger:      log.NewLogger(log.Loglevel, "node-controller")}
 }
 
-// Node module
+// GetByAppId get node by appId
 func (p *NodeController) GetByAppId(ctx context.Context, appId string) (*entity.Node, error) {
 	return p.nodeService.GetByAppId(ctx, appId)
 }
 
+// ListNodes lists nodes by params
 func (p *NodeController) ListNodes(ctx context.Context, params *dto.QueryParams) (*vo.PageVo, error) {
 	return p.nodeService.ListNodes(ctx, params)
 }
 
+// QueryNodes lists nodes by params, not contains page and size, used for querying all nodes
 func (p *NodeController) QueryNodes(ctx context.Context, params *dto.QueryParams) ([]*vo.NodeVo, error) {
 	return p.nodeService.QueryNodes(ctx, params)
 }
@@ -38,18 +40,27 @@ func (p *NodeController) Update(ctx context.Context, dto *dto.NodeDto) error {
 	return p.nodeService.Update(ctx, dto)
 }
 
-func (p *NodeController) GetNetworkMap(appId, userId string) (*vo.NetworkMap, error) {
-	return p.nodeService.GetNetworkMap(appId, userId)
+// UpdateStatus update node's status
+func (p *NodeController) UpdateStatus(ctx context.Context, dto *dto.NodeDto) error {
+	return p.nodeService.UpdateStatus(ctx, dto)
 }
 
+// GetNetworkMap returns the network map for the given appId and userId
+func (p *NodeController) GetNetworkMap(ctx context.Context, appId, userId string) (*vo.NetworkMap, error) {
+	return p.nodeService.GetNetworkMap(ctx, appId, userId)
+}
+
+// Delete deletes a node by appId
 func (p *NodeController) Delete(ctx context.Context, appId string) error {
 	return p.nodeService.DeleteNode(ctx, appId)
 }
 
+// Registry registers a new node
 func (p *NodeController) Registry(ctx context.Context, peer *dto.NodeDto) (*entity.Node, error) {
 	return p.nodeService.Register(ctx, peer)
 }
 
+// CreateAppId creates a new appId for the node
 func (p *NodeController) CreateAppId(ctx context.Context) (*entity.Node, error) {
 	return p.nodeService.CreateAppId(ctx)
 }

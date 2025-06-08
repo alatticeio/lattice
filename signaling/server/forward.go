@@ -20,24 +20,24 @@ func NewForwardManager() *ForwardManager {
 	return &ForwardManager{
 		lock:   &sync.Mutex{},
 		m:      make(map[string]chan *ForwardMessage),
-		logger: log.NewLogger(log.Loglevel, "forwardmanager"),
+		logger: log.NewLogger(log.Loglevel, "signaling-manager"),
 	}
 }
 
-func (f *ForwardManager) CreateChannel(pubKey string) chan *ForwardMessage {
+func (f *ForwardManager) CreateChannel(clientID string) chan *ForwardMessage {
 	f.lock.Lock()
 	defer f.lock.Unlock()
-	if _, ok := f.m[pubKey]; !ok {
-		f.m[pubKey] = make(chan *ForwardMessage, 1000)
+	if _, ok := f.m[clientID]; !ok {
+		f.m[clientID] = make(chan *ForwardMessage, 1000)
 	}
-	f.logger.Infof("create channel for %v success", pubKey)
-	return f.m[pubKey]
+	f.logger.Infof("create channel for %v success", clientID)
+	return f.m[clientID]
 }
 
-func (f *ForwardManager) GetChannel(pubKey string) (chan *ForwardMessage, bool) {
+func (f *ForwardManager) GetChannel(clientID string) (chan *ForwardMessage, bool) {
 	f.lock.Lock()
 	defer f.lock.Unlock()
-	ch, ok := f.m[pubKey]
+	ch, ok := f.m[clientID]
 	return ch, ok
 }
 

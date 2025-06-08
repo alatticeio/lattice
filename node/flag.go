@@ -1,7 +1,7 @@
-package client
+package node
 
-// ClientFlags is a struct that contains the flags that are passed to the client
-type ClientFlags struct {
+// LinkFlags is a struct that contains the flags that are passed to the client
+type LinkFlags struct {
 	LogLevel      string
 	RedisAddr     string
 	RedisPassword string

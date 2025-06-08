@@ -22,6 +22,7 @@ const (
 	ManagementService_Login_FullMethodName       = "/ManagementService/Login"
 	ManagementService_Get_FullMethodName         = "/ManagementService/Get"
 	ManagementService_List_FullMethodName        = "/ManagementService/List"
+	ManagementService_GetNetMap_FullMethodName   = "/ManagementService/GetNetMap"
 	ManagementService_Watch_FullMethodName       = "/ManagementService/Watch"
 	ManagementService_Keepalive_FullMethodName   = "/ManagementService/Keepalive"
 	ManagementService_Registry_FullMethodName    = "/ManagementService/Registry"
@@ -37,6 +38,7 @@ type ManagementServiceClient interface {
 	Login(ctx context.Context, in *ManagementMessage, opts ...grpc.CallOption) (*ManagementMessage, error)
 	Get(ctx context.Context, in *ManagementMessage, opts ...grpc.CallOption) (*ManagementMessage, error)
 	List(ctx context.Context, in *ManagementMessage, opts ...grpc.CallOption) (*ManagementMessage, error)
+	GetNetMap(ctx context.Context, in *ManagementMessage, opts ...grpc.CallOption) (*ManagementMessage, error)
 	Watch(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[ManagementMessage, ManagementMessage], error)
 	Keepalive(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[ManagementMessage, ManagementMessage], error)
 	Registry(ctx context.Context, in *ManagementMessage, opts ...grpc.CallOption) (*ManagementMessage, error)
@@ -76,6 +78,16 @@ func (c *managementServiceClient) List(ctx context.Context, in *ManagementMessag
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ManagementMessage)
 	err := c.cc.Invoke(ctx, ManagementService_List_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *managementServiceClient) GetNetMap(ctx context.Context, in *ManagementMessage, opts ...grpc.CallOption) (*ManagementMessage, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ManagementMessage)
+	err := c.cc.Invoke(ctx, ManagementService_GetNetMap_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -137,6 +149,7 @@ type ManagementServiceServer interface {
 	Login(context.Context, *ManagementMessage) (*ManagementMessage, error)
 	Get(context.Context, *ManagementMessage) (*ManagementMessage, error)
 	List(context.Context, *ManagementMessage) (*ManagementMessage, error)
+	GetNetMap(context.Context, *ManagementMessage) (*ManagementMessage, error)
 	Watch(grpc.BidiStreamingServer[ManagementMessage, ManagementMessage]) error
 	Keepalive(grpc.BidiStreamingServer[ManagementMessage, ManagementMessage]) error
 	Registry(context.Context, *ManagementMessage) (*ManagementMessage, error)
@@ -160,6 +173,9 @@ func (UnimplementedManagementServiceServer) Get(context.Context, *ManagementMess
 }
 func (UnimplementedManagementServiceServer) List(context.Context, *ManagementMessage) (*ManagementMessage, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method List not implemented")
+}
+func (UnimplementedManagementServiceServer) GetNetMap(context.Context, *ManagementMessage) (*ManagementMessage, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetNetMap not implemented")
 }
 func (UnimplementedManagementServiceServer) Watch(grpc.BidiStreamingServer[ManagementMessage, ManagementMessage]) error {
 	return status.Errorf(codes.Unimplemented, "method Watch not implemented")
@@ -248,6 +264,24 @@ func _ManagementService_List_Handler(srv interface{}, ctx context.Context, dec f
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ManagementService_GetNetMap_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ManagementMessage)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ManagementServiceServer).GetNetMap(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ManagementService_GetNetMap_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ManagementServiceServer).GetNetMap(ctx, req.(*ManagementMessage))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _ManagementService_Watch_Handler(srv interface{}, stream grpc.ServerStream) error {
 	return srv.(ManagementServiceServer).Watch(&grpc.GenericServerStream[ManagementMessage, ManagementMessage]{ServerStream: stream})
 }
@@ -316,6 +350,10 @@ var ManagementService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "List",
 			Handler:    _ManagementService_List_Handler,
+		},
+		{
+			MethodName: "GetNetMap",
+			Handler:    _ManagementService_GetNetMap_Handler,
 		},
 		{
 			MethodName: "Registry",

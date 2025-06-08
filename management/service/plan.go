@@ -5,8 +5,8 @@ package service
 //
 //// PlanService is an interface for plan mapper
 //type PlanService interface {
-//	// List returns a list of plans
-//	List() ([]*entity.Plan, error)
+//	// GetNetMap returns a list of plans
+//	GetNetMap() ([]*entity.Plan, error)
 //	Get() (*entity.Plan, error)
 //	Page() (*entity.Plan, error)
 //}
@@ -23,7 +23,7 @@ package service
 //	return &planServiceImpl{DatabaseService: db}
 //}
 //
-//func (p planServiceImpl) List() ([]*entity.Plan, error) {
+//func (p planServiceImpl) GetNetMap() ([]*entity.Plan, error) {
 //	var plans []*entity.Plan
 //	if err := p.Where("1=1").Find(&plans).Error; err != nil {
 //		return nil, err

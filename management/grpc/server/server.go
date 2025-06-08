@@ -10,7 +10,6 @@ import (
 	"linkany/management/controller"
 	"linkany/management/db"
 	"linkany/management/dto"
-	"linkany/management/entity"
 	"linkany/management/grpc/mgt"
 	"linkany/management/utils"
 	"linkany/management/vo"
@@ -55,28 +54,28 @@ type ServerConfig struct {
 
 // RegRequest used for register to grpc server
 type RegRequest struct {
-	ID                  int64        `json:"id"`
-	UserID              int64        `json:"user_id"`
-	Name                string       `json:"name"`
-	Hostname            string       `json:"hostname"`
-	Description         string       `json:"description"`
-	AppID               string       `json:"app_id"`
-	Address             string       `json:"address"`
-	Endpoint            string       `json:"endpoint"`
-	PersistentKeepalive int          `json:"persistent_keepalive"`
-	PublicKey           string       `json:"public_key"`
-	PrivateKey          string       `json:"private_key"`
-	AllowedIPs          string       `json:"allowed_ips"`
-	RelayIP             string       `json:"relay_ip"`
-	TieBreaker          uint64       `json:"tie_breaker"`
-	UpdatedAt           time.Time    `json:"updated_at"`
-	DeletedAt           *time.Time   `json:"deleted_at"`
-	CreatedAt           time.Time    `json:"created_at"`
-	Ufrag               string       `json:"ufrag"`
-	Pwd                 string       `json:"pwd"`
-	Port                int          `json:"port"`
-	Status              utils.Status `json:"status"`
-	Token               string       `json:"token"`
+	ID                  int64            `json:"id"`
+	UserID              int64            `json:"user_id"`
+	Name                string           `json:"name"`
+	Hostname            string           `json:"hostname"`
+	Description         string           `json:"description"`
+	AppID               string           `json:"app_id"`
+	Address             string           `json:"address"`
+	Endpoint            string           `json:"endpoint"`
+	PersistentKeepalive int              `json:"persistent_keepalive"`
+	PublicKey           string           `json:"public_key"`
+	PrivateKey          string           `json:"private_key"`
+	AllowedIPs          string           `json:"allowed_ips"`
+	RelayIP             string           `json:"relay_ip"`
+	TieBreaker          uint32           `json:"tie_breaker"`
+	UpdatedAt           time.Time        `json:"updated_at"`
+	DeletedAt           *time.Time       `json:"deleted_at"`
+	CreatedAt           time.Time        `json:"created_at"`
+	Ufrag               string           `json:"ufrag"`
+	Pwd                 string           `json:"pwd"`
+	Port                int              `json:"port"`
+	Status              utils.NodeStatus `json:"status"`
+	Token               string           `json:"token"`
 }
 
 func NewServer(cfg *ServerConfig) *Server {
@@ -139,7 +138,7 @@ func (s *Server) Registry(ctx context.Context, in *mgt.ManagementMessage) (*mgt.
 		PublicKey:           req.PublicKey,
 		PrivateKey:          req.PrivateKey,
 		AllowedIPs:          req.AllowedIPs,
-		TieBreaker:          int64(req.TieBreaker),
+		TieBreaker:          req.TieBreaker,
 		UpdatedAt:           time.Now(),
 		CreatedAt:           time.Now(),
 		Ufrag:               req.Ufrag,
@@ -176,11 +175,26 @@ func (s *Server) Get(ctx context.Context, in *mgt.ManagementMessage) (*mgt.Manag
 	}
 
 	type result struct {
-		Peer  *entity.Node
+		Peer  *utils.NodeMessage
 		Count int64
 	}
 	body := &result{
-		Peer: peer,
+		Peer: &utils.NodeMessage{
+			ID:                  peer.ID,
+			UserId:              peer.UserId,
+			Name:                peer.Name,
+			Description:         peer.Description,
+			Hostname:            peer.Hostname,
+			AppID:               peer.AppID,
+			Address:             peer.Address,
+			Endpoint:            peer.Endpoint,
+			PersistentKeepalive: peer.PersistentKeepalive,
+			PublicKey:           peer.PublicKey,
+			PrivateKey:          peer.PrivateKey,
+			AllowedIPs:          peer.AllowedIPs,
+			GroupName:           peer.Group.GroupName,
+			GroupID:             peer.Group.ID,
+		},
 	}
 	b, err := json.Marshal(body)
 	if err != nil {
@@ -203,7 +217,31 @@ func (s *Server) List(ctx context.Context, in *mgt.ManagementMessage) (*mgt.Mana
 		return nil, status.Errorf(codes.Internal, "get user info err: %v", err)
 	}
 	s.logger.Infof("%v", user)
-	networkMap, err := s.peerController.GetNetworkMap(req.AppId, fmt.Sprintf("%d", user.ID))
+	networkMap, err := s.peerController.GetNetworkMap(ctx, req.AppId, fmt.Sprintf("%d", user.ID))
+	if err != nil {
+		return nil, err
+	}
+
+	bs, err := json.Marshal(networkMap)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "marshal failed: %v", err)
+	}
+
+	return &mgt.ManagementMessage{Body: bs}, nil
+}
+
+// GetNetMap used to get node's net map, to connect to when node starting
+func (s *Server) GetNetMap(ctx context.Context, in *mgt.ManagementMessage) (*mgt.ManagementMessage, error) {
+	var req mgt.Request
+	if err := proto.Unmarshal(in.Body, &req); err != nil {
+		return nil, status.Errorf(codes.Internal, "unmarshal failed: %v", err)
+	}
+	user, err := s.userController.Get(ctx, req.GetToken())
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "get user info err: %v", err)
+	}
+	s.logger.Infof("%v", user)
+	networkMap, err := s.peerController.GetNetworkMap(ctx, req.AppId, fmt.Sprintf("%d", user.ID))
 	if err != nil {
 		return nil, err
 	}
@@ -369,14 +407,15 @@ func (s *Server) Keepalive(stream mgt.ManagementService_KeepaliveServer) error {
 				s.watchManager.Push(current.PublicKey, utils.NewMessage().RemoveNode(
 					current.TransferToNodeMessage(),
 				))
-				if err = s.UpdateStatus(current, utils.DISABLED); err != nil {
+				if err = s.UpdateStatus(current, utils.Offline); err != nil {
 					s.logger.Errorf("update node status: %v", err)
 				}
 				k.Online.Store(false)
 				return fmt.Errorf("exit stream: %v", stream)
 			case <-checkChannel:
-				if current.Status != utils.ENABLED {
-					if err = s.UpdateStatus(current, utils.ENABLED); err != nil {
+				if current.Status != utils.Online {
+					logger.Verbosef("got heartbeat")
+					if err = s.UpdateStatus(current, utils.Online); err != nil {
 						s.logger.Errorf("update node status: %v", err)
 					} else {
 						k.Online.Store(true)
@@ -410,11 +449,11 @@ func (s *Server) recv(ctx context.Context, stream mgt.ManagementService_Keepaliv
 
 }
 
-func (s *Server) UpdateStatus(current *vo.NodeVo, status utils.Status) error {
+func (s *Server) UpdateStatus(current *vo.NodeVo, status utils.NodeStatus) error {
 	// update nodeVo online status
 	dtoParam := &dto.NodeDto{PublicKey: current.PublicKey, Status: status}
 	s.logger.Verbosef("update node status, publicKey: %v, status: %v", current.PublicKey, status)
-	err := s.peerController.Update(context.Background(), dtoParam)
+	err := s.peerController.UpdateStatus(context.Background(), dtoParam)
 
 	current.Status = status
 	return err

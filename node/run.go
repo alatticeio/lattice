@@ -1,18 +1,18 @@
-package client
+package node
 
 import (
 	"fmt"
 	wg "golang.zx2c4.com/wireguard/device"
 	"golang.zx2c4.com/wireguard/ipc"
 	"linkany/internal"
+	"linkany/management/vo"
 	"linkany/pkg/config"
 	"linkany/pkg/log"
 	"os"
 )
 
-// Start starts the linkany
-func Start(flags *ClientFlags) error {
-
+// Start start linkany daemon
+func Start(flags *LinkFlags) error {
 	var err error
 	ctx := SetupSignalHandler()
 
@@ -52,15 +52,15 @@ func Start(flags *ClientFlags) error {
 		return err
 	}
 
-	engine.GetNetworkMap = func() (*config.DeviceConf, error) {
+	engine.GetNetworkMap = func() (*vo.NetworkMap, error) {
 		// get network map from list
-		conf, err := engine.client.List()
+		conf, err := engine.client.GetNetMap()
 		if err != nil {
 			logger.Errorf("Get network map failed: %v", err)
 			return nil, err
 		}
 
-		logger.Infof("Success get network map")
+		logger.Infof("Success get net map")
 
 		return conf, err
 	}

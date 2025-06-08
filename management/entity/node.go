@@ -38,12 +38,12 @@ type Node struct {
 	PrivateKey          string `gorm:"column:private_key;size:50" json:"private_key"`
 	AllowedIPs          string `gorm:"column:allowed_ips;size:50" json:"allowed_ips"`
 	RelayIP             string `gorm:"column:relay_ip;size:100" json:"relay_ip"`
-	TieBreaker          int64  `gorm:"column:tie_breaker" json:"tie_breaker"`
+	TieBreaker          uint32 `gorm:"column:tie_breaker" json:"tie_breaker"`
 	Ufrag               string `gorm:"column:ufrag;size:30" json:"ufrag"`
 	Owner               string
-	Pwd                 string       `gorm:"column:pwd;size:50" json:"pwd"`
-	Port                int          `gorm:"column:port" json:"port"`
-	Status              utils.Status `gorm:"column:status" json:"status"`
+	Pwd                 string           `gorm:"column:pwd;size:50" json:"pwd"`
+	Port                int              `gorm:"column:port" json:"port"`
+	Status              utils.NodeStatus `gorm:"type:int;column:status" json:"status"`
 	ActiveStatus        utils.ActiveStatus
 
 	Group      GroupNode   `gorm:"foreignKey:GroupId;"`

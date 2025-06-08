@@ -70,11 +70,11 @@ type NodeVo struct {
 	PublicKey           string             `json:"publicKey,omitempty"`
 	AllowedIPs          string             `json:"allowedIps,omitempty"`
 	RelayIP             string             `json:"relayIp,omitempty"`
-	TieBreaker          int64              `json:"tieBreaker"`
+	TieBreaker          uint32             `json:"tieBreaker"`
 	Ufrag               string             `json:"ufrag"`
 	Pwd                 string             `json:"pwd"`
 	Port                int                `json:"port"`
-	Status              utils.Status       `json:"status"`
+	Status              utils.NodeStatus   `json:"status"`
 	ActiveStatus        utils.ActiveStatus `json:"activeStatus"`
 	GroupName           string             `json:"groupName"`
 	Version             uint64             `json:"version"`

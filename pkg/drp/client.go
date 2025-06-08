@@ -1,20 +1,18 @@
 package drp
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/golang/protobuf/proto"
 	"github.com/linkanyio/ice"
 	"golang.zx2c4.com/wireguard/conn"
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 	"linkany/internal"
 	"linkany/internal/direct"
-	"linkany/internal/relay"
-	"linkany/pkg/iface"
-	"linkany/pkg/linkerrors"
+	"linkany/pkg/config"
 	"linkany/pkg/log"
-	"linkany/pkg/probe"
 	signalingclient "linkany/signaling/client"
+
 	"linkany/signaling/grpc/signaling"
 	"linkany/turn/client"
 	"net"
@@ -24,112 +22,122 @@ import (
 )
 
 var (
-	_ internal.OfferManager = (*Client)(nil)
+	lock sync.Mutex
+	_    internal.OfferHandler = (*offerHandler)(nil)
 )
 
-type Client struct {
+type offerHandler struct {
 	logger *log.Logger
-	SrcKey *wgtypes.Key
-	DstKey *wgtypes.Key
 	client *signalingclient.Client
 	node   *Node
 
-	udpMux       *ice.UniversalUDPMuxDefault
-	fn           func(key string, addr *net.UDPAddr) error
-	agentManager *internal.AgentManager
-	wgConfiger   iface.WGConfigure
-	probers      *probe.NetProber
+	keyManager      internal.KeyManager
+	stunUri         string
+	udpMux          *ice.UDPMuxDefault
+	universalUdpMux *ice.UniversalUDPMuxDefault
+	fn              func(key string, addr *net.UDPAddr) error
+	agentManager    internal.AgentManagerFactory
+	probeManager    internal.ProbeManager
+	nodeManager     *config.NodeManager
 
 	stunClient    *client.Client
-	signalChannel chan *signaling.EncryptMessage
+	signalChannel chan *signaling.SignalingMessage
+
+	relay      bool
+	turnClient *client.Client
 }
 
-type ClientConfig struct {
-	Logger        *log.Logger
-	Node          *Node
-	UdpMux        *ice.UniversalUDPMuxDefault
-	AgentManager  *internal.AgentManager
-	OfferManager  internal.OfferManager
-	Probers       *probe.NetProber
-	SignalChannel chan *signaling.EncryptMessage
+type OfferHandlerConfig struct {
+	Logger  *log.Logger
+	Node    *Node
+	StunUri string
+
+	KeyManager      internal.KeyManager
+	Ufrag           string
+	Pwd             string
+	UdpMux          *ice.UDPMuxDefault
+	UniversalUdpMux *ice.UniversalUDPMuxDefault
+	AgentManager    internal.AgentManagerFactory
+	OfferManager    internal.OfferHandler
+	ProbeManager    internal.ProbeManager
+	SignalChannel   chan *signaling.SignalingMessage
+	NodeManager     *config.NodeManager
 }
 
-// NewClient create a new client
-func NewClient(cfg *ClientConfig) *Client {
-	return &Client{
-		logger:        cfg.Logger,
-		signalChannel: cfg.SignalChannel,
-		node:          cfg.Node,
-		udpMux:        cfg.UdpMux,
-		agentManager:  cfg.AgentManager,
-		probers:       cfg.Probers,
+// NewOfferHandler create a new client
+func NewOfferHandler(cfg *OfferHandlerConfig) internal.OfferHandler {
+	return &offerHandler{
+		nodeManager:     cfg.NodeManager,
+		logger:          cfg.Logger,
+		signalChannel:   cfg.SignalChannel,
+		node:            cfg.Node,
+		stunUri:         cfg.StunUri,
+		keyManager:      cfg.KeyManager,
+		udpMux:          cfg.UdpMux,
+		universalUdpMux: cfg.UniversalUdpMux,
+		agentManager:    cfg.AgentManager,
+		probeManager:    cfg.ProbeManager,
 	}
 }
 
-func (c *Client) SetWgConfiger(wgConfiger iface.WGConfigure) {
-	c.wgConfiger = wgConfiger
-}
-
-func (c *Client) SendOffer(messageType signaling.MessageType, srcKey, dstKey string, offer internal.Offer) error {
-	var err error
-	n, bytes, _ := offer.Marshal()
+func (h *offerHandler) SendOffer(messageType signaling.MessageType, srcKey, dstKey string, offer internal.Offer) error {
+	n, bytes, err := offer.Marshal()
+	if err != nil {
+		return err
+	}
 	if n > MAX_PACKET_SIZE {
 		return fmt.Errorf("packet too large: %d", n)
 	}
 
-	req := &signaling.EncryptMessageReqAndResp{
-		SrcPublicKey: srcKey,
-		DstPublicKey: dstKey,
-		Body:         bytes,
-		Type:         messageType,
+	// write offer to signaling channel
+	h.signalChannel <- &signaling.SignalingMessage{
+		From:    srcKey,
+		To:      dstKey,
+		Body:    bytes,
+		MsgType: messageType,
 	}
 
-	body, err := proto.Marshal(req)
-	if err != nil {
-		return err
-	}
-
-	in := &signaling.EncryptMessage{
-		Body: body,
-	}
-
-	c.signalChannel <- in
 	return nil
 }
 
-func (c *Client) ReceiveOffer(msg *signaling.EncryptMessage) error {
-	var resp signaling.EncryptMessageReqAndResp
+func (h *offerHandler) ReceiveOffer(msg *signaling.SignalingMessage) error {
 	var err error
-
 	if msg.Body == nil {
 		return errors.New("body is nil")
 	}
-	if err = proto.Unmarshal(msg.Body, &resp); err != nil {
+	if err = json.Unmarshal(msg.Body, msg); err != nil {
 		return err
 	}
 
-	c.logger.Verbosef("receive from signaling service, srcPubKey: %v, dstPubKey: %v", resp.SrcPublicKey, resp.DstPublicKey)
+	h.logger.Verbosef("receive from signaling service, srcPubKey: %v, dstPubKey: %v", msg.From, msg.To)
 
-	switch resp.Type {
+	switch msg.MsgType {
 	case signaling.MessageType_MessageForwardType:
 
 	case signaling.MessageType_MessageDirectOfferType:
 		go func() {
-			err := c.handleResponse(&resp)
-			if err != nil {
-				c.logger.Errorf("handle response failed: %v", err)
+			if err := h.handleDirectOffer(msg, false); err != nil {
+				h.logger.Errorf("handle response failed: %v", err)
+			}
+		}()
+
+	case signaling.MessageType_MessageDirectOfferAnswerType:
+		// handle direct offer answer
+		go func() {
+			if err := h.handleDirectOffer(msg, true); err != nil {
+				h.logger.Errorf("handle response failed: %v", err)
 			}
 		}()
 	case signaling.MessageType_MessageRelayOfferType:
 		// handle relay offer
 		go func() {
-			err := c.handleRelayOffer(&resp)
+			err := h.handleRelayOffer(msg)
 			if err != nil {
-				c.logger.Errorf("handle relay offer failed: %v", err)
+				h.logger.Errorf("handle relay offer failed: %v", err)
 			}
 		}()
 		//case internal.MessageRelayOfferResponseType:
-		//	go c.handleRelayOfferResponse(ft, int(fl+5), b)
+		//	go h.handleRelayOfferResponse(ft, int(fl+5), b)
 	}
 
 	return nil
@@ -148,110 +156,154 @@ type IndexTable struct {
 	Clients map[string]*Clientset
 }
 
-func (c *Client) handleResponse(msg *signaling.EncryptMessageReqAndResp) error {
-	var err error
-	remoteKey := msg.SrcPublicKey
+func (h *offerHandler) handleDirectOffer(msg *signaling.SignalingMessage, isAnswer bool) error {
+	var (
+		err   error
+		probe internal.Probe
+	)
+	// remote src public key
+	offer, err := direct.UnmarshalOffer(msg.Body)
+	if err != nil {
+		h.logger.Errorf("unmarshal offer answer failed: %v", err)
+		return err
+	}
+
+	// add peer
+	h.nodeManager.AddPeer(msg.From, offer.Node)
+
+	probe = h.probeManager.GetProbe(msg.From)
+	if probe == nil {
+		probe, err = h.probeManager.NewProbe(&internal.ProberConfig{
+			Logger:           log.NewLogger(log.Loglevel, "probe"),
+			OfferManager:     h,
+			StunUri:          h.stunUri,
+			WGConfiger:       h.probeManager.GetWgConfiger(),
+			To:               msg.From,
+			NodeManager:      h.nodeManager,
+			ProberManager:    h.probeManager,
+			IsForceRelay:     h.relay,
+			TurnClient:       h.turnClient,
+			SignalingChannel: h.signalChannel,
+			LocalKey:         ice.NewTieBreaker(),
+			GatherChan:       make(chan interface{}),
+		})
+
+		if err != nil {
+			return err
+		}
+	}
+
+	if !isAnswer {
+		// send a direct offer to the remote client
+		if err = probe.SendOffer(signaling.MessageType_MessageDirectOfferAnswerType, h.keyManager.GetPublicKey(), msg.From); err != nil {
+			return err
+		}
+	}
+	return probe.HandleOffer(offer)
+}
+
+//func (h *offerHandler) createProbe(from, to string, agent *internal.Agent, err error, offer *direct.DirectOffer) (internal.Probe, error) {
+//	h.logger.Verbosef("newProbe not found for to: %v, will create a new one", to)
+//	//create a new newProbe
+//	cfg := &internal.ProberConfig{
+//		Logger:           log.NewLogger(log.Loglevel, "probe"),
+//		OfferManager:     h,
+//		StunUri:          h.stunUri,
+//		WGConfiger:       h.probeManager.GetWgConfiger(),
+//		To:               to,
+//		ProberManager:    h.probeManager,
+//		IsForceRelay:     h.relay,
+//		TurnClient:       h.turnClient,
+//		SignalingChannel: h.signalChannel,
+//		LocalKey:         ice.NewTieBreaker(),
+//		GatherChan:       make(chan interface{}),
+//		OnConnectionStateChange: func(state internal.ConnectionState, srcKey string) {
+//			switch state {
+//			case internal.ConnectionStateFailed:
+//				probe := h.probeManager.GetProbe(srcKey)
+//				if err = probe.Restart(); err != nil {
+//					h.logger.Errorf("probe restart failed: %v, srcKey :%v", err, srcKey)
+//				} else {
+//					h.logger.Infof("probe restarted for peer: %s", srcKey)
+//				}
+//			case internal.ConnectionStateConnected:
+//			case internal.ConnectionStateChecking:
+//			default:
+//
+//			}
+//		},
+//	}
+//
+//	newProbe, err := h.probeManager.NewProbe(cfg)
+//	if err != nil {
+//		return nil, err
+//	}
+//	return newProbe, nil
+//}
+
+func (h *offerHandler) handleRelayOffer(msg *signaling.SignalingMessage) error {
+	//var err error
+	//srcPublicKey := msg.SrcPublicKey
 	//dstKey := msg.DstPublicKey
+	//
+	//h.logger.Verbosef("srcPublicKey: %v, dstKey: %v", srcPublicKey, dstKey)
+	//
+	//offerAnswer, err := relay.UnmarshalOffer(msg.Body)
+	//if err != nil {
+	//	h.logger.Errorf("unmarshal offer answer failed: %v", err)
+	//	return err
+	//}
+	//
+	//prober := h.ProbeManager.GetProbe(srcPublicKey)
+	//if prober == nil {
+	//	h.createProbe()
+	//	return linkerrors.ErrProberNotFound
+	//}
+	//
+	//rc := probe.NewRelayChecker(&probe.RelayCheckerConfig{
+	//	Client:       h.stunClient,
+	//	AgentManagerFactory: h.agentManager,
+	//	DstPublicKey:       srcPublicKey,
+	//	SrcPublicKey:       dstKey,
+	//})
+	//rc.SetProbe(prober)
+	//prober.SetRelayChecker(rc)
 
-	offerAnswer, err := direct.UnmarshalOfferAnswer(msg.Body)
-	if err != nil {
-		c.logger.Errorf("unmarshal offer answer failed: %v", err)
-		return err
-	}
-	c.logger.Verbosef("receive offer answer info, remote wgPort:%d,  remoteUfrag: %s, remotePwd: %s, remote localKey: %v, candidate: %v", offerAnswer.WgPort, offerAnswer.Ufrag, offerAnswer.Pwd, offerAnswer.LocalKey, offerAnswer.Candidate)
-
-	prober := c.probers.GetProber(remoteKey)
-	if prober == nil {
-		return linkerrors.ErrProberNotFound
-	}
-
-	if prober.IsForceRelay() {
-		return nil
-	}
-
-	agent, ok := c.agentManager.Get(remoteKey) // agent have created when fetch peers start working
-	if !ok {
-		c.logger.Errorf("agent not found")
-		return linkerrors.ErrAgentNotFound
-	}
-
-	if prober.GetDirectChecker() == nil {
-		dt := probe.NewDirectChecker(&probe.DirectCheckerConfig{
-			Ufrag:      "",
-			Agent:      agent,
-			WgConfiger: c.wgConfiger,
-			Key:        remoteKey,
-			LocalKey:   c.agentManager.GetLocalKey(),
-		})
-		dt.SetProber(prober)
-		prober.SetIsControlling(c.agentManager.GetLocalKey() > offerAnswer.LocalKey)
-		prober.SetDirectChecker(dt)
-		c.probers.AddProber(remoteKey, prober) // update the prober
-	}
-
-	return prober.HandleOffer(offerAnswer)
+	//return prober.HandleOffer(offerAnswer)
+	return nil
 }
 
-func (c *Client) handleRelayOffer(msg *signaling.EncryptMessageReqAndResp) error {
-	var err error
-	remoteKey := msg.SrcPublicKey
-	dstKey := msg.DstPublicKey
-
-	c.logger.Verbosef("remoteKey: %v, dstKey: %v", remoteKey, dstKey)
-
-	offerAnswer, err := relay.UnmarshalOffer(msg.Body)
-	if err != nil {
-		c.logger.Errorf("unmarshal offer answer failed: %v", err)
-		return err
-	}
-
-	prober := c.probers.GetProber(remoteKey)
-	if prober == nil {
-		return linkerrors.ErrProberNotFound
-	}
-	if prober.GetRelayChecker() == nil {
-		rc := probe.NewRelayChecker(&probe.RelayCheckerConfig{
-			Client:       c.stunClient,
-			AgentManager: c.agentManager,
-			DstKey:       remoteKey,
-			SrcKey:       dstKey,
-		})
-		rc.SetProber(prober)
-		prober.SetRelayChecker(rc)
-	}
-
-	return prober.HandleOffer(offerAnswer)
-}
-
-func (c *Client) handleRelayOfferResponse(resp *signaling.EncryptMessageReqAndResp) error {
-	var err error
-	remoteKey := resp.SrcPublicKey
-	srcKey := resp.DstPublicKey
-
-	c.logger.Verbosef("handle remoteKey: %v, srcKey: %v", remoteKey, srcKey)
-
-	offerAnswer, err := relay.UnmarshalOffer(resp.Body)
-	if err != nil {
-		c.logger.Errorf("unmarshal offer answer failed: %v", err)
-		return err
-	}
-
-	prober := c.probers.GetProber(remoteKey)
-	if prober == nil {
-		return errors.New("prober not found")
-	}
-	if prober.GetRelayChecker() == nil {
-		rc := probe.NewRelayChecker(&probe.RelayCheckerConfig{
-			Client:       c.stunClient,
-			AgentManager: c.agentManager,
-			DstKey:       remoteKey,
-			SrcKey:       srcKey,
-		})
-		rc.SetProber(prober)
-		prober.SetRelayChecker(rc)
-	}
-
-	return prober.HandleOffer(offerAnswer)
+func (h *offerHandler) handleRelayOfferResponse(resp *signaling.SignalingMessage) error {
+	//var err error
+	//remoteKey := resp.SrcPublicKey
+	//srcKey := resp.DstPublicKey
+	//
+	//h.logger.Verbosef("handle remoteKey: %v, srcKey: %v", remoteKey, srcKey)
+	//
+	//offerAnswer, err := relay.UnmarshalOffer(resp.Body)
+	//if err != nil {
+	//	h.logger.Errorf("unmarshal offer answer failed: %v", err)
+	//	return err
+	//}
+	//
+	//prober := h.ProbeManager.GetProbe(remoteKey)
+	//if prober == nil {
+	//
+	//	return errors.New("prober not found")
+	//}
+	//if prober.GetRelayChecker() == nil {
+	//	rc := probe.NewRelayChecker(&probe.RelayCheckerConfig{
+	//		Client:       h.stunClient,
+	//		AgentManagerFactory: h.agentManager,
+	//		DstPublicKey:       remoteKey,
+	//		SrcPublicKey:       srcKey,
+	//	})
+	//	rc.SetProbe(prober)
+	//	prober.SetRelayChecker(rc)
+	//}
+	//
+	//return prober.HandleOffer(offerAnswer)
+	return nil
 }
 
 func parse(addr string) (conn.Endpoint, error) {

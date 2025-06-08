@@ -26,6 +26,8 @@ spec:
           image: registry.cn-hangzhou.aliyuncs.com/linkany-io/linkany-sg:latest
           imagePullPolicy: Always
           command: [ "linkany", "signaling" ]
+          args:
+            - "--log-level=INFO"
 ---
 apiVersion: v1
 kind: Service

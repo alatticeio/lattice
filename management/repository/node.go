@@ -15,6 +15,7 @@ type NodeRepository interface {
 	Delete(ctx context.Context, nodeId uint64) error
 	DeleteByAppId(ctx context.Context, appId string) error
 	Update(ctx context.Context, node *dto.NodeDto) error
+	UpdateStatus(ctx context.Context, nodeDto *dto.NodeDto) error
 	Find(ctx context.Context, nodeId uint64) (*entity.Node, error)
 	FindIn(ctx context.Context, nodeIds []uint64) ([]*entity.Node, error)
 	FindByAppId(ctx context.Context, appId string) (*entity.Node, error)
@@ -63,6 +64,12 @@ func (r *nodeRepository) Update(ctx context.Context, nodeDto *dto.NodeDto) error
 	return r.db.WithContext(ctx).Model(&entity.Node{}).Where("id = ?", nodeDto.ID).Updates(map[string]interface{}{
 		"status": nodeDto.Status,
 		"name":   nodeDto.Name,
+	}).Error
+}
+
+func (r *nodeRepository) UpdateStatus(ctx context.Context, nodeDto *dto.NodeDto) error {
+	return r.db.WithContext(ctx).Model(&entity.Node{}).Where("public_key = ?", nodeDto.PublicKey).Updates(map[string]interface{}{
+		"status": nodeDto.Status,
 	}).Error
 }
 

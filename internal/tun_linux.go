@@ -1,4 +1,4 @@
-package iface
+package internal
 
 import (
 	"golang.zx2c4.com/wireguard/tun"

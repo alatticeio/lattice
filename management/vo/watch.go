@@ -1,6 +1,8 @@
 package vo
 
-import "linkany/management/utils"
+import (
+	"linkany/management/utils"
+)
 
 // Message used to wrapper the message for watch
 /*
@@ -55,6 +57,5 @@ func (vo *NodeVo) TransferToNodeMessage() *utils.NodeMessage {
 		PersistentKeepalive: vo.PersistentKeepalive,
 		PublicKey:           vo.PublicKey,
 		AllowedIPs:          vo.AllowedIPs,
-		RelayIP:             vo.RelayIP,
 	}
 }

@@ -14,13 +14,13 @@ type Local struct {
 }
 
 type LocalConfig struct {
-	Auth       string `json:"auth,omitempty"`
-	AppId      string `json:"GetAppId,omitempty"`
-	UserId     string `json:"userId,omitempty"`
-	Debug      bool   `json:"debug,omitempty"`
-	Token      string `json:"token,omitempty"`
-	Ufrag      string `json:"ufrag,omitempty"`
-	Pwd        string `json:"pwd,omitempty"`
+	Auth   string `json:"auth,omitempty"`
+	AppId  string `json:"GetAppId,omitempty"`
+	UserId string `json:"userId,omitempty"`
+	Debug  bool   `json:"debug,omitempty"`
+	Token  string `json:"token,omitempty"`
+	//Ufrag      string `json:"ufrag,omitempty"`
+	//Pwd        string `json:"pwd,omitempty"`
 	PrivateKey string `json:"privateKey,omitempty"`
 }
 

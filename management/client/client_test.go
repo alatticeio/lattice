@@ -53,7 +53,7 @@ func TestFetchPeers(t *testing.T) {
 	}
 
 	type records struct {
-		Records []config.Peer `json:"records,omitempty"`
+		Records []config.Node `json:"records,omitempty"`
 	}
 
 	var resp HttpResponse[records]
@@ -72,7 +72,7 @@ func TestParse(t *testing.T) {
 	}
 
 	type records struct {
-		Records []config.Peer `json:"records,omitempty"`
+		Records []config.Node `json:"records,omitempty"`
 	}
 
 	var resp HttpResponse[records]

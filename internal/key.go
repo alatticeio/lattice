@@ -5,28 +5,41 @@ import (
 	"sync"
 )
 
-type KeyManager struct {
+type KeyManager interface {
+	// UpdateKey updates the private key used for encryption.
+	UpdateKey(privateKey string)
+	// GetKey retrieves the current private key.
+	GetKey() string
+	// GetPublicKey retrieves the public key derived from the current private key.
+	GetPublicKey() string
+}
+
+var (
+	_ KeyManager = (*keyManager)(nil)
+)
+
+type keyManager struct {
 	lock       sync.Mutex
 	privateKey string
 }
 
-func NewKeyManager(privateKey string) *KeyManager {
-	return &KeyManager{privateKey: privateKey}
+func NewKeyManager(privateKey string) KeyManager {
+	return &keyManager{privateKey: privateKey}
 }
 
-func (km *KeyManager) UpdateKey(privateKey string) {
+func (km *keyManager) UpdateKey(privateKey string) {
 	km.lock.Lock()
 	defer km.lock.Unlock()
 	km.privateKey = privateKey
 }
 
-func (km *KeyManager) GetKey() string {
+func (km *keyManager) GetKey() string {
 	km.lock.Lock()
 	defer km.lock.Unlock()
 	return km.privateKey
 }
 
-func (km *KeyManager) GetPublicKey() string {
+func (km *keyManager) GetPublicKey() string {
 	km.lock.Lock()
 	defer km.lock.Unlock()
 	key, err := wgtypes.ParseKey(km.privateKey)

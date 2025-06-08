@@ -34,6 +34,12 @@ type ClientConfig struct {
 	ClientID string
 }
 
+type Heart struct {
+	From   string
+	Status string
+	Last   string
+}
+
 func NewClient(cfg *ClientConfig) (*Client, error) {
 	keepAliveArgs := keepalive.ClientParameters{
 		Time:                10 * time.Second,
@@ -63,22 +69,15 @@ func NewClient(cfg *ClientConfig) (*Client, error) {
 	}, nil
 }
 
-func (c *Client) Register(ctx context.Context, in *signaling.EncryptMessage) (*signaling.EncryptMessage, error) {
-	return c.client.Register(ctx, in)
-}
+//func (c *Client) Register(ctx context.Context, in *signaling.SignalingMessage) (*signaling.EncryptMessage, error) {
+//	return c.client.Register(ctx, in)
+//}
 
-func (c *Client) Forward(ctx context.Context, ch chan *signaling.EncryptMessage, callback func(message *signaling.EncryptMessage) error) error {
-	stream, err := c.client.Forward(ctx)
+func (c *Client) Forward(ctx context.Context, ch chan *signaling.SignalingMessage, callback func(message *signaling.SignalingMessage) error) error {
+	stream, err := c.client.Signaling(ctx)
 	if err != nil {
 		return err
 	}
-
-	defer func() {
-		c.logger.Infof("close signaling stream")
-		if err = stream.CloseSend(); err != nil {
-			c.logger.Errorf("close send failed: %v", err)
-		}
-	}()
 
 	errChan := make(chan error)
 	go c.sendMessages(stream, ch, errChan)
@@ -99,71 +98,48 @@ func (c *Client) Forward(ctx context.Context, ch chan *signaling.EncryptMessage,
 	}
 }
 
-func (c *Client) Heartbeat(ctx context.Context) error {
-	return c.runHeartbeat(ctx)
-}
+func (c *Client) Heartbeat(ctx context.Context, ch chan *signaling.SignalingMessage, clientId string) error {
+	ticker := time.NewTicker(c.config.heartbeatInterval)
+	ticker.Stop()
 
-func (c *Client) runHeartbeat(ctx context.Context) error {
-	stream, err := c.client.Heartbeat(ctx)
-	if err != nil {
-		return fmt.Errorf("create heartbeat stream: %w", err)
-	}
-
-	// 发送心跳
-	go func() {
-		ticker := time.NewTicker(c.config.heartbeatInterval)
-		defer ticker.Stop()
-
-		for {
-			select {
-			case <-ticker.C:
-				req := &signaling.HeartbeatReqeust{
-					Timestamp: time.Now().UnixNano(),
-					ClientId:  c.clientID,
-					Metadata: map[string]string{
-						"version": "1.0",
-						"status":  "active",
-					},
-				}
-
-				if err := stream.Send(req); err != nil {
-					c.logger.Errorf("Failed to send heartbeat: %v", err)
-					return
-				}
-
-				data, err := json.Marshal(req)
-				if err != nil {
-					return
-				}
-				c.logger.Verbosef("send heartbeat: %v", string(data))
-
-			case <-ctx.Done():
-				return
-			case <-c.done:
-				return
-			}
+	sendHeart := func() error {
+		heartInfo := &Heart{
+			From:   clientId,
+			Status: "alive",
+			Last:   time.Now().Format(time.RFC3339),
 		}
-	}()
-
-	// 接收服务端响应
-	for {
-		resp, err := stream.Recv()
-		if err == io.EOF {
-			return fmt.Errorf("server closed connection")
-		}
+		body, err := json.Marshal(heartInfo)
 		if err != nil {
-			return fmt.Errorf("receive error: %w", err)
+			c.logger.Errorf("marshal heartbeat info failed: %v", err)
+			return err
 		}
 
-		if resp.Status != signaling.Status_OK {
-			c.logger.Verbosef("Server returned non-OK status: %v", resp.Status)
+		ch <- &signaling.SignalingMessage{
+			From:    clientId,
+			MsgType: signaling.MessageType_MessageHeartBeatType,
+			Body:    body,
+		}
+
+		return nil
+	}
+
+	sendHeart()
+	ticker.Reset(c.config.heartbeatInterval)
+	for {
+		select {
+		case <-ctx.Done():
+			c.logger.Infof("heartbeat context done: %v", ctx.Err())
+			return ctx.Err()
+		case <-ticker.C:
+			sendHeart()
 		}
 	}
 }
 
-func (c *Client) receiveMessages(stream signaling.SignalingService_ForwardClient, errChan chan error, callback func(message *signaling.EncryptMessage) error) {
+func (c *Client) receiveMessages(stream signaling.SignalingService_SignalingClient, errChan chan error, callback func(message *signaling.SignalingMessage) error) {
 	for {
 		msg, err := stream.Recv()
+		c.logger.Verbosef("signaling received message >>>>>>>>>>>>>>>>>: %v", msg)
 		if err != nil {
 			s, ok := status.FromError(err)
 			if ok && s.Code() == codes.Canceled {
@@ -181,11 +157,16 @@ func (c *Client) receiveMessages(stream signaling.SignalingService_ForwardClient
 			return
 		}
 
-		callback(msg)
+		switch msg.MsgType {
+		case signaling.MessageType_MessageHeartBeatType:
+			c.logger.Infof("received heartbeat message from %s, content: %v", msg.From, string(msg.Body))
+		default:
+			callback(msg)
+		}
 	}
 }
 
-func (c *Client) sendMessages(stream signaling.SignalingService_ForwardClient, ch chan *signaling.EncryptMessage, errChan chan error) {
+func (c *Client) sendMessages(stream signaling.SignalingService_SignalingClient, ch chan *signaling.SignalingMessage, errChan chan error) {
 	for {
 		select {
 		case msg := <-ch:
@@ -205,6 +186,8 @@ func (c *Client) sendMessages(stream signaling.SignalingService_ForwardClient, c
 				errChan <- fmt.Errorf("send message failed: %v", err)
 				return
 			}
+
+			c.logger.Verbosef("send data to signaling service, from: %v, to: %v, msgType: %v", msg.From, msg.To, msg.MsgType)
 		}
 	}
 }

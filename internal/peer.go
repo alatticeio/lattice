@@ -1,4 +1,4 @@
-package iface
+package internal
 
 import (
 	"encoding/hex"
@@ -59,25 +59,25 @@ func (p *SetPeer) String() string {
 }
 
 var (
-	_ WGConfigureInterface = (*WGConfigure)(nil)
+	_ ConfigureManager = (*wgConfigure)(nil)
 )
 
-type WGConfigure struct {
+type wgConfigure struct {
 	device       *wg.Device
 	address      string
 	ifaceName    string
-	peersManager *config.PeersManager
+	peersManager *config.NodeManager
 }
 
-func (w *WGConfigure) GetAddress() string {
+func (w *wgConfigure) GetAddress() string {
 	return w.address
 }
 
-func (w *WGConfigure) GetIfaceName() string {
+func (w *wgConfigure) GetIfaceName() string {
 	return w.ifaceName
 }
 
-func (w *WGConfigure) GetPeersManager() *config.PeersManager {
+func (w *wgConfigure) GetPeersManager() *config.NodeManager {
 	return w.peersManager
 }
 
@@ -85,23 +85,23 @@ type WGConfigerParams struct {
 	Device       *wg.Device
 	IfaceName    string
 	Address      string
-	PeersManager *config.PeersManager
+	PeersManager *config.NodeManager
 }
 
-func (w *WGConfigure) ConfigureWG() error {
+func (w *wgConfigure) ConfigureWG() error {
 	return nil
 }
 
-func (w *WGConfigure) AddPeer(peer *SetPeer) error {
+func (w *wgConfigure) AddPeer(peer *SetPeer) error {
 	return w.device.IpcSet(peer.String())
 }
 
-func (w *WGConfigure) RemovePeer(peer *SetPeer) error {
+func (w *wgConfigure) RemovePeer(peer *SetPeer) error {
 	return w.device.IpcSet(peer.String())
 }
 
-func NewWgConfigure(config *WGConfigerParams) *WGConfigure {
-	return &WGConfigure{
+func NewWgConfigure(config *WGConfigerParams) ConfigureManager {
+	return &wgConfigure{
 		device:       config.Device,
 		address:      config.Address,
 		ifaceName:    config.IfaceName,

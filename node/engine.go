@@ -1,4 +1,4 @@
-package client
+package node
 
 import (
 	"context"
@@ -7,9 +7,9 @@ import (
 	controlclient "linkany/management/client"
 	mgtclient "linkany/management/grpc/client"
 	"linkany/management/utils"
+	"linkany/management/vo"
 	"linkany/pkg/config"
 	"linkany/pkg/drp"
-	"linkany/pkg/iface"
 	"linkany/pkg/log"
 	"linkany/pkg/probe"
 	"linkany/pkg/wrapper"
@@ -22,8 +22,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/golang/protobuf/proto"
-	"github.com/vishvananda/netlink"
 	wg "golang.zx2c4.com/wireguard/device"
 	"golang.zx2c4.com/wireguard/tun"
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
@@ -37,24 +35,29 @@ const (
 	DefaultMTU = 1420
 )
 
+var (
+	_ internal.EngineManager = (*Engine)(nil)
+)
+
 // Engine is the daemon that manages the WireGuard device
 type Engine struct {
 	logger          *log.Logger
-	keyManager      *internal.KeyManager
+	keyManager      internal.KeyManager
 	Name            string
 	device          *wg.Device
 	client          *controlclient.Client
 	signalingClient *signalingclient.Client
-	signalChannel   chan *signaling.EncryptMessage
+	signalChannel   chan *signaling.SignalingMessage
 	bind            *wrapper.NetBind
-	GetNetworkMap   func() (*config.DeviceConf, error)
+	GetNetworkMap   func() (*vo.NetworkMap, error)
 	updated         atomic.Bool
 
 	group atomic.Value //belong to which group
 
-	peersManager *config.PeersManager
-	agentManager *internal.AgentManager
-	wgConfigure  iface.WGConfigureInterface
+	nodeManager  *config.NodeManager
+	agentManager internal.AgentManagerFactory
+	wgConfigure  internal.ConfigureManager
+	current      *utils.NodeMessage
 
 	callback func(message *utils.Message) error
 }
@@ -81,14 +84,19 @@ func (e *Engine) IpcHandle(conn net.Conn) {
 
 // NewEngine create a tun auto
 func NewEngine(cfg *EngineConfig) (*Engine, error) {
-	var device tun.Device
-	var err error
-	engine := new(Engine)
+	var (
+		device        tun.Device
+		relayer       *wrapper.Relayer
+		err           error
+		engine        *Engine
+		proberManager internal.ProbeManager
+	)
+	engine = new(Engine)
 	engine.logger = cfg.Logger
-	engine.signalChannel = make(chan *signaling.EncryptMessage, 1000)
+	engine.signalChannel = make(chan *signaling.SignalingMessage, 1000)
 
 	once.Do(func() {
-		engine.Name, device, err = iface.CreateTUN(DefaultMTU, cfg.Logger)
+		engine.Name, device, err = internal.CreateTUN(DefaultMTU, cfg.Logger)
 	})
 
 	if err != nil {
@@ -118,27 +126,29 @@ func NewEngine(cfg *EngineConfig) (*Engine, error) {
 	}
 
 	relayInfo, err := turnClient.GetRelayInfo(true)
-	engine.logger.Infof("relay conn addr: %s", relayInfo.RelayConn.LocalAddr().String())
 
 	if err != nil {
 		return nil, err
 	}
+	engine.logger.Infof("relay conn addr: %s", relayInfo.RelayConn.LocalAddr().String())
 
-	engine.agentManager = internal.NewAgentManager()
-	engine.peersManager = config.NewPeersManager()
+	agentManager := drp.NewAgentManager()
+	engine.agentManager = agentManager
+	engine.nodeManager = config.NewPeersManager()
 
-	universalUdpMuxDefault := internal.NewUdpMux(v4conn)
+	universalUdpMuxDefault := agentManager.NewUdpMux(v4conn)
 
 	engine.bind = wrapper.NewBind(&wrapper.BindConfig{
+		Logger:          log.NewLogger(log.Loglevel, "net-bind"),
 		UniversalUDPMux: universalUdpMuxDefault,
 		V4Conn:          v4conn,
 		RelayConn:       relayInfo.RelayConn,
 		SignalingClient: engine.signalingClient,
 	})
 
-	relayer := wrapper.NewRelayer(engine.bind)
+	relayer = wrapper.NewRelayer(engine.bind)
 
-	proberManager := probe.NewProberManager(cfg.ForceRelay, relayer)
+	proberManager = probe.NewManager(cfg.ForceRelay, universalUdpMuxDefault.UDPMuxDefault, universalUdpMuxDefault, relayer, engine, cfg.TurnServerUrl)
 
 	// controlclient
 	mgtclient, err := mgtclient.NewClient(&mgtclient.GrpcConfig{Addr: cfg.ManagementUrl, Logger: log.NewLogger(log.Loglevel, "mgtclient")})
@@ -149,58 +159,62 @@ func NewEngine(cfg *EngineConfig) (*Engine, error) {
 	// init key manager
 	engine.keyManager = internal.NewKeyManager("")
 
-	drpclient := drp.NewClient(&drp.ClientConfig{
-		Logger:        log.NewLogger(log.Loglevel, "drpclient"),
-		Probers:       proberManager,
+	offerHandler := drp.NewOfferHandler(&drp.OfferHandlerConfig{
+		Logger:        log.NewLogger(log.Loglevel, "offerHandler"),
+		ProbeManager:  proberManager,
 		AgentManager:  engine.agentManager,
-		UdpMux:        universalUdpMuxDefault,
+		StunUri:       cfg.TurnServerUrl,
+		KeyManager:    engine.keyManager,
 		SignalChannel: engine.signalChannel,
+		NodeManager:   engine.nodeManager,
 	})
 
 	go func() {
-		timer := time.NewTicker(20 * time.Second)
-		defer timer.Stop()
 		for {
-			if err = engine.signalingClient.Forward(context.Background(), engine.signalChannel, drpclient.ReceiveOffer); err != nil {
+			if err = engine.signalingClient.Forward(context.Background(), engine.signalChannel, offerHandler.ReceiveOffer); err != nil {
 				engine.logger.Errorf("forward failed: %v, is retrying in 20s", err)
-				timer.Reset(20 * time.Second)
+				time.Sleep(20 * time.Second) // retry after 20 seconds
+				continue
 			}
 		}
 	}()
 
-	go func() {
-		if err := engine.signalingClient.Heartbeat(context.Background()); err != nil {
-			engine.logger.Errorf("heartbeat failed: %v", err)
-		}
+	engine.device = wg.NewDevice(device, engine.bind, cfg.WgLogger)
 
-	}()
+	// start engine, open udp port
+	if err := engine.device.Up(); err != nil {
+		return nil, err
+	}
 
-	ufrag, pwd := probe.GenerateRandomUfragPwd()
+	wgConfigure := internal.NewWgConfigure(&internal.WGConfigerParams{
+		Device:    engine.device,
+		IfaceName: engine.Name,
+		//Address:      current.Address,
+		PeersManager: engine.nodeManager,
+	})
+	engine.wgConfigure = wgConfigure
 
 	engine.client = controlclient.NewClient(&controlclient.ClientConfig{
 		Logger:          log.NewLogger(log.Loglevel, "controlclient"),
-		PeersManager:    engine.peersManager,
+		PeersManager:    engine.nodeManager,
 		Conf:            cfg.Conf,
 		UdpMux:          universalUdpMuxDefault.UDPMuxDefault,
 		UniversalUdpMux: universalUdpMuxDefault,
 		KeyManager:      engine.keyManager,
 		AgentManager:    engine.agentManager,
-		Ufrag:           ufrag,
-		Pwd:             pwd,
 		ProberManager:   proberManager,
 		TurnClient:      turnClient,
 		GrpcClient:      mgtclient,
 		SignalChannel:   engine.signalChannel,
-		DrpClient:       drpclient,
+		OfferHandler:    offerHandler,
+		WgConfiger:      wgConfigure,
 	})
 
-	//fetconf
 	// limit node count
 	var (
-		current *config.Peer
-		count   int64
+		count int64
 	)
-	current, count, err = engine.client.Get(context.Background())
+	engine.current, count, err = engine.client.Get(context.Background())
 	if err != nil {
 		return nil, err
 	}
@@ -211,7 +225,7 @@ func NewEngine(cfg *EngineConfig) (*Engine, error) {
 	}
 	var privateKey string
 	var publicKey string
-	if current.AppID != cfg.Conf.AppId {
+	if engine.current.AppID != cfg.Conf.AppId {
 		key, err := wgtypes.GeneratePrivateKey()
 		if err != nil {
 			return nil, err
@@ -225,60 +239,52 @@ func NewEngine(cfg *EngineConfig) (*Engine, error) {
 		}
 		engine.logger.Infof("register to manager success")
 	} else {
-		privateKey = current.PrivateKey
+		privateKey = engine.current.PrivateKey
 	}
 	//update key
 	engine.keyManager.UpdateKey(privateKey)
+	engine.nodeManager.AddPeer(engine.keyManager.GetPublicKey(), engine.current)
 
-	// register to signaling server
-	if err = engine.registerToSignaling(context.Background(), cfg.Conf); err != nil {
-		return nil, err
-	}
-	engine.logger.Infof("register to signaling success")
-
-	engine.device = wg.NewDevice(device, engine.bind, cfg.WgLogger)
-
-	// start engine, open udp port
-	if err := engine.device.Up(); err != nil {
-		return nil, err
-	}
-
-	wgConfigure := iface.NewWgConfigure(&iface.WGConfigerParams{
-		Device:       engine.device,
-		IfaceName:    engine.Name,
-		Address:      current.Address,
-		PeersManager: engine.peersManager,
-	})
-	engine.wgConfigure = wgConfigure
-
-	proberManager.SetWgConfiger(wgConfigure)
+	// start heart to signaling
+	go func() {
+		if err = engine.signalingClient.Heartbeat(context.Background(), engine.signalChannel, engine.keyManager.GetPublicKey()); err != nil {
+			engine.logger.Errorf("send heart beat failed: %v", err)
+		}
+	}()
 
 	return engine, err
 }
 
 // Start will get networkmap
 func (e *Engine) Start() error {
-	// List peers from control plane first time, then use watch
-	conf, err := e.GetNetworkMap()
+	// GetNetMap peers from control plane first time, then use watch
+	networkMap, err := e.GetNetworkMap()
 	if err != nil {
 		e.logger.Errorf("sync peers failed: %v", err)
 	}
 
-	//TODO set device config
-	e.logger.Infof("networkmap: %v", conf)
-	// set device config
-	deviceConfig := &config.DeviceConfig{
-		PrivateKey: e.keyManager.GetKey(),
-	}
+	e.logger.Verbosef("get network map: %s", networkMap)
 
-	if err = e.DeviceConfigure(deviceConfig); err != nil {
+	// config device
+	internal.SetDeviceIP()("add", e.current.Address, e.Name)
+
+	if err = e.DeviceConfigure(&config.DeviceConfig{
+		PrivateKey: e.keyManager.GetKey(),
+	}); err != nil {
 		return err
 	}
 
+	for _, node := range networkMap.Nodes {
+		e.nodeManager.AddPeer(node.PublicKey, node)
+	}
 	// watch
 	go func() {
-		if err := e.client.Watch(context.Background(), e.client.HandleWatchMessage); err != nil {
-			e.logger.Errorf("watch failed: %v", err)
+		for {
+			if err := e.client.Watch(context.Background(), e.client.HandleWatchMessage); err != nil {
+				e.logger.Errorf("watch failed: %v", err)
+				time.Sleep(10 * time.Second) // retry after 10 seconds
+				continue
+			}
 		}
 	}()
 
@@ -293,41 +299,36 @@ func (e *Engine) Start() error {
 	return nil
 }
 
-func (e *Engine) registerToSignaling(ctx context.Context, cfg *config.LocalConfig) error {
-
-	publicKey := e.keyManager.GetPublicKey()
-	var req = &signaling.EncryptMessageReqAndResp{
-		SrcPublicKey: publicKey,
-		Token:        cfg.Token,
-	}
-
-	bs, err := proto.Marshal(req)
-	if err != nil {
-		return err
-	}
-
-	in := &signaling.EncryptMessage{
-		PublicKey: publicKey,
-		Body:      bs,
-	}
-
-	_, err = e.signalingClient.Register(ctx, in)
-
-	if err != nil {
-		e.logger.Errorf("register to signaling failed: %v", err)
-		return err
-	}
-	return nil
-}
+//func (e *Engine) registerToSignaling(ctx context.Context, cfg *config.LocalConfig) error {
+//
+//	publicKey := e.keyManager.GetPublicKey()
+//	var req = &signaling.EncryptMessageReqAndResp{
+//		SrcPublicKey: publicKey,
+//		Token:        cfg.Token,
+//	}
+//
+//	bs, err := proto.Marshal(req)
+//	if err != nil {
+//		return err
+//	}
+//
+//	in := &signaling.EncryptMessage{
+//		PublicKey: publicKey,
+//		Body:      bs,
+//	}
+//
+//	_, err = e.signalingClient.Register(ctx, in)
+//
+//	if err != nil {
+//		e.logger.Errorf("register to signaling failed: %v", err)
+//		return err
+//	}
+//	return nil
+//}
 
 func (e *Engine) Stop() error {
 	e.device.Close()
 	return nil
-}
-
-// GetLink returns the link with the given interface name.
-func GetLink(interfaceName string) (netlink.Link, error) {
-	return netlink.LinkByName(interfaceName)
 }
 
 // SetConfig updates the configuration of the given interface.
@@ -351,18 +352,26 @@ func (e *Engine) DeviceConfigure(conf *config.DeviceConfig) error {
 	return e.device.IpcSet(conf.String())
 }
 
-func (e *Engine) AddPeer(peer config.Peer) error {
-	return e.device.IpcSet(peer.String())
+func (e *Engine) AddPeer(peer utils.NodeMessage) error {
+	return e.device.IpcSet(peer.NodeString())
 }
 
 // RemovePeer add remove=true
-func (e *Engine) RemovePeer(peer config.Peer) error {
+func (e *Engine) RemovePeer(peer utils.NodeMessage) error {
 	peer.Remove = true
-	return e.device.IpcSet(peer.String())
+	return e.device.IpcSet(peer.NodeString())
 }
 
 func (e *Engine) close() {
 	e.signalingClient.Close()
 	close(e.signalChannel)
 	e.device.Close()
+}
+
+func (e *Engine) GetWgConfiger() internal.ConfigureManager {
+	return e.wgConfigure
+}
+
+func (e *Engine) GetRelayer() internal.Relay {
+	return nil
 }

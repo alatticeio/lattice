@@ -60,7 +60,7 @@ func (q *QueryConditions) BuildQuery(db *gorm.DB) *gorm.DB {
 
 	// 添加Like条件
 	for field, value := range q.Like {
-		query = query.Where(field+" LIKE ?", fmt.Sprintf("%s%", value))
+		query = query.Where(field+" LIKE ?", fmt.Sprintf("%%%v%%", value))
 	}
 
 	// 添加In条件
@@ -115,7 +115,7 @@ func (q *QueryConditions) AddWhere(field string, value interface{}) *QueryCondit
 
 // AddLike 添加模糊查询条件
 func (q *QueryConditions) AddLike(field string, value interface{}) *QueryConditions {
-	q.Like[field] = value.(string)
+	q.Like[field] = value
 	return q
 }
 

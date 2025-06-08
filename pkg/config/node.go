@@ -4,10 +4,9 @@ import (
 	"encoding/hex"
 	"fmt"
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
+	"linkany/management/utils"
 	"strconv"
 	"strings"
-	"sync"
-	"sync/atomic"
 )
 
 type Config struct {
@@ -16,38 +15,30 @@ type Config struct {
 
 // DeviceConf will used to fetchPeers,then config to the device
 type DeviceConf struct {
-	DrpUrl string        `json:"drpUrl,omitempty"` // a drp server user created.
-	Device *DeviceConfig `json:"device,omitempty"`
-	Peers  []*Peer       `json:"list,omitempty"`
+	DrpUrl string               `json:"drpUrl,omitempty"` // a drp server user created.
+	Device *DeviceConfig        `json:"device,omitempty"`
+	Nodes  []*utils.NodeMessage `json:"list,omitempty"`
 }
 
-// Peer peers sync from linkany server will be transfered to
-type Peer struct {
-	Lock                sync.Mutex
-	Connected           atomic.Bool
-	P2PFlag             atomic.Bool
-	ConnectionState     atomic.Bool `json:"checking_statue,omitempty"`
-	Name                string      `json:"name,omitempty"`
-	Hostname            string      `json:"hostname,omitempty"`
-	AppID               string      `json:"app_id,omitempty"`
-	PrivateKey          string      `json:"private_key,omitempty"`
-	PublicKey           string      `json:"public_key,omitempty"`
-	Address             string      `json:"address,omitempty"`
-	Remove              bool        `json:"remove,omitempty"`
-	Endpoint            string      `json:"endpoint,omitempty"`
-	TieBreaker          uint32      `json:"tie_breaker,omitempty"`
-	PersistentKeepalive int         `json:"persistent_keepalive,omitempty"`
-	AllowedIps          string      `json:"allowed_ips,omitempty"`
-	PresharedKey        string      `json:"preshared_key,omitempty"`
-	ReplacePeers        bool        `json:"replace_peers,omitempty"`
-	Port                int         `json:"port,omitempty"`
-	Ufrag               string      `json:"ufrag,omitempty"`
-	Pwd                 string      `json:"pwd,omitempty"`
-	HostIP              string      `json:"hostIP,omitempty"`
-	SrflxIP             string      `json:"srflxIP,omitempty"`
-	RelayIP             string      `json:"relay_ip,omitempty"`
-	Status              int         `json:"status,omitempty"` // 1: online 0: offline
-}
+// Node nodes sync from linkany server will transfer to
+//type Node struct {
+//	Connected           atomic.Bool
+//	Name                string           `json:"name,omitempty"`
+//	Hostname            string           `json:"hostname,omitempty"`
+//	AppID               string           `json:"app_id,omitempty"`
+//	PrivateKey          string           `json:"private_key,omitempty"`
+//	PublicKey           string           `json:"public_key,omitempty"`
+//	Address             string           `json:"address,omitempty"`
+//	Remove              bool             `json:"remove,omitempty"`
+//	Endpoint            string           `json:"endpoint,omitempty"`
+//	TieBreaker          uint32           `json:"tie_breaker,omitempty"`
+//	PersistentKeepalive int              `json:"persistent_keepalive,omitempty"`
+//	AllowedIps          string           `json:"allowed_ips,omitempty"`
+//	PresharedKey        string           `json:"preshared_key,omitempty"`
+//	ReplacePeers        bool             `json:"replace_peers,omitempty"`
+//	Port                int              `json:"port,omitempty"`
+//	Status              utils.NodeStatus `json:"status,omitempty"` // enabled, disabled
+//}
 
 // DeviceConfig config for this device
 type DeviceConfig struct {
@@ -126,17 +117,12 @@ func (d *DeviceConf) String() string {
 		printf(&sb, "fwmark", strconv.Itoa(d.Device.Fwmark), nil)
 	}
 
-	//sb.WriteString(fmt.Sprintf("private_key=%s\n", keyf(d.Device.privateKey)))
-	//sb.WriteString(fmt.Sprintf("listen_port=%d\n", 51820))
-	//sb.WriteString(fmt.Sprintf("fwmark=%d\n", d.Device.Fwmark))
-	//sb.WriteString(fmt.Sprintf("replace_peers=%t\n", d.Device.ReplacePeers))
-
-	if d.Peers != nil {
-		for _, peer := range d.Peers {
+	if d.Nodes != nil {
+		for _, peer := range d.Nodes {
 			printf(&sb, "public_key", peer.PublicKey, keyf)
 			printf(&sb, "preshared_key", peer.PresharedKey, keyf)
 			printf(&sb, "replace_allowed_ips", strconv.FormatBool(true), nil)
-			printf(&sb, "allowed_ip", peer.AllowedIps, nil)
+			printf(&sb, "allowed_ip", peer.AllowedIPs, nil)
 			printf(&sb, "endpoint", peer.Endpoint, nil)
 			//sb.WriteString(fmt.Sprintf("public_key=%s\n", keyf(peer.RemoteKey)))
 			//sb.WriteString(fmt.Sprintf("preshared_key=%s\n", keyf(peer.PresharedKey)))
@@ -149,41 +135,6 @@ func (d *DeviceConf) String() string {
 	return sb.String()
 }
 
-func (p *Peer) String() string {
-	keyf := func(value string) string {
-		if value == "" {
-			return ""
-		}
-		result, err := wgtypes.ParseKey(value)
-		if err != nil {
-			return ""
-		}
-
-		return hex.EncodeToString(result[:])
-	}
-
-	printf := func(sb *strings.Builder, key, value string, keyf func(string) string) {
-
-		if keyf != nil {
-			value = keyf(value)
-		}
-
-		if value != "" {
-			sb.WriteString(fmt.Sprintf("%s=%s\n", key, value))
-		}
-	}
-
-	var sb strings.Builder
-	printf(&sb, "public_key", p.PublicKey, keyf)
-	printf(&sb, "preshared_key", p.PresharedKey, keyf)
-	printf(&sb, "replace_allowed_ips", strconv.FormatBool(true), nil)
-	printf(&sb, "persistent_keepalive_interval", strconv.Itoa(p.PersistentKeepalive), nil)
-	printf(&sb, "allowed_ip", p.AllowedIps, nil)
-	printf(&sb, "endpoint", p.Endpoint, nil)
-
-	return sb.String()
-}
-
 // Parse will generate a DeviceConf from a "wg8" get format
 func (d *DeviceConf) Parse(str string) (*DeviceConf, error) {
 
@@ -192,7 +143,7 @@ func (d *DeviceConf) Parse(str string) (*DeviceConf, error) {
 
 	conf := &DeviceConf{
 		Device: &DeviceConfig{},
-		Peers:  make([]*Peer, 0),
+		Nodes:  make([]*utils.NodeMessage, 0),
 	}
 	setPeer := new(setPeer)
 	result := strings.Split(str, "\n")
@@ -204,10 +155,10 @@ func (d *DeviceConf) Parse(str string) (*DeviceConf, error) {
 
 		if key == "RemoteKey" {
 			deviceConfig = false
-			setPeer.peer = &Peer{
+			setPeer.peer = &utils.NodeMessage{
 				PublicKey: value,
 			}
-			conf.Peers = append(conf.Peers, setPeer.peer)
+			conf.Nodes = append(conf.Nodes, setPeer.peer)
 			continue
 		}
 
@@ -247,7 +198,7 @@ func (d *DeviceConf) Parse(str string) (*DeviceConf, error) {
 				}
 				break
 			case "allow_ips":
-				setPeer.peer.AllowedIps = value
+				setPeer.peer.AllowedIPs = value
 				break
 			}
 		}
@@ -257,5 +208,5 @@ func (d *DeviceConf) Parse(str string) (*DeviceConf, error) {
 }
 
 type setPeer struct {
-	peer *Peer
+	peer *utils.NodeMessage
 }

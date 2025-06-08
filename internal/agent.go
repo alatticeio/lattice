@@ -1,179 +1,173 @@
 package internal
 
 import (
+	"context"
+	"errors"
+	"fmt"
 	"github.com/linkanyio/ice"
 	"github.com/pion/logging"
-	"github.com/pion/randutil"
 	"github.com/pion/stun/v3"
+	"linkany/pkg/log"
 	"net"
-	"sync"
-	"time"
 )
 
-type AgentManager struct {
-	lock     sync.Mutex
-	agents   map[string]*ice.Agent
-	localKey uint32
+// AgentManagerFactory is an interface for managing ICE agents.
+type AgentManagerFactory interface {
+	Get(pubKey string) (*Agent, error)
+	Remove(pubKey string) error
+	NewUdpMux(conn net.PacketConn) *ice.UniversalUDPMuxDefault
 }
 
-func NewAgentManager() *AgentManager {
-	return &AgentManager{
-		agents:   make(map[string]*ice.Agent),
-		localKey: ice.NewTieBreaker(),
-	}
-}
+//type AgentManager interface {
+//	Get(pubKey string) *ice.Agent
+//}
 
-func (m *AgentManager) Add(key string, agent *ice.Agent) {
-	m.lock.Lock()
-	defer m.lock.Unlock()
-	m.agents[key] = agent
-}
-
-func (m *AgentManager) Get(key string) (*ice.Agent, bool) {
-	m.lock.Lock()
-	defer m.lock.Unlock()
-	agent, ok := m.agents[key]
-	return agent, ok
-}
-
-func (m *AgentManager) Remove(key string) {
-	m.lock.Lock()
-	defer m.lock.Unlock()
-	agent := m.agents[key]
-	if agent != nil {
-		err := agent.Close()
-		if err != nil {
-			return
-		}
-	}
-	delete(m.agents, key)
-}
-
-func (m *AgentManager) GetLocalKey() uint32 {
-	m.lock.Lock()
-	defer m.lock.Unlock()
-	return m.localKey
-}
-
-func NewUdpMux(conn net.PacketConn) *ice.UniversalUDPMuxDefault {
-	loggerFactory := logging.NewDefaultLoggerFactory()
-	loggerFactory.DefaultLogLevel = logging.LogLevelDebug
-
-	universalUdpMux := ice.NewUniversalUDPMuxDefault(ice.UniversalUDPMuxParams{
-		Logger:  loggerFactory.NewLogger("wrapper"),
-		UDPConn: conn,
-		Net:     nil,
-	})
-
-	return universalUdpMux
-}
-
-type AgentParams struct {
-	LoggerFacotry           logging.LoggerFactory
-	StunUrl                 string
-	UdpMux                  *ice.UDPMuxDefault
-	UniversalUdpMux         *ice.UniversalUDPMuxDefault
-	OnCandidate             func(c ice.Candidate)
-	TieBreaker              uint32
-	Ufrag                   string
-	Pwd                     string
-	KeepaliveInterval       time.Duration
-	OnConnectionStateChange func(state ice.ConnectionState)
-}
-
-func NewAgentParams(stunUri, ufrag, pwd string, univeralUdpMux *ice.UniversalUDPMuxDefault, tieBreaker uint32) *AgentParams {
-	if stunUri == "" {
-		stunUri = "stun:81.68.109.143:3478"
-	}
-
-	f := logging.NewDefaultLoggerFactory()
-	f.DefaultLogLevel = logging.LogLevelDebug
-	return &AgentParams{
-		LoggerFacotry:     f,
-		StunUrl:           stunUri,
-		UdpMux:            univeralUdpMux.UDPMuxDefault,
-		UniversalUdpMux:   univeralUdpMux,
-		Ufrag:             ufrag,
-		Pwd:               pwd,
-		TieBreaker:        tieBreaker,
-		KeepaliveInterval: 20 * time.Second,
-	}
+// Agent represents an ICE agent with its associated local key.
+type Agent struct {
+	logger          *log.Logger
+	iceAgent        *ice.Agent
+	LocalKey        uint32
+	udpMux          *ice.UDPMuxDefault
+	universalUdpMux *ice.UniversalUDPMuxDefault
 }
 
 // NewAgent creates a new ICE agent, will use to gather candidates
 // each peer will create an agent for connection establishment
-func NewAgent(params *AgentParams) (*ice.Agent, error) {
-	var err error
-	var agent *ice.Agent
+func NewAgent(params *AgentConfig) (*Agent, error) {
+	var (
+		err     error
+		agent   *ice.Agent
+		stunUri []*stun.URI
+		uri     *stun.URI
+	)
 
-	var stunUri []*stun.URI
-	uri, err := stun.ParseURI(params.StunUrl)
-	if err != nil {
+	l := logging.NewDefaultLoggerFactory()
+	l.DefaultLogLevel = logging.LogLevelDebug
+	if uri, err = stun.ParseURI(fmt.Sprintf("%s:%s", "stun", params.StunUrl)); err != nil {
 		return nil, err
 	}
+
 	uri.Username = "admin"
 	uri.Password = "admin"
 	stunUri = append(stunUri, uri)
 	f := logging.NewDefaultLoggerFactory()
 	f.DefaultLogLevel = logging.LogLevelDebug
-	agent, err = ice.NewAgent(&ice.AgentConfig{
+	if agent, err = ice.NewAgent(&ice.AgentConfig{
 		NetworkTypes:   []ice.NetworkType{ice.NetworkTypeUDP4},
-		UDPMux:         params.UdpMux,
+		UDPMux:         params.UniversalUdpMux.UDPMuxDefault,
 		UDPMuxSrflx:    params.UniversalUdpMux,
+		Tiebreaker:     uint64(ice.NewTieBreaker()),
 		Urls:           stunUri,
-		Tiebreaker:     uint64(params.TieBreaker),
 		LoggerFactory:  f,
 		CandidateTypes: []ice.CandidateType{ice.CandidateTypeHost, ice.CandidateTypeServerReflexive},
-		LocalUfrag:     params.Ufrag,
-		LocalPwd:       params.Pwd,
-	})
-
-	if err != nil {
+	}); err != nil {
 		return nil, err
 	}
 
-	if params.OnCandidate != nil { // if OnCandidate is nil, we don't need to gather candidates
-		if err = agent.OnCandidate(params.OnCandidate); err != nil {
-			return nil, err
-		}
-
-		if err = agent.GatherCandidates(); err != nil {
-			return nil, err
-		}
-	}
-
-	if params.OnConnectionStateChange != nil {
-		if err = agent.OnConnectionStateChange(params.OnConnectionStateChange); err != nil {
-			return nil, err
-		}
-	}
-
-	return agent, err
+	return &Agent{
+		iceAgent:        agent,
+		LocalKey:        ice.NewTieBreaker(),
+		universalUdpMux: params.UniversalUdpMux,
+		logger:          log.NewLogger(log.Loglevel, "agent"),
+	}, err
 }
 
-const (
-	runesAlpha                 = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
-	runesDigit                 = "0123456789"
-	runesCandidateIDFoundation = runesAlpha + runesDigit + "+/"
+func (agent *Agent) GetUniversalUDPMuxDefault() *ice.UniversalUDPMuxDefault {
+	return agent.universalUdpMux
+}
 
-	lenUFrag = 16
-	lenPwd   = 32
-)
+func (agent *Agent) OnCandidate(fn func(ice.Candidate)) error {
+	return agent.iceAgent.OnCandidate(fn)
+}
 
-var (
-	globalMathRandomGenerator = randutil.NewMathRandomGenerator()
-)
+func (agent *Agent) OnConnectionStateChange(fn func(ice.ConnectionState)) error {
+	if fn != nil {
+		return agent.iceAgent.OnConnectionStateChange(fn)
+	}
+	return nil
+}
 
-func GenerateUfragPwd() (string, string, error) {
-	pwd, err := randutil.GenerateCryptoRandomString(lenPwd, runesAlpha)
-	if err != nil {
-		return "", "", err
+func (agent *Agent) AddRemoteCandidate(candidate ice.Candidate) error {
+	if agent.iceAgent == nil {
+		return nil
+	}
+	return agent.iceAgent.AddRemoteCandidate(candidate)
+}
+
+func (agent *Agent) GatherCandidates() error {
+	if agent.iceAgent == nil {
+		return nil
+	}
+	return agent.iceAgent.GatherCandidates()
+}
+
+func (agent *Agent) GetLocalCandidates() ([]ice.Candidate, error) {
+	if agent.iceAgent == nil {
+		return nil, errors.New("ICE agent is not initialized")
+	}
+	return agent.iceAgent.GetLocalCandidates()
+}
+
+func (agent *Agent) GetTieBreaker() uint64 {
+	if agent.iceAgent == nil {
+		return 0
+	}
+	return agent.iceAgent.GetTieBreaker()
+}
+
+func (agent *Agent) Dial(ctx context.Context, remoteUfrag, remotePwd string) (*ice.Conn, error) {
+	if agent.iceAgent == nil {
+		return nil, errors.New("ICE agent is not initialized")
 	}
 
-	ufrag, err := randutil.GenerateCryptoRandomString(lenUFrag, runesAlpha)
+	conn, err := agent.iceAgent.Dial(ctx, remoteUfrag, remotePwd)
 	if err != nil {
-		return "", "", err
+		agent.logger.Errorf("failed to accept ICE connection: %v", err)
+		return nil, err
+	}
+	return conn, nil
+}
+
+func (agent *Agent) Accept(ctx context.Context, remoteUfrag, remotePwd string) (*ice.Conn, error) {
+	if agent.iceAgent == nil {
+		return nil, errors.New("ICE agent is not initialized")
 	}
 
-	return ufrag, pwd, err
+	conn, err := agent.iceAgent.Accept(ctx, remoteUfrag, remotePwd)
+	if err != nil {
+		agent.logger.Errorf("failed to accept ICE connection: %v", err)
+		return nil, err
+	}
+	return conn, nil
+}
+
+func (agent *Agent) Close() error {
+	if agent.iceAgent == nil {
+		return nil
+	}
+	if err := agent.iceAgent.Close(); err != nil {
+		agent.logger.Errorf("failed to close ICE agent: %v", err)
+		return err
+	}
+	return nil
+}
+
+func (agent *Agent) GetLocalUserCredentials() (string, string, error) {
+	if agent.iceAgent == nil {
+		return "", "", errors.New("ICE agent is not initialized")
+	}
+	return agent.iceAgent.GetLocalUserCredentials()
+}
+
+func (agent *Agent) GetRemoteCandidates() ([]ice.Candidate, error) {
+	if agent.iceAgent == nil {
+		return nil, errors.New("ICE agent is not initialized")
+	}
+	return agent.iceAgent.GetRemoteCandidates()
+}
+
+// AgentConfig holds the configuration for creating a new ICE agent.
+type AgentConfig struct {
+	StunUrl         string
+	UniversalUdpMux *ice.UniversalUDPMuxDefault
 }

@@ -7,6 +7,7 @@ const (
 	ConnectionStateChecking
 	ConnectionStateFailed
 	ConnectionStateConnected
+	ConnectionStateDisconnected
 )
 
 func (c ConnectionState) String() string {
@@ -19,6 +20,8 @@ func (c ConnectionState) String() string {
 		return "Connected"
 	case ConnectionStateFailed:
 		return "Failed"
+	case ConnectionStateDisconnected:
+		return "Disconnected"
 	default:
 		return "Invalid"
 	}

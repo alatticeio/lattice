@@ -180,7 +180,7 @@ func TestClient_Get(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	var peer config.Peer
+	var peer config.Node
 	if err = json.Unmarshal(resp.Body, &peer); err != nil {
 		t.Fatal(err)
 	}
@@ -227,7 +227,7 @@ func TestGrpcClient_Register(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	var peer config.Peer
+	var peer config.Node
 	if err = json.Unmarshal(resp.Body, &peer); err != nil {
 		t.Fatal(err)
 	}

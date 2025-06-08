@@ -1,9 +1,14 @@
 package utils
 
 import (
+	"encoding/hex"
 	"encoding/json"
+	"fmt"
+	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 	"linkany/pkg/log"
 	"slices"
+	"strconv"
+	"strings"
 	"sync"
 )
 
@@ -310,13 +315,13 @@ type NodeMessage struct {
 	AppID               string     `json:"appId,omitempty"`
 	Address             string     `json:"address,omitempty"`
 	Endpoint            string     `json:"endpoint,omitempty"`
+	Remove              bool       `json:"remove,omitempty"` // whether to remove node
+	PresharedKey        string     `json:"presharedKey,omitempty"`
 	PersistentKeepalive int        `json:"persistentKeepalive,omitempty"`
+	PrivateKey          string     `json:"privateKey,omitempty"`
 	PublicKey           string     `json:"publicKey,omitempty"`
 	AllowedIPs          string     `json:"allowedIps,omitempty"`
-	RelayIP             string     `json:"relayIp,omitempty"`
-	TieBreaker          int64      `json:"tieBreaker"`
-	Ufrag               string     `json:"ufrag"`
-	Pwd                 string     `json:"pwd"`
+	ReplacePeers        bool       `json:"replacePeers,omitempty"` // whether to replace peers when updating node
 	Port                int        `json:"port"`
 	Status              NodeStatus `json:"status"`
 	GroupName           string     `json:"groupName"`
@@ -408,4 +413,39 @@ func (e EventType) String() string {
 
 	}
 	return "unknown"
+}
+
+func (p *NodeMessage) NodeString() string {
+	keyf := func(value string) string {
+		if value == "" {
+			return ""
+		}
+		result, err := wgtypes.ParseKey(value)
+		if err != nil {
+			return ""
+		}
+
+		return hex.EncodeToString(result[:])
+	}
+
+	printf := func(sb *strings.Builder, key, value string, keyf func(string) string) {
+
+		if keyf != nil {
+			value = keyf(value)
+		}
+
+		if value != "" {
+			sb.WriteString(fmt.Sprintf("%s=%s\n", key, value))
+		}
+	}
+
+	var sb strings.Builder
+	printf(&sb, "public_key", p.PublicKey, keyf)
+	printf(&sb, "preshared_key", p.PresharedKey, keyf)
+	printf(&sb, "replace_allowed_ips", strconv.FormatBool(true), nil)
+	printf(&sb, "persistent_keepalive_interval", strconv.Itoa(p.PersistentKeepalive), nil)
+	printf(&sb, "allowed_ip", p.AllowedIPs, nil)
+	printf(&sb, "endpoint", p.Endpoint, nil)
+
+	return sb.String()
 }

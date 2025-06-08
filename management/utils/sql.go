@@ -1,5 +1,6 @@
 package utils
 
+// GenerateQuery for building query conditions
 func GenerateQuery(params ParamBuilder, like bool) *QueryConditions {
 	conditions := NewQueryConditions()
 	filters := params.Generate()

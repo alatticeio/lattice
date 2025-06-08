@@ -56,13 +56,15 @@ func (c *Client) List(ctx context.Context, in *mgt.ManagementMessage) (*mgt.Mana
 	return c.client.List(ctx, in)
 }
 
+func (c *Client) GetNetMap(ctx context.Context, in *mgt.ManagementMessage) (*mgt.ManagementMessage, error) {
+	return c.client.GetNetMap(ctx, in)
+}
+
 func (c *Client) Login(ctx context.Context, in *mgt.ManagementMessage) (*mgt.ManagementMessage, error) {
 	return c.client.Login(ctx, in)
 }
 
 func (c *Client) Watch(ctx context.Context, in *mgt.ManagementMessage, callback func(wm *utils.Message) error) error {
-	//ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	//defer cancel()
 	logger := c.logger
 	stream, err := c.client.Watch(ctx)
 	if err != nil {
@@ -73,43 +75,44 @@ func (c *Client) Watch(ctx context.Context, in *mgt.ManagementMessage, callback 
 		logger.Errorf("client watch: stream.Push(%v) failed: %v", in, err)
 	}
 
-	ch := make(chan struct{})
 	defer func() {
 		c.logger.Infof("close watching stream")
 		if err = stream.CloseSend(); err != nil {
 			logger.Errorf("close send failed: %v", err)
 		}
 	}()
+
+	errChan := make(chan error, 1)
 	go func() {
 		for {
 			in, err := stream.Recv()
 			if err == io.EOF {
-				// read done.
-				close(ch)
 				c.logger.Errorf("%v", err)
+				errChan <- err
 				return
 			}
 			if err != nil {
 				logger.Errorf("err: %v", err)
-				continue
+				errChan <- err
+				return
 			}
 
 			var message utils.Message
 			if err := json.Unmarshal(in.Body, &message); err != nil {
 				logger.Errorf("Failed to parse network map: %v", err)
-				continue
+				errChan <- err
+				return
 			}
 
 			if err = callback(&message); err != nil {
 				c.logger.Errorf("Failed to callback: %v", err)
+				errChan <- err
+				return
 			}
 		}
 	}()
 
-	c.logger.Verbosef("client watching peers events")
-	<-ch
-	c.logger.Verbosef("client break watching peers events")
-	return nil
+	return <-errChan
 }
 
 func (c *Client) Keepalive(ctx context.Context, in *mgt.ManagementMessage) error {
@@ -155,7 +158,7 @@ func (c *Client) Keepalive(ctx context.Context, in *mgt.ManagementMessage) error
 			c.logger.Errorf("failed unmarshal check packet: %v", err)
 			return err
 		}
-		c.logger.Infof("receive check living packet from server: %v", &req)
+		c.logger.Verbosef("receive check living packet from server: %v", &req)
 
 		if err = stream.Send(in); err != nil {
 			if errors.Is(err, io.EOF) {

@@ -11,6 +11,8 @@ service ManagementService {
 
   rpc List (ManagementMessage) returns (ManagementMessage) {}
 
+  rpc GetNetMap (ManagementMessage) returns (ManagementMessage) {}
+
   rpc Watch (stream ManagementMessage) returns (stream ManagementMessage) {}
 
   rpc Keepalive(stream ManagementMessage) returns (stream ManagementMessage) {}

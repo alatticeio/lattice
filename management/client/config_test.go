@@ -14,7 +14,7 @@ func TestDeviceConf_String(t *testing.T) {
 			Fwmark:       0,
 			ReplacePeers: true,
 		},
-		Peers: []*config.Peer{
+		Nodes: []*config.Node{
 			{
 				PublicKey:    "vVqSz6YQor7p//Shkgu7aHj6HoosXyrx9UlPhbwoDzs=",
 				PresharedKey: "vVqSz6YQor7p//Shkgu7aHj6HoosXyrx9UlPhbwoDzs=",

@@ -1,9 +1,7 @@
 package server
 
 import (
-	"context"
 	"fmt"
-	"github.com/golang/protobuf/proto"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/keepalive"
@@ -26,19 +24,17 @@ type Server struct {
 	signaling.UnimplementedSignalingServiceServer
 	listen      string
 	userService service.UserService
-	clients     *drp.IndexTable
 	mgtClient   *client.Client
+	clients     map[string]chan *signaling.SignalingMessage
 
-	forwardManager *ForwardManager
-
-	clientset map[string]*ClientInfo
+	//forwardManager *ForwardManager
 }
 
-type ClientInfo struct {
-	ID       string
-	LastSeen time.Time
-	Stream   signaling.SignalingService_HeartbeatServer
-}
+//type ClientInfo struct {
+//	ID       string
+//	LastSeen time.Time
+//	Stream   signaling.SignalingService_HeartbeatServer
+//}
 
 type ServerConfig struct {
 	Logger      *log.Logger
@@ -59,10 +55,9 @@ func NewServer(cfg *ServerConfig) (*Server, error) {
 	}
 
 	return &Server{
-		logger:         cfg.Logger,
-		mgtClient:      mgtClient,
-		clientset:      make(map[string]*ClientInfo),
-		forwardManager: NewForwardManager(),
+		logger:    cfg.Logger,
+		mgtClient: mgtClient,
+		clients:   make(map[string]chan *signaling.SignalingMessage, 1),
 	}, nil
 }
 
@@ -93,41 +88,15 @@ func (s *Server) Start() error {
 	return grpcServer.Serve(listen)
 }
 
-// Register will register a client to signaling server, will check token
-func (s *Server) Register(ctx context.Context, message *signaling.EncryptMessage) (*signaling.EncryptMessage, error) {
-	s.logger.Verbosef("register client: %v", message)
-	var req signaling.EncryptMessageReqAndResp
-	if err := proto.Unmarshal(message.Body, &req); err != nil {
-		s.logger.Errorf("unmarshal failed: %v", err)
-		return nil, err
-	}
+func (s *Server) Signaling(stream grpc.BidiStreamingServer[signaling.SignalingMessage, signaling.SignalingMessage]) error {
 
-	_, err := s.mgtClient.VerifyToken(req.Token)
-	if err != nil {
-		s.logger.Errorf("verify token failed: %v", err)
-		return nil, err
-	}
-
-	s.forwardManager.CreateChannel(message.PublicKey)
-	s.logger.Verbosef("register '%v' client channel success", req.SrcPublicKey)
-
-	var resp = &signaling.EncryptMessageReqAndResp{
-		SrcPublicKey: req.SrcPublicKey,
-		DstPublicKey: req.DstPublicKey,
-	}
-
-	body, err := proto.Marshal(resp)
-	if err != nil {
-		s.logger.Errorf("marshal failed: %v", err)
-		return nil, err
-	}
-
-	return &signaling.EncryptMessage{
-		Body: body,
-	}, nil
-}
-
-func (s *Server) Forward(stream grpc.BidiStreamingServer[signaling.EncryptMessage, signaling.EncryptMessage]) error {
+	var (
+		msgChan chan *signaling.SignalingMessage
+		ok      bool
+		req     *signaling.SignalingMessage
+		err     error
+		body    []byte
+	)
 
 	done := make(chan interface{})
 	defer func() {
@@ -135,25 +104,29 @@ func (s *Server) Forward(stream grpc.BidiStreamingServer[signaling.EncryptMessag
 		close(done)
 	}()
 
-	req, err, body := s.recv(stream)
+	req, err, body = s.recv(stream)
 	if err != nil {
 		return err
 	}
 
-	channel, b := s.forwardManager.GetChannel(req.SrcPublicKey)
-	if !b {
-		s.logger.Errorf("channel not exists: %v", req.SrcPublicKey)
-		return linkerrors.ErrChannelNotExists
+	s.logger.Verbosef("received signaling request from %s, to: %s, msgType: %v,  content: %s", req.From, req.To, req.MsgType, string(body))
+
+	// create channel for client
+	s.mu.Lock()
+	if msgChan, ok = s.clients[req.From]; !ok {
+		msgChan = make(chan *signaling.SignalingMessage, 1000)
+		s.clients[req.From] = msgChan
 	}
+	s.mu.Unlock()
+	s.logger.Infof("create channel for %v success", req.From)
 
 	logger := s.logger
 
 	go func() {
 		for {
 			select {
-			case forwardMsg := <-channel:
-				logger.Verbosef("forward message to client: %v", req.SrcPublicKey)
-				if err := stream.Send(&signaling.EncryptMessage{Body: forwardMsg.Body}); err != nil {
+			case forwardMsg := <-msgChan:
+				if err := stream.Send(forwardMsg); err != nil {
 					s, ok := status.FromError(err)
 					if ok && s.Code() == codes.Canceled {
 						logger.Infof("client canceled")
@@ -164,132 +137,128 @@ func (s *Server) Forward(stream grpc.BidiStreamingServer[signaling.EncryptMessag
 					}
 					return
 				}
+				logger.Verbosef("signaling message to client: %v, to: %v,  content: %v", req.From, req.To, string(forwardMsg.Body))
 			case <-done:
-				s.forwardManager.DeleteChannel(req.SrcPublicKey) // because client closed
-				logger.Infof("close forward signaling stream, delete channel: %v", req.SrcPublicKey)
+				//s.forwardManager.DeleteChannel(req.From) // because client closed
+				//logger.Infof("close signaling signaling stream, delete channel: %v", req.From)
 				return
 			}
 		}
 	}()
 
-	logger.Verbosef("forward message: %v, body: %v", req.Type, body)
-	s.forward(&req, body)
-
 	for {
-		req, err, body := s.recv(stream)
+		req, err, body = s.recv(stream)
 		if err != nil {
 			return err
 		}
 
-		logger.Verbosef("forward message: %v, body: %v", req.Type, body)
-		s.forward(&req, body)
-
-		logger.Verbosef("forward message success")
-
+		s.signaling(req, body)
 	}
 }
 
-func (s *Server) forward(req *signaling.EncryptMessageReqAndResp, body []byte) {
-	dstChannel, ok := s.forwardManager.GetChannel(req.DstPublicKey)
-	if !ok {
-		s.logger.Errorf("channel not exists: %v", req.DstPublicKey)
-	}
-
-	if dstChannel != nil {
-		dstChannel <- &ForwardMessage{
-			Body: body,
+func (s *Server) signaling(req *signaling.SignalingMessage, body []byte) {
+	switch req.MsgType {
+	case signaling.MessageType_MessageHeartBeatType:
+		s.logger.Verbosef("received heartbeat message from %s, content: %s", req.From, string(body))
+	// do nothing, heartbeat message is not forwarded
+	default:
+		s.logger.Verbosef("receiving forward message from %s, to: %v,  content: %s", req.From, req.To, string(body))
+		s.mu.RLock()
+		targetChan, ok := s.clients[req.To]
+		if !ok {
+			s.logger.Errorf("channel not exists for client: %v", req.To)
 		}
-	}
 
+		if targetChan != nil {
+			targetChan <- req
+		}
+		s.mu.RUnlock()
+	}
 }
 
-func (s *Server) recv(stream grpc.BidiStreamingServer[signaling.EncryptMessage, signaling.EncryptMessage]) (signaling.EncryptMessageReqAndResp, error, []byte) {
+func (s *Server) recv(stream grpc.BidiStreamingServer[signaling.SignalingMessage, signaling.SignalingMessage]) (*signaling.SignalingMessage, error, []byte) {
 	msg, err := stream.Recv()
 	if err != nil {
 		state, ok := status.FromError(err)
 		if ok && state.Code() == codes.Canceled {
 			s.logger.Infof("client canceled")
-			return signaling.EncryptMessageReqAndResp{}, linkerrors.ErrClientCanceled, nil
+			return nil, linkerrors.ErrClientCanceled, nil
 		} else if err == io.EOF {
 			s.logger.Infof("client closed")
-			return signaling.EncryptMessageReqAndResp{}, linkerrors.ErrClientClosed, nil
+			return nil, linkerrors.ErrClientClosed, nil
 		}
 
 		s.logger.Errorf("receive msg failed: %v", err)
-		return signaling.EncryptMessageReqAndResp{}, err, nil
+		return nil, err, nil
 	}
 
-	// forward message to client
-	var req signaling.EncryptMessageReqAndResp
-	if err := proto.Unmarshal(msg.Body, &req); err != nil {
-		return signaling.EncryptMessageReqAndResp{}, err, nil
-	}
-	return req, nil, msg.Body
+	return msg, nil, msg.Body
 }
 
-func (s *Server) Heartbeat(stream signaling.SignalingService_HeartbeatServer) error {
-	var clientID string
-	// 设置超时检测
-	go func() {
-		ticker := time.NewTicker(30 * time.Second)
-		defer ticker.Stop()
+//
+//func (s *Server) Heartbeat(stream signaling.SignalingService_HeartbeatServer) error {
+//	var clientID string
+//	// 设置超时检测
+//	go func() {
+//		ticker := time.NewTicker(30 * time.Second)
+//		defer ticker.Stop()
+//
+//		for {
+//			select {
+//			case <-ticker.C:
+//				s.mu.RLock()
+//				client, exists := s.clientset[clientID]
+//				s.mu.RUnlock()
+//
+//				if exists && time.Since(client.LastSeen) > 60*time.Second {
+//					// 客户端超时，关闭连接
+//					s.removeClient(clientID)
+//					return
+//				}
+//			case <-stream.Context().Done():
+//				s.removeClient(clientID)
+//				return
+//			}
+//		}
+//	}()
+//
+//	for {
+//		req, err := stream.Recv()
+//		if err == io.EOF {
+//			s.removeClient(clientID)
+//			return nil
+//		}
+//		if err != nil {
+//			s.removeClient(clientID)
+//			return err
+//		}
+//
+//		// 更新客户端状态
+//		clientID = req.ClientId
+//		s.mu.Lock()
+//		s.clientset[clientID] = &ClientInfo{
+//			ID:       clientID,
+//			LastSeen: time.Now(),
+//			Stream:   stream,
+//		}
+//		s.mu.Unlock()
+//
+//		// 发送响应
+//		err = stream.Send(&signaling.HeartbeatResponse{
+//			Timestamp: time.Now().UnixNano(),
+//			ServerId:  "signaling",
+//			Status:    signaling.Status_OK,
+//		})
+//		if err != nil {
+//			s.removeClient(clientID)
+//			return err
+//		}
+//	}
+//
+//}
 
-		for {
-			select {
-			case <-ticker.C:
-				s.mu.RLock()
-				client, exists := s.clientset[clientID]
-				s.mu.RUnlock()
-
-				if exists && time.Since(client.LastSeen) > 60*time.Second {
-					// 客户端超时，关闭连接
-					s.removeClient(clientID)
-					return
-				}
-			case <-stream.Context().Done():
-				s.removeClient(clientID)
-				return
-			}
-		}
-	}()
-
-	for {
-		req, err := stream.Recv()
-		if err == io.EOF {
-			s.removeClient(clientID)
-			return nil
-		}
-		if err != nil {
-			s.removeClient(clientID)
-			return err
-		}
-
-		// 更新客户端状态
-		clientID = req.ClientId
-		s.mu.Lock()
-		s.clientset[clientID] = &ClientInfo{
-			ID:       clientID,
-			LastSeen: time.Now(),
-			Stream:   stream,
-		}
-		s.mu.Unlock()
-
-		// 发送响应
-		err = stream.Send(&signaling.HeartbeatResponse{
-			Timestamp: time.Now().UnixNano(),
-			ServerId:  "signaling",
-			Status:    signaling.Status_OK,
-		})
-		if err != nil {
-			s.removeClient(clientID)
-			return err
-		}
-	}
-
-}
-
-func (s *Server) removeClient(clientID string) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	delete(s.clientset, clientID)
-}
+//func (s *Server) removeClient(clientID string) {
+//	s.mu.Lock()
+//	defer s.mu.Unlock()
+//	delete(s.clientset, clientID)
+//}

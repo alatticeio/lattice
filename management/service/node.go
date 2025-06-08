@@ -21,6 +21,7 @@ type NodeService interface {
 	Register(ctx context.Context, e *dto.NodeDto) (*entity.Node, error)
 	CreateAppId(ctx context.Context) (*entity.Node, error)
 	Update(ctx context.Context, e *dto.NodeDto) error
+	UpdateStatus(ctx context.Context, nodeDto *dto.NodeDto) error
 	DeleteNode(ctx context.Context, appId string) error
 
 	// GetByAppId returns a peer by appId, every client has its own appId
@@ -28,9 +29,9 @@ type NodeService interface {
 
 	GetById(ctx context.Context, nodeId uint64) (*entity.Node, error)
 
-	GetNetworkMap(appId, userId string) (*vo.NetworkMap, error)
+	GetNetworkMap(ctx context.Context, appId, userId string) (*vo.NetworkMap, error)
 
-	// List returns a list of peers by userId，when client start up, it will call this method to get all the peers once
+	// GetNetMap returns a list of peers by userId，when client start up, it will call this method to get all the peers once
 	// after that, it will call Watch method to get the latest peers
 	ListNodes(ctx context.Context, params *dto.QueryParams) (*vo.PageVo, error)
 
@@ -210,6 +211,10 @@ func (n *nodeServiceImpl) Update(ctx context.Context, nodeDto *dto.NodeDto) erro
 	})
 }
 
+func (n *nodeServiceImpl) UpdateStatus(ctx context.Context, nodeDto *dto.NodeDto) error {
+	return n.nodeRepo.UpdateStatus(ctx, nodeDto)
+}
+
 func (n *nodeServiceImpl) DeleteNode(ctx context.Context, appId string) error {
 	return n.nodeRepo.DeleteByAppId(ctx, appId)
 }
@@ -222,7 +227,7 @@ func (n *nodeServiceImpl) GetById(ctx context.Context, nodeId uint64) (*entity.N
 	return n.nodeRepo.Find(ctx, nodeId)
 }
 
-// List params will filter
+// GetNetMap params will filter
 func (n *nodeServiceImpl) ListNodes(ctx context.Context, params *dto.QueryParams) (*vo.PageVo, error) {
 	var nodes []*entity.Node
 	result := new(vo.PageVo)
@@ -292,48 +297,82 @@ func transferToVos(nodes []*entity.Node) []*vo.NodeVo {
 }
 
 // GetNetworkMap get user's network map
-func (n *nodeServiceImpl) GetNetworkMap(appId, userId string) (*vo.NetworkMap, error) {
-	//current, _, err := n.GetByAppId(appId, "")
-	//if err != nil {
-	//	return nil, err
-	//}
-	//
-	//var status = 1
-	//peers, err := n.ListNodes(&dto.QueryParams{
-	//	PubKey: &current.PublicKey,
-	//	UserId: &userId,
-	//	Status: &status,
-	//})
-	//
-	//if err != nil {
-	//	return nil, err
-	//}
-	//
-	//return &vo.NetworkMap{
-	//	UserId: userId,
-	//	Peer: &vo.NodeVo{
-	//		ID:                  current.ID,
-	//		Name:                current.Name,
-	//		Description:         current.Description,
-	//		GroupId:             current.GroupId,
-	//		CreatedBy:           current.CreatedBy,
-	//		UserID:              current.UserID,
-	//		Hostname:            current.Hostname,
-	//		AppID:               current.AppID,
-	//		Address:             current.Address,
-	//		Endpoint:            current.Endpoint,
-	//		PersistentKeepalive: current.PersistentKeepalive,
-	//		PublicKey:           current.PublicKey,
-	//		AllowedIPs:          current.AllowedIPs,
-	//		RelayIP:             "",
-	//		TieBreaker:          0,
-	//		Ufrag:               "",
-	//		Pwd:                 "",
-	//		Port:                0,
-	//		Status:              current.Status,
-	//	},
-	//	Peers: peers.Data,
-	//}, nil
+func (n *nodeServiceImpl) GetNetworkMap(ctx context.Context, appId, userId string) (*vo.NetworkMap, error) {
+	var (
+		groupNode  *entity.GroupNode
+		groupNodes []*entity.GroupNode
+		nodes      []*entity.Node
+		err        error
+	)
+	current, err := n.nodeRepo.FindByAppId(ctx, appId)
+	if err != nil {
+		return nil, err
+	}
+
+	//find current node which group in
+	groupNode, err = n.groupNodeRepo.FindByGroupNodeId(ctx, 0, current.ID)
+
+	groupNodes, _, err = n.groupNodeRepo.List(ctx, &dto.GroupNodeParams{
+		GroupID: groupNode.GroupId,
+	})
+
+	var nodeIds []uint64
+	for _, groupNode := range groupNodes {
+		nodeIds = append(nodeIds, groupNode.NodeId)
+	}
+
+	// find nodes in group
+	nodes, err = n.nodeRepo.FindIn(ctx, nodeIds)
+
+	var resultNodes []*utils.NodeMessage
+	for _, node := range nodes {
+		if node.Status == utils.Online {
+			resultNodes = append(resultNodes, &utils.NodeMessage{
+				ID:                  node.ID,
+				Name:                node.Name,
+				Description:         node.Description,
+				GroupID:             node.Group.GroupId,
+				Hostname:            node.Hostname,
+				AppID:               node.AppID,
+				Address:             node.Address,
+				Endpoint:            node.Endpoint,
+				PersistentKeepalive: node.PersistentKeepalive,
+				PublicKey:           node.PublicKey,
+				AllowedIPs:          node.AllowedIPs,
+				Port:                node.Port,
+				Status:              node.Status,
+				GroupName:           node.Group.GroupName,
+				Version:             0,
+			})
+		} else {
+			n.logger.Verbosef("Node %s is offline", node.AppID)
+		}
+	}
+
+	return &vo.NetworkMap{
+		UserId: userId,
+		Current: &vo.NodeVo{
+			ID:                  current.ID,
+			Name:                current.Name,
+			Description:         current.Description,
+			GroupID:             groupNode.GroupId,
+			CreatedBy:           current.CreatedBy,
+			Hostname:            current.Hostname,
+			AppID:               current.AppID,
+			Address:             current.Address,
+			Endpoint:            current.Endpoint,
+			PersistentKeepalive: current.PersistentKeepalive,
+			PublicKey:           current.PublicKey,
+			AllowedIPs:          current.AllowedIPs,
+			RelayIP:             "",
+			TieBreaker:          0,
+			Ufrag:               "",
+			Pwd:                 "",
+			Port:                0,
+			Status:              current.Status,
+		},
+		Nodes: resultNodes,
+	}, nil
 
 	return nil, nil
 }

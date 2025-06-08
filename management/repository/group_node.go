@@ -70,8 +70,16 @@ func (r *groupNodeRepository) Find(ctx context.Context, groupNodeId uint64) (*en
 
 func (r *groupNodeRepository) FindByGroupNodeId(ctx context.Context, groupId, nodeId uint64) (*entity.GroupNode, error) {
 	var groupNode entity.GroupNode
-	err := r.db.WithContext(ctx).Where("group_id = ? AND node_id = ?", groupId, nodeId).First(&groupNode).Error
-	if err != nil {
+	conditions := utils.NewQueryConditions()
+	if groupId != 0 {
+		conditions.AddWhere("group_id", groupId)
+	}
+
+	if nodeId != 0 {
+		conditions.AddWhere("node_id", nodeId)
+	}
+	query := conditions.BuildQuery(r.db.WithContext(ctx))
+	if err := query.Find(&groupNode).Error; err != nil {
 		return nil, err
 	}
 	return &groupNode, nil

@@ -4,48 +4,51 @@ option go_package = "linkany/signaling/grpc/signaling";
 
 // The greeting service definition.
 service SignalingService {
-  rpc Register(EncryptMessage) returns (EncryptMessage) {}
-  rpc Forward(stream EncryptMessage) returns (stream EncryptMessage) {}
-  rpc Heartbeat(stream HeartbeatReqeust) returns (stream HeartbeatResponse) {}
+  rpc Signaling(stream SignalingMessage) returns (stream SignalingMessage) {}
 }
 
-// ControlMessage is dynamic message for kind to request and response
-message EncryptMessage  {
-  string publicKey = 1;
-  bytes body = 2;
-  int32 encrypt = 3;
-  int32 version = 4;
-}
-
-message HeartbeatReqeust {
-  string client_id = 1;
-  int64 timestamp = 2;
-  map<string,string> metadata = 3;
-}
-
-message HeartbeatResponse {
-  int64 timestamp = 1;
-  string server_id = 2;
-  Status status = 3;
-}
-
-enum Status {
-  OK = 0;
-  ERROR = 1;
-}
-
-message EncryptMessageReqAndResp {
-  string srcPublicKey = 1;
-  string dstPublicKey = 2;
+// SignalingMessage is dynamic message for kind to request and response
+message SignalingMessage  {
+  string from = 1;
+  string to = 2;
   bytes body = 3;
-  string appId = 4;
-  string token = 5;
-  MessageType type = 6;
+  int32 encrypt = 4;
+  int32 version = 5;
+  MessageType msgType = 6;
 }
+
+//
+//message HeartbeatReqeust {
+//  string client_id = 1;
+//  int64 timestamp = 2;
+//  map<string, string> metadata = 3;
+//}
+//
+//message HeartbeatResponse {
+//  int64 timestamp = 1;
+//  string server_id = 2;
+//  Status status = 3;
+//}
+//
+//enum Status {
+//  OK = 0;
+//  ERROR = 1;
+//}
+//
+//message SignalingMessageReqAndResp {
+//  string from = 1;
+//  string to = 2;
+//  bytes body = 3;
+//  string appId = 4;
+//  string token = 5;
+//  MessageType type = 6;
+//}
 
 enum MessageType {
   MessageDirectOfferType = 0;
-  MessageRelayOfferType = 1;
-  MessageRelayAnswerType = 2;
-  MessageForwardType = 3;
+  MessageDirectOfferAnswerType = 1;
+  MessageRelayOfferType = 2;
+  MessageRelayAnswerType = 3;
+  MessageForwardType = 4;
+  MessageHeartBeatType = 5;
 }

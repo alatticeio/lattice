@@ -22,14 +22,14 @@ var (
 )
 
 type RelayOffer struct {
-	LocalKey   uint32      `json:"localKey,omitempty"`
+	LocalKey   uint64      `json:"localKey,omitempty"`
 	OfferType  OfferType   `json:"offerType,omitempty"`  // 0: relay offer 1: relay offer answer
 	MappedAddr net.UDPAddr `json:"mappedAddr,omitempty"` // remote addr
 	RelayConn  net.UDPAddr `json:"relayConn,omitempty"`
 }
 
 type RelayOfferConfig struct {
-	LocalKey   uint32
+	LocalKey   uint64
 	OfferType  OfferType
 	MappedAddr net.UDPAddr
 	RelayConn  net.UDPAddr
@@ -53,6 +53,10 @@ func (o *RelayOffer) Marshal() (int, []byte, error) {
 	return len(b), b[:], nil
 }
 
+func (o *RelayOffer) IsDirectOffer() bool {
+	return false
+}
+
 func UnmarshalOffer(data []byte) (*RelayOffer, error) {
 	offer := &RelayOffer{}
 	err := json.Unmarshal(data, offer)
@@ -61,4 +65,8 @@ func UnmarshalOffer(data []byte) (*RelayOffer, error) {
 	}
 
 	return offer, nil
+}
+
+func (o *RelayOffer) TieBreaker() uint64 {
+	return 0
 }

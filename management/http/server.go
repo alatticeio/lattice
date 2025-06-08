@@ -143,7 +143,7 @@ func (s *Server) getUsers() gin.HandlerFunc {
 
 func (s *Server) listPlans() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		//plans, err := s.planController.List()
+		//plans, err := s.planController.GetNetMap()
 		//if err != nil {
 		//	c.JSON(client.InternalServerError(err))
 		//	return
