@@ -1,4 +1,4 @@
-package command
+package cmd
 
 import (
 	"github.com/spf13/cobra"
@@ -11,7 +11,7 @@ type managementOptions struct {
 	LogLevel string
 }
 
-func ManagementCmd() *cobra.Command {
+func managementCmd() *cobra.Command {
 	var opts managementOptions
 	var cmd = &cobra.Command{
 		Use:          "manager [command]",

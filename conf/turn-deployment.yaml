@@ -23,7 +23,7 @@ spec:
             - "console.linkany.io"
       containers:
         - name: linkany-turn
-          image: registry.cn-hangzhou.aliyuncs.com/linkany-io/linkany-sg:latest
+          image: registry.cn-hangzhou.aliyuncs.com/linkany-io/linkany:latest
           imagePullPolicy: Always
           command: [ "linkany", "turn" ]
 ---

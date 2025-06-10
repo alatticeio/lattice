@@ -1,4 +1,4 @@
-package command
+package cmd
 
 import (
 	"bufio"
@@ -24,7 +24,7 @@ type loginOptions struct {
 	RedisPass string
 }
 
-func LoginCmd() *cobra.Command {
+func loginCmd() *cobra.Command {
 	var opts loginOptions
 	var cmd = &cobra.Command{
 		Use:          "login",

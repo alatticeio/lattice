@@ -1,4 +1,4 @@
-package command
+package cmd
 
 import (
 	"github.com/spf13/cobra"
@@ -11,7 +11,7 @@ type signalerOptions struct {
 	LogLevel string
 }
 
-func SignalingCmd() *cobra.Command {
+func signalingCmd() *cobra.Command {
 	var opts signalerOptions
 	var cmd = &cobra.Command{
 		Use:          "signaling [command]",

@@ -1,4 +1,4 @@
-package command
+package cmd
 
 import (
 	"github.com/spf13/cobra"
@@ -6,7 +6,7 @@ import (
 	"linkany/pkg/log"
 )
 
-func UP() *cobra.Command {
+func up() *cobra.Command {
 	var flags node.LinkFlags
 	cmd := &cobra.Command{
 		Short:        "up",

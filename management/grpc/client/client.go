@@ -69,10 +69,12 @@ func (c *Client) Watch(ctx context.Context, in *mgt.ManagementMessage, callback 
 	stream, err := c.client.Watch(ctx)
 	if err != nil {
 		logger.Errorf("client watch failed: %v", err)
+		return err
 	}
 
 	if err = stream.Send(in); err != nil {
 		logger.Errorf("client watch: stream.Push(%v) failed: %v", in, err)
+		return err
 	}
 
 	defer func() {
