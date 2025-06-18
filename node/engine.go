@@ -3,9 +3,10 @@ package node
 import (
 	"context"
 	"errors"
+	drpclient "linkany/drp/client"
 	"linkany/internal"
 	controlclient "linkany/management/client"
-	mgtclient "linkany/management/grpc/client"
+	grpcclient "linkany/management/grpc/client"
 	"linkany/management/utils"
 	"linkany/management/vo"
 	"linkany/pkg/config"
@@ -13,8 +14,6 @@ import (
 	"linkany/pkg/log"
 	"linkany/pkg/probe"
 	"linkany/pkg/wrapper"
-	signalingclient "linkany/signaling/client"
-	"linkany/signaling/grpc/signaling"
 	turnclient "linkany/turn/client"
 	"net"
 	"strings"
@@ -41,16 +40,15 @@ var (
 
 // Engine is the daemon that manages the WireGuard device
 type Engine struct {
-	logger          *log.Logger
-	keyManager      internal.KeyManager
-	Name            string
-	device          *wg.Device
-	client          *controlclient.Client
-	signalingClient *signalingclient.Client
-	signalChannel   chan *signaling.SignalingMessage
-	bind            *wrapper.NetBind
-	GetNetworkMap   func() (*vo.NetworkMap, error)
-	updated         atomic.Bool
+	logger        *log.Logger
+	keyManager    internal.KeyManager
+	Name          string
+	device        *wg.Device
+	client        *controlclient.Client
+	drpClient     *drpclient.Client
+	bind          *wrapper.NetBind
+	GetNetworkMap func() (*vo.NetworkMap, error)
+	updated       atomic.Bool
 
 	group atomic.Value //belong to which group
 
@@ -63,19 +61,19 @@ type Engine struct {
 }
 
 type EngineConfig struct {
-	Logger          *log.Logger
-	Conf            *config.LocalConfig
-	Port            int
-	UdpConn         *net.UDPConn
-	InterfaceName   string
-	client          *controlclient.Client
-	signalingClient *signalingclient.Client
-	WgLogger        *wg.Logger
-	TurnServerUrl   string
-	ForceRelay      bool
-	ManagementUrl   string
-	SignalingUrl    string
-	ShowWgLog       bool
+	Logger        *log.Logger
+	Conf          *config.LocalConfig
+	Port          int
+	UdpConn       *net.UDPConn
+	InterfaceName string
+	client        *controlclient.Client
+	drpClient     *drpclient.Client
+	WgLogger      *wg.Logger
+	TurnServerUrl string
+	ForceRelay    bool
+	ManagementUrl string
+	SignalingUrl  string
+	ShowWgLog     bool
 }
 
 func (e *Engine) IpcHandle(conn net.Conn) {
@@ -90,10 +88,10 @@ func NewEngine(cfg *EngineConfig) (*Engine, error) {
 		err           error
 		engine        *Engine
 		proberManager internal.ProbeManager
+		proxy         *drpclient.Proxy
 	)
 	engine = new(Engine)
 	engine.logger = cfg.Logger
-	engine.signalChannel = make(chan *signaling.SignalingMessage, 1000)
 
 	once.Do(func() {
 		engine.Name, device, err = internal.CreateTUN(DefaultMTU, cfg.Logger)
@@ -109,7 +107,7 @@ func NewEngine(cfg *EngineConfig) (*Engine, error) {
 		return nil, err
 	}
 
-	engine.signalingClient, err = signalingclient.NewClient(&signalingclient.ClientConfig{Addr: cfg.SignalingUrl, Logger: log.NewLogger(log.Loglevel, "signalingclient")})
+	engine.drpClient, err = drpclient.NewClient(&drpclient.ClientConfig{Addr: cfg.SignalingUrl, Logger: log.NewLogger(log.Loglevel, "signalingclient")})
 	if err != nil {
 		return nil, err
 	}
@@ -138,46 +136,42 @@ func NewEngine(cfg *EngineConfig) (*Engine, error) {
 
 	universalUdpMuxDefault := agentManager.NewUdpMux(v4conn)
 
+	// init key manager
+	engine.keyManager = internal.NewKeyManager("")
+	
+	proxy = drpclient.NewProxy(&drpclient.ProxyConfig{
+		DrpClient: engine.drpClient,
+	})
+
 	engine.bind = wrapper.NewBind(&wrapper.BindConfig{
 		Logger:          log.NewLogger(log.Loglevel, "net-bind"),
 		UniversalUDPMux: universalUdpMuxDefault,
 		V4Conn:          v4conn,
-		RelayConn:       relayInfo.RelayConn,
-		SignalingClient: engine.signalingClient,
+		DrpClient:       engine.drpClient,
+		Proxy:           proxy,
 	})
 
 	relayer = wrapper.NewRelayer(engine.bind)
 
 	proberManager = probe.NewManager(cfg.ForceRelay, universalUdpMuxDefault.UDPMuxDefault, universalUdpMuxDefault, relayer, engine, cfg.TurnServerUrl)
 
+	offerHandler := drp.NewOfferHandler(&drp.OfferHandlerConfig{
+		Logger:       log.NewLogger(log.Loglevel, "offer-handler"),
+		ProbeManager: proberManager,
+		AgentManager: engine.agentManager,
+		StunUri:      cfg.TurnServerUrl,
+		KeyManager:   engine.keyManager,
+		NodeManager:  engine.nodeManager,
+		Proxy:        proxy,
+	})
+
+	proxy.SetOfferHandler(offerHandler)
+
 	// controlclient
-	mgtclient, err := mgtclient.NewClient(&mgtclient.GrpcConfig{Addr: cfg.ManagementUrl, Logger: log.NewLogger(log.Loglevel, "mgtclient")})
+	grpcClient, err := grpcclient.NewClient(&grpcclient.GrpcConfig{Addr: cfg.ManagementUrl, Logger: log.NewLogger(log.Loglevel, "grpc-client")})
 	if err != nil {
 		return nil, err
 	}
-
-	// init key manager
-	engine.keyManager = internal.NewKeyManager("")
-
-	offerHandler := drp.NewOfferHandler(&drp.OfferHandlerConfig{
-		Logger:        log.NewLogger(log.Loglevel, "offerHandler"),
-		ProbeManager:  proberManager,
-		AgentManager:  engine.agentManager,
-		StunUri:       cfg.TurnServerUrl,
-		KeyManager:    engine.keyManager,
-		SignalChannel: engine.signalChannel,
-		NodeManager:   engine.nodeManager,
-	})
-
-	go func() {
-		for {
-			if err = engine.signalingClient.Forward(context.Background(), engine.signalChannel, offerHandler.ReceiveOffer); err != nil {
-				engine.logger.Errorf("forward failed: %v, is retrying in 20s", err)
-				time.Sleep(20 * time.Second) // retry after 20 seconds
-				continue
-			}
-		}
-	}()
 
 	engine.device = wg.NewDevice(device, engine.bind, cfg.WgLogger)
 
@@ -187,9 +181,8 @@ func NewEngine(cfg *EngineConfig) (*Engine, error) {
 	}
 
 	wgConfigure := internal.NewWgConfigure(&internal.WGConfigerParams{
-		Device:    engine.device,
-		IfaceName: engine.Name,
-		//Address:      current.Address,
+		Device:       engine.device,
+		IfaceName:    engine.Name,
 		PeersManager: engine.nodeManager,
 	})
 	engine.wgConfigure = wgConfigure
@@ -204,10 +197,9 @@ func NewEngine(cfg *EngineConfig) (*Engine, error) {
 		AgentManager:    engine.agentManager,
 		ProberManager:   proberManager,
 		TurnClient:      turnClient,
-		GrpcClient:      mgtclient,
-		SignalChannel:   engine.signalChannel,
+		GrpcClient:      grpcClient,
 		OfferHandler:    offerHandler,
-		WgConfiger:      wgConfigure,
+		Engine:          engine,
 	})
 
 	// limit node count
@@ -247,7 +239,7 @@ func NewEngine(cfg *EngineConfig) (*Engine, error) {
 
 	// start heart to signaling
 	go func() {
-		if err = engine.signalingClient.Heartbeat(context.Background(), engine.signalChannel, engine.keyManager.GetPublicKey()); err != nil {
+		if err = engine.drpClient.Heartbeat(context.Background(), proxy, engine.keyManager.GetPublicKey()); err != nil {
 			engine.logger.Errorf("send heart beat failed: %v", err)
 		}
 	}()
@@ -317,7 +309,7 @@ func (e *Engine) Start() error {
 //		Body:      bs,
 //	}
 //
-//	_, err = e.signalingClient.Register(ctx, in)
+//	_, err = e.drpClient.Register(ctx, in)
 //
 //	if err != nil {
 //		e.logger.Errorf("register to signaling failed: %v", err)
@@ -363,8 +355,7 @@ func (e *Engine) RemovePeer(peer utils.NodeMessage) error {
 }
 
 func (e *Engine) close() {
-	e.signalingClient.Close()
-	close(e.signalChannel)
+	e.drpClient.Close()
 	e.device.Close()
 }
 

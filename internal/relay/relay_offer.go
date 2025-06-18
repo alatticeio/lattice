@@ -3,18 +3,12 @@ package relay
 import (
 	"encoding/json"
 	"linkany/internal"
+	"linkany/management/utils"
 	"net"
 )
 
 const (
 	defaultRelayOfferSize = 160
-)
-
-type OfferType int
-
-const (
-	OfferTypeRelayOffer OfferType = iota
-	OfferTypeRelayOfferAnswer
 )
 
 var (
@@ -23,14 +17,13 @@ var (
 
 type RelayOffer struct {
 	LocalKey   uint64      `json:"localKey,omitempty"`
-	OfferType  OfferType   `json:"offerType,omitempty"`  // 0: relay offer 1: relay offer answer
 	MappedAddr net.UDPAddr `json:"mappedAddr,omitempty"` // remote addr
 	RelayConn  net.UDPAddr `json:"relayConn,omitempty"`
 }
 
 type RelayOfferConfig struct {
 	LocalKey   uint64
-	OfferType  OfferType
+	OfferType  internal.OfferType
 	MappedAddr net.UDPAddr
 	RelayConn  net.UDPAddr
 }
@@ -40,7 +33,6 @@ func NewOffer(cfg *RelayOfferConfig) *RelayOffer {
 		LocalKey:   cfg.LocalKey,
 		MappedAddr: cfg.MappedAddr,
 		RelayConn:  cfg.RelayConn,
-		OfferType:  cfg.OfferType,
 	}
 }
 
@@ -53,8 +45,12 @@ func (o *RelayOffer) Marshal() (int, []byte, error) {
 	return len(b), b[:], nil
 }
 
-func (o *RelayOffer) IsDirectOffer() bool {
-	return false
+func (o *RelayOffer) OfferType() internal.OfferType {
+	return internal.OfferTypeRelayOffer
+}
+
+func (o *RelayOffer) GetNode() *utils.NodeMessage {
+	return nil
 }
 
 func UnmarshalOffer(data []byte) (*RelayOffer, error) {

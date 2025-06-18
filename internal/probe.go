@@ -2,9 +2,9 @@ package internal
 
 import (
 	"context"
+	drpgrpc "linkany/drp/grpc"
 	"linkany/pkg/config"
 	"linkany/pkg/log"
-	"linkany/signaling/grpc/signaling"
 	"linkany/turn/client"
 	"time"
 )
@@ -13,7 +13,7 @@ type Probe interface {
 	// Start the check process
 	Start(srcKey, dstKey string) error
 
-	SendOffer(frameType signaling.MessageType, srcKey, dstKey string) error
+	SendOffer(frameType drpgrpc.MessageType, srcKey, dstKey string) error
 
 	HandleOffer(offer Offer) error
 
@@ -56,9 +56,6 @@ type ProbeManager interface {
 	AddProbe(key string, probe Probe)
 	GetProbe(key string) Probe
 	Remove(key string)
-	GetWgConfiger() ConfigureManager
-
-	GetRelayer() Relay
 }
 
 type ProberConfig struct {
@@ -66,7 +63,7 @@ type ProberConfig struct {
 	StunUri                 string
 	IsControlling           bool
 	IsForceRelay            bool
-	IsP2P                   bool
+	ConnType                ConnType
 	DirectChecker           Checker
 	RelayChecker            Checker
 	LocalKey                uint32
@@ -78,7 +75,7 @@ type ProberConfig struct {
 	To                      string
 	TurnClient              *client.Client
 	Relayer                 Relay
-	SignalingChannel        chan *signaling.SignalingMessage
+	SignalingChannel        chan *drpgrpc.DrpMessage
 	Ufrag                   string
 	Pwd                     string
 	GatherChan              chan interface{}

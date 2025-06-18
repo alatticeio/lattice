@@ -7,12 +7,12 @@ import (
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/status"
 	"io"
+	drpgrpc "linkany/drp/grpc"
 	"linkany/management/grpc/client"
 	"linkany/management/service"
 	"linkany/pkg/drp"
 	"linkany/pkg/linkerrors"
 	"linkany/pkg/log"
-	"linkany/signaling/grpc/signaling"
 	"net"
 	"sync"
 	"time"
@@ -21,20 +21,12 @@ import (
 type Server struct {
 	mu     sync.RWMutex
 	logger *log.Logger
-	signaling.UnimplementedSignalingServiceServer
+	drpgrpc.UnimplementedDrpServerServer
 	listen      string
 	userService service.UserService
 	mgtClient   *client.Client
-	clients     map[string]chan *signaling.SignalingMessage
-
-	//forwardManager *ForwardManager
+	clients     map[string]chan *drpgrpc.DrpMessage
 }
-
-//type ClientInfo struct {
-//	ID       string
-//	LastSeen time.Time
-//	Stream   signaling.SignalingService_HeartbeatServer
-//}
 
 type ServerConfig struct {
 	Logger      *log.Logger
@@ -57,7 +49,7 @@ func NewServer(cfg *ServerConfig) (*Server, error) {
 	return &Server{
 		logger:    cfg.Logger,
 		mgtClient: mgtClient,
-		clients:   make(map[string]chan *signaling.SignalingMessage, 1),
+		clients:   make(map[string]chan *drpgrpc.DrpMessage, 1),
 	}, nil
 }
 
@@ -83,17 +75,17 @@ func (s *Server) Start() error {
 	grpcServer := grpc.NewServer(
 		grpc.KeepaliveParams(kasp),
 		grpc.KeepaliveEnforcementPolicy(kaep))
-	signaling.RegisterSignalingServiceServer(grpcServer, s)
+	drpgrpc.RegisterDrpServerServer(grpcServer, s)
 	s.logger.Verbosef("Signaling grpc server listening at %v", listen.Addr())
 	return grpcServer.Serve(listen)
 }
 
-func (s *Server) Signaling(stream grpc.BidiStreamingServer[signaling.SignalingMessage, signaling.SignalingMessage]) error {
+func (s *Server) HandleMessage(stream grpc.BidiStreamingServer[drpgrpc.DrpMessage, drpgrpc.DrpMessage]) error {
 
 	var (
-		msgChan chan *signaling.SignalingMessage
+		msgChan chan *drpgrpc.DrpMessage
 		ok      bool
-		req     *signaling.SignalingMessage
+		req     *drpgrpc.DrpMessage
 		err     error
 		body    []byte
 	)
@@ -114,7 +106,7 @@ func (s *Server) Signaling(stream grpc.BidiStreamingServer[signaling.SignalingMe
 	// create channel for client
 	s.mu.Lock()
 	if msgChan, ok = s.clients[req.From]; !ok {
-		msgChan = make(chan *signaling.SignalingMessage, 1000)
+		msgChan = make(chan *drpgrpc.DrpMessage, 1000)
 		s.clients[req.From] = msgChan
 	}
 	s.mu.Unlock()
@@ -152,13 +144,13 @@ func (s *Server) Signaling(stream grpc.BidiStreamingServer[signaling.SignalingMe
 			return err
 		}
 
-		s.signaling(req, body)
+		s.handle(req, body)
 	}
 }
 
-func (s *Server) signaling(req *signaling.SignalingMessage, body []byte) {
+func (s *Server) handle(req *drpgrpc.DrpMessage, body []byte) {
 	switch req.MsgType {
-	case signaling.MessageType_MessageHeartBeatType:
+	case drpgrpc.MessageType_MessageHeartBeatType:
 		s.logger.Verbosef("received heartbeat message from %s, content: %s", req.From, string(body))
 	// do nothing, heartbeat message is not forwarded
 	default:
@@ -176,7 +168,7 @@ func (s *Server) signaling(req *signaling.SignalingMessage, body []byte) {
 	}
 }
 
-func (s *Server) recv(stream grpc.BidiStreamingServer[signaling.SignalingMessage, signaling.SignalingMessage]) (*signaling.SignalingMessage, error, []byte) {
+func (s *Server) recv(stream grpc.BidiStreamingServer[drpgrpc.DrpMessage, drpgrpc.DrpMessage]) (*drpgrpc.DrpMessage, error, []byte) {
 	msg, err := stream.Recv()
 	if err != nil {
 		state, ok := status.FromError(err)

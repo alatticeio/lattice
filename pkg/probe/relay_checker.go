@@ -2,9 +2,9 @@ package probe
 
 import (
 	"context"
+	drpgrpc "linkany/drp/grpc"
 	"linkany/internal"
 	"linkany/internal/relay"
-	"linkany/signaling/grpc/signaling"
 	turnclient "linkany/turn/client"
 	"net"
 	"time"
@@ -66,11 +66,10 @@ func (c *relayChecker) ProbeConnect(ctx context.Context, isControlling bool, rel
 	c.startTime = time.Now()
 
 	offer := relayOffer.(*relay.RelayOffer)
-	offerType := offer.OfferType
-	switch offerType {
-	case relay.OfferTypeRelayOffer:
+	switch relayOffer.OfferType() {
+	case internal.OfferTypeRelayOffer:
 		return c.ProbeSuccess(offer.RelayConn.String())
-	case relay.OfferTypeRelayOfferAnswer:
+	case internal.OfferTypeRelayAnswer:
 		return c.ProbeSuccess(offer.MappedAddr.String())
 	}
 
@@ -81,19 +80,14 @@ func (c *relayChecker) HandleOffer(offer internal.Offer) error {
 	// set the destination permission
 	relayOffer := offer.(*relay.RelayOffer)
 
-	switch relayOffer.OfferType {
-	case relay.OfferTypeRelayOffer:
+	switch offer.OfferType() {
+	case internal.OfferTypeRelayOffer:
 
-		if err := c.prober.SendOffer(signaling.MessageType_MessageRelayAnswerType, c.key, c.dstKey); err != nil {
+		if err := c.prober.SendOffer(drpgrpc.MessageType_MessageRelayAnswerType, c.key, c.dstKey); err != nil {
 			return err
 		}
 		return c.ProbeSuccess(relayOffer.RelayConn.String())
-	case relay.OfferTypeRelayOfferAnswer:
-		//TODO
-		//if err := c.prober.turnClient.CreatePermission(&relayOffer.MappedAddr); err != nil {
-		//	return err
-		//}
-
+	case internal.OfferTypeRelayAnswer:
 		return c.ProbeSuccess(relayOffer.MappedAddr.String())
 	}
 

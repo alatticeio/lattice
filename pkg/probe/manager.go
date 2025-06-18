@@ -20,7 +20,7 @@ type manager struct {
 	isForceRelay bool
 	agentManager internal.AgentManagerFactory
 	engine       internal.EngineManager
-	relayer      internal.Relay
+	//relayer internal.Relay
 
 	stunUrl         string
 	udpMux          *ice.UDPMuxDefault
@@ -36,7 +36,6 @@ func NewManager(isForceRelay bool, udpMux *ice.UDPMuxDefault,
 		agentManager:    drp.NewAgentManager(),
 		probers:         make(map[string]internal.Probe),
 		isForceRelay:    isForceRelay,
-		relayer:         relayer,
 		udpMux:          udpMux,
 		universalUdpMux: universeUdpMux,
 		stunUrl:         stunUrl,
@@ -103,32 +102,34 @@ func (m *manager) NewProbe(cfg *internal.ProberConfig) (internal.Probe, error) {
 	)
 
 	p := &prober{
-		logger:           log.NewLogger(log.Loglevel, "probe "),
-		connectionState:  internal.ConnectionStateNew,
-		gatherCh:         cfg.GatherChan,
-		isP2P:            cfg.IsP2P,
-		directChecker:    cfg.DirectChecker,
-		relayChecker:     cfg.RelayChecker,
-		offerHandler:     cfg.OfferManager,
-		wgConfiger:       cfg.WGConfiger,
-		proberManager:    cfg.ProberManager,
-		nodeManager:      cfg.NodeManager,
-		isForceRelay:     cfg.IsForceRelay,
-		turnClient:       cfg.TurnClient,
-		signalingChannel: cfg.SignalingChannel,
-		from:             cfg.From,
-		to:               cfg.To,
-		done:             make(chan interface{}),
+		logger:          log.NewLogger(log.Loglevel, "probe "),
+		connectionState: internal.ConnectionStateNew,
+		gatherCh:        cfg.GatherChan,
+		directChecker:   cfg.DirectChecker,
+		relayChecker:    cfg.RelayChecker,
+		offerHandler:    cfg.OfferManager,
+		wgConfiger:      m.engine.GetWgConfiger(),
+		proberManager:   cfg.ProberManager,
+		nodeManager:     cfg.NodeManager,
+		isForceRelay:    cfg.IsForceRelay,
+		turnClient:      cfg.TurnClient,
+		from:            cfg.From,
+		to:              cfg.To,
+		done:            make(chan interface{}),
 	}
 
-	if p.agent, err = m.NewAgent(p.gatherCh, p.OnConnectionStateChange); err != nil {
-		return nil, err
+	switch p.connectType {
+	case internal.DirectType:
+		if p.agent, err = m.NewAgent(p.gatherCh, p.OnConnectionStateChange); err != nil {
+			return nil, err
+		}
+
+		if err = p.agent.GatherCandidates(); err != nil {
+			return nil, err
+		}
 	}
 
 	m.probers[cfg.To] = p
-	if err = p.agent.GatherCandidates(); err != nil {
-		return nil, err
-	}
 
 	return p, nil
 }
@@ -149,14 +150,4 @@ func (m *manager) Remove(key string) {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 	delete(m.probers, key)
-}
-
-func (m *manager) GetWgConfiger() internal.ConfigureManager {
-	m.wgLock.Lock()
-	defer m.wgLock.Unlock()
-	return m.engine.GetWgConfiger()
-}
-
-func (m *manager) GetRelayer() internal.Relay {
-	return m.engine.GetRelayer()
 }

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	drpgrpc "linkany/drp/grpc"
 	"linkany/internal"
 	mgtclient "linkany/management/grpc/client"
 	"linkany/management/grpc/mgt"
@@ -14,7 +15,6 @@ import (
 	"linkany/pkg/config"
 	"linkany/pkg/linkerrors"
 	"linkany/pkg/log"
-	"linkany/signaling/grpc/signaling"
 	turnclient "linkany/turn/client"
 	"net"
 	"os"
@@ -36,7 +36,7 @@ type Client struct {
 	as              internal.AgentManagerFactory
 	logger          *log.Logger
 	keyManager      internal.KeyManager
-	signalChannel   chan *signaling.SignalingMessage
+	signalChannel   chan *drpgrpc.DrpMessage
 	peersManager    *config.NodeManager
 	stunUri         string
 	ifaceName       string
@@ -52,9 +52,9 @@ type Client struct {
 	probeManager    internal.ProbeManager
 	proberMux       sync.Mutex
 	turnClient      *turnclient.Client
-	wgConfigure     internal.ConfigureManager
 	ufrag           string
 	pwd             string
+	engine          internal.EngineManager
 }
 
 type ClientConfig struct {
@@ -69,9 +69,9 @@ type ClientConfig struct {
 	GrpcClient      *mgtclient.Client
 	ProberManager   internal.ProbeManager
 	TurnClient      *turnclient.Client
-	SignalChannel   chan *signaling.SignalingMessage
+	SignalChannel   chan *drpgrpc.DrpMessage
 	OfferHandler    internal.OfferHandler
-	WgConfiger      internal.ConfigureManager
+	Engine          internal.EngineManager
 }
 
 func NewClient(cfg *ClientConfig) *Client {
@@ -88,7 +88,7 @@ func NewClient(cfg *ClientConfig) *Client {
 		turnClient:      cfg.TurnClient,
 		grpcClient:      cfg.GrpcClient,
 		signalChannel:   cfg.SignalChannel,
-		wgConfigure:     cfg.WgConfiger,
+		engine:          cfg.Engine,
 	}
 
 	return client
@@ -271,7 +271,7 @@ func (c *Client) AddPeer(p *utils.NodeMessage) error {
 			ProberManager: c.probeManager,
 			GatherChan:    make(chan interface{}),
 			OfferManager:  c.offerHandler,
-			WGConfiger:    c.wgConfigure,
+			WGConfiger:    c.engine.GetWgConfiger(),
 			NodeManager:   c.peersManager,
 			Ufrag:         c.ufrag,
 			Pwd:           c.pwd,
@@ -313,17 +313,8 @@ func (c *Client) doProbe(prober internal.Probe, peer *utils.NodeMessage) {
 			default:
 				switch prober.GetConnState() {
 				case internal.ConnectionStateChecking:
-					if time.Since(prober.GetLastCheck()) > 30*time.Second {
-						c.logger.Verbosef("peer %s is checking over 30s, retry direct check", peer.PublicKey)
-						retries++
-						prober.UpdateLastCheck()
-						timer.Reset(1 * time.Second)
-						continue
-					} else {
-						c.logger.Verbosef("peer %s is checking in 30s", peer.PublicKey)
-					}
 					c.logger.Verbosef("peer %s is checking, skip direct check", peer.PublicKey)
-				case internal.ConnectionStateFailed, internal.ConnectionStateNew:
+				case internal.ConnectionStateFailed, internal.ConnectionStateDisconnected, internal.ConnectionStateNew:
 					if err := prober.Start(c.keyManager.GetPublicKey(), peer.PublicKey); err != nil {
 						c.logger.Errorf("send directOffer failed: %v", err)
 						err = linkerrors.ErrProbeFailed
@@ -449,7 +440,7 @@ func (c *Client) Register(privateKey, publicKey, token string) (*config.DeviceCo
 }
 
 func (c *Client) RemovePeer(node *utils.NodeMessage) error {
-	wgConfigure := c.probeManager.GetWgConfiger()
+	wgConfigure := c.engine.GetWgConfiger()
 	if err := wgConfigure.RemovePeer(&internal.SetPeer{
 		PublicKey: node.PublicKey,
 		Remove:    true,

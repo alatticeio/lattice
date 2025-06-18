@@ -2,8 +2,8 @@ package cmd
 
 import (
 	"github.com/spf13/cobra"
+	"linkany/drp"
 	"linkany/pkg/log"
-	"linkany/signaling"
 )
 
 type signalerOptions struct {
@@ -39,5 +39,5 @@ func runSignaling(opts signalerOptions) error {
 		opts.LogLevel = "error"
 	}
 	log.Loglevel = log.SetLogLevel(opts.LogLevel)
-	return signaling.Start(opts.Listen)
+	return drp.Start(opts.Listen)
 }

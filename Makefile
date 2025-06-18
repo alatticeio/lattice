@@ -17,9 +17,10 @@ build: clean
 		-v /root/linkany/main.go
 
 build-image:
-	docker build -t registry.cn-hangzhou.aliyuncs.com/linkany-io/linkany:latest \
-		-f $(shell pwd)/docker/Dockerfile $(shell pwd)/bin
-	docker push registry.cn-hangzhou.aliyuncs.com/linkany-io/linkany:latest
+	cd $(shell pwd)/bin && docker build \
+		-t registry.cn-hangzhou.aliyuncs.com/linkany-io/linkany:latest \
+		-f /root/docker/maven/build/linkany/docker/Dockerfile . \
+		--push
 
 generate:
 	protoc --go_out=. \
@@ -31,7 +32,7 @@ generate:
 		--go_opt=paths=source_relative \
 		--go-grpc_out=. \
 		--go-grpc_opt=paths=source_relative \
-		signaling/grpc/signaling/signaling.proto
+		drp/grpc/drp.proto
 
 clean:
 	rm -rf bin

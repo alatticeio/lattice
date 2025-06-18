@@ -42,24 +42,28 @@ func NewOffer(config *DirectOfferConfig) *DirectOffer {
 
 var bin = binary.BigEndian
 
-func (offer *DirectOffer) Marshal() (int, []byte, error) {
-	b, err := json.Marshal(offer)
+func (o *DirectOffer) Marshal() (int, []byte, error) {
+	b, err := json.Marshal(o)
 	if err != nil {
 		return 0, nil, err
 	}
 	return len(b), b, nil
 }
 
-func (offer *DirectOffer) IsDirectOffer() bool {
-	return true
+func (o *DirectOffer) OfferType() internal.OfferType {
+	return internal.OfferTypeDirectOffer
 }
 
-func (offer *DirectOffer) TieBreaker() uint64 {
-	return offer.LocalKey
+func (o *DirectOffer) TieBreaker() uint64 {
+	return o.LocalKey
 }
 
-func (offer *DirectOffer) len() int {
-	return 64 + len(offer.Candidate)
+func (o *DirectOffer) len() int {
+	return 64 + len(o.Candidate)
+}
+
+func (o *DirectOffer) GetNode() *utils.NodeMessage {
+	return o.Node
 }
 
 func UnmarshalOffer(data []byte) (*DirectOffer, error) {

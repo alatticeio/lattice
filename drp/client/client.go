@@ -10,15 +10,15 @@ import (
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/status"
 	"io"
+	drpgrpc "linkany/drp/grpc"
 	"linkany/pkg/log"
-	"linkany/signaling/grpc/signaling"
 	"time"
 )
 
 type Client struct {
 	logger *log.Logger
 	conn   *grpc.ClientConn
-	client signaling.SignalingServiceClient
+	client drpgrpc.DrpServerClient
 
 	done     chan struct{}
 	clientID string
@@ -53,7 +53,7 @@ func NewClient(cfg *ClientConfig) (*Client, error) {
 		return nil, err
 	}
 	grpc.WithKeepaliveParams(keepAliveArgs)
-	c := signaling.NewSignalingServiceClient(conn)
+	c := drpgrpc.NewDrpServerClient(conn)
 	return &Client{
 		conn:     conn,
 		client:   c,
@@ -69,36 +69,30 @@ func NewClient(cfg *ClientConfig) (*Client, error) {
 	}, nil
 }
 
-//func (c *Client) Register(ctx context.Context, in *signaling.SignalingMessage) (*signaling.EncryptMessage, error) {
-//	return c.client.Register(ctx, in)
-//}
-
-func (c *Client) Forward(ctx context.Context, ch chan *signaling.SignalingMessage, callback func(message *signaling.SignalingMessage) error) error {
-	stream, err := c.client.Signaling(ctx)
+func (c *Client) HandleMessage(ctx context.Context, proxy *Proxy) error {
+	stream, err := c.client.HandleMessage(ctx)
 	if err != nil {
 		return err
 	}
 
 	errChan := make(chan error)
-	go c.sendMessages(stream, ch, errChan)
-	go c.receiveMessages(stream, errChan, callback)
+	go c.sendMessages(stream, proxy.outBoundQueue, errChan)
+	go c.receiveMessages(stream, errChan, proxy.ReceiveMessage)
 
 	select {
 	case err = <-errChan:
 		if err == io.EOF {
 			return nil
 		}
-
 		if status.Code(err) == codes.Canceled {
 			c.logger.Infof("stream closed")
 			return nil
 		}
-
 		return err
 	}
 }
 
-func (c *Client) Heartbeat(ctx context.Context, ch chan *signaling.SignalingMessage, clientId string) error {
+func (c *Client) Heartbeat(ctx context.Context, proxy *Proxy, clientId string) error {
 	ticker := time.NewTicker(c.config.heartbeatInterval)
 	ticker.Stop()
 
@@ -114,9 +108,9 @@ func (c *Client) Heartbeat(ctx context.Context, ch chan *signaling.SignalingMess
 			return err
 		}
 
-		ch <- &signaling.SignalingMessage{
+		proxy.outBoundQueue <- &drpgrpc.DrpMessage{
 			From:    clientId,
-			MsgType: signaling.MessageType_MessageHeartBeatType,
+			MsgType: drpgrpc.MessageType_MessageHeartBeatType,
 			Body:    body,
 		}
 
@@ -136,7 +130,7 @@ func (c *Client) Heartbeat(ctx context.Context, ch chan *signaling.SignalingMess
 	}
 }
 
-func (c *Client) receiveMessages(stream signaling.SignalingService_SignalingClient, errChan chan error, callback func(message *signaling.SignalingMessage) error) {
+func (c *Client) receiveMessages(stream drpgrpc.DrpServer_HandleMessageClient, errChan chan error, callback func(message *drpgrpc.DrpMessage) error) {
 	for {
 		msg, err := stream.Recv()
 		c.logger.Verbosef("signaling received message >>>>>>>>>>>>>>>>>: %v", msg)
@@ -158,7 +152,7 @@ func (c *Client) receiveMessages(stream signaling.SignalingService_SignalingClie
 		}
 
 		switch msg.MsgType {
-		case signaling.MessageType_MessageHeartBeatType:
+		case drpgrpc.MessageType_MessageHeartBeatType:
 			c.logger.Infof("received heartbeat message from %s, content: %v", msg.From, string(msg.Body))
 		default:
 			callback(msg)
@@ -166,7 +160,7 @@ func (c *Client) receiveMessages(stream signaling.SignalingService_SignalingClie
 	}
 }
 
-func (c *Client) sendMessages(stream signaling.SignalingService_SignalingClient, ch chan *signaling.SignalingMessage, errChan chan error) {
+func (c *Client) sendMessages(stream drpgrpc.DrpServer_HandleMessageClient, ch chan *drpgrpc.DrpMessage, errChan chan error) {
 	for {
 		select {
 		case msg := <-ch:

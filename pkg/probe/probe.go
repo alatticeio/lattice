@@ -4,13 +4,14 @@ import (
 	"context"
 	"errors"
 	"github.com/linkanyio/ice"
+	drpgrpc "linkany/drp/grpc"
 	"linkany/internal"
 	"linkany/internal/direct"
+	"linkany/internal/drp"
 	"linkany/internal/relay"
 	"linkany/pkg/config"
 	"linkany/pkg/linkerrors"
 	"linkany/pkg/log"
-	"linkany/signaling/grpc/signaling"
 	"linkany/turn/client"
 	turnclient "linkany/turn/client"
 	"net"
@@ -42,7 +43,9 @@ type prober struct {
 	from string
 	to   string
 
-	isP2P bool
+	drpAddr string
+
+	connectType internal.ConnType // connectType indicates the type of connection, direct or relay
 
 	// directChecker is used to check the direct connection
 	directChecker internal.Checker
@@ -50,13 +53,13 @@ type prober struct {
 	// relayChecker is used to check the relay connection
 	relayChecker internal.Checker
 
+	drpChecker internal.Checker
+
 	wgConfiger internal.ConfigureManager
 
 	offerHandler internal.OfferHandler
 
 	turnClient *client.Client
-
-	signalingChannel chan *signaling.SignalingMessage
 
 	gatherCh chan interface{}
 
@@ -142,7 +145,8 @@ func (p *prober) OnConnectionStateChange(state internal.ConnectionState) error {
 }
 
 func (p *prober) HandleOffer(offer internal.Offer) error {
-	if offer.IsDirectOffer() {
+	switch offer.OfferType() {
+	case internal.OfferTypeDirectOffer:
 		// later new directChecker
 		if p.directChecker == nil {
 			p.directChecker = NewDirectChecker(&DirectCheckerConfig{
@@ -160,15 +164,22 @@ func (p *prober) HandleOffer(offer internal.Offer) error {
 		if err := p.directChecker.HandleOffer(offer); err != nil {
 			return err
 		}
-	} else {
-		o := offer.(*relay.RelayOffer)
-		switch o.OfferType {
-		case relay.OfferTypeRelayOffer:
-			return p.relayChecker.HandleOffer(offer)
-		case relay.OfferTypeRelayOfferAnswer:
-			return p.relayChecker.HandleOffer(offer)
+
+	case internal.OfferTypeRelayOffer, internal.OfferTypeRelayAnswer:
+		return p.relayChecker.HandleOffer(offer)
+	case internal.OfferTypeDrpOffer, internal.OfferTypeDrpOfferAnswer:
+		if p.drpChecker == nil {
+			p.drpChecker = NewDrpChecker(&DrpCheckerConfig{
+				Probe:   p,
+				From:    p.from,
+				To:      p.to,
+				DrpAddr: p.drpAddr,
+			})
 		}
 
+		if err := p.drpChecker.HandleOffer(offer); err != nil {
+			return err
+		}
 	}
 
 	return p.ProbeConnect(context.Background(), offer)
@@ -183,11 +194,16 @@ func (p *prober) ProbeConnect(ctx context.Context, offer internal.Offer) error {
 		}
 	}()
 
-	if p.isForceRelay {
+	switch offer.OfferType() {
+	case internal.OfferTypeDirectOffer, internal.OfferTypeDirectOfferAnswer:
+		return p.directChecker.ProbeConnect(ctx, p.TieBreaker() > offer.TieBreaker(), offer)
+	case internal.OfferTypeRelayOffer, internal.OfferTypeRelayAnswer:
 		return p.relayChecker.ProbeConnect(ctx, p.TieBreaker() > offer.TieBreaker(), offer.(*relay.RelayOffer))
+	case internal.OfferTypeDrpOffer, internal.OfferTypeDrpOfferAnswer:
+		return p.drpChecker.ProbeConnect(ctx, p.TieBreaker() > offer.TieBreaker(), offer)
 	}
-	p.logger.Verbosef("current node key: %v,  probe tieBreaker: %v, remote node tieBreaker: %v", p.to, p.TieBreaker(), offer.TieBreaker())
-	return p.directChecker.ProbeConnect(ctx, p.TieBreaker() > offer.TieBreaker(), offer)
+
+	return nil
 }
 
 func (p *prober) ProbeSuccess(publicKey, addr string) error {
@@ -209,24 +225,8 @@ func (p *prober) ProbeSuccess(publicKey, addr string) error {
 		return err
 	}
 
-	p.logger.Infof("peer connection to %s success", addr)
+	p.logger.Infof("peer connect to %s success", addr)
 	internal.SetRoute(p.logger)("add", peer.Address, p.wgConfiger.GetIfaceName())
-
-	//if p.isForceRelay {
-	//	endpoint, err := net.ResolveUDPAddr("udp", addr)
-	//	if err != nil {
-	//		return err
-	//	}
-	//
-	//	if relayInfo, err := p.turnClient.GetRelayInfo(true); err != nil {
-	//		return err
-	//	} else {
-	//		err := p.relayer.AddRelayConn(endpoint, relayInfo.RelayConn)
-	//		if err != nil {
-	//			return err
-	//		}
-	//	}
-	//}
 
 	return nil
 }
@@ -249,12 +249,12 @@ func (p *prober) Start(srcKey, dstKey string) error {
 	switch p.connectionState {
 	case internal.ConnectionStateConnected:
 		return nil
-	case internal.ConnectionStateNew, internal.ConnectionStateChecking:
+	case internal.ConnectionStateNew:
 		p.UpdateConnectionState(internal.ConnectionStateChecking)
 		if p.isForceRelay {
-			return p.SendOffer(signaling.MessageType_MessageRelayOfferType, srcKey, dstKey)
+			return p.SendOffer(drpgrpc.MessageType_MessageRelayOfferType, srcKey, dstKey)
 		} else {
-			return p.SendOffer(signaling.MessageType_MessageDirectOfferType, srcKey, dstKey)
+			return p.SendOffer(drpgrpc.MessageType_MessageDirectOfferType, srcKey, dstKey)
 		}
 
 	default:
@@ -263,7 +263,7 @@ func (p *prober) Start(srcKey, dstKey string) error {
 	return nil
 }
 
-func (p *prober) SendOffer(msgType signaling.MessageType, srcKey, dstKey string) error {
+func (p *prober) SendOffer(msgType drpgrpc.MessageType, srcKey, dstKey string) error {
 	var err error
 	var relayAddr *net.UDPAddr
 	var info *client.RelayInfo
@@ -276,7 +276,7 @@ func (p *prober) SendOffer(msgType signaling.MessageType, srcKey, dstKey string)
 	var offer internal.Offer
 	ufrag, pwd, err := p.GetCredentials()
 	switch msgType {
-	case signaling.MessageType_MessageDirectOfferType, signaling.MessageType_MessageDirectOfferAnswerType:
+	case drpgrpc.MessageType_MessageDirectOfferType, drpgrpc.MessageType_MessageDirectOfferAnswerType:
 		candidates := p.GetCandidates(p.agent)
 		offer = direct.NewOffer(&direct.DirectOfferConfig{
 			WgPort:     51820,
@@ -286,7 +286,7 @@ func (p *prober) SendOffer(msgType signaling.MessageType, srcKey, dstKey string)
 			Candidates: candidates,
 			Node:       p.nodeManager.GetPeer(srcKey),
 		})
-	case signaling.MessageType_MessageRelayOfferType:
+	case drpgrpc.MessageType_MessageRelayOfferType:
 		relayInfo, err := p.turnClient.GetRelayInfo(true)
 		if err != nil {
 			return errors.New("get relay info failed")
@@ -297,10 +297,9 @@ func (p *prober) SendOffer(msgType signaling.MessageType, srcKey, dstKey string)
 			MappedAddr: relayInfo.MappedAddr,
 			RelayConn:  *relayAddr,
 			LocalKey:   p.agent.GetTieBreaker(),
-			OfferType:  relay.OfferTypeRelayOffer,
 		})
 		break
-	case signaling.MessageType_MessageRelayAnswerType:
+	case drpgrpc.MessageType_MessageRelayAnswerType:
 		// write back a response
 		info, err = p.turnClient.GetRelayInfo(false)
 		if err != nil {
@@ -311,7 +310,11 @@ func (p *prober) SendOffer(msgType signaling.MessageType, srcKey, dstKey string)
 		offer = relay.NewOffer(&relay.RelayOfferConfig{
 			LocalKey:   p.agent.GetTieBreaker(),
 			MappedAddr: info.MappedAddr,
-			OfferType:  relay.OfferTypeRelayOfferAnswer,
+			OfferType:  internal.OfferTypeRelayOffer,
+		})
+	case drpgrpc.MessageType_MessageDrpOfferType, drpgrpc.MessageType_MessageDrpOfferAnswerType:
+		offer = drp.NewOffer(&drp.DrpOfferConfig{
+			Node: p.nodeManager.GetPeer(srcKey),
 		})
 	default:
 		err = errors.New("unsupported message type")

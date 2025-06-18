@@ -4,20 +4,21 @@ import (
 	"context"
 	"errors"
 	"github.com/linkanyio/ice"
+	"golang.org/x/net/ipv4"
+	"golang.org/x/net/ipv6"
 	"golang.zx2c4.com/wireguard/conn"
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
+	drpclient "linkany/drp/client"
+	"linkany/internal"
 	"linkany/pkg/drp"
 	"linkany/pkg/log"
-	signalingclient "linkany/signaling/client"
 	"net"
 	"net/netip"
 	"runtime"
 	"strconv"
 	"sync"
 	"syscall"
-
-	"golang.org/x/net/ipv4"
-	"golang.org/x/net/ipv6"
+	"time"
 )
 
 var (
@@ -35,10 +36,11 @@ type NetBind struct {
 	universalUdpMux *ice.UniversalUDPMuxDefault
 	conn            net.Conn // drp client conn
 	node            *drp.Node
-	signalingClient *signalingclient.Client
 	Publikey        wgtypes.Key
-	relayConn       net.PacketConn                   // current relay conn
+	drpClient       *drpclient.Client                // drpclient using grpc to connect to drp server receiving data.
 	dstConns        map[conn.Endpoint]net.PacketConn // destination conn
+
+	proxy *drpclient.Proxy
 
 	drpAddr net.TCPAddr // drp addr，drp created from console
 
@@ -62,18 +64,18 @@ type NetBind struct {
 
 type BindConfig struct {
 	Logger          *log.Logger
-	SignalingClient *signalingclient.Client
 	V4Conn          *net.UDPConn
 	UniversalUDPMux *ice.UniversalUDPMuxDefault
-	RelayConn       net.PacketConn
+	DrpClient       *drpclient.Client
+	Proxy           *drpclient.Proxy
 }
 
 func NewBind(cfg *BindConfig) *NetBind {
 	return &NetBind{
 		logger:          cfg.Logger,
-		relayConn:       cfg.RelayConn,
+		drpClient:       cfg.DrpClient,
+		proxy:           cfg.Proxy,
 		dstConns:        make(map[conn.Endpoint]net.PacketConn),
-		signalingClient: cfg.SignalingClient,
 		v4conn:          cfg.V4Conn,
 		universalUdpMux: cfg.UniversalUDPMux,
 		udpAddrPool: sync.Pool{
@@ -123,7 +125,7 @@ func (b *NetBind) ParseEndpoint(s string) (conn.Endpoint, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &drp.AnyEndpoint{
+	return &internal.RemoteEndpoint{
 		AddrPort: e,
 	}, nil
 }
@@ -183,30 +185,25 @@ func (b *NetBind) Open(uport uint16) ([]conn.ReceiveFunc, uint16, error) {
 		return nil, 0, syscall.EAFNOSUPPORT
 	}
 
-	if b.relayConn != nil {
-		fns = append(fns, b.makeReceiveRelay())
+	if b.drpClient != nil {
+		go func() {
+			for {
+				if err := b.drpClient.HandleMessage(context.Background(), b.proxy); err != nil {
+					b.logger.Errorf("handle drp message error: %v, after 1s retry", err)
+					time.Sleep(1 * time.Second)
+				}
+			}
+		}()
+		fns = append(fns, b.makeReceiveDrp())
 	}
 
 	return fns, uint16(port), nil
 }
 
-// TODO
-func (b *NetBind) makeReceiveRelay() conn.ReceiveFunc {
-	return func(bufs [][]byte, sizes []int, eps []conn.Endpoint) (n int, err error) {
-		n, addr, err := b.relayConn.ReadFrom(bufs[0])
-		if err != nil {
-			return 0, err
-		}
-		sizes[0] = n
-		addrPort, err := netip.ParseAddrPort(addr.String())
-		if err != nil {
-			return 0, err
-		}
-
-		eps[0] = &drp.AnyEndpoint{AddrPort: addrPort, IsRelay: true}
-
-		return 1, nil
-	}
+// makeReceiveDrp will receive data from drp server, using grpc transport.
+// It will return a conn.ReceiveFunc that can be used to receive data from the drp server.
+func (b *NetBind) makeReceiveDrp() conn.ReceiveFunc {
+	return b.proxy.Receive()
 }
 
 func (b *NetBind) makeReceiveIPv4(pc *ipv4.PacketConn, udpConn *net.UDPConn) conn.ReceiveFunc {
@@ -247,7 +244,7 @@ func (b *NetBind) makeReceiveIPv4(pc *ipv4.PacketConn, udpConn *net.UDPConn) con
 
 			sizes[i] = msg.N
 			addrPort := msg.Addr.(*net.UDPAddr).AddrPort()
-			ep := &drp.AnyEndpoint{AddrPort: addrPort} // TODO: remove allocation
+			ep := &internal.RemoteEndpoint{AddrPort: addrPort} // TODO: remove allocation
 			getSrcFromControl(msg.OOB[:msg.NN], ep)
 			eps[i] = ep
 		}
@@ -280,7 +277,7 @@ func (b *NetBind) makeReceiveIPv6(pc *ipv6.PacketConn, udpConn *net.UDPConn) con
 			msg := &(*msgs)[i]
 			sizes[i] = msg.N
 			addrPort := msg.Addr.(*net.UDPAddr).AddrPort()
-			ep := &drp.AnyEndpoint{AddrPort: addrPort} // TODO: remove allocation
+			ep := &internal.RemoteEndpoint{AddrPort: addrPort} // TODO: remove allocation
 			getSrcFromControl(msg.OOB[:msg.NN], ep)
 			eps[i] = ep
 		}
@@ -311,11 +308,6 @@ func (b *NetBind) Close() error {
 		err2 = b.ipv6.Close()
 		b.ipv6 = nil
 		b.ipv6PC = nil
-	}
-
-	if b.relayConn != nil {
-		err3 = b.relayConn.Close()
-		b.relayConn = nil
 	}
 
 	b.blackhole4 = false
@@ -356,7 +348,7 @@ func (b *NetBind) Send(bufs [][]byte, endpoint conn.Endpoint) error {
 		return syscall.EAFNOSUPPORT
 	}
 
-	// add relay write
+	// add drp write
 	if ep := b.dstConns[endpoint]; ep != nil {
 		addr, err := net.ResolveUDPAddr("udp", endpoint.DstToString())
 		if err != nil {
@@ -379,12 +371,12 @@ func (b *NetBind) send4(conn *net.UDPConn, pc *ipv4.PacketConn, ep conn.Endpoint
 	as4 := ep.DstIP().As4()
 	copy(ua.IP, as4[:])
 	ua.IP = ua.IP[:4]
-	ua.Port = int(ep.(*drp.AnyEndpoint).Port())
+	ua.Port = int(ep.(*internal.RemoteEndpoint).Port())
 	msgs := b.ipv4MsgsPool.Get().(*[]ipv4.Message)
 	for i, buf := range bufs {
 		(*msgs)[i].Buffers[0] = buf
 		(*msgs)[i].Addr = ua
-		setSrcControl(&(*msgs)[i].OOB, ep.(*drp.AnyEndpoint))
+		setSrcControl(&(*msgs)[i].OOB, ep.(*internal.RemoteEndpoint))
 	}
 	var (
 		n     int
@@ -417,12 +409,12 @@ func (b *NetBind) send6(conn *net.UDPConn, pc *ipv6.PacketConn, ep conn.Endpoint
 	as16 := ep.DstIP().As16()
 	copy(ua.IP, as16[:])
 	ua.IP = ua.IP[:16]
-	ua.Port = int(ep.(*drp.AnyEndpoint).Port())
+	ua.Port = int(ep.(*internal.RemoteEndpoint).Port())
 	msgs := b.ipv6MsgsPool.Get().(*[]ipv6.Message)
 	for i, buf := range bufs {
 		(*msgs)[i].Buffers[0] = buf
 		(*msgs)[i].Addr = ua
-		setSrcControl(&(*msgs)[i].OOB, ep.(*drp.AnyEndpoint))
+		setSrcControl(&(*msgs)[i].OOB, ep.(*internal.RemoteEndpoint))
 	}
 	var (
 		n     int
