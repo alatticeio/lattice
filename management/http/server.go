@@ -2,12 +2,12 @@ package http
 
 import (
 	"gorm.io/gorm"
+	"linkany/internal"
 	"linkany/management/client"
 	"linkany/management/controller"
 	"linkany/management/db"
 	"linkany/management/dto"
 	"linkany/management/entity"
-	"linkany/management/utils"
 	"linkany/pkg/log"
 	"linkany/pkg/redis"
 
@@ -34,7 +34,7 @@ type Server struct {
 
 	settingsController *controller.SettingsController
 
-	manager *utils.WatchManager
+	manager *internal.WatchManager
 }
 
 // ServerConfig is the server configuration
@@ -61,7 +61,7 @@ func NewServer(cfg *ServerConfig) *Server {
 		sharedController:   controller.NewSharedController(cfg.DatabaseService),
 		settingsController: controller.NewSettingsController(cfg.DatabaseService),
 		tokenController:    controller.NewTokenController(cfg.DatabaseService),
-		manager:            utils.NewWatchManager(),
+		manager:            internal.NewWatchManager(),
 	}
 	s.initRoute()
 

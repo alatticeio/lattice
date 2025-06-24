@@ -2,13 +2,14 @@ package client
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"golang.zx2c4.com/wireguard/conn"
 	drpgrpc "linkany/drp/grpc"
 	"linkany/internal"
 	"linkany/pkg/log"
+	"net"
 	"net/netip"
+	"time"
 )
 
 // Proxy will send data to local engine
@@ -18,49 +19,63 @@ type Proxy struct {
 	Addr          netip.AddrPort
 	outBoundQueue chan *drpgrpc.DrpMessage
 	inBoundQueue  chan *drpgrpc.DrpMessage
+	drpAddr       string
 	drpClient     *Client
 	offerHandler  internal.OfferHandler
+	msgManager    *MessageManager
+	probeManager  internal.ProbeManager
+
+	proxyDo func(ctx context.Context, msg *drpgrpc.DrpMessage) error
 }
 
 type ProxyConfig struct {
 	OfferHandler internal.OfferHandler
 	DrpClient    *Client
+	DrpAddr      string
 }
 
-func NewProxy(cfg *ProxyConfig) *Proxy {
+func NewProxy(cfg *ProxyConfig) (*Proxy, error) {
+	addr, err := net.ResolveTCPAddr("tcp", cfg.DrpAddr)
+	if err != nil {
+		return nil, err
+	}
+	addrPort := addr.AddrPort()
 	return &Proxy{
 		outBoundQueue: make(chan *drpgrpc.DrpMessage, 10000),
 		inBoundQueue:  make(chan *drpgrpc.DrpMessage, 10000), // Buffered channel to handle messages
 		logger:        log.NewLogger(log.Loglevel, "proxy"),
 		offerHandler:  cfg.OfferHandler,
 		drpClient:     cfg.DrpClient,
-	}
+		msgManager:    NewMessageManager(),
+		Addr:          addrPort, // Default address, can be set later
+	}, nil
 }
 
-func (p *Proxy) SetOfferHandler(offerHandler internal.OfferHandler) {
+func (p *Proxy) OfferAndProbe(offerHandler internal.OfferHandler, probeManager internal.ProbeManager) *Proxy {
 	p.offerHandler = offerHandler
+	p.probeManager = probeManager
+	return p
+}
+
+func (p *Proxy) Start() error {
+	return p.drpClient.HandleMessage(context.Background(), p.outBoundQueue, p.ReceiveMessage)
 }
 
 // ReceiveMessage receive message from drp server
-func (p *Proxy) ReceiveMessage(msg *drpgrpc.DrpMessage) error {
-	var err error
+func (p *Proxy) ReceiveMessage(ctx context.Context, msg *drpgrpc.DrpMessage) error {
 	if msg.Body == nil {
 		return errors.New("body is nil")
 	}
-	if err = json.Unmarshal(msg.Body, msg); err != nil {
-		return err
-	}
-
-	p.logger.Verbosef("receive from signaling service, srcPubKey: %v, dstPubKey: %v", msg.From, msg.To)
 
 	switch msg.MsgType {
-	case drpgrpc.MessageType_MessageForwardType:
-	case drpgrpc.MessageType_MessageDRPType:
+	case drpgrpc.MessageType_MessageDrpDataType:
 		// write data
 		p.inBoundQueue <- msg
 	default:
+		p.logger.Verbosef("receive from drp server type: %v, from: %v, to: %v", msg.MsgType, msg.From, msg.To)
+
 		go func() {
-			if err := p.offerHandler.ReceiveOffer(msg); err != nil {
+			if err := p.offerHandler.ReceiveOffer(ctx, msg); err != nil {
 				p.logger.Errorf("handle response failed: %v", err)
 			}
 		}()
@@ -69,20 +84,61 @@ func (p *Proxy) ReceiveMessage(msg *drpgrpc.DrpMessage) error {
 	return nil
 }
 
-func (p *Proxy) Receive() conn.ReceiveFunc {
+func (p *Proxy) MakeReceiveFromDrp() conn.ReceiveFunc {
 	return func(bufs [][]byte, sizes []int, eps []conn.Endpoint) (n int, err error) {
 		msg := <-p.inBoundQueue
-		// wirte to local engine
-		p.logger.Verbosef("msg is: %v", msg)
-		sizes[1] = 1
-		bufs[0] = msg.Body
-		eps[0] = &internal.RemoteEndpoint{
-			IsDrp:    true,
-			AddrPort: p.Addr,
+		// write to local engine
+		switch msg.MsgType {
+		case drpgrpc.MessageType_MessageDrpDataType:
+			p.logger.Verbosef("client received drp data, time slapped: %v", time.Since(time.UnixMilli(msg.Timestamp)).Milliseconds())
+			for i := 0; i < len(bufs); i++ {
+				copy(bufs[i], msg.Body)
+				sizes[i] = len(msg.Body)
+				eps[i] = &internal.LinkEndpoint{
+					Drp: &struct {
+						Status   bool
+						From     string
+						To       string
+						Endpoint netip.AddrPort
+					}{Status: true, From: msg.To, To: msg.From, Endpoint: p.Addr},
+				}
+			}
+
+			return len(bufs), nil
+		default:
+			p.logger.Errorf("unsupported message type: %v", msg.MsgType)
+			return -1, errors.New("unsupported message type")
 		}
-		return 1, nil
 	}
 
+}
+
+func (p *Proxy) Send(ep conn.Endpoint, bufs [][]byte) (err error) {
+	if ep == nil {
+		return errors.New("endpoint is nil")
+	}
+
+	v := ep.(internal.DrpEndpoint)
+	from := v.From()
+	to := v.To()
+
+	for i := 0; i < len(bufs); i++ {
+		if bufs[i] == nil || len(bufs[i]) == 0 {
+			return errors.New("buffer is nil or empty")
+		}
+		drpMesssage := p.GetMessageFromPool()
+		drpMesssage.From = from
+		drpMesssage.To = to
+		drpMesssage.MsgType = drpgrpc.MessageType_MessageDrpDataType
+		drpMesssage.Body = bufs[i]
+		drpMesssage.Timestamp = time.Now().UnixMilli()
+
+		p.outBoundQueue <- drpMesssage
+		//msgType := binary.LittleEndian.Uint32(bufs[i][:4])
+		//p.logger.Verbosef("send to drp server wg msgType: %v, from: %v, to: %v", msgType, from, to)
+	}
+
+	return nil
 }
 
 // WriteMessage will send actual message to data channel

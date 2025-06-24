@@ -3,39 +3,39 @@ package probe
 import (
 	"context"
 	"errors"
+	"fmt"
 	"github.com/linkanyio/ice"
 	drpgrpc "linkany/drp/grpc"
 	"linkany/internal"
 	"linkany/internal/direct"
 	"linkany/internal/drp"
 	"linkany/internal/relay"
-	"linkany/pkg/config"
 	"linkany/pkg/linkerrors"
 	"linkany/pkg/log"
 	"linkany/turn/client"
 	turnclient "linkany/turn/client"
 	"net"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 )
 
 var (
-	_ internal.Probe = (*prober)(nil)
+	_ internal.Probe = (*probe)(nil)
 )
 
-// prober is a wrapper directchecker & relaychecker
-type prober struct {
+// probe is a wrapper directchecker & relaychecker
+type probe struct {
 	logger          *log.Logger
 	closeMux        sync.Mutex
 	agent           *internal.Agent
-	proberClosed    atomic.Bool
 	done            chan interface{}
 	connectionState internal.ConnectionState
 	isStarted       atomic.Bool
 	isForceRelay    bool
-	proberManager   internal.ProbeManager
-	nodeManager     *config.NodeManager
+	probeManager    internal.ProbeManager
+	nodeManager     *internal.NodeManager
 	agentManager    internal.AgentManagerFactory
 
 	lastCheck time.Time
@@ -45,7 +45,7 @@ type prober struct {
 
 	drpAddr string
 
-	connectType internal.ConnType // connectType indicates the type of connection, direct or relay
+	connectType internal.ConnectType // connectType indicates the type of connection, direct or relay
 
 	// directChecker is used to check the direct connection
 	directChecker internal.Checker
@@ -67,8 +67,7 @@ type prober struct {
 	universalUdpMux *ice.UniversalUDPMuxDefault
 }
 
-// TODO get agent ufrag pwd
-func (p *prober) Restart() error {
+func (p *probe) Restart() error {
 	var (
 		err error
 	)
@@ -85,7 +84,7 @@ func (p *prober) Restart() error {
 	p.UpdateConnectionState(internal.ConnectionStateNew)
 	// create a new agent
 	p.gatherCh = make(chan interface{})
-	if p.agent, err = p.proberManager.NewAgent(p.gatherCh, p.OnConnectionStateChange); err != nil {
+	if p.agent, err = p.probeManager.NewAgent(p.gatherCh, p.OnConnectionStateChange); err != nil {
 		return err
 	}
 
@@ -96,7 +95,7 @@ func (p *prober) Restart() error {
 			return
 		}
 
-		p.logger.Verbosef("gathered candidate: %s for %s", candidate.String())
+		p.logger.Verbosef("gathered candidate: %s", candidate.String())
 	})
 
 	// when restart should regather candidates
@@ -104,33 +103,33 @@ func (p *prober) Restart() error {
 		return err
 	}
 
-	// update prober manager
-	p.proberManager.AddProbe(p.to, p)
+	// update probe manager
+	p.probeManager.AddProbe(p.to, p)
 	return nil
 }
 
-func (p *prober) GetProbeAgent() *internal.Agent {
+func (p *probe) GetProbeAgent() *internal.Agent {
 	return p.agent
 }
 
-func (p *prober) GetConnState() internal.ConnectionState {
+func (p *probe) GetConnState() internal.ConnectionState {
 	return p.connectionState
 }
 
-func (p *prober) ProbeDone() chan interface{} {
+func (p *probe) ProbeDone() chan interface{} {
 	return p.done
 }
 
-func (p *prober) GetGatherChan() chan interface{} {
+func (p *probe) GetGatherChan() chan interface{} {
 	return p.gatherCh
 }
 
-func (p *prober) UpdateConnectionState(state internal.ConnectionState) {
+func (p *probe) UpdateConnectionState(state internal.ConnectionState) {
 	p.connectionState = state
 	p.logger.Verbosef("probe connection state updated to: %v", state)
 }
 
-func (p *prober) OnConnectionStateChange(state internal.ConnectionState) error {
+func (p *probe) OnConnectionStateChange(state internal.ConnectionState) error {
 	p.connectionState = state
 	p.logger.Verbosef("probe connection state updated to: %v", state)
 	switch state {
@@ -138,13 +137,12 @@ func (p *prober) OnConnectionStateChange(state internal.ConnectionState) error {
 		if err := p.Restart(); err != nil {
 			return err
 		}
-
 	}
 
 	return nil
 }
 
-func (p *prober) HandleOffer(offer internal.Offer) error {
+func (p *probe) HandleOffer(ctx context.Context, offer internal.Offer) error {
 	switch offer.OfferType() {
 	case internal.OfferTypeDirectOffer:
 		// later new directChecker
@@ -158,36 +156,52 @@ func (p *prober) HandleOffer(offer internal.Offer) error {
 				Prober:     p,
 			})
 
-			p.proberManager.AddProbe(p.to, p)
+			p.probeManager.AddProbe(p.to, p)
 		}
-
-		if err := p.directChecker.HandleOffer(offer); err != nil {
-			return err
-		}
+		return p.handleDirectOffer(ctx, offer.(*direct.DirectOffer))
 
 	case internal.OfferTypeRelayOffer, internal.OfferTypeRelayAnswer:
-		return p.relayChecker.HandleOffer(offer)
+
 	case internal.OfferTypeDrpOffer, internal.OfferTypeDrpOfferAnswer:
 		if p.drpChecker == nil {
 			p.drpChecker = NewDrpChecker(&DrpCheckerConfig{
 				Probe:   p,
 				From:    p.from,
 				To:      p.to,
-				DrpAddr: p.drpAddr,
+				DrpAddr: offer.GetNode().DrpAddr,
 			})
-		}
-
-		if err := p.drpChecker.HandleOffer(offer); err != nil {
-			return err
 		}
 	}
 
 	return p.ProbeConnect(context.Background(), offer)
 }
 
+func (p *probe) handleDirectOffer(ctx context.Context, offer *direct.DirectOffer) error {
+	candidates := strings.Split(offer.Candidate, ";")
+	for _, candString := range candidates {
+		if candString == "" {
+			continue
+		}
+		candidate, err := ice.UnmarshalCandidate(candString)
+
+		if err != nil {
+			continue
+		}
+
+		if err = p.agent.AddRemoteCandidate(candidate); err != nil {
+			p.logger.Errorf("add remote candidate failed: %v", err)
+			continue
+		}
+
+		p.logger.Infof("add remote candidate success:%v, agent: %v", candidate.Marshal(), p.agent)
+	}
+
+	return nil
+}
+
 // ProbeConnect probes the connection, if isForceRelay, will start the relayChecker, otherwise, will start the directChecker
 // when direct failed, we will start the relayChecker
-func (p *prober) ProbeConnect(ctx context.Context, offer internal.Offer) error {
+func (p *probe) ProbeConnect(ctx context.Context, offer internal.Offer) error {
 	defer func() {
 		if p.connectionState == internal.ConnectionStateNew {
 			p.UpdateConnectionState(internal.ConnectionStateChecking)
@@ -198,24 +212,30 @@ func (p *prober) ProbeConnect(ctx context.Context, offer internal.Offer) error {
 	case internal.OfferTypeDirectOffer, internal.OfferTypeDirectOfferAnswer:
 		return p.directChecker.ProbeConnect(ctx, p.TieBreaker() > offer.TieBreaker(), offer)
 	case internal.OfferTypeRelayOffer, internal.OfferTypeRelayAnswer:
-		return p.relayChecker.ProbeConnect(ctx, p.TieBreaker() > offer.TieBreaker(), offer.(*relay.RelayOffer))
+		return p.relayChecker.ProbeConnect(ctx, false, offer)
 	case internal.OfferTypeDrpOffer, internal.OfferTypeDrpOfferAnswer:
-		return p.drpChecker.ProbeConnect(ctx, p.TieBreaker() > offer.TieBreaker(), offer)
+		return p.drpChecker.ProbeConnect(ctx, false, offer)
+	default:
+		return errors.New("unsupported offer type")
 	}
-
-	return nil
 }
 
-func (p *prober) ProbeSuccess(publicKey, addr string) error {
+func (p *probe) ProbeSuccess(ctx context.Context, publicKey, addr string) error {
 	defer func() {
 		p.UpdateConnectionState(internal.ConnectionStateConnected)
-		p.logger.Infof("prober set to: %v", internal.ConnectionStateConnected)
+		p.logger.Infof("probe set to: %v", internal.ConnectionStateConnected)
 	}()
 	var err error
 
 	peer := p.nodeManager.GetPeer(publicKey)
-	p.logger.Verbosef("peer: %v, key: %v", peer, publicKey)
-	p.logger.Infof("peer to: %v, allowIps: %v, remote addr: %v", publicKey, peer.AllowedIPs, addr)
+
+	switch p.connectType {
+	case internal.DrpType:
+		addr = fmt.Sprintf("drp:to=%s//%s", publicKey, addr)
+	case internal.DirectType:
+
+	}
+
 	if err = p.wgConfiger.AddPeer(&internal.SetPeer{
 		PublicKey:            publicKey,
 		Endpoint:             addr,
@@ -225,13 +245,13 @@ func (p *prober) ProbeSuccess(publicKey, addr string) error {
 		return err
 	}
 
-	p.logger.Infof("peer connect to %s success", addr)
 	internal.SetRoute(p.logger)("add", peer.Address, p.wgConfiger.GetIfaceName())
+	p.logger.Infof("peer connect to %s success", addr)
 
 	return nil
 }
 
-func (p *prober) ProbeFailed(checker internal.Checker, offer internal.Offer) error {
+func (p *probe) ProbeFailed(ctx context.Context, checker internal.Checker, offer internal.Offer) error {
 	defer func() {
 		p.UpdateConnectionState(internal.ConnectionStateFailed)
 	}()
@@ -239,22 +259,23 @@ func (p *prober) ProbeFailed(checker internal.Checker, offer internal.Offer) err
 	return linkerrors.ErrProbeFailed
 }
 
-func (p *prober) IsForceRelay() bool {
+func (p *probe) IsForceRelay() bool {
 	return p.isForceRelay
 }
 
-func (p *prober) Start(srcKey, dstKey string) error {
+func (p *probe) Start(ctx context.Context, srcKey, dstKey string) error {
 	p.lastCheck = time.Now()
-	p.logger.Infof("prober start, srcKey: %v, dstKey: %v, isForceRelay: %v,  connection state: %v", srcKey, dstKey, p.isForceRelay, p.connectionState)
+	p.logger.Infof("probe start, srcKey: %v, dstKey: %v, connection type: %v,  connection state: %v", srcKey, dstKey, p.connectType, p.connectionState)
 	switch p.connectionState {
 	case internal.ConnectionStateConnected:
 		return nil
 	case internal.ConnectionStateNew:
 		p.UpdateConnectionState(internal.ConnectionStateChecking)
-		if p.isForceRelay {
-			return p.SendOffer(drpgrpc.MessageType_MessageRelayOfferType, srcKey, dstKey)
-		} else {
-			return p.SendOffer(drpgrpc.MessageType_MessageDirectOfferType, srcKey, dstKey)
+		switch p.connectType {
+		case internal.DrpType:
+			return p.SendOffer(ctx, drpgrpc.MessageType_MessageDrpOfferType, srcKey, dstKey)
+		case internal.DirectType:
+			return p.SendOffer(ctx, drpgrpc.MessageType_MessageDirectOfferType, srcKey, dstKey)
 		}
 
 	default:
@@ -263,7 +284,12 @@ func (p *prober) Start(srcKey, dstKey string) error {
 	return nil
 }
 
-func (p *prober) SendOffer(msgType drpgrpc.MessageType, srcKey, dstKey string) error {
+func (p *probe) SetConnectType(connType internal.ConnectType) {
+	p.connectType = connType
+	p.logger.Infof("set connect type: %v", connType)
+}
+
+func (p *probe) SendOffer(ctx context.Context, msgType drpgrpc.MessageType, from, to string) error {
 	var err error
 	var relayAddr *net.UDPAddr
 	var info *client.RelayInfo
@@ -274,9 +300,13 @@ func (p *prober) SendOffer(msgType drpgrpc.MessageType, srcKey, dstKey string) e
 	}()
 
 	var offer internal.Offer
-	ufrag, pwd, err := p.GetCredentials()
 	switch msgType {
 	case drpgrpc.MessageType_MessageDirectOfferType, drpgrpc.MessageType_MessageDirectOfferAnswerType:
+		ufrag, pwd, err := p.GetCredentials()
+		if err != nil {
+			p.UpdateConnectionState(internal.ConnectionStateFailed)
+			return err
+		}
 		candidates := p.GetCandidates(p.agent)
 		offer = direct.NewOffer(&direct.DirectOfferConfig{
 			WgPort:     51820,
@@ -284,7 +314,7 @@ func (p *prober) SendOffer(msgType drpgrpc.MessageType, srcKey, dstKey string) e
 			Pwd:        pwd,
 			LocalKey:   p.TieBreaker(),
 			Candidates: candidates,
-			Node:       p.nodeManager.GetPeer(srcKey),
+			Node:       p.nodeManager.GetPeer(from),
 		})
 	case drpgrpc.MessageType_MessageRelayOfferType:
 		relayInfo, err := p.turnClient.GetRelayInfo(true)
@@ -314,43 +344,39 @@ func (p *prober) SendOffer(msgType drpgrpc.MessageType, srcKey, dstKey string) e
 		})
 	case drpgrpc.MessageType_MessageDrpOfferType, drpgrpc.MessageType_MessageDrpOfferAnswerType:
 		offer = drp.NewOffer(&drp.DrpOfferConfig{
-			Node: p.nodeManager.GetPeer(srcKey),
+			Node: p.nodeManager.GetPeer(from),
 		})
 	default:
 		err = errors.New("unsupported message type")
 		return err
 	}
 
-	err = p.offerHandler.SendOffer(msgType, srcKey, dstKey, offer)
+	err = p.offerHandler.SendOffer(ctx, msgType, from, to, offer)
 	return err
 }
 
-func (p *prober) TieBreaker() uint64 {
+func (p *probe) TieBreaker() uint64 {
 	return p.GetProbeAgent().GetTieBreaker()
 }
 
-func (p *prober) Clear(pubKey string) {
+func (p *probe) Clear(pubKey string) {
 	p.closeMux.Lock()
 	defer func() {
-		p.logger.Infof("prober clearing: %v, remove agent and prober success", pubKey)
-		p.proberClosed.Store(true)
+		p.logger.Infof("probe clearing: %v, remove agent and probe success", pubKey)
 		p.closeMux.Unlock()
 	}()
 	p.agent.Close()
-	p.proberManager.Remove(pubKey)
-	if !p.proberClosed.Load() {
-		close(p.done)
-	}
+	p.probeManager.RemoveProbe(pubKey)
 }
 
-func (p *prober) GetCredentials() (string, string, error) {
+func (p *probe) GetCredentials() (string, string, error) {
 	return p.GetProbeAgent().GetLocalUserCredentials()
 }
 
-func (p *prober) GetLastCheck() time.Time {
+func (p *probe) GetLastCheck() time.Time {
 	return p.lastCheck
 }
 
-func (p *prober) UpdateLastCheck() {
+func (p *probe) UpdateLastCheck() {
 	p.lastCheck = time.Now()
 }

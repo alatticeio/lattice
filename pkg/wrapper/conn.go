@@ -16,6 +16,7 @@ import (
 	"net/netip"
 	"runtime"
 	"strconv"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -27,7 +28,7 @@ var (
 
 // NetBind implements Bind for all platforms. While Windows has its own Bind
 // (see bind_windows.go), it may fall back to NetBind.
-// TODO: Remove usage of ipv{4,6}.PacketConn when net.UDPConn has comparable
+// TODO: RemoveProbe usage of ipv{4,6}.PacketConn when net.UDPConn has comparable
 // methods for sending and receiving multiple datagrams per-syscall. See the
 // proposal in https://github.com/golang/go/issues/45886#issuecomment-1218301564.
 type NetBind struct {
@@ -36,9 +37,8 @@ type NetBind struct {
 	universalUdpMux *ice.UniversalUDPMuxDefault
 	conn            net.Conn // drp client conn
 	node            *drp.Node
-	Publikey        wgtypes.Key
-	drpClient       *drpclient.Client                // drpclient using grpc to connect to drp server receiving data.
-	dstConns        map[conn.Endpoint]net.PacketConn // destination conn
+	PublicKey       wgtypes.Key
+	keyManager      internal.KeyManager
 
 	proxy *drpclient.Proxy
 
@@ -66,18 +66,17 @@ type BindConfig struct {
 	Logger          *log.Logger
 	V4Conn          *net.UDPConn
 	UniversalUDPMux *ice.UniversalUDPMuxDefault
-	DrpClient       *drpclient.Client
 	Proxy           *drpclient.Proxy
+	KeyManager      internal.KeyManager
 }
 
 func NewBind(cfg *BindConfig) *NetBind {
 	return &NetBind{
 		logger:          cfg.Logger,
-		drpClient:       cfg.DrpClient,
 		proxy:           cfg.Proxy,
-		dstConns:        make(map[conn.Endpoint]net.PacketConn),
 		v4conn:          cfg.V4Conn,
 		universalUdpMux: cfg.UniversalUDPMux,
+		keyManager:      cfg.KeyManager,
 		udpAddrPool: sync.Pool{
 			New: func() any {
 				return &net.UDPAddr{
@@ -119,15 +118,45 @@ func (b *NetBind) GetPackectConn6() net.PacketConn {
 	return b.ipv6
 }
 
-// ParseEndpoint when the endpoint is relay, will add a flag 'true' to anyEndpoint
+// ParseEndpoint there is throw kind of endpoint now, direct、drp and relay endpoint
+// when it is direct, s can be parse to netip.AddrPort like 'xx.xx.xx.xx:port'
+// when it is drp, s like 'drp:to=xxx//xx.xx.xx.xx:port'
+// when it is relay, like 'relay://xx.xx.xx.xx:port'
 func (b *NetBind) ParseEndpoint(s string) (conn.Endpoint, error) {
+	if strings.HasPrefix(s, "drp:") {
+		prefix, after, isExists := strings.Cut(s, "//")
+		if !isExists {
+			return nil, errors.New("invalid drp endpoint format, missing '//'")
+		}
+
+		e, err := netip.ParseAddrPort(after)
+		if err != nil {
+			return nil, err
+		}
+
+		// get To
+		_, to, isExists := strings.Cut(prefix, "=")
+		if !isExists {
+			return nil, errors.New("invalid drp endpoint format, missing 'to='")
+		}
+		return &internal.LinkEndpoint{
+			Drp: &struct {
+				Status   bool
+				From     string
+				To       string
+				Endpoint netip.AddrPort
+			}{Status: true, From: b.keyManager.GetPublicKey(), To: to, Endpoint: e},
+		}, nil
+	}
 	e, err := netip.ParseAddrPort(s)
 	if err != nil {
 		return nil, err
 	}
-	return &internal.RemoteEndpoint{
-		AddrPort: e,
+
+	return &internal.LinkEndpoint{
+		Direct: struct{ AddrPort netip.AddrPort }{AddrPort: e},
 	}, nil
+
 }
 
 // listenNet will return udp and tcp conn on the same port.
@@ -185,10 +214,10 @@ func (b *NetBind) Open(uport uint16) ([]conn.ReceiveFunc, uint16, error) {
 		return nil, 0, syscall.EAFNOSUPPORT
 	}
 
-	if b.drpClient != nil {
+	if b.proxy != nil {
 		go func() {
 			for {
-				if err := b.drpClient.HandleMessage(context.Background(), b.proxy); err != nil {
+				if err := b.proxy.Start(); err != nil {
 					b.logger.Errorf("handle drp message error: %v, after 1s retry", err)
 					time.Sleep(1 * time.Second)
 				}
@@ -203,7 +232,7 @@ func (b *NetBind) Open(uport uint16) ([]conn.ReceiveFunc, uint16, error) {
 // makeReceiveDrp will receive data from drp server, using grpc transport.
 // It will return a conn.ReceiveFunc that can be used to receive data from the drp server.
 func (b *NetBind) makeReceiveDrp() conn.ReceiveFunc {
-	return b.proxy.Receive()
+	return b.proxy.MakeReceiveFromDrp()
 }
 
 func (b *NetBind) makeReceiveIPv4(pc *ipv4.PacketConn, udpConn *net.UDPConn) conn.ReceiveFunc {
@@ -244,7 +273,9 @@ func (b *NetBind) makeReceiveIPv4(pc *ipv4.PacketConn, udpConn *net.UDPConn) con
 
 			sizes[i] = msg.N
 			addrPort := msg.Addr.(*net.UDPAddr).AddrPort()
-			ep := &internal.RemoteEndpoint{AddrPort: addrPort} // TODO: remove allocation
+			ep := &internal.LinkEndpoint{
+				Direct: struct{ AddrPort netip.AddrPort }{AddrPort: addrPort},
+			} // TODO: remove allocation
 			getSrcFromControl(msg.OOB[:msg.NN], ep)
 			eps[i] = ep
 		}
@@ -277,7 +308,7 @@ func (b *NetBind) makeReceiveIPv6(pc *ipv6.PacketConn, udpConn *net.UDPConn) con
 			msg := &(*msgs)[i]
 			sizes[i] = msg.N
 			addrPort := msg.Addr.(*net.UDPAddr).AddrPort()
-			ep := &internal.RemoteEndpoint{AddrPort: addrPort} // TODO: remove allocation
+			ep := &internal.LinkEndpoint{Direct: struct{ AddrPort netip.AddrPort }{AddrPort: addrPort}} // TODO: remove allocation
 			getSrcFromControl(msg.OOB[:msg.NN], ep)
 			eps[i] = ep
 		}
@@ -323,6 +354,17 @@ func (b *NetBind) Close() error {
 }
 
 func (b *NetBind) Send(bufs [][]byte, endpoint conn.Endpoint) error {
+	// add drp write
+	if v, _ := endpoint.(internal.DrpEndpoint); v.FromDrp() {
+		if b.proxy == nil {
+			return errors.New("proxy is nil, please set proxy first")
+		}
+		if err := b.proxy.Send(endpoint, bufs); err != nil {
+			return err
+		}
+		return nil
+	}
+
 	b.mu.Lock()
 	blackhole := b.blackhole4
 	conn := b.ipv4
@@ -348,17 +390,6 @@ func (b *NetBind) Send(bufs [][]byte, endpoint conn.Endpoint) error {
 		return syscall.EAFNOSUPPORT
 	}
 
-	// add drp write
-	if ep := b.dstConns[endpoint]; ep != nil {
-		addr, err := net.ResolveUDPAddr("udp", endpoint.DstToString())
-		if err != nil {
-			return err
-		}
-		_, err = ep.WriteTo(bufs[0], addr)
-		if err != nil {
-			return err
-		}
-	}
 	if is6 {
 		return b.send6(conn, pc6, endpoint, bufs)
 	}
@@ -371,12 +402,12 @@ func (b *NetBind) send4(conn *net.UDPConn, pc *ipv4.PacketConn, ep conn.Endpoint
 	as4 := ep.DstIP().As4()
 	copy(ua.IP, as4[:])
 	ua.IP = ua.IP[:4]
-	ua.Port = int(ep.(*internal.RemoteEndpoint).Port())
+	ua.Port = int(ep.(*internal.LinkEndpoint).Direct.AddrPort.Port())
 	msgs := b.ipv4MsgsPool.Get().(*[]ipv4.Message)
 	for i, buf := range bufs {
 		(*msgs)[i].Buffers[0] = buf
 		(*msgs)[i].Addr = ua
-		setSrcControl(&(*msgs)[i].OOB, ep.(*internal.RemoteEndpoint))
+		setSrcControl(&(*msgs)[i].OOB, ep.(*internal.LinkEndpoint))
 	}
 	var (
 		n     int
@@ -408,13 +439,13 @@ func (b *NetBind) send6(conn *net.UDPConn, pc *ipv6.PacketConn, ep conn.Endpoint
 	ua := b.udpAddrPool.Get().(*net.UDPAddr)
 	as16 := ep.DstIP().As16()
 	copy(ua.IP, as16[:])
-	ua.IP = ua.IP[:16]
-	ua.Port = int(ep.(*internal.RemoteEndpoint).Port())
+	//ua.IP = ua.IP[:16]
+	//ua.Port = int(ep.(*internal.LinkEndpoint).Port())
 	msgs := b.ipv6MsgsPool.Get().(*[]ipv6.Message)
 	for i, buf := range bufs {
 		(*msgs)[i].Buffers[0] = buf
 		(*msgs)[i].Addr = ua
-		setSrcControl(&(*msgs)[i].OOB, ep.(*internal.RemoteEndpoint))
+		setSrcControl(&(*msgs)[i].OOB, ep.(*internal.LinkEndpoint))
 	}
 	var (
 		n     int
@@ -440,15 +471,4 @@ func (b *NetBind) send6(conn *net.UDPConn, pc *ipv6.PacketConn, ep conn.Endpoint
 	b.udpAddrPool.Put(ua)
 	b.ipv6MsgsPool.Put(msgs)
 	return err
-}
-
-func (b *NetBind) SetEndpoint(addr net.Addr, conn net.PacketConn) error {
-	endpoint, err := b.ParseEndpoint(addr.String())
-	if err != nil {
-		return err
-	}
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	b.dstConns[endpoint] = conn
-	return nil
 }

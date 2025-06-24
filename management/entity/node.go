@@ -1,6 +1,7 @@
 package entity
 
 import (
+	"linkany/internal"
 	"linkany/management/utils"
 	"linkany/management/vo"
 )
@@ -38,6 +39,7 @@ type Node struct {
 	PrivateKey          string `gorm:"column:private_key;size:50" json:"private_key"`
 	AllowedIPs          string `gorm:"column:allowed_ips;size:50" json:"allowed_ips"`
 	RelayIP             string `gorm:"column:relay_ip;size:100" json:"relay_ip"`
+	DrpAddr             string `gorm:"column:drp_addr;size:300" json:"drp_addr"` // drp server address, if is drp node
 	TieBreaker          uint32 `gorm:"column:tie_breaker" json:"tie_breaker"`
 	Ufrag               string `gorm:"column:ufrag;size:30" json:"ufrag"`
 	Owner               string
@@ -45,6 +47,7 @@ type Node struct {
 	Port                int              `gorm:"column:port" json:"port"`
 	Status              utils.NodeStatus `gorm:"type:int;column:status" json:"status"`
 	ActiveStatus        utils.ActiveStatus
+	ConnectType         internal.ConnectType // direct, relay, drp
 
 	Group      GroupNode   `gorm:"foreignKey:GroupId;"`
 	NodeLabels []NodeLabel `gorm:"foreignKey:NodeId;"`

@@ -3,7 +3,6 @@ package drp
 import (
 	"encoding/json"
 	"linkany/internal"
-	"linkany/management/utils"
 )
 
 var (
@@ -11,11 +10,11 @@ var (
 )
 
 type DrpOffer struct {
-	Node *utils.NodeMessage `json:"node,omitempty"` // Node information, if needed
+	Node *internal.NodeMessage `json:"node,omitempty"` // Node information, if needed
 }
 
 type DrpOfferConfig struct {
-	Node *utils.NodeMessage `json:"node,omitempty"` // Node information, if needed
+	Node *internal.NodeMessage `json:"node,omitempty"` // Node information, if needed
 }
 
 func NewOffer(cfg *DrpOfferConfig) *DrpOffer {
@@ -39,7 +38,7 @@ func (d *DrpOffer) TieBreaker() uint64 {
 	return 0
 }
 
-func (d *DrpOffer) GetNode() *utils.NodeMessage {
+func (d *DrpOffer) GetNode() *internal.NodeMessage {
 	return d.Node
 }
 

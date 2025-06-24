@@ -39,8 +39,8 @@ const (
 	ENABLED
 )
 
-func (a Status) String() string {
-	switch a {
+func (s Status) String() string {
+	switch s {
 	case DISABLED:
 		return "disabled"
 	case ENABLED:
@@ -84,8 +84,8 @@ const (
 	TagToTag
 )
 
-func (a RuleType) String() string {
-	switch a {
+func (r RuleType) String() string {
+	switch r {
 	case NodeToNode:
 		return "节点到节点"
 	case NodeToTag:

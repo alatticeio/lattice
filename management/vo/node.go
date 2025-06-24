@@ -1,6 +1,7 @@
 package vo
 
 import (
+	"linkany/internal"
 	"linkany/management/utils"
 	"time"
 
@@ -56,28 +57,29 @@ func NewLabelResourceVo() *LabelResourceVo {
 }
 
 type NodeVo struct {
-	ID                  uint64             `json:"id,string"`
-	Name                string             `json:"name,omitempty"`
-	Description         string             `json:"description,omitempty"`
-	GroupID             uint64             `json:"groupID,omitempty"`   // belong to which group
-	CreatedBy           string             `json:"createdBy,omitempty"` // ownerID
-	UserId              uint64             `json:"userId,omitempty"`
-	Hostname            string             `json:"hostname,omitempty"`
-	AppID               string             `json:"appId,omitempty"`
-	Address             string             `json:"address,omitempty"`
-	Endpoint            string             `json:"endpoint,omitempty"`
-	PersistentKeepalive int                `json:"persistentKeepalive,omitempty"`
-	PublicKey           string             `json:"publicKey,omitempty"`
-	AllowedIPs          string             `json:"allowedIps,omitempty"`
-	RelayIP             string             `json:"relayIp,omitempty"`
-	TieBreaker          uint32             `json:"tieBreaker"`
-	Ufrag               string             `json:"ufrag"`
-	Pwd                 string             `json:"pwd"`
-	Port                int                `json:"port"`
-	Status              utils.NodeStatus   `json:"status"`
-	ActiveStatus        utils.ActiveStatus `json:"activeStatus"`
-	GroupName           string             `json:"groupName"`
-	Version             uint64             `json:"version"`
-	LastUpdatedAt       time.Time          `json:"lastUpdatedAt"`
+	ID                  uint64               `json:"id,string"`
+	Name                string               `json:"name,omitempty"`
+	Description         string               `json:"description,omitempty"`
+	GroupID             uint64               `json:"groupID,omitempty"`   // belong to which group
+	CreatedBy           string               `json:"createdBy,omitempty"` // ownerID
+	UserId              uint64               `json:"userId,omitempty"`
+	Hostname            string               `json:"hostname,omitempty"`
+	AppID               string               `json:"appId,omitempty"`
+	Address             string               `json:"address,omitempty"`
+	Endpoint            string               `json:"endpoint,omitempty"`
+	PersistentKeepalive int                  `json:"persistentKeepalive,omitempty"`
+	PublicKey           string               `json:"publicKey,omitempty"`
+	AllowedIPs          string               `json:"allowedIps,omitempty"`
+	RelayIP             string               `json:"relayIp,omitempty"`
+	TieBreaker          uint32               `json:"tieBreaker"`
+	Ufrag               string               `json:"ufrag"`
+	Pwd                 string               `json:"pwd"`
+	Port                int                  `json:"port"`
+	Status              utils.NodeStatus     `json:"status"`
+	ActiveStatus        utils.ActiveStatus   `json:"activeStatus"`
+	GroupName           string               `json:"groupName"`
+	Version             uint64               `json:"version"`
+	LastUpdatedAt       time.Time            `json:"lastUpdatedAt"`
+	ConnectType         internal.ConnectType `json:"connectType"` // direct, relay, drp
 	*LabelResourceVo
 }

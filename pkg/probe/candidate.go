@@ -5,7 +5,7 @@ import (
 	"linkany/internal"
 )
 
-func (p *prober) GetCandidates(agent *internal.Agent) string {
+func (p *probe) GetCandidates(agent *internal.Agent) string {
 	var (
 		err        error
 		candidates []ice.Candidate

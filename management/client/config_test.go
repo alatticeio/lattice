@@ -2,13 +2,14 @@ package client
 
 import (
 	"fmt"
+	"linkany/internal"
 	"linkany/pkg/config"
 	"testing"
 )
 
 func TestDeviceConf_String(t *testing.T) {
-	d := &config.DeviceConf{
-		Device: &config.DeviceConfig{
+	d := &internal.DeviceConf{
+		Device: &internal.DeviceConfig{
 			PrivateKey:   "vVqSz6YQor7p//Shkgu7aHj6HoosXyrx9UlPhbwoDzs=",
 			ListenPort:   51820,
 			Fwmark:       0,

@@ -1,9 +1,5 @@
 package internal
 
-import (
-	"linkany/pkg/config"
-)
-
 // ConfigureManager is the interface for configuring WireGuard interfaces.
 type ConfigureManager interface {
 	// ConfigureWG configures the WireGuard interface.
@@ -15,7 +11,7 @@ type ConfigureManager interface {
 
 	GetIfaceName() string
 
-	GetPeersManager() *config.NodeManager
+	GetPeersManager() *NodeManager
 
 	RemovePeer(peer *SetPeer) error
 	//

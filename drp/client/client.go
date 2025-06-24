@@ -3,12 +3,14 @@ package client
 import (
 	"context"
 	"encoding/json"
-	"fmt"
+	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/status"
+	"linkany/internal"
+
 	"io"
 	drpgrpc "linkany/drp/grpc"
 	"linkany/pkg/log"
@@ -20,12 +22,14 @@ type Client struct {
 	conn   *grpc.ClientConn
 	client drpgrpc.DrpServerClient
 
-	done     chan struct{}
-	clientID string
-	config   struct {
+	done   chan struct{}
+	from   string
+	config struct {
 		heartbeatInterval time.Duration
 		timeout           time.Duration
 	}
+	proxy      *Proxy
+	keyManager internal.KeyManager
 }
 
 type ClientConfig struct {
@@ -41,24 +45,35 @@ type Heart struct {
 }
 
 func NewClient(cfg *ClientConfig) (*Client, error) {
-	keepAliveArgs := keepalive.ClientParameters{
-		Time:                10 * time.Second,
-		Timeout:             3 * time.Second,
-		PermitWithoutStream: true,
+
+	// grpc连接优化
+	opts := []grpc.DialOption{
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithInitialWindowSize(1 << 24),
+		grpc.WithInitialConnWindowSize(1 << 24),
+		//compress
+		grpc.WithDefaultCallOptions(
+			grpc.MaxCallSendMsgSize(4*1024*1024),
+			grpc.MaxCallRecvMsgSize(4*1024*1024),
+		),
+		grpc.WithKeepaliveParams(keepalive.ClientParameters{
+			Time:                30 * time.Second,
+			Timeout:             10 * time.Second,
+			PermitWithoutStream: true,
+		}),
 	}
 	// Set up a connection to the server.
-	conn, err := grpc.NewClient(cfg.Addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.NewClient(cfg.Addr, opts...)
 	if err != nil {
 		cfg.Logger.Errorf("connect failed: %v", err)
 		return nil, err
 	}
-	grpc.WithKeepaliveParams(keepAliveArgs)
 	c := drpgrpc.NewDrpServerClient(conn)
 	return &Client{
-		conn:     conn,
-		client:   c,
-		clientID: cfg.ClientID,
-		logger:   cfg.Logger,
+		conn:   conn,
+		client: c,
+		from:   cfg.ClientID,
+		logger: cfg.Logger,
 		config: struct {
 			heartbeatInterval time.Duration
 			timeout           time.Duration
@@ -69,27 +84,40 @@ func NewClient(cfg *ClientConfig) (*Client, error) {
 	}, nil
 }
 
-func (c *Client) HandleMessage(ctx context.Context, proxy *Proxy) error {
+func (c *Client) Proxy(proxy *Proxy) *Client {
+	c.proxy = proxy
+	return c
+}
+
+func (c *Client) KeyManager(manager internal.KeyManager) *Client {
+	c.keyManager = manager
+	return c
+}
+
+func (c *Client) HandleMessage(ctx context.Context, outBoundQueue chan *drpgrpc.DrpMessage, receive func(ctx context.Context, msg *drpgrpc.DrpMessage) error) error {
 	stream, err := c.client.HandleMessage(ctx)
 	if err != nil {
 		return err
 	}
 
-	errChan := make(chan error)
-	go c.sendMessages(stream, proxy.outBoundQueue, errChan)
-	go c.receiveMessages(stream, errChan, proxy.ReceiveMessage)
+	g, ctx := errgroup.WithContext(ctx)
 
-	select {
-	case err = <-errChan:
-		if err == io.EOF {
-			return nil
-		}
-		if status.Code(err) == codes.Canceled {
-			c.logger.Infof("stream closed")
-			return nil
-		}
+	if err := stream.SendMsg(&drpgrpc.DrpMessage{
+		From:    c.keyManager.GetPublicKey(),
+		MsgType: drpgrpc.MessageType_MessageRegisterType,
+	}); err != nil {
 		return err
 	}
+
+	g.Go(func() error {
+		return c.sendLoop(stream, outBoundQueue)
+	})
+
+	g.Go(func() error {
+		return c.receiveLoop(stream, receive)
+	})
+
+	return g.Wait()
 }
 
 func (c *Client) Heartbeat(ctx context.Context, proxy *Proxy, clientId string) error {
@@ -108,11 +136,11 @@ func (c *Client) Heartbeat(ctx context.Context, proxy *Proxy, clientId string) e
 			return err
 		}
 
-		proxy.outBoundQueue <- &drpgrpc.DrpMessage{
-			From:    clientId,
-			MsgType: drpgrpc.MessageType_MessageHeartBeatType,
-			Body:    body,
-		}
+		drpMessage := proxy.GetMessageFromPool()
+		drpMessage.From = clientId
+		drpMessage.MsgType = drpgrpc.MessageType_MessageHeartBeatType
+		drpMessage.Body = body
+		proxy.outBoundQueue <- drpMessage
 
 		return nil
 	}
@@ -130,37 +158,30 @@ func (c *Client) Heartbeat(ctx context.Context, proxy *Proxy, clientId string) e
 	}
 }
 
-func (c *Client) receiveMessages(stream drpgrpc.DrpServer_HandleMessageClient, errChan chan error, callback func(message *drpgrpc.DrpMessage) error) {
+func (c *Client) receiveLoop(stream drpgrpc.DrpServer_HandleMessageClient, callback func(ctx context.Context, message *drpgrpc.DrpMessage) error) error {
 	for {
 		msg, err := stream.Recv()
-		c.logger.Verbosef("signaling received message >>>>>>>>>>>>>>>>>: %v", msg)
 		if err != nil {
 			s, ok := status.FromError(err)
 			if ok && s.Code() == codes.Canceled {
-				c.logger.Infof("stream canceled")
-				errChan <- fmt.Errorf("stream canceled")
-				return
+				return err
 			} else if err == io.EOF {
-				c.logger.Infof("stream closed")
-				errChan <- fmt.Errorf("stream closed")
-				return
+				return err
 			}
 
-			c.logger.Errorf("recv message failed: %v", err)
-			errChan <- fmt.Errorf("recv message failed: %v", err)
-			return
+			return err
 		}
 
+		c.logger.Infof("received message msgType: %v, from %s, to: %v, data: %v", msg.MsgType, msg.From, msg.To, msg.Body)
 		switch msg.MsgType {
 		case drpgrpc.MessageType_MessageHeartBeatType:
-			c.logger.Infof("received heartbeat message from %s, content: %v", msg.From, string(msg.Body))
 		default:
-			callback(msg)
+			callback(context.Background(), msg)
 		}
 	}
 }
 
-func (c *Client) sendMessages(stream drpgrpc.DrpServer_HandleMessageClient, ch chan *drpgrpc.DrpMessage, errChan chan error) {
+func (c *Client) sendLoop(stream drpgrpc.DrpServer_HandleMessageClient, ch chan *drpgrpc.DrpMessage) error {
 	for {
 		select {
 		case msg := <-ch:
@@ -168,20 +189,19 @@ func (c *Client) sendMessages(stream drpgrpc.DrpServer_HandleMessageClient, ch c
 				s, ok := status.FromError(err)
 				if ok && s.Code() == codes.Canceled {
 					c.logger.Infof("stream canceled")
-					errChan <- fmt.Errorf("stream canceled")
-					return
+					return err
 				} else if err == io.EOF {
 					c.logger.Infof("stream closed")
-					errChan <- fmt.Errorf("stream closed")
-					return
+					return err
 				}
 
 				c.logger.Errorf("send message failed: %v", err)
-				errChan <- fmt.Errorf("send message failed: %v", err)
-				return
+				c.proxy.PutMessageToPool(msg)
+				return err
 			}
 
-			c.logger.Verbosef("send data to signaling service, from: %v, to: %v, msgType: %v", msg.From, msg.To, msg.MsgType)
+			c.logger.Verbosef("send data to drp server msgType: %v, from: %v, to: %v,", msg.MsgType, msg.From, msg.To)
+			c.proxy.PutMessageToPool(msg)
 		}
 	}
 }

@@ -48,12 +48,12 @@ func NewRelayChecker(config *RelayCheckerConfig) *relayChecker {
 	}
 }
 
-func (c *relayChecker) ProbeSuccess(addr string) error {
-	return c.prober.ProbeSuccess(c.dstKey, addr)
+func (c *relayChecker) ProbeSuccess(ctx context.Context, addr string) error {
+	return c.prober.ProbeSuccess(ctx, c.dstKey, addr)
 }
 
-func (c *relayChecker) ProbeFailure(offer internal.Offer) error {
-	return c.prober.ProbeFailed(c, offer)
+func (c *relayChecker) ProbeFailure(ctx context.Context, offer internal.Offer) error {
+	return c.prober.ProbeFailed(ctx, c, offer)
 }
 
 type RelayMessage struct {
@@ -68,27 +68,27 @@ func (c *relayChecker) ProbeConnect(ctx context.Context, isControlling bool, rel
 	offer := relayOffer.(*relay.RelayOffer)
 	switch relayOffer.OfferType() {
 	case internal.OfferTypeRelayOffer:
-		return c.ProbeSuccess(offer.RelayConn.String())
+		return c.ProbeSuccess(ctx, offer.RelayConn.String())
 	case internal.OfferTypeRelayAnswer:
-		return c.ProbeSuccess(offer.MappedAddr.String())
+		return c.ProbeSuccess(ctx, offer.MappedAddr.String())
 	}
 
-	return c.ProbeFailure(offer)
+	return c.ProbeFailure(ctx, offer)
 }
 
-func (c *relayChecker) HandleOffer(offer internal.Offer) error {
+func (c *relayChecker) HandleOffer(ctx context.Context, offer internal.Offer) error {
 	// set the destination permission
 	relayOffer := offer.(*relay.RelayOffer)
 
 	switch offer.OfferType() {
 	case internal.OfferTypeRelayOffer:
 
-		if err := c.prober.SendOffer(drpgrpc.MessageType_MessageRelayAnswerType, c.key, c.dstKey); err != nil {
+		if err := c.prober.SendOffer(ctx, drpgrpc.MessageType_MessageRelayAnswerType, c.key, c.dstKey); err != nil {
 			return err
 		}
-		return c.ProbeSuccess(relayOffer.RelayConn.String())
+		return c.ProbeSuccess(ctx, relayOffer.RelayConn.String())
 	case internal.OfferTypeRelayAnswer:
-		return c.ProbeSuccess(relayOffer.MappedAddr.String())
+		return c.ProbeSuccess(ctx, relayOffer.MappedAddr.String())
 	}
 
 	return nil
@@ -101,6 +101,6 @@ func (c *relayChecker) writeTo(buf []byte, addr net.Addr) {
 	}
 }
 
-//func (c *relayChecker) SetProber(prober *prober) {
-//	c.prober = prober
+//func (c *relayChecker) SetProber(probe *probe) {
+//	c.probe = probe
 //}

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	wg "golang.zx2c4.com/wireguard/device"
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
-	"linkany/pkg/config"
 	"strconv"
 	"strings"
 )
@@ -66,7 +65,7 @@ type wgConfigure struct {
 	device       *wg.Device
 	address      string
 	ifaceName    string
-	peersManager *config.NodeManager
+	peersManager *NodeManager
 }
 
 func (w *wgConfigure) GetAddress() string {
@@ -77,7 +76,7 @@ func (w *wgConfigure) GetIfaceName() string {
 	return w.ifaceName
 }
 
-func (w *wgConfigure) GetPeersManager() *config.NodeManager {
+func (w *wgConfigure) GetPeersManager() *NodeManager {
 	return w.peersManager
 }
 
@@ -85,7 +84,7 @@ type WGConfigerParams struct {
 	Device       *wg.Device
 	IfaceName    string
 	Address      string
-	PeersManager *config.NodeManager
+	PeersManager *NodeManager
 }
 
 func (w *wgConfigure) ConfigureWG() error {

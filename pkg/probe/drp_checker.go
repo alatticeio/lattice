@@ -2,7 +2,6 @@ package probe
 
 import (
 	"context"
-	drpgrpc "linkany/drp/grpc"
 	"linkany/internal"
 	"linkany/pkg/log"
 )
@@ -36,30 +35,14 @@ func NewDrpChecker(cfg *DrpCheckerConfig) *drpChecker {
 	}
 }
 
-func (d *drpChecker) HandleOffer(offer internal.Offer) error {
-	var err error
-	switch offer.OfferType() {
-	case internal.OfferTypeDrpOffer:
-		// Handle DRP offer
-		if err = d.probe.SendOffer(drpgrpc.MessageType_MessageDrpOfferAnswerType, d.from, d.to); err != nil {
-			return err
-		}
-
-		return d.ProbeSuccess(d.to)
-	case internal.OfferTypeDrpOfferAnswer:
-		return d.ProbeSuccess(d.to)
-	}
-	return nil
-}
-
 func (d *drpChecker) ProbeConnect(ctx context.Context, isControlling bool, remoteOffer internal.Offer) error {
-	return d.ProbeSuccess(d.drpAddr)
+	return d.ProbeSuccess(ctx, d.drpAddr)
 }
 
-func (d *drpChecker) ProbeSuccess(addr string) error {
-	return d.probe.ProbeSuccess(d.to, addr)
+func (d *drpChecker) ProbeSuccess(ctx context.Context, addr string) error {
+	return d.probe.ProbeSuccess(ctx, d.to, addr)
 }
 
-func (d *drpChecker) ProbeFailure(offer internal.Offer) error {
-	return d.probe.ProbeFailed(d, offer)
+func (d *drpChecker) ProbeFailure(ctx context.Context, offer internal.Offer) error {
+	return d.probe.ProbeFailed(ctx, d, offer)
 }

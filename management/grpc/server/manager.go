@@ -1,15 +1,15 @@
 package server
 
 import (
-	"linkany/management/utils"
+	"linkany/internal"
 )
 
-func CreateChannel(pubKey string) *utils.NodeChannel {
-	manager := utils.NewWatchManager()
+func CreateChannel(pubKey string) *internal.NodeChannel {
+	manager := internal.NewWatchManager()
 	return manager.GetChannel(pubKey)
 }
 
 func RemoveChannel(pubKey string) {
-	manager := utils.NewWatchManager()
+	manager := internal.NewWatchManager()
 	manager.Remove(pubKey)
 }

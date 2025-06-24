@@ -2,7 +2,7 @@ package server
 
 import (
 	"fmt"
-	"linkany/management/utils"
+	"linkany/internal"
 	"testing"
 	"time"
 )
@@ -11,7 +11,7 @@ func TestCreateChannel(t *testing.T) {
 	pubKey := "123456"
 	ch := CreateChannel(pubKey)
 	//ch := make(chan *mgt.HandleWatchMessage, 1000)
-	manager := utils.NewWatchManager()
+	manager := internal.NewWatchManager()
 	//manager.Add(pubKey, ch)
 
 	go func() {
@@ -25,7 +25,7 @@ func TestCreateChannel(t *testing.T) {
 
 	go func() {
 		//manager := utils.NewWatchManager()
-		manager.Push(pubKey, &utils.Message{})
+		manager.Push(pubKey, &internal.Message{})
 	}()
 
 	time.Sleep(1000 * time.Second)

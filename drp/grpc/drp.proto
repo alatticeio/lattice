@@ -14,7 +14,8 @@ message DrpMessage  {
   bytes body = 3;
   int32 encrypt = 4;
   int32 version = 5;
-  MessageType msgType = 6;
+  int64 timestamp = 6;
+  MessageType msgType = 7;
 }
 
 // MessageType defines the type of message
@@ -28,4 +29,6 @@ enum MessageType {
   MessageDRPType = 6;
   MessageDrpOfferType = 7;
   MessageDrpOfferAnswerType = 8;
+  MessageDrpDataType = 9;
+  MessageRegisterType = 10;
 }

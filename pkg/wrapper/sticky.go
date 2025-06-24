@@ -9,12 +9,12 @@ import (
 
 // getSrcFromControl parses the control for PKTINFO and if found updates ep with
 // the source information found.
-func getSrcFromControl(control []byte, ep *internal.RemoteEndpoint) {
+func getSrcFromControl(control []byte, ep *internal.LinkEndpoint) {
 }
 
 // setSrcControl parses the control for PKTINFO and if found updates ep with
 // the source information found.
-func setSrcControl(control *[]byte, ep *internal.RemoteEndpoint) {
+func setSrcControl(control *[]byte, ep *internal.LinkEndpoint) {
 }
 
 // srcControlSize returns the recommended buffer size for pooling sticky control

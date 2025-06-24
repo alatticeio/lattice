@@ -3,7 +3,6 @@ package internal
 import (
 	"context"
 	drpgrpc "linkany/drp/grpc"
-	"linkany/pkg/config"
 	"linkany/pkg/log"
 	"linkany/turn/client"
 	"time"
@@ -11,19 +10,17 @@ import (
 
 type Probe interface {
 	// Start the check process
-	Start(srcKey, dstKey string) error
+	Start(ctx context.Context, srcKey, dstKey string) error
 
-	SendOffer(frameType drpgrpc.MessageType, srcKey, dstKey string) error
+	SendOffer(ctx context.Context, frameType drpgrpc.MessageType, srcKey, dstKey string) error
 
-	HandleOffer(offer Offer) error
+	HandleOffer(ctx context.Context, offer Offer) error
 
 	ProbeConnect(ctx context.Context, offer Offer) error
 
-	ProbeSuccess(publicKey string, conn string) error
+	ProbeSuccess(ctx context.Context, publicKey string, conn string) error
 
-	ProbeFailed(checker Checker, offer Offer) error
-
-	IsForceRelay() bool
+	ProbeFailed(ctx context.Context, checker Checker, offer Offer) error
 
 	GetConnState() ConnectionState
 
@@ -39,8 +36,6 @@ type Probe interface {
 	//Restart when disconnected, restart the probe
 	Restart() error
 
-	GetGatherChan() chan interface{}
-
 	TieBreaker() uint64
 
 	GetCredentials() (string, string, error)
@@ -48,29 +43,31 @@ type Probe interface {
 	GetLastCheck() time.Time
 
 	UpdateLastCheck()
+
+	SetConnectType(connType ConnectType)
 }
 
 type ProbeManager interface {
 	NewAgent(gatherCh chan interface{}, fn func(state ConnectionState) error) (*Agent, error)
-	NewProbe(cfg *ProberConfig) (Probe, error)
+	NewProbe(cfg *ProbeConfig) (Probe, error)
 	AddProbe(key string, probe Probe)
 	GetProbe(key string) Probe
-	Remove(key string)
+	RemoveProbe(key string)
 }
 
-type ProberConfig struct {
+type ProbeConfig struct {
 	Logger                  *log.Logger
 	StunUri                 string
 	IsControlling           bool
 	IsForceRelay            bool
-	ConnType                ConnType
+	ConnType                ConnectType
 	DirectChecker           Checker
 	RelayChecker            Checker
 	LocalKey                uint32
-	OfferManager            OfferHandler
 	WGConfiger              ConfigureManager
+	OfferHandler            OfferHandler
 	ProberManager           ProbeManager
-	NodeManager             *config.NodeManager
+	NodeManager             *NodeManager
 	From                    string
 	To                      string
 	TurnClient              *client.Client
@@ -80,4 +77,6 @@ type ProberConfig struct {
 	Pwd                     string
 	GatherChan              chan interface{}
 	OnConnectionStateChange func(state ConnectionState) error
+
+	ConnectType ConnectType
 }

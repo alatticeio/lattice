@@ -9,7 +9,7 @@ func Start(listen string) error {
 	// Create a new server
 	s, err := server.NewServer(&server.ServerConfig{
 		Listen: listen,
-		Logger: log.NewLogger(log.Loglevel, "signaling"),
+		Logger: log.NewLogger(log.Loglevel, "drp-signaling"),
 	})
 
 	if err != nil {

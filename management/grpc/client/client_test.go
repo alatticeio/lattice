@@ -7,7 +7,6 @@ import (
 	"linkany/internal"
 	pb "linkany/management/grpc/mgt"
 	"linkany/management/grpc/server"
-	"linkany/management/utils"
 	"linkany/management/vo"
 	"linkany/pkg/config"
 	"linkany/pkg/log"
@@ -108,7 +107,7 @@ func TestGrpcClient_Watch(t *testing.T) {
 	err = client.Watch(ctx, &pb.ManagementMessage{
 		PubKey: "a+BYvXq6/xrvsnKbgORSL6lwFzqtfXV0VnTzwdo+Vnw=",
 		Body:   body,
-	}, func(wm *utils.Message) error {
+	}, func(wm *internal.Message) error {
 		fmt.Println(wm)
 		return nil
 	})

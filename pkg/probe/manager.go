@@ -20,6 +20,7 @@ type manager struct {
 	isForceRelay bool
 	agentManager internal.AgentManagerFactory
 	engine       internal.EngineManager
+	offerHandler internal.OfferHandler
 	//relayer internal.Relay
 
 	stunUrl         string
@@ -29,7 +30,6 @@ type manager struct {
 
 func NewManager(isForceRelay bool, udpMux *ice.UDPMuxDefault,
 	universeUdpMux *ice.UniversalUDPMuxDefault,
-	relayer internal.Relay,
 	engineManager internal.EngineManager,
 	stunUrl string) internal.ProbeManager {
 	return &manager{
@@ -63,7 +63,7 @@ func (m *manager) NewAgent(gatherCh chan interface{}, fn func(state internal.Con
 			return
 		}
 
-		m.logger.Verbosef("gathered candidate: %s for %s", candidate.String())
+		m.logger.Verbosef("gathered candidate: %s", candidate.String())
 	}); err != nil {
 		return nil, err
 	}
@@ -88,50 +88,50 @@ func (m *manager) NewAgent(gatherCh chan interface{}, fn func(state internal.Con
 	return agent, nil
 }
 
-// NewProbe creates a new Probe, is a prober manager
-func (m *manager) NewProbe(cfg *internal.ProberConfig) (internal.Probe, error) {
+// NewProbe creates a new Probe, is a probe manager
+func (m *manager) NewProbe(cfg *internal.ProbeConfig) (internal.Probe, error) {
 	m.lock.Lock()
 	defer m.lock.Unlock()
-	probe := m.probers[cfg.To] // check if probe already exists
-	if probe != nil {
-		return probe, nil
+	p := m.probers[cfg.To] // check if probe already exists
+	if p != nil {
+		return p, nil
 	}
 
 	var (
 		err error
 	)
 
-	p := &prober{
+	newProbe := &probe{
 		logger:          log.NewLogger(log.Loglevel, "probe "),
 		connectionState: internal.ConnectionStateNew,
 		gatherCh:        cfg.GatherChan,
 		directChecker:   cfg.DirectChecker,
 		relayChecker:    cfg.RelayChecker,
-		offerHandler:    cfg.OfferManager,
 		wgConfiger:      m.engine.GetWgConfiger(),
-		proberManager:   cfg.ProberManager,
 		nodeManager:     cfg.NodeManager,
+		offerHandler:    cfg.OfferHandler,
 		isForceRelay:    cfg.IsForceRelay,
 		turnClient:      cfg.TurnClient,
 		from:            cfg.From,
 		to:              cfg.To,
 		done:            make(chan interface{}),
+		connectType:     cfg.ConnectType,
 	}
 
-	switch p.connectType {
+	switch newProbe.connectType {
 	case internal.DirectType:
-		if p.agent, err = m.NewAgent(p.gatherCh, p.OnConnectionStateChange); err != nil {
+		if newProbe.agent, err = m.NewAgent(newProbe.gatherCh, p.OnConnectionStateChange); err != nil {
 			return nil, err
 		}
 
-		if err = p.agent.GatherCandidates(); err != nil {
+		if err = newProbe.agent.GatherCandidates(); err != nil {
 			return nil, err
 		}
 	}
 
-	m.probers[cfg.To] = p
+	m.probers[cfg.To] = newProbe
 
-	return p, nil
+	return newProbe, nil
 }
 
 func (m *manager) AddProbe(key string, prober internal.Probe) {
@@ -146,7 +146,7 @@ func (m *manager) GetProbe(key string) internal.Probe {
 	return m.probers[key]
 }
 
-func (m *manager) Remove(key string) {
+func (m *manager) RemoveProbe(key string) {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 	delete(m.probers, key)

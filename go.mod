@@ -1,6 +1,8 @@
 module linkany
 
-go 1.21.12
+go 1.23.0
+
+toolchain go1.23.10
 
 require (
 	github.com/gin-gonic/gin v1.10.0
@@ -17,9 +19,9 @@ require (
 	github.com/shirou/gopsutil/v4 v4.25.2
 	github.com/spf13/cobra v1.8.1
 	github.com/spf13/viper v1.19.0
-	github.com/vishvananda/netlink v1.3.0
 	golang.org/x/crypto v0.28.0
 	golang.org/x/net v0.30.0
+	golang.org/x/sync v0.15.0
 	golang.org/x/sys v0.28.0
 	golang.zx2c4.com/wireguard v0.0.0
 	golang.zx2c4.com/wireguard/wgctrl v0.0.0-20230429144221-925a1e7659e6
@@ -76,7 +78,6 @@ require (
 	github.com/tklauser/numcpus v0.6.1 // indirect
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
 	github.com/ugorji/go/codec v1.2.12 // indirect
-	github.com/vishvananda/netns v0.0.4 // indirect
 	github.com/wlynxg/anet v0.0.3 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	go.uber.org/atomic v1.9.0 // indirect

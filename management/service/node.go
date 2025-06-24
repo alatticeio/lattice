@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"linkany/internal"
 	"linkany/management/dto"
 	"linkany/management/entity"
 	"linkany/management/repository"
@@ -324,10 +325,10 @@ func (n *nodeServiceImpl) GetNetworkMap(ctx context.Context, appId, userId strin
 	// find nodes in group
 	nodes, err = n.nodeRepo.FindIn(ctx, nodeIds)
 
-	var resultNodes []*utils.NodeMessage
+	var resultNodes []*internal.NodeMessage
 	for _, node := range nodes {
 		if node.Status == utils.Online {
-			resultNodes = append(resultNodes, &utils.NodeMessage{
+			resultNodes = append(resultNodes, &internal.NodeMessage{
 				ID:                  node.ID,
 				Name:                node.Name,
 				Description:         node.Description,
@@ -342,6 +343,8 @@ func (n *nodeServiceImpl) GetNetworkMap(ctx context.Context, appId, userId strin
 				Port:                node.Port,
 				Status:              node.Status,
 				GroupName:           node.Group.GroupName,
+				DrpAddr:             node.DrpAddr,
+				ConnectType:         node.ConnectType,
 				Version:             0,
 			})
 		} else {
@@ -370,6 +373,7 @@ func (n *nodeServiceImpl) GetNetworkMap(ctx context.Context, appId, userId strin
 			Pwd:                 "",
 			Port:                0,
 			Status:              current.Status,
+			ConnectType:         current.ConnectType,
 		},
 		Nodes: resultNodes,
 	}, nil

@@ -4,10 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"linkany/internal"
 	"linkany/management/dto"
 	"linkany/management/entity"
 	"linkany/management/repository"
-	"linkany/management/utils"
 	"linkany/management/vo"
 	"linkany/pkg/log"
 	"strconv"
@@ -36,7 +36,7 @@ var (
 type groupServiceImpl struct {
 	db              *gorm.DB
 	logger          *log.Logger
-	manager         *utils.WatchManager
+	manager         *internal.WatchManager
 	nodeRepo        repository.NodeRepository
 	groupRepo       repository.GroupRepository
 	groupNodeRepo   repository.GroupNodeRepository
@@ -54,7 +54,7 @@ func NewGroupService(db *gorm.DB) GroupService {
 		groupNodeRepo:   repository.NewGroupNodeRepository(db),
 		groupPolicyRepo: repository.NewGroupPolicyRepository(db),
 		policyRepo:      repository.NewPolicyRepository(db),
-		manager:         utils.NewWatchManager(),
+		manager:         internal.NewWatchManager(),
 	}
 }
 
@@ -173,7 +173,7 @@ func (g *groupServiceImpl) handleGP(ctx context.Context, tx *gorm.DB, dto *dto.N
 					}
 
 					// add push message
-					g.manager.Push(node.PublicKey, utils.NewMessage().AddNode(
+					g.manager.Push(node.PublicKey, internal.NewMessage().AddNode(
 						node.TransferToNodeVo().TransferToNodeMessage(),
 					))
 				}
@@ -443,7 +443,7 @@ func (g *groupServiceImpl) DeleteGroupNode(ctx context.Context, groupId, nodeId 
 			return err
 		}
 
-		g.manager.Push(node.PublicKey, utils.NewMessage().RemoveNode(
+		g.manager.Push(node.PublicKey, internal.NewMessage().RemoveNode(
 			node.TransferToNodeVo().TransferToNodeMessage(),
 		))
 

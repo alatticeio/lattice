@@ -1,11 +1,11 @@
 package vo
 
 import (
-	"linkany/management/utils"
+	"linkany/internal"
 )
 
 type NetworkMap struct {
 	UserId  string
 	Current *NodeVo
-	Nodes   []*utils.NodeMessage
+	Nodes   []*internal.NodeMessage
 }

@@ -1,12 +1,16 @@
 package server
 
 import (
+	"context"
 	"fmt"
+	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/status"
+
 	"io"
+	drpclient "linkany/drp/client"
 	drpgrpc "linkany/drp/grpc"
 	"linkany/management/grpc/client"
 	"linkany/management/service"
@@ -20,12 +24,14 @@ import (
 
 type Server struct {
 	mu     sync.RWMutex
+	ru     sync.Mutex
 	logger *log.Logger
 	drpgrpc.UnimplementedDrpServerServer
 	listen      string
 	userService service.UserService
 	mgtClient   *client.Client
 	clients     map[string]chan *drpgrpc.DrpMessage
+	msgManager  *drpclient.MessageManager
 }
 
 type ServerConfig struct {
@@ -40,16 +46,17 @@ func NewServer(cfg *ServerConfig) (*Server, error) {
 
 	mgtClient, err := client.NewClient(&client.GrpcConfig{
 		Addr:   "console.linkany.io:32051",
-		Logger: log.NewLogger(log.Loglevel, "mgtclient"),
+		Logger: log.NewLogger(log.Loglevel, "mgt-client"),
 	})
 	if err != nil {
 		return nil, err
 	}
 
 	return &Server{
-		logger:    cfg.Logger,
-		mgtClient: mgtClient,
-		clients:   make(map[string]chan *drpgrpc.DrpMessage, 1),
+		logger:     cfg.Logger,
+		mgtClient:  mgtClient,
+		msgManager: drpclient.NewMessageManager(),
+		clients:    make(map[string]chan *drpgrpc.DrpMessage, 1),
 	}, nil
 }
 
@@ -62,8 +69,8 @@ func (s *Server) Start() error {
 		MaxConnectionIdle:     15 * time.Minute, // 如果连接空闲超过此时间，发送 GOAWAY
 		MaxConnectionAge:      30 * time.Minute, // 连接最大存活时间
 		MaxConnectionAgeGrace: 5 * time.Second,  // 强制关闭连接前的等待时间
-		Time:                  5 * time.Second,  // 如果没有 ping，每5秒发送 ping
-		Timeout:               3 * time.Second,  // ping 响应超时时间
+		Time:                  10 * time.Second, // 如果没有 ping，每5秒发送 ping
+		Timeout:               5 * time.Second,  // ping 响应超时时间
 	}
 
 	//服务端强制策略
@@ -73,6 +80,12 @@ func (s *Server) Start() error {
 	}
 
 	grpcServer := grpc.NewServer(
+		grpc.InitialWindowSize(1024*1024),
+		grpc.InitialConnWindowSize(1024*1024),
+		grpc.MaxRecvMsgSize(4*1024*1024),
+		grpc.WriteBufferSize(64*1024),
+		grpc.ReadBufferSize(64*1024),
+		grpc.MaxConcurrentStreams(1000),
 		grpc.KeepaliveParams(kasp),
 		grpc.KeepaliveEnforcementPolicy(kaep))
 	drpgrpc.RegisterDrpServerServer(grpcServer, s)
@@ -85,9 +98,7 @@ func (s *Server) HandleMessage(stream grpc.BidiStreamingServer[drpgrpc.DrpMessag
 	var (
 		msgChan chan *drpgrpc.DrpMessage
 		ok      bool
-		req     *drpgrpc.DrpMessage
 		err     error
-		body    []byte
 	)
 
 	done := make(chan interface{})
@@ -96,161 +107,109 @@ func (s *Server) HandleMessage(stream grpc.BidiStreamingServer[drpgrpc.DrpMessag
 		close(done)
 	}()
 
-	req, err, body = s.recv(stream)
-	if err != nil {
+	msg := s.msgManager.GetMessage()
+	if err = stream.RecvMsg(msg); err != nil {
+		s.msgManager.ReleaseMessage(msg)
 		return err
 	}
 
-	s.logger.Verbosef("received signaling request from %s, to: %s, msgType: %v,  content: %s", req.From, req.To, req.MsgType, string(body))
+	s.logger.Verbosef("received drp request from %s, to: %s, msgType: %v,  data: %s", msg.From, msg.To, msg.MsgType, msg.Body)
 
-	// create channel for client
-	s.mu.Lock()
-	if msgChan, ok = s.clients[req.From]; !ok {
-		msgChan = make(chan *drpgrpc.DrpMessage, 1000)
-		s.clients[req.From] = msgChan
+	switch msg.MsgType {
+	case drpgrpc.MessageType_MessageRegisterType:
+		// create channel for client
+		s.ru.Lock()
+		if msgChan, ok = s.clients[msg.From]; !ok {
+			msgChan = make(chan *drpgrpc.DrpMessage, 10000)
+			s.clients[msg.From] = msgChan
+			s.logger.Infof("create channel for %v success", msg.From)
+		} else {
+			s.logger.Infof("channel already exists for %v", msg.From)
+		}
+		s.ru.Unlock()
+		s.msgManager.ReleaseMessage(msg)
+	default:
+
 	}
-	s.mu.Unlock()
-	s.logger.Infof("create channel for %v success", req.From)
 
-	logger := s.logger
+	eg, ctx := errgroup.WithContext(stream.Context())
+	eg.Go(func() error {
+		s.logger.Verbosef("start sendLoop for client: %v", msg.From)
+		return s.sendLoop(ctx, msgChan, stream)
+	})
 
-	go func() {
-		for {
-			select {
-			case forwardMsg := <-msgChan:
-				if err := stream.Send(forwardMsg); err != nil {
-					s, ok := status.FromError(err)
-					if ok && s.Code() == codes.Canceled {
-						logger.Infof("client canceled")
-						return
-					} else if err == io.EOF {
-						logger.Infof("client closed")
-						return
-					}
-					return
+	eg.Go(func() error {
+
+		return s.receiveLoop(ctx, stream)
+	})
+
+	return eg.Wait()
+}
+
+func (s *Server) sendLoop(ctx context.Context, msgChan chan *drpgrpc.DrpMessage, stream grpc.BidiStreamingServer[drpgrpc.DrpMessage, drpgrpc.DrpMessage]) error {
+	for {
+		select {
+		case forwardMsg := <-msgChan:
+			if err := stream.Send(forwardMsg); err != nil {
+				st, ok := status.FromError(err)
+				if ok && st.Code() == codes.Canceled {
+					s.logger.Errorf("client canceled")
+				} else if err == io.EOF {
+					s.logger.Errorf("client closed")
 				}
-				logger.Verbosef("signaling message to client: %v, to: %v,  content: %v", req.From, req.To, string(forwardMsg.Body))
-			case <-done:
-				//s.forwardManager.DeleteChannel(req.From) // because client closed
-				//logger.Infof("close signaling signaling stream, delete channel: %v", req.From)
-				return
+				return err
+			}
+
+			s.logger.Verbosef("send message from: %v, to: %v,  cost time: %v", forwardMsg.From, forwardMsg.To, time.Since(time.UnixMilli(forwardMsg.Timestamp)).Milliseconds())
+			s.msgManager.ReleaseMessage(forwardMsg)
+
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+}
+
+func (s *Server) receiveLoop(ctx context.Context, stream grpc.BidiStreamingServer[drpgrpc.DrpMessage, drpgrpc.DrpMessage]) error {
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+			var err error
+			msg := s.msgManager.GetMessage()
+			if err = stream.RecvMsg(msg); err != nil {
+				state, ok := status.FromError(err)
+				if ok && state.Code() == codes.Canceled {
+					s.logger.Infof("client canceled")
+					return linkerrors.ErrClientCanceled
+				} else if err == io.EOF {
+					s.logger.Infof("client closed")
+					return linkerrors.ErrClientClosed
+				}
+
+				s.logger.Errorf("receive msg failed: %v", err)
+				s.msgManager.ReleaseMessage(msg)
+				return err
+			}
+
+			switch msg.MsgType {
+			case drpgrpc.MessageType_MessageHeartBeatType:
+				s.msgManager.ReleaseMessage(msg)
+			default:
+				s.mu.RLock()
+				targetChan, ok := s.clients[msg.To]
+				if !ok {
+					s.msgManager.ReleaseMessage(msg)
+					s.logger.Errorf("channel not exists for client: %v", msg.To)
+					continue
+				}
+
+				s.logger.Verbosef("drp server received msg time slapped: %v", time.Since(time.UnixMilli(msg.Timestamp)).Milliseconds())
+				if targetChan != nil {
+					targetChan <- msg
+				}
+				s.mu.RUnlock()
 			}
 		}
-	}()
-
-	for {
-		req, err, body = s.recv(stream)
-		if err != nil {
-			return err
-		}
-
-		s.handle(req, body)
 	}
 }
-
-func (s *Server) handle(req *drpgrpc.DrpMessage, body []byte) {
-	switch req.MsgType {
-	case drpgrpc.MessageType_MessageHeartBeatType:
-		s.logger.Verbosef("received heartbeat message from %s, content: %s", req.From, string(body))
-	// do nothing, heartbeat message is not forwarded
-	default:
-		s.logger.Verbosef("receiving forward message from %s, to: %v,  content: %s", req.From, req.To, string(body))
-		s.mu.RLock()
-		targetChan, ok := s.clients[req.To]
-		if !ok {
-			s.logger.Errorf("channel not exists for client: %v", req.To)
-		}
-
-		if targetChan != nil {
-			targetChan <- req
-		}
-		s.mu.RUnlock()
-	}
-}
-
-func (s *Server) recv(stream grpc.BidiStreamingServer[drpgrpc.DrpMessage, drpgrpc.DrpMessage]) (*drpgrpc.DrpMessage, error, []byte) {
-	msg, err := stream.Recv()
-	if err != nil {
-		state, ok := status.FromError(err)
-		if ok && state.Code() == codes.Canceled {
-			s.logger.Infof("client canceled")
-			return nil, linkerrors.ErrClientCanceled, nil
-		} else if err == io.EOF {
-			s.logger.Infof("client closed")
-			return nil, linkerrors.ErrClientClosed, nil
-		}
-
-		s.logger.Errorf("receive msg failed: %v", err)
-		return nil, err, nil
-	}
-
-	return msg, nil, msg.Body
-}
-
-//
-//func (s *Server) Heartbeat(stream signaling.SignalingService_HeartbeatServer) error {
-//	var clientID string
-//	// 设置超时检测
-//	go func() {
-//		ticker := time.NewTicker(30 * time.Second)
-//		defer ticker.Stop()
-//
-//		for {
-//			select {
-//			case <-ticker.C:
-//				s.mu.RLock()
-//				client, exists := s.clientset[clientID]
-//				s.mu.RUnlock()
-//
-//				if exists && time.Since(client.LastSeen) > 60*time.Second {
-//					// 客户端超时，关闭连接
-//					s.removeClient(clientID)
-//					return
-//				}
-//			case <-stream.Context().Done():
-//				s.removeClient(clientID)
-//				return
-//			}
-//		}
-//	}()
-//
-//	for {
-//		req, err := stream.Recv()
-//		if err == io.EOF {
-//			s.removeClient(clientID)
-//			return nil
-//		}
-//		if err != nil {
-//			s.removeClient(clientID)
-//			return err
-//		}
-//
-//		// 更新客户端状态
-//		clientID = req.ClientId
-//		s.mu.Lock()
-//		s.clientset[clientID] = &ClientInfo{
-//			ID:       clientID,
-//			LastSeen: time.Now(),
-//			Stream:   stream,
-//		}
-//		s.mu.Unlock()
-//
-//		// 发送响应
-//		err = stream.Send(&signaling.HeartbeatResponse{
-//			Timestamp: time.Now().UnixNano(),
-//			ServerId:  "signaling",
-//			Status:    signaling.Status_OK,
-//		})
-//		if err != nil {
-//			s.removeClient(clientID)
-//			return err
-//		}
-//	}
-//
-//}
-
-//func (s *Server) removeClient(clientID string) {
-//	s.mu.Lock()
-//	defer s.mu.Unlock()
-//	delete(s.clientset, clientID)
-//}

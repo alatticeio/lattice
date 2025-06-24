@@ -3,11 +3,11 @@ package node
 import (
 	"context"
 	"errors"
+	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 	drpclient "linkany/drp/client"
 	"linkany/internal"
 	controlclient "linkany/management/client"
 	grpcclient "linkany/management/grpc/client"
-	"linkany/management/utils"
 	"linkany/management/vo"
 	"linkany/pkg/config"
 	"linkany/pkg/drp"
@@ -23,19 +23,15 @@ import (
 
 	wg "golang.zx2c4.com/wireguard/device"
 	"golang.zx2c4.com/wireguard/tun"
-	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 )
 
 var (
 	once sync.Once
+	_    internal.EngineManager = (*Engine)(nil)
 )
 
 const (
 	DefaultMTU = 1420
-)
-
-var (
-	_ internal.EngineManager = (*Engine)(nil)
 )
 
 // Engine is the daemon that manages the WireGuard device
@@ -52,12 +48,12 @@ type Engine struct {
 
 	group atomic.Value //belong to which group
 
-	nodeManager  *config.NodeManager
+	nodeManager  *internal.NodeManager
 	agentManager internal.AgentManagerFactory
 	wgConfigure  internal.ConfigureManager
-	current      *utils.NodeMessage
+	current      *internal.NodeMessage
 
-	callback func(message *utils.Message) error
+	callback func(message *internal.Message) error
 }
 
 type EngineConfig struct {
@@ -84,9 +80,9 @@ func (e *Engine) IpcHandle(conn net.Conn) {
 func NewEngine(cfg *EngineConfig) (*Engine, error) {
 	var (
 		device        tun.Device
-		relayer       *wrapper.Relayer
 		err           error
 		engine        *Engine
+		count         int64
 		proberManager internal.ProbeManager
 		proxy         *drpclient.Proxy
 	)
@@ -101,111 +97,23 @@ func NewEngine(cfg *EngineConfig) (*Engine, error) {
 		return nil, err
 	}
 
-	v4conn, _, err := wrapper.ListenUDP("udp4", uint16(cfg.Port))
+	// init managers
+	engine.nodeManager = internal.NewNodeManager()
+	engine.agentManager = drp.NewAgentManager()
 
-	if err != nil {
-		return nil, err
-	}
-
-	engine.drpClient, err = drpclient.NewClient(&drpclient.ClientConfig{Addr: cfg.SignalingUrl, Logger: log.NewLogger(log.Loglevel, "signalingclient")})
-	if err != nil {
-		return nil, err
-	}
-
-	// init stun
-	turnClient, err := turnclient.NewClient(&turnclient.ClientConfig{
-		ServerUrl: cfg.TurnServerUrl,
-		Conf:      cfg.Conf,
-		Logger:    log.NewLogger(log.Loglevel, "turnclient"),
-	})
-
-	if err != nil {
-		return nil, err
-	}
-
-	relayInfo, err := turnClient.GetRelayInfo(true)
-
-	if err != nil {
-		return nil, err
-	}
-	engine.logger.Infof("relay conn addr: %s", relayInfo.RelayConn.LocalAddr().String())
-
-	agentManager := drp.NewAgentManager()
-	engine.agentManager = agentManager
-	engine.nodeManager = config.NewPeersManager()
-
-	universalUdpMuxDefault := agentManager.NewUdpMux(v4conn)
-
-	// init key manager
-	engine.keyManager = internal.NewKeyManager("")
-	
-	proxy = drpclient.NewProxy(&drpclient.ProxyConfig{
-		DrpClient: engine.drpClient,
-	})
-
-	engine.bind = wrapper.NewBind(&wrapper.BindConfig{
-		Logger:          log.NewLogger(log.Loglevel, "net-bind"),
-		UniversalUDPMux: universalUdpMuxDefault,
-		V4Conn:          v4conn,
-		DrpClient:       engine.drpClient,
-		Proxy:           proxy,
-	})
-
-	relayer = wrapper.NewRelayer(engine.bind)
-
-	proberManager = probe.NewManager(cfg.ForceRelay, universalUdpMuxDefault.UDPMuxDefault, universalUdpMuxDefault, relayer, engine, cfg.TurnServerUrl)
-
-	offerHandler := drp.NewOfferHandler(&drp.OfferHandlerConfig{
-		Logger:       log.NewLogger(log.Loglevel, "offer-handler"),
-		ProbeManager: proberManager,
-		AgentManager: engine.agentManager,
-		StunUri:      cfg.TurnServerUrl,
-		KeyManager:   engine.keyManager,
-		NodeManager:  engine.nodeManager,
-		Proxy:        proxy,
-	})
-
-	proxy.SetOfferHandler(offerHandler)
-
-	// controlclient
+	// control-client
 	grpcClient, err := grpcclient.NewClient(&grpcclient.GrpcConfig{Addr: cfg.ManagementUrl, Logger: log.NewLogger(log.Loglevel, "grpc-client")})
 	if err != nil {
 		return nil, err
 	}
 
-	engine.device = wg.NewDevice(device, engine.bind, cfg.WgLogger)
-
-	// start engine, open udp port
-	if err := engine.device.Up(); err != nil {
-		return nil, err
-	}
-
-	wgConfigure := internal.NewWgConfigure(&internal.WGConfigerParams{
-		Device:       engine.device,
-		IfaceName:    engine.Name,
-		PeersManager: engine.nodeManager,
-	})
-	engine.wgConfigure = wgConfigure
-
 	engine.client = controlclient.NewClient(&controlclient.ClientConfig{
-		Logger:          log.NewLogger(log.Loglevel, "controlclient"),
-		PeersManager:    engine.nodeManager,
-		Conf:            cfg.Conf,
-		UdpMux:          universalUdpMuxDefault.UDPMuxDefault,
-		UniversalUdpMux: universalUdpMuxDefault,
-		KeyManager:      engine.keyManager,
-		AgentManager:    engine.agentManager,
-		ProberManager:   proberManager,
-		TurnClient:      turnClient,
-		GrpcClient:      grpcClient,
-		OfferHandler:    offerHandler,
-		Engine:          engine,
+		Logger:     log.NewLogger(log.Loglevel, "control-client"),
+		GrpcClient: grpcClient,
+		Conf:       cfg.Conf,
 	})
 
 	// limit node count
-	var (
-		count int64
-	)
 	engine.current, count, err = engine.client.Get(context.Background())
 	if err != nil {
 		return nil, err
@@ -234,21 +142,94 @@ func NewEngine(cfg *EngineConfig) (*Engine, error) {
 		privateKey = engine.current.PrivateKey
 	}
 	//update key
-	engine.keyManager.UpdateKey(privateKey)
+	engine.keyManager = internal.NewKeyManager(privateKey)
 	engine.nodeManager.AddPeer(engine.keyManager.GetPublicKey(), engine.current)
 
-	// start heart to signaling
-	go func() {
-		if err = engine.drpClient.Heartbeat(context.Background(), proxy, engine.keyManager.GetPublicKey()); err != nil {
-			engine.logger.Errorf("send heart beat failed: %v", err)
-		}
-	}()
+	v4conn, _, err := wrapper.ListenUDP("udp4", uint16(cfg.Port))
 
+	if err != nil {
+		return nil, err
+	}
+
+	engine.drpClient, err = drpclient.NewClient(&drpclient.ClientConfig{Addr: cfg.SignalingUrl, Logger: log.NewLogger(log.Loglevel, "drp-client")})
+	if err != nil {
+		return nil, err
+	}
+
+	engine.drpClient = engine.drpClient.KeyManager(engine.keyManager)
+
+	// init stun
+	turnClient, err := turnclient.NewClient(&turnclient.ClientConfig{
+		ServerUrl: cfg.TurnServerUrl,
+		Conf:      cfg.Conf,
+		Logger:    log.NewLogger(log.Loglevel, "turnclient"),
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	relayInfo, err := turnClient.GetRelayInfo(true)
+
+	if err != nil {
+		return nil, err
+	}
+	engine.logger.Infof("relay conn addr: %s", relayInfo.RelayConn.LocalAddr().String())
+
+	universalUdpMuxDefault := engine.agentManager.NewUdpMux(v4conn)
+
+	proxy, err = drpclient.NewProxy(&drpclient.ProxyConfig{
+		DrpClient: engine.drpClient,
+		DrpAddr:   cfg.SignalingUrl,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	engine.drpClient = engine.drpClient.Proxy(proxy)
+
+	engine.bind = wrapper.NewBind(&wrapper.BindConfig{
+		Logger:          log.NewLogger(log.Loglevel, "net-bind"),
+		UniversalUDPMux: universalUdpMuxDefault,
+		V4Conn:          v4conn,
+		Proxy:           proxy,
+		KeyManager:      engine.keyManager,
+	})
+
+	proberManager = probe.NewManager(cfg.ForceRelay, universalUdpMuxDefault.UDPMuxDefault, universalUdpMuxDefault, engine, cfg.TurnServerUrl)
+
+	offerHandler := drp.NewOfferHandler(&drp.OfferHandlerConfig{
+		Logger:       log.NewLogger(log.Loglevel, "offer-handler"),
+		ProbeManager: proberManager,
+		AgentManager: engine.agentManager,
+		StunUri:      cfg.TurnServerUrl,
+		KeyManager:   engine.keyManager,
+		NodeManager:  engine.nodeManager,
+		Proxy:        proxy,
+	})
+
+	proxy = proxy.OfferAndProbe(offerHandler, proberManager)
+
+	engine.device = wg.NewDevice(device, engine.bind, cfg.WgLogger)
+
+	wgConfigure := internal.NewWgConfigure(&internal.WGConfigerParams{
+		Device:       engine.device,
+		IfaceName:    engine.Name,
+		PeersManager: engine.nodeManager,
+	})
+	engine.wgConfigure = wgConfigure
+
+	engine.client = engine.client.SetNodeManager(engine.nodeManager).SetProbeManager(proberManager).SetKeyManager(engine.keyManager).SetEngine(engine).SetOfferHandler(offerHandler)
 	return engine, err
 }
 
 // Start will get networkmap
 func (e *Engine) Start() error {
+	// start engine, open udp port
+	if err := e.device.Up(); err != nil {
+		return err
+	}
 	// GetNetMap peers from control plane first time, then use watch
 	networkMap, err := e.GetNetworkMap()
 	if err != nil {
@@ -260,7 +241,7 @@ func (e *Engine) Start() error {
 	// config device
 	internal.SetDeviceIP()("add", e.current.Address, e.Name)
 
-	if err = e.DeviceConfigure(&config.DeviceConfig{
+	if err = e.DeviceConfigure(&internal.DeviceConfig{
 		PrivateKey: e.keyManager.GetKey(),
 	}); err != nil {
 		return err
@@ -324,7 +305,7 @@ func (e *Engine) Stop() error {
 }
 
 // SetConfig updates the configuration of the given interface.
-func (e *Engine) SetConfig(conf *config.DeviceConf) error {
+func (e *Engine) SetConfig(conf *internal.DeviceConf) error {
 	nowConf, err := e.device.IpcGet()
 	if err != nil {
 		return err
@@ -340,16 +321,16 @@ func (e *Engine) SetConfig(conf *config.DeviceConf) error {
 	return e.device.IpcSetOperation(reader)
 }
 
-func (e *Engine) DeviceConfigure(conf *config.DeviceConfig) error {
+func (e *Engine) DeviceConfigure(conf *internal.DeviceConfig) error {
 	return e.device.IpcSet(conf.String())
 }
 
-func (e *Engine) AddPeer(peer utils.NodeMessage) error {
+func (e *Engine) AddPeer(peer internal.NodeMessage) error {
 	return e.device.IpcSet(peer.NodeString())
 }
 
 // RemovePeer add remove=true
-func (e *Engine) RemovePeer(peer utils.NodeMessage) error {
+func (e *Engine) RemovePeer(peer internal.NodeMessage) error {
 	peer.Remove = true
 	return e.device.IpcSet(peer.NodeString())
 }

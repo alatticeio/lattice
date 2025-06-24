@@ -7,6 +7,7 @@ import (
 	"fmt"
 	wg "golang.zx2c4.com/wireguard/device"
 	"golang.zx2c4.com/wireguard/ipc"
+	"linkany/internal"
 	"linkany/management/client"
 	"linkany/pkg/config"
 	"linkany/pkg/log"
@@ -53,7 +54,7 @@ func Start(interfaceName string, isRelay bool) error {
 		return err
 	}
 
-	engine.GetNetworkMap = func(c client.ClientInterface) (*config.DeviceConf, error) {
+	engine.GetNetworkMap = func(c client.ClientInterface) (*internal.DeviceConf, error) {
 		// control plane fetch config from origin server
 		// update config
 		conf, err := c.List()

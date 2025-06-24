@@ -6,8 +6,8 @@ import (
 	"errors"
 	"flag"
 	"io"
+	"linkany/internal"
 	"linkany/management/grpc/mgt"
-	"linkany/management/utils"
 	"linkany/pkg/log"
 	"time"
 
@@ -64,7 +64,7 @@ func (c *Client) Login(ctx context.Context, in *mgt.ManagementMessage) (*mgt.Man
 	return c.client.Login(ctx, in)
 }
 
-func (c *Client) Watch(ctx context.Context, in *mgt.ManagementMessage, callback func(wm *utils.Message) error) error {
+func (c *Client) Watch(ctx context.Context, in *mgt.ManagementMessage, callback func(wm *internal.Message) error) error {
 	logger := c.logger
 	stream, err := c.client.Watch(ctx)
 	if err != nil {
@@ -99,7 +99,7 @@ func (c *Client) Watch(ctx context.Context, in *mgt.ManagementMessage, callback 
 				return
 			}
 
-			var message utils.Message
+			var message internal.Message
 			if err := json.Unmarshal(in.Body, &message); err != nil {
 				logger.Errorf("Failed to parse network map: %v", err)
 				errChan <- err

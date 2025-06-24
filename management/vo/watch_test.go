@@ -2,15 +2,15 @@ package vo
 
 import (
 	"encoding/json"
-	"linkany/management/utils"
+	"linkany/internal"
 	"testing"
 )
 
 func TestNewMessage(t *testing.T) {
 	// a node event
 
-	message := utils.NewMessage().AddGroup(1, "test")
-	message.AddNode(&utils.NodeMessage{
+	message := internal.NewMessage().AddGroup(1, "test")
+	message.AddNode(&internal.NodeMessage{
 		ID:   1,
 		Name: "test",
 	})

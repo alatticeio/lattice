@@ -106,35 +106,12 @@ func (dt *directChecker) ProbeConnect(ctx context.Context, isControlling bool, r
 	agent := dt.prober.GetProbeAgent()
 	candidates, _ := agent.GetRemoteCandidates()
 
-	//getCh := make(chan interface{})
-	//if candidates == nil {
-	//	go func() {
-	//		for {
-	//			candidates, err = agent.GetRemoteCandidates()
-	//			if err != nil {
-	//				dt.logger.Errorf("get remote candidates failed: %v", err)
-	//				continue
-	//			}
-	//			if len(candidates) > 0 {
-	//				dt.logger.Infof("remote candidates: %v", candidates)
-	//				close(getCh)
-	//				return
-	//			}
-	//		}
-	//	}()
-	//}
-
-	//select {
-	//case <-ctx.Done():
-	//	dt.logger.Errorf("probe connect context done: %v", ctx.Err())
-	//	return dt.ProbeFailure(remoteOffer)
-	//case <-getCh:
 	offer := remoteOffer.(*direct.DirectOffer)
 
 	ufrag, pwd, err := agent.GetLocalUserCredentials()
 	if err != nil {
 		dt.logger.Errorf("get local user credentials failed: %v", err)
-		return dt.ProbeFailure(remoteOffer)
+		return dt.ProbeFailure(ctx, remoteOffer)
 	}
 	dt.logger.Infof("===========agent %v, remote candidates: %v, current node is controlling: %v, local ufrag: %v, pwd: %v, remote ufrag: %v, pwd: %v", agent, candidates, isControlling, ufrag, pwd, offer.Ufrag, offer.Pwd)
 	if isControlling {
@@ -145,19 +122,19 @@ func (dt *directChecker) ProbeConnect(ctx context.Context, isControlling bool, r
 
 	if err != nil {
 		dt.logger.Errorf("peer p2p connection to %s failed: %v", dt.addr.String(), err)
-		return dt.ProbeFailure(remoteOffer)
+		return dt.ProbeFailure(ctx, remoteOffer)
 	}
 
-	return dt.ProbeSuccess(conn.RemoteAddr().String())
+	return dt.ProbeSuccess(ctx, conn.RemoteAddr().String())
 	//}
 }
 
-func (dt *directChecker) ProbeSuccess(conn string) error {
-	return dt.prober.ProbeSuccess(dt.to, conn)
+func (dt *directChecker) ProbeSuccess(ctx context.Context, conn string) error {
+	return dt.prober.ProbeSuccess(ctx, dt.to, conn)
 }
 
-func (dt *directChecker) ProbeFailure(offer internal.Offer) error {
-	return dt.prober.ProbeFailed(dt, offer)
+func (dt *directChecker) ProbeFailure(ctx context.Context, offer internal.Offer) error {
+	return dt.prober.ProbeFailed(ctx, dt, offer)
 }
 
 func (dt *directChecker) Close() error {

@@ -3,7 +3,6 @@ package relay
 import (
 	"encoding/json"
 	"linkany/internal"
-	"linkany/management/utils"
 	"net"
 )
 
@@ -49,7 +48,7 @@ func (o *RelayOffer) OfferType() internal.OfferType {
 	return internal.OfferTypeRelayOffer
 }
 
-func (o *RelayOffer) GetNode() *utils.NodeMessage {
+func (o *RelayOffer) GetNode() *internal.NodeMessage {
 	return nil
 }
 

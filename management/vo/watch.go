@@ -1,7 +1,7 @@
 package vo
 
 import (
-	"linkany/management/utils"
+	"linkany/internal"
 )
 
 // Message used to wrapper the message for watch
@@ -42,8 +42,8 @@ import (
 }
 */
 
-func (vo *NodeVo) TransferToNodeMessage() *utils.NodeMessage {
-	return &utils.NodeMessage{
+func (vo *NodeVo) TransferToNodeMessage() *internal.NodeMessage {
+	return &internal.NodeMessage{
 		ID:                  vo.ID,
 		Name:                vo.Name,
 		Description:         vo.Description,
