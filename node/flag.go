@@ -1,6 +1,6 @@
 package node
 
-// LinkFlags is a struct that contains the flags that are passed to the client
+// LinkFlags is a struct that contains the flags that are passed to the mgtClient
 type LinkFlags struct {
 	LogLevel      string
 	RedisAddr     string

@@ -70,8 +70,7 @@ type ProbeConfig struct {
 	NodeManager             *NodeManager
 	From                    string
 	To                      string
-	TurnClient              *client.Client
-	Relayer                 Relay
+	TurnManager             *client.TurnManager
 	SignalingChannel        chan *drpgrpc.DrpMessage
 	Ufrag                   string
 	Pwd                     string

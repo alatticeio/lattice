@@ -5,9 +5,22 @@ import (
 	"net/netip"
 )
 
-type DrpEndpoint interface {
-	// FromDrp if drp, return true, address, nil
-	FromDrp() bool
+type EndpointType int
+
+const (
+	DRP EndpointType = iota
+	Relay
+	Direct
+)
+
+type RelayEndpoint interface {
+	FromType() EndpointType
+	From() string
+	To() string
+}
+
+type Endpoint interface {
+	FromType() EndpointType
 	From() string
 	To() string
 }
@@ -19,14 +32,19 @@ type DrpEndpoint interface {
 // It is used to represent a connection endpoint in the WireGuard context.
 var (
 	_ conn.Endpoint = (*LinkEndpoint)(nil)
-	_ DrpEndpoint   = (*LinkEndpoint)(nil)
+	_ Endpoint      = (*LinkEndpoint)(nil)
 )
 
 type LinkEndpoint struct {
-	Drp *struct {
+	Relay *struct {
+		// FromType indicates the type of the endpoint.
+		FromType EndpointType
 		Status   bool
-		From     string
-		To       string
+		// From is the source address of the Relay.
+		From string
+		// To is the destination address of the Relay.
+		To string
+		// Endpoint is the Relay endpoint address.
 		Endpoint netip.AddrPort
 	}
 
@@ -43,19 +61,18 @@ type LinkEndpoint struct {
 }
 
 func (e *LinkEndpoint) From() string {
-	return e.Drp.From
+	return e.Relay.From
 }
 
 func (e *LinkEndpoint) To() string {
-	return e.Drp.To
+	return e.Relay.To
 }
 
-func (e *LinkEndpoint) FromDrp() bool {
-	if e.Drp != nil {
-		return true
+func (e *LinkEndpoint) FromType() EndpointType {
+	if e.Relay != nil {
+		return e.Relay.FromType
 	}
-
-	return false
+	return Direct
 }
 
 var (
@@ -68,11 +85,11 @@ func (e *LinkEndpoint) ClearSrc() {
 }
 
 func (e *LinkEndpoint) DstIP() netip.Addr {
-	if !e.FromDrp() {
+	switch e.FromType() {
+	case Direct:
 		return e.Direct.AddrPort.Addr()
-	} else {
-		return e.Drp.Endpoint.Addr()
-
+	default:
+		return e.Relay.Endpoint.Addr()
 	}
 }
 
@@ -88,19 +105,24 @@ func (e *LinkEndpoint) DstToBytes() []byte {
 	var (
 		b []byte
 	)
-	if !e.FromDrp() {
+
+	switch e.FromType() {
+	case Direct:
 		b, _ = e.Direct.AddrPort.MarshalBinary()
-	} else {
-		b, _ = e.Drp.Endpoint.MarshalBinary()
+	default:
+		b, _ = e.Relay.Endpoint.MarshalBinary()
 	}
+
 	return b
 }
 
 func (e *LinkEndpoint) DstToString() string {
-	if !e.FromDrp() {
+	switch e.FromType() {
+	case Direct:
 		return e.Direct.AddrPort.String()
+	default:
+		return e.Relay.Endpoint.String()
 	}
-	return e.Drp.Endpoint.String()
 }
 
 func (e *LinkEndpoint) SrcToString() string {

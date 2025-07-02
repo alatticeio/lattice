@@ -29,6 +29,7 @@ message ManagementMessage  {
   bytes body = 2;
   int32 encrypt = 3;
   int32 version = 4;
+  int64 timestamp = 6;
 }
 
 message LoginRequest {

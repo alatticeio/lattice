@@ -12,7 +12,7 @@ import (
 	"linkany/internal/drp"
 	"linkany/internal/relay"
 	"linkany/pkg/log"
-	"linkany/turn/client"
+	turnclient "linkany/turn/client"
 	"net"
 	"sync"
 	"time"
@@ -34,10 +34,9 @@ type offerHandler struct {
 	probeManager internal.ProbeManager
 	nodeManager  *internal.NodeManager
 
-	stunClient *client.Client
-	proxy      *drpclient.Proxy
-	relay      bool
-	turnClient *client.Client
+	proxy       *drpclient.Proxy
+	relay       bool
+	turnManager *turnclient.TurnManager
 }
 
 type OfferHandlerConfig struct {
@@ -53,6 +52,7 @@ type OfferHandlerConfig struct {
 	ProbeManager    internal.ProbeManager
 	Proxy           *drpclient.Proxy
 	NodeManager     *internal.NodeManager
+	TurnManager     *turnclient.TurnManager
 }
 
 // NewOfferHandler create a new client
@@ -66,6 +66,7 @@ func NewOfferHandler(cfg *OfferHandlerConfig) internal.OfferHandler {
 		agentManager: cfg.AgentManager,
 		probeManager: cfg.ProbeManager,
 		proxy:        cfg.Proxy,
+		turnManager:  cfg.TurnManager,
 	}
 }
 
@@ -118,13 +119,15 @@ func (h *offerHandler) handleOffer(ctx context.Context, msg *drpgrpc.DrpMessage)
 	case drpgrpc.MessageType_MessageDrpOfferType, drpgrpc.MessageType_MessageDrpOfferAnswerType:
 		offer, err = drp.UnmarshalOffer(msg.Body)
 		connectType = internal.DrpType
-	case drpgrpc.MessageType_MessageRelayOfferType:
+	case drpgrpc.MessageType_MessageRelayOfferType, drpgrpc.MessageType_MessageRelayAnswerType:
 		offer, err = relay.UnmarshalOffer(msg.Body)
 		connectType = internal.RelayType
 	}
 
 	// add peer
-	h.nodeManager.AddPeer(msg.From, offer.GetNode())
+	if offer.GetNode() != nil {
+		h.nodeManager.AddPeer(msg.From, offer.GetNode())
+	}
 	probe := h.probeManager.GetProbe(msg.From)
 	if probe == nil {
 		cfg := &internal.ProbeConfig{
@@ -135,13 +138,13 @@ func (h *offerHandler) handleOffer(ctx context.Context, msg *drpgrpc.DrpMessage)
 			OfferHandler:  h,
 			ProberManager: h.probeManager,
 			IsForceRelay:  h.relay,
-			TurnClient:    h.turnClient,
+			TurnManager:   h.turnManager,
 			LocalKey:      ice.NewTieBreaker(),
 			GatherChan:    make(chan interface{}),
 			ConnectType:   connectType,
 		}
 
-		switch offer.OfferType() {
+		switch offer.GetOfferType() {
 		case internal.OfferTypeDirectOffer, internal.OfferTypeDirectOfferAnswer:
 			cfg.ConnType = internal.DirectType
 		case internal.OfferTypeRelayOffer, internal.OfferTypeRelayAnswer:

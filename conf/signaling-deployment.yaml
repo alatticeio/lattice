@@ -27,7 +27,7 @@ spec:
           imagePullPolicy: Always
           command: [ "linkany", "signaling" ]
           args:
-            - "--log-level=INFO"
+            - "--log-level=verbose"
 ---
 apiVersion: v1
 kind: Service

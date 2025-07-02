@@ -30,7 +30,7 @@ func (d *DrpOffer) Marshal() (int, []byte, error) {
 	}
 	return len(b), b, nil
 }
-func (d *DrpOffer) OfferType() internal.OfferType {
+func (d *DrpOffer) GetOfferType() internal.OfferType {
 	return internal.OfferTypeDrpOffer
 }
 

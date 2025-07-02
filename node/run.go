@@ -54,7 +54,7 @@ func Start(flags *LinkFlags) error {
 
 	engine.GetNetworkMap = func() (*vo.NetworkMap, error) {
 		// get network map from list
-		conf, err := engine.client.GetNetMap()
+		conf, err := engine.mgtClient.GetNetMap()
 		if err != nil {
 			logger.Errorf("Get network map failed: %v", err)
 			return nil, err

@@ -41,7 +41,7 @@ type Client struct {
 	agentManager internal.AgentManagerFactory
 	offerHandler internal.OfferHandler
 	probeManager internal.ProbeManager
-	turnClient   *turnclient.Client
+	turnManager  *turnclient.TurnManager
 	engine       internal.EngineManager
 }
 
@@ -83,6 +83,11 @@ func (c *Client) SetEngine(engine internal.EngineManager) *Client {
 
 func (c *Client) SetOfferHandler(handler internal.OfferHandler) *Client {
 	c.offerHandler = handler
+	return c
+}
+
+func (c *Client) SetTurnManager(turnManager *turnclient.TurnManager) *Client {
+	c.turnManager = turnManager
 	return c
 }
 
@@ -255,6 +260,8 @@ func (c *Client) AddPeer(p *internal.NodeMessage) error {
 	current := c.nodeManager.GetPeer(c.keyManager.GetPublicKey())
 	if current.ConnectType == internal.DrpType || node.ConnectType == internal.DrpType {
 		connectType = internal.DrpType
+	} else if current.ConnectType == internal.RelayType || node.ConnectType == internal.RelayType {
+		connectType = internal.RelayType
 	} else {
 		connectType = internal.DirectType
 	}
@@ -276,6 +283,7 @@ func (c *Client) AddPeer(p *internal.NodeMessage) error {
 			NodeManager:   c.nodeManager,
 			To:            p.PublicKey,
 			OfferHandler:  c.offerHandler,
+			TurnManager:   c.turnManager,
 			ConnectType:   connectType,
 		}); err != nil {
 			return err

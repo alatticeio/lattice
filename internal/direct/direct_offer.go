@@ -49,7 +49,7 @@ func (o *DirectOffer) Marshal() (int, []byte, error) {
 	return len(b), b, nil
 }
 
-func (o *DirectOffer) OfferType() internal.OfferType {
+func (o *DirectOffer) GetOfferType() internal.OfferType {
 	return internal.OfferTypeDirectOffer
 }
 

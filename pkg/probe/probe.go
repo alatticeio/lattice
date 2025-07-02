@@ -12,7 +12,6 @@ import (
 	"linkany/internal/relay"
 	"linkany/pkg/linkerrors"
 	"linkany/pkg/log"
-	"linkany/turn/client"
 	turnclient "linkany/turn/client"
 	"net"
 	"strings"
@@ -59,7 +58,7 @@ type probe struct {
 
 	offerHandler internal.OfferHandler
 
-	turnClient *client.Client
+	turnManager *turnclient.TurnManager
 
 	gatherCh chan interface{}
 
@@ -143,7 +142,7 @@ func (p *probe) OnConnectionStateChange(state internal.ConnectionState) error {
 }
 
 func (p *probe) HandleOffer(ctx context.Context, offer internal.Offer) error {
-	switch offer.OfferType() {
+	switch offer.GetOfferType() {
 	case internal.OfferTypeDirectOffer:
 		// later new directChecker
 		if p.directChecker == nil {
@@ -161,6 +160,16 @@ func (p *probe) HandleOffer(ctx context.Context, offer internal.Offer) error {
 		return p.handleDirectOffer(ctx, offer.(*direct.DirectOffer))
 
 	case internal.OfferTypeRelayOffer, internal.OfferTypeRelayAnswer:
+		if p.relayChecker == nil {
+			p.relayChecker = NewRelayChecker(&RelayCheckerConfig{
+				TurnManager:  p.turnManager,
+				WgConfiger:   p.wgConfiger,
+				AgentManager: p.agentManager,
+				DstKey:       p.to,
+				SrcKey:       p.from,
+				Probe:        p,
+			})
+		}
 
 	case internal.OfferTypeDrpOffer, internal.OfferTypeDrpOfferAnswer:
 		if p.drpChecker == nil {
@@ -208,7 +217,7 @@ func (p *probe) ProbeConnect(ctx context.Context, offer internal.Offer) error {
 		}
 	}()
 
-	switch offer.OfferType() {
+	switch offer.GetOfferType() {
 	case internal.OfferTypeDirectOffer, internal.OfferTypeDirectOfferAnswer:
 		return p.directChecker.ProbeConnect(ctx, p.TieBreaker() > offer.TieBreaker(), offer)
 	case internal.OfferTypeRelayOffer, internal.OfferTypeRelayAnswer:
@@ -231,8 +240,11 @@ func (p *probe) ProbeSuccess(ctx context.Context, publicKey, addr string) error 
 
 	switch p.connectType {
 	case internal.DrpType:
+
 		addr = fmt.Sprintf("drp:to=%s//%s", publicKey, addr)
-	case internal.DirectType:
+	case internal.RelayType:
+		addr = fmt.Sprintf("relay:to=%s//%s", publicKey, addr)
+	default:
 
 	}
 
@@ -276,6 +288,8 @@ func (p *probe) Start(ctx context.Context, srcKey, dstKey string) error {
 			return p.SendOffer(ctx, drpgrpc.MessageType_MessageDrpOfferType, srcKey, dstKey)
 		case internal.DirectType:
 			return p.SendOffer(ctx, drpgrpc.MessageType_MessageDirectOfferType, srcKey, dstKey)
+		case internal.RelayType:
+			return p.SendOffer(ctx, drpgrpc.MessageType_MessageRelayOfferType, srcKey, dstKey)
 		}
 
 	default:
@@ -292,7 +306,6 @@ func (p *probe) SetConnectType(connType internal.ConnectType) {
 func (p *probe) SendOffer(ctx context.Context, msgType drpgrpc.MessageType, from, to string) error {
 	var err error
 	var relayAddr *net.UDPAddr
-	var info *client.RelayInfo
 	defer func() {
 		if err != nil {
 			p.UpdateConnectionState(internal.ConnectionStateFailed)
@@ -316,32 +329,15 @@ func (p *probe) SendOffer(ctx context.Context, msgType drpgrpc.MessageType, from
 			Candidates: candidates,
 			Node:       p.nodeManager.GetPeer(from),
 		})
-	case drpgrpc.MessageType_MessageRelayOfferType:
-		relayInfo, err := p.turnClient.GetRelayInfo(true)
-		if err != nil {
-			return errors.New("get relay info failed")
-		}
-
+	case drpgrpc.MessageType_MessageRelayOfferType, drpgrpc.MessageType_MessageRelayAnswerType:
+		relayInfo := p.turnManager.GetInfo()
 		relayAddr, err = turnclient.AddrToUdpAddr(relayInfo.RelayConn.LocalAddr())
 		offer = relay.NewOffer(&relay.RelayOfferConfig{
 			MappedAddr: relayInfo.MappedAddr,
 			RelayConn:  *relayAddr,
-			LocalKey:   p.agent.GetTieBreaker(),
+			Node:       p.nodeManager.GetPeer(from),
 		})
-		break
-	case drpgrpc.MessageType_MessageRelayAnswerType:
-		// write back a response
-		info, err = p.turnClient.GetRelayInfo(false)
-		if err != nil {
-			return err
-		}
-		p.logger.Infof(">>>>>>relay offer: %v", info.MappedAddr.String())
 
-		offer = relay.NewOffer(&relay.RelayOfferConfig{
-			LocalKey:   p.agent.GetTieBreaker(),
-			MappedAddr: info.MappedAddr,
-			OfferType:  internal.OfferTypeRelayOffer,
-		})
 	case drpgrpc.MessageType_MessageDrpOfferType, drpgrpc.MessageType_MessageDrpOfferAnswerType:
 		offer = drp.NewOffer(&drp.DrpOfferConfig{
 			Node: p.nodeManager.GetPeer(from),

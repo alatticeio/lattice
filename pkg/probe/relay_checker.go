@@ -19,41 +19,41 @@ type relayChecker struct {
 	startTime       time.Time
 	isControlling   bool
 	startCh         chan struct{}
-	key             string // publickey of the peer
-	dstKey          string // publickey of the destination peer
+	key             string // publicKey of the peer
+	dstKey          string // publicKey of the destination peer
 	relayConn       net.PacketConn
-	client          *turnclient.Client
 	outBound        chan RelayMessage
 	inBound         chan RelayMessage
-	permissionAddrs []net.Addr // addrs will be added to the permission list
+	permissionAddrs []net.Addr // Addr will be added to the permission list
 	wgConfiger      internal.ConfigureManager
-	prober          internal.Probe
-	agentManager    *internal.AgentManagerFactory
+	probe           internal.Probe
+	agentManager    internal.AgentManagerFactory
 }
 
 type RelayCheckerConfig struct {
-	Client       *turnclient.Client
+	TurnManager  *turnclient.TurnManager
 	WgConfiger   internal.ConfigureManager
-	AgentManager *internal.AgentManagerFactory
+	AgentManager internal.AgentManagerFactory
 	DstKey       string
 	SrcKey       string
+	Probe        internal.Probe
 }
 
-func NewRelayChecker(config *RelayCheckerConfig) *relayChecker {
+func NewRelayChecker(cfg *RelayCheckerConfig) *relayChecker {
 	return &relayChecker{
-		client:       config.Client,
-		agentManager: config.AgentManager,
-		dstKey:       config.DstKey,
-		key:          config.SrcKey,
+		agentManager: cfg.AgentManager,
+		dstKey:       cfg.DstKey,
+		key:          cfg.SrcKey,
+		probe:        cfg.Probe,
 	}
 }
 
 func (c *relayChecker) ProbeSuccess(ctx context.Context, addr string) error {
-	return c.prober.ProbeSuccess(ctx, c.dstKey, addr)
+	return c.probe.ProbeSuccess(ctx, c.dstKey, addr)
 }
 
 func (c *relayChecker) ProbeFailure(ctx context.Context, offer internal.Offer) error {
-	return c.prober.ProbeFailed(ctx, c, offer)
+	return c.probe.ProbeFailed(ctx, c, offer)
 }
 
 type RelayMessage struct {
@@ -66,7 +66,7 @@ func (c *relayChecker) ProbeConnect(ctx context.Context, isControlling bool, rel
 	c.startTime = time.Now()
 
 	offer := relayOffer.(*relay.RelayOffer)
-	switch relayOffer.OfferType() {
+	switch relayOffer.GetOfferType() {
 	case internal.OfferTypeRelayOffer:
 		return c.ProbeSuccess(ctx, offer.RelayConn.String())
 	case internal.OfferTypeRelayAnswer:
@@ -80,10 +80,10 @@ func (c *relayChecker) HandleOffer(ctx context.Context, offer internal.Offer) er
 	// set the destination permission
 	relayOffer := offer.(*relay.RelayOffer)
 
-	switch offer.OfferType() {
+	switch offer.GetOfferType() {
 	case internal.OfferTypeRelayOffer:
 
-		if err := c.prober.SendOffer(ctx, drpgrpc.MessageType_MessageRelayAnswerType, c.key, c.dstKey); err != nil {
+		if err := c.probe.SendOffer(ctx, drpgrpc.MessageType_MessageRelayAnswerType, c.key, c.dstKey); err != nil {
 			return err
 		}
 		return c.ProbeSuccess(ctx, relayOffer.RelayConn.String())

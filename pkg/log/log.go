@@ -59,28 +59,18 @@ func (logger *Logger) logf(prefix string) func(string, ...any) {
 // It decorates log lines with the log level, date, time, and prepend.
 func NewLogger(level int, prepend string) *Logger {
 	logger := &Logger{prepend, DiscardLogf, DiscardLogf, DiscardLogf, DiscardLogf}
-
-	if level >= LogLevelVerbose {
-		logger.Verbosef = logger.logf("DEBUG")
-	}
-
-	if level >= LogLevelInfo {
-		logger.Infof = logger.logf("INFO")
-	}
-
-	if level >= LogLevelWarning {
-		logger.Warningf = logger.logf("WARNING")
-	}
-
-	if level >= LogLevelError {
-		logger.Errorf = logger.logf("ERROR")
-	}
+	logger.set(level)
 	return logger
 }
 
 func (logger *Logger) SetLogLevel(level string) *Logger {
+	levelInt := logLevel(level)
+	logger.set(levelInt)
+	return logger
+}
 
-	switch logLevel(level) {
+func (logger *Logger) set(level int) *Logger {
+	switch level {
 	case LogLevelSilent:
 		logger.Verbosef = DiscardLogf
 		logger.Infof = DiscardLogf
@@ -88,23 +78,24 @@ func (logger *Logger) SetLogLevel(level string) *Logger {
 		logger.Errorf = DiscardLogf
 	case LogLevelVerbose:
 		logger.Verbosef = logger.logf("DEBUG")
-		logger.Infof = DiscardLogf
-		logger.Errorf = DiscardLogf
+		logger.Infof = logger.logf("INFO")
+		logger.Warningf = logger.logf("WARNING")
+		logger.Errorf = logger.logf("ERROR")
 	case LogLevelInfo:
+		logger.Verbosef = DiscardLogf
 		logger.Infof = logger.logf("INFO")
-		logger.Verbosef = logger.logf("DEBUG")
-		logger.Warningf = DiscardLogf
-		logger.Errorf = DiscardLogf
+		logger.Warningf = logger.logf("WARNING")
+		logger.Errorf = logger.logf("ERROR")
 	case LogLevelWarning:
-		logger.Infof = logger.logf("INFO")
-		logger.Verbosef = logger.logf("DEBUG")
+		logger.Infof = DiscardLogf
+		logger.Verbosef = DiscardLogf
 		logger.Warningf = logger.logf("WARNING")
-		logger.Errorf = DiscardLogf
+		logger.Errorf = logger.logf("ERROR")
 	case LogLevelError:
-		logger.Infof = logger.logf("INFO")
-		logger.Verbosef = logger.logf("DEBUG")
-		logger.Warningf = logger.logf("WARNING")
-		logger.Errorf = logger.logf("WARNING")
+		logger.Infof = DiscardLogf
+		logger.Verbosef = DiscardLogf
+		logger.Warningf = DiscardLogf
+		logger.Errorf = logger.logf("ERROR")
 	default:
 		//empty
 	}

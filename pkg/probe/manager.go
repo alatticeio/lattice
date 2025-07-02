@@ -111,7 +111,7 @@ func (m *manager) NewProbe(cfg *internal.ProbeConfig) (internal.Probe, error) {
 		nodeManager:     cfg.NodeManager,
 		offerHandler:    cfg.OfferHandler,
 		isForceRelay:    cfg.IsForceRelay,
-		turnClient:      cfg.TurnClient,
+		turnManager:     cfg.TurnManager,
 		from:            cfg.From,
 		to:              cfg.To,
 		done:            make(chan interface{}),

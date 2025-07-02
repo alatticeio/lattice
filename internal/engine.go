@@ -9,6 +9,4 @@ type EngineManager interface {
 
 	// GetWgConfiger  // Get the WireGuard configuration manager
 	GetWgConfiger() ConfigureManager
-
-	GetRelayer() Relay
 }

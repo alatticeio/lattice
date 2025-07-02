@@ -9,7 +9,7 @@ import (
 
 type Offer interface {
 	Marshal() (int, []byte, error)
-	OfferType() OfferType
+	GetOfferType() OfferType
 	TieBreaker() uint64
 	GetNode() *NodeMessage
 }
@@ -43,7 +43,7 @@ func (s ConnectType) String() string {
 	case DirectType:
 		return "direct"
 	case RelayType:
-		return "relay"
+		return "Relay"
 	case DrpType:
 		return "drp"
 	default:
@@ -59,7 +59,7 @@ func (s ConnectType) MarshalJSON() ([]byte, error) {
 var statusMap = map[string]ConnectType{
 	"direct": DirectType,
 	"drp":    DrpType,
-	"relay":  RelayType,
+	"Relay":  RelayType,
 }
 
 func (s *ConnectType) UnmarshalJSON(data []byte) error {

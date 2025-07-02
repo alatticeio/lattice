@@ -40,7 +40,7 @@ type Engine struct {
 	keyManager    internal.KeyManager
 	Name          string
 	device        *wg.Device
-	client        *controlclient.Client
+	mgtClient     *controlclient.Client
 	drpClient     *drpclient.Client
 	bind          *wrapper.NetBind
 	GetNetworkMap func() (*vo.NetworkMap, error)
@@ -52,6 +52,7 @@ type Engine struct {
 	agentManager internal.AgentManagerFactory
 	wgConfigure  internal.ConfigureManager
 	current      *internal.NodeMessage
+	turnManager  *turnclient.TurnManager
 
 	callback func(message *internal.Message) error
 }
@@ -79,16 +80,19 @@ func (e *Engine) IpcHandle(conn net.Conn) {
 // NewEngine create a tun auto
 func NewEngine(cfg *EngineConfig) (*Engine, error) {
 	var (
-		device        tun.Device
-		err           error
-		engine        *Engine
-		count         int64
-		proberManager internal.ProbeManager
-		proxy         *drpclient.Proxy
+		device       tun.Device
+		err          error
+		engine       *Engine
+		count        int64
+		probeManager internal.ProbeManager
+		proxy        *drpclient.Proxy
+		turnClient   *turnclient.Client
+		grpcClient   *grpcclient.Client
 	)
 	engine = new(Engine)
 	engine.logger = cfg.Logger
 
+	engine.turnManager = new(turnclient.TurnManager)
 	once.Do(func() {
 		engine.Name, device, err = internal.CreateTUN(DefaultMTU, cfg.Logger)
 	})
@@ -101,21 +105,18 @@ func NewEngine(cfg *EngineConfig) (*Engine, error) {
 	engine.nodeManager = internal.NewNodeManager()
 	engine.agentManager = drp.NewAgentManager()
 
-	// control-client
-	grpcClient, err := grpcclient.NewClient(&grpcclient.GrpcConfig{Addr: cfg.ManagementUrl, Logger: log.NewLogger(log.Loglevel, "grpc-client")})
-	if err != nil {
+	// control-mgtClient
+	if grpcClient, err = grpcclient.NewClient(&grpcclient.GrpcConfig{Addr: cfg.ManagementUrl, Logger: log.NewLogger(log.Loglevel, "grpc-mgtClient")}); err != nil {
 		return nil, err
 	}
-
-	engine.client = controlclient.NewClient(&controlclient.ClientConfig{
-		Logger:     log.NewLogger(log.Loglevel, "control-client"),
+	engine.mgtClient = controlclient.NewClient(&controlclient.ClientConfig{
+		Logger:     log.NewLogger(log.Loglevel, "control-mgtClient"),
 		GrpcClient: grpcClient,
 		Conf:       cfg.Conf,
 	})
 
 	// limit node count
-	engine.current, count, err = engine.client.Get(context.Background())
-	if err != nil {
+	if engine.current, count, err = engine.mgtClient.Get(context.Background()); err != nil {
 		return nil, err
 	}
 
@@ -132,7 +133,7 @@ func NewEngine(cfg *EngineConfig) (*Engine, error) {
 		}
 		privateKey = key.String()
 		publicKey = key.PublicKey().String()
-		_, err = engine.client.Register(privateKey, publicKey, cfg.Conf.Token)
+		_, err = engine.mgtClient.Register(privateKey, publicKey, cfg.Conf.Token)
 		if err != nil {
 			engine.logger.Errorf("register failed, with err: %s\n", err.Error())
 			return nil, err
@@ -141,6 +142,7 @@ func NewEngine(cfg *EngineConfig) (*Engine, error) {
 	} else {
 		privateKey = engine.current.PrivateKey
 	}
+
 	//update key
 	engine.keyManager = internal.NewKeyManager(privateKey)
 	engine.nodeManager.AddPeer(engine.keyManager.GetPublicKey(), engine.current)
@@ -151,39 +153,35 @@ func NewEngine(cfg *EngineConfig) (*Engine, error) {
 		return nil, err
 	}
 
-	engine.drpClient, err = drpclient.NewClient(&drpclient.ClientConfig{Addr: cfg.SignalingUrl, Logger: log.NewLogger(log.Loglevel, "drp-client")})
-	if err != nil {
+	if engine.drpClient, err = drpclient.NewClient(&drpclient.ClientConfig{Addr: cfg.SignalingUrl, Logger: log.NewLogger(log.Loglevel, "drp-mgtClient")}); err != nil {
 		return nil, err
 	}
-
 	engine.drpClient = engine.drpClient.KeyManager(engine.keyManager)
 
 	// init stun
-	turnClient, err := turnclient.NewClient(&turnclient.ClientConfig{
+	if turnClient, err = turnclient.NewClient(&turnclient.ClientConfig{
 		ServerUrl: cfg.TurnServerUrl,
 		Conf:      cfg.Conf,
 		Logger:    log.NewLogger(log.Loglevel, "turnclient"),
-	})
-
-	if err != nil {
+	}); err != nil {
 		return nil, err
 	}
 
-	relayInfo, err := turnClient.GetRelayInfo(true)
-
-	if err != nil {
+	var info *turnclient.RelayInfo
+	if info, err = turnClient.GetRelayInfo(true); err != nil {
 		return nil, err
 	}
-	engine.logger.Infof("relay conn addr: %s", relayInfo.RelayConn.LocalAddr().String())
+
+	engine.logger.Verbosef("get relay info, mapped addr: %v, conn addr: %v", info.MappedAddr, info.RelayConn.LocalAddr())
+
+	engine.turnManager.SetInfo(info)
 
 	universalUdpMuxDefault := engine.agentManager.NewUdpMux(v4conn)
 
-	proxy, err = drpclient.NewProxy(&drpclient.ProxyConfig{
+	if proxy, err = drpclient.NewProxy(&drpclient.ProxyConfig{
 		DrpClient: engine.drpClient,
 		DrpAddr:   cfg.SignalingUrl,
-	})
-
-	if err != nil {
+	}); err != nil {
 		return nil, err
 	}
 
@@ -195,21 +193,23 @@ func NewEngine(cfg *EngineConfig) (*Engine, error) {
 		V4Conn:          v4conn,
 		Proxy:           proxy,
 		KeyManager:      engine.keyManager,
+		RelayConn:       info.RelayConn,
 	})
 
-	proberManager = probe.NewManager(cfg.ForceRelay, universalUdpMuxDefault.UDPMuxDefault, universalUdpMuxDefault, engine, cfg.TurnServerUrl)
+	probeManager = probe.NewManager(cfg.ForceRelay, universalUdpMuxDefault.UDPMuxDefault, universalUdpMuxDefault, engine, cfg.TurnServerUrl)
 
 	offerHandler := drp.NewOfferHandler(&drp.OfferHandlerConfig{
 		Logger:       log.NewLogger(log.Loglevel, "offer-handler"),
-		ProbeManager: proberManager,
+		ProbeManager: probeManager,
 		AgentManager: engine.agentManager,
 		StunUri:      cfg.TurnServerUrl,
 		KeyManager:   engine.keyManager,
 		NodeManager:  engine.nodeManager,
 		Proxy:        proxy,
+		TurnManager:  engine.turnManager,
 	})
 
-	proxy = proxy.OfferAndProbe(offerHandler, proberManager)
+	proxy = proxy.OfferAndProbe(offerHandler, probeManager)
 
 	engine.device = wg.NewDevice(device, engine.bind, cfg.WgLogger)
 
@@ -220,7 +220,13 @@ func NewEngine(cfg *EngineConfig) (*Engine, error) {
 	})
 	engine.wgConfigure = wgConfigure
 
-	engine.client = engine.client.SetNodeManager(engine.nodeManager).SetProbeManager(proberManager).SetKeyManager(engine.keyManager).SetEngine(engine).SetOfferHandler(offerHandler)
+	engine.mgtClient = engine.mgtClient.
+		SetNodeManager(engine.nodeManager).
+		SetProbeManager(probeManager).
+		SetKeyManager(engine.keyManager).
+		SetEngine(engine).
+		SetOfferHandler(offerHandler).
+		SetTurnManager(engine.turnManager)
 	return engine, err
 }
 
@@ -253,7 +259,7 @@ func (e *Engine) Start() error {
 	// watch
 	go func() {
 		for {
-			if err := e.client.Watch(context.Background(), e.client.HandleWatchMessage); err != nil {
+			if err := e.mgtClient.Watch(context.Background(), e.mgtClient.HandleWatchMessage); err != nil {
 				e.logger.Errorf("watch failed: %v", err)
 				time.Sleep(10 * time.Second) // retry after 10 seconds
 				continue
@@ -262,42 +268,15 @@ func (e *Engine) Start() error {
 	}()
 
 	go func() {
-		if err := e.client.Keepalive(context.Background()); err != nil {
+		if err := e.mgtClient.Keepalive(context.Background()); err != nil {
 			e.logger.Errorf("keepalive failed: %v", err)
 		} else {
-			e.logger.Infof("mgt client keepliving...")
+			e.logger.Infof("mgt mgtClient keepliving...")
 		}
 	}()
 
 	return nil
 }
-
-//func (e *Engine) registerToSignaling(ctx context.Context, cfg *config.LocalConfig) error {
-//
-//	publicKey := e.keyManager.GetPublicKey()
-//	var req = &signaling.EncryptMessageReqAndResp{
-//		SrcPublicKey: publicKey,
-//		Token:        cfg.Token,
-//	}
-//
-//	bs, err := proto.Marshal(req)
-//	if err != nil {
-//		return err
-//	}
-//
-//	in := &signaling.EncryptMessage{
-//		PublicKey: publicKey,
-//		Body:      bs,
-//	}
-//
-//	_, err = e.drpClient.Register(ctx, in)
-//
-//	if err != nil {
-//		e.logger.Errorf("register to signaling failed: %v", err)
-//		return err
-//	}
-//	return nil
-//}
 
 func (e *Engine) Stop() error {
 	e.device.Close()
@@ -342,8 +321,4 @@ func (e *Engine) close() {
 
 func (e *Engine) GetWgConfiger() internal.ConfigureManager {
 	return e.wgConfigure
-}
-
-func (e *Engine) GetRelayer() internal.Relay {
-	return nil
 }

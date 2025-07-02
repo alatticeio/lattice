@@ -384,7 +384,7 @@ func (s *Server) Keepalive(stream mgt.ManagementService_KeepaliveServer) error {
 					}
 				}()
 
-				if err = stream.Send(&mgt.ManagementMessage{Body: body}); err != nil {
+				if err = stream.Send(&mgt.ManagementMessage{Body: body, Timestamp: time.Now().UnixMilli()}); err != nil {
 					s, ok := status.FromError(err)
 					if ok && s.Code() == codes.Canceled {
 						logger.Errorf("stream canceled")

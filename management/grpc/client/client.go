@@ -160,7 +160,7 @@ func (c *Client) Keepalive(ctx context.Context, in *mgt.ManagementMessage) error
 			c.logger.Errorf("failed unmarshal check packet: %v", err)
 			return err
 		}
-		c.logger.Verbosef("receive check living packet from server: %v", &req)
+		c.logger.Verbosef("receive check living packet from server: %v, elapsed: %v", &req, time.Since(time.UnixMilli(msg.Timestamp)).Milliseconds())
 
 		if err = stream.Send(in); err != nil {
 			if errors.Is(err, io.EOF) {

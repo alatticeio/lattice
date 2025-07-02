@@ -40,6 +40,9 @@ type NetBind struct {
 	PublicKey       wgtypes.Key
 	keyManager      internal.KeyManager
 
+	// used for turn relay
+	relayConn net.PacketConn
+
 	proxy *drpclient.Proxy
 
 	drpAddr net.TCPAddr // drp addr，drp created from console
@@ -66,6 +69,7 @@ type BindConfig struct {
 	Logger          *log.Logger
 	V4Conn          *net.UDPConn
 	UniversalUDPMux *ice.UniversalUDPMuxDefault
+	RelayConn       net.PacketConn // relay conn, used for relay endpoint
 	Proxy           *drpclient.Proxy
 	KeyManager      internal.KeyManager
 }
@@ -77,6 +81,7 @@ func NewBind(cfg *BindConfig) *NetBind {
 		v4conn:          cfg.V4Conn,
 		universalUdpMux: cfg.UniversalUDPMux,
 		keyManager:      cfg.KeyManager,
+		relayConn:       cfg.RelayConn,
 		udpAddrPool: sync.Pool{
 			New: func() any {
 				return &net.UDPAddr{
@@ -140,12 +145,37 @@ func (b *NetBind) ParseEndpoint(s string) (conn.Endpoint, error) {
 			return nil, errors.New("invalid drp endpoint format, missing 'to='")
 		}
 		return &internal.LinkEndpoint{
-			Drp: &struct {
+			Relay: &struct {
+				FromType internal.EndpointType
 				Status   bool
 				From     string
 				To       string
 				Endpoint netip.AddrPort
-			}{Status: true, From: b.keyManager.GetPublicKey(), To: to, Endpoint: e},
+			}{FromType: internal.DRP, Status: true, From: b.keyManager.GetPublicKey(), To: to, Endpoint: e},
+		}, nil
+	} else if strings.HasPrefix(s, "relay:") {
+		// relay endpoint
+		prefix, after, isExists := strings.Cut(s, "//")
+		if !isExists {
+			return nil, errors.New("invalid drp endpoint format, missing '//'")
+		}
+
+		e, err := netip.ParseAddrPort(after)
+		if err != nil {
+			return nil, err
+		}
+		_, to, isExists := strings.Cut(prefix, "=")
+		if !isExists {
+			return nil, errors.New("invalid drp endpoint format, missing 'to='")
+		}
+		return &internal.LinkEndpoint{
+			Relay: &struct {
+				FromType internal.EndpointType
+				Status   bool
+				From     string
+				To       string
+				Endpoint netip.AddrPort
+			}{FromType: internal.Relay, Status: true, From: b.keyManager.GetPublicKey(), To: to, Endpoint: e},
 		}, nil
 	}
 	e, err := netip.ParseAddrPort(s)
@@ -226,6 +256,10 @@ func (b *NetBind) Open(uport uint16) ([]conn.ReceiveFunc, uint16, error) {
 		fns = append(fns, b.makeReceiveDrp())
 	}
 
+	if b.relayConn != nil {
+		fns = append(fns, b.makeReceiveRelay())
+	}
+
 	return fns, uint16(port), nil
 }
 
@@ -233,6 +267,39 @@ func (b *NetBind) Open(uport uint16) ([]conn.ReceiveFunc, uint16, error) {
 // It will return a conn.ReceiveFunc that can be used to receive data from the drp server.
 func (b *NetBind) makeReceiveDrp() conn.ReceiveFunc {
 	return b.proxy.MakeReceiveFromDrp()
+}
+
+func (b *NetBind) makeReceiveRelay() conn.ReceiveFunc {
+	return func(bufs [][]byte, sizes []int, eps []conn.Endpoint) (n int, err error) {
+		n, addr, err := b.relayConn.ReadFrom(bufs[0])
+		if err != nil {
+			return 0, err
+		}
+		//MessageInitiationType  = 1
+		//	MessageResponseType    = 2
+		//	MessageCookieReplyType = 3
+		//	MessageTransportType   = 4
+		//msgType := binary.LittleEndian.Uint32(bufs[0][:4])
+		//b.logger.Verbosef("receive msgType: %v, addr: %v, data: %v", msgType, addr, bufs[0][:n])
+		sizes[0] = n
+		addrPort, err := netip.ParseAddrPort(addr.String())
+		if err != nil {
+			b.logger.Errorf("err: %v", err)
+			return 0, err
+		}
+
+		eps[0] = &internal.LinkEndpoint{
+			Relay: &struct {
+				FromType internal.EndpointType
+				Status   bool
+				From     string
+				To       string
+				Endpoint netip.AddrPort
+			}{FromType: internal.Relay, Status: true, From: "", To: b.keyManager.GetPublicKey(), Endpoint: addrPort},
+		}
+
+		return 1, nil
+	}
 }
 
 func (b *NetBind) makeReceiveIPv4(pc *ipv4.PacketConn, udpConn *net.UDPConn) conn.ReceiveFunc {
@@ -355,14 +422,37 @@ func (b *NetBind) Close() error {
 
 func (b *NetBind) Send(bufs [][]byte, endpoint conn.Endpoint) error {
 	// add drp write
-	if v, _ := endpoint.(internal.DrpEndpoint); v.FromDrp() {
-		if b.proxy == nil {
-			return errors.New("proxy is nil, please set proxy first")
+	if v, ok := endpoint.(internal.RelayEndpoint); ok {
+		switch v.FromType() {
+		case internal.DRP:
+			if b.proxy == nil {
+				return errors.New("proxy is nil, please set proxy first")
+			}
+			if err := b.proxy.Send(endpoint, bufs); err != nil {
+				return err
+			}
+			return nil
+		case internal.Relay:
+			if b.relayConn == nil {
+				return errors.New("relayConn is nil, please set relayConn first")
+			}
+
+			addr, err := net.ResolveUDPAddr("udp", endpoint.DstToString())
+			if err != nil {
+				return err
+			}
+
+			for _, buf := range bufs {
+				b.logger.Verbosef("send data to: %v, data: %v", addr, buf)
+				if _, err := b.relayConn.WriteTo(buf, addr); err != nil {
+					b.logger.Errorf("send relay message error: %v", err)
+					return err
+				}
+			}
+
+			return nil
 		}
-		if err := b.proxy.Send(endpoint, bufs); err != nil {
-			return err
-		}
-		return nil
+
 	}
 
 	b.mu.Lock()

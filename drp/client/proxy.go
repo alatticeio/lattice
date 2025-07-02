@@ -95,12 +95,13 @@ func (p *Proxy) MakeReceiveFromDrp() conn.ReceiveFunc {
 				copy(bufs[i], msg.Body)
 				sizes[i] = len(msg.Body)
 				eps[i] = &internal.LinkEndpoint{
-					Drp: &struct {
+					Relay: &struct {
+						FromType internal.EndpointType
 						Status   bool
 						From     string
 						To       string
 						Endpoint netip.AddrPort
-					}{Status: true, From: msg.To, To: msg.From, Endpoint: p.Addr},
+					}{FromType: internal.DRP, Status: true, From: msg.To, To: msg.From, Endpoint: p.Addr},
 				}
 			}
 
@@ -114,13 +115,20 @@ func (p *Proxy) MakeReceiveFromDrp() conn.ReceiveFunc {
 }
 
 func (p *Proxy) Send(ep conn.Endpoint, bufs [][]byte) (err error) {
+	var (
+		from string
+		to   string
+	)
 	if ep == nil {
 		return errors.New("endpoint is nil")
 	}
 
-	v := ep.(internal.DrpEndpoint)
-	from := v.From()
-	to := v.To()
+	if v, ok := ep.(internal.RelayEndpoint); ok {
+		from = v.From()
+		to = v.To()
+	} else {
+		return errors.New("unsupported endpoint type")
+	}
 
 	for i := 0; i < len(bufs); i++ {
 		if bufs[i] == nil || len(bufs[i]) == 0 {
@@ -134,8 +142,6 @@ func (p *Proxy) Send(ep conn.Endpoint, bufs [][]byte) (err error) {
 		drpMesssage.Timestamp = time.Now().UnixMilli()
 
 		p.outBoundQueue <- drpMesssage
-		//msgType := binary.LittleEndian.Uint32(bufs[i][:4])
-		//p.logger.Verbosef("send to drp server wg msgType: %v, from: %v, to: %v", msgType, from, to)
 	}
 
 	return nil
