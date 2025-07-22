@@ -1,10 +1,10 @@
 package wrapper
 
 type Relayer struct {
-	bind *NetBind
+	bind *LinkBind
 }
 
-func NewRelayer(bind *NetBind) *Relayer {
+func NewRelayer(bind *LinkBind) *Relayer {
 	return &Relayer{
 		bind: bind,
 	}

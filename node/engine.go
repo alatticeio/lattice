@@ -3,10 +3,12 @@ package node
 import (
 	"context"
 	"errors"
+	wg "golang.zx2c4.com/wireguard/device"
+	"golang.zx2c4.com/wireguard/tun"
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 	drpclient "linkany/drp/client"
 	"linkany/internal"
-	controlclient "linkany/management/client"
+	mgtclient "linkany/management/client"
 	grpcclient "linkany/management/grpc/client"
 	"linkany/management/vo"
 	"linkany/pkg/config"
@@ -16,13 +18,12 @@ import (
 	"linkany/pkg/wrapper"
 	turnclient "linkany/turn/client"
 	"net"
+	"os"
 	"strings"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"time"
-
-	wg "golang.zx2c4.com/wireguard/device"
-	"golang.zx2c4.com/wireguard/tun"
 )
 
 var (
@@ -34,15 +35,15 @@ const (
 	DefaultMTU = 1420
 )
 
-// Engine is the daemon that manages the WireGuard device
+// Engine is the daemon that manages the wireGuard device
 type Engine struct {
 	logger        *log.Logger
 	keyManager    internal.KeyManager
 	Name          string
 	device        *wg.Device
-	mgtClient     *controlclient.Client
+	mgtClient     *mgtclient.Client
 	drpClient     *drpclient.Client
-	bind          *wrapper.NetBind
+	bind          *wrapper.LinkBind
 	GetNetworkMap func() (*vo.NetworkMap, error)
 	updated       atomic.Bool
 
@@ -55,6 +56,9 @@ type Engine struct {
 	turnManager  *turnclient.TurnManager
 
 	callback func(message *internal.Message) error
+
+	keepaliveChan chan struct{} // channel for keepalive
+	watchChan     chan struct{} // channel for watch
 }
 
 type EngineConfig struct {
@@ -63,7 +67,7 @@ type EngineConfig struct {
 	Port          int
 	UdpConn       *net.UDPConn
 	InterfaceName string
-	client        *controlclient.Client
+	client        *mgtclient.Client
 	drpClient     *drpclient.Client
 	WgLogger      *wg.Logger
 	TurnServerUrl string
@@ -74,10 +78,30 @@ type EngineConfig struct {
 }
 
 func (e *Engine) IpcHandle(conn net.Conn) {
-	e.device.IpcHandle(conn)
+	defer conn.Close()
+
+	buf := make([]byte, 4096)
+	n, err := conn.Read(buf)
+	if err != nil {
+		return
+	}
+
+	cmd := string(buf[:n])
+	if cmd == "stop\n\n" {
+		// 响应停止命令
+		conn.Write([]byte("OK\n\n"))
+		// 触发程序退出
+		e.close()
+		// 向主程序发送退出信号
+		syscall.Kill(os.Getpid(), syscall.SIGTERM)
+		return
+	} else {
+		e.device.IpcHandle(conn)
+	}
+
 }
 
-// NewEngine create a tun auto
+// NewEngine create a new Engine instance
 func NewEngine(cfg *EngineConfig) (*Engine, error) {
 	var (
 		device       tun.Device
@@ -95,6 +119,8 @@ func NewEngine(cfg *EngineConfig) (*Engine, error) {
 	engine.turnManager = new(turnclient.TurnManager)
 	once.Do(func() {
 		engine.Name, device, err = internal.CreateTUN(DefaultMTU, cfg.Logger)
+		engine.keepaliveChan = make(chan struct{}, 1)
+		engine.watchChan = make(chan struct{}, 1)
 	})
 
 	if err != nil {
@@ -106,10 +132,14 @@ func NewEngine(cfg *EngineConfig) (*Engine, error) {
 	engine.agentManager = drp.NewAgentManager()
 
 	// control-mgtClient
-	if grpcClient, err = grpcclient.NewClient(&grpcclient.GrpcConfig{Addr: cfg.ManagementUrl, Logger: log.NewLogger(log.Loglevel, "grpc-mgtClient")}); err != nil {
+	if grpcClient, err = grpcclient.NewClient(&grpcclient.GrpcConfig{
+		Addr:          cfg.ManagementUrl,
+		Logger:        log.NewLogger(log.Loglevel, "grpc-mgtClient"),
+		KeepaliveChan: engine.keepaliveChan,
+		WatchChan:     engine.watchChan}); err != nil {
 		return nil, err
 	}
-	engine.mgtClient = controlclient.NewClient(&controlclient.ClientConfig{
+	engine.mgtClient = mgtclient.NewClient(&mgtclient.ClientConfig{
 		Logger:     log.NewLogger(log.Loglevel, "control-mgtClient"),
 		GrpcClient: grpcClient,
 		Conf:       cfg.Conf,
@@ -258,12 +288,9 @@ func (e *Engine) Start() error {
 	}
 	// watch
 	go func() {
-		for {
-			if err := e.mgtClient.Watch(context.Background(), e.mgtClient.HandleWatchMessage); err != nil {
-				e.logger.Errorf("watch failed: %v", err)
-				time.Sleep(10 * time.Second) // retry after 10 seconds
-				continue
-			}
+		if err := e.mgtClient.Watch(context.Background(), e.mgtClient.HandleWatchMessage); err != nil {
+			e.logger.Errorf("watch failed: %v", err)
+			time.Sleep(10 * time.Second) // retry after 10 seconds
 		}
 	}()
 
@@ -315,8 +342,10 @@ func (e *Engine) RemovePeer(peer internal.NodeMessage) error {
 }
 
 func (e *Engine) close() {
+	close(e.keepaliveChan)
 	e.drpClient.Close()
-	e.device.Close()
+	//e.device.Close()
+	e.logger.Verbosef("engine closed")
 }
 
 func (e *Engine) GetWgConfiger() internal.ConfigureManager {

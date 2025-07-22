@@ -88,7 +88,6 @@ func (h *offerHandler) ReceiveOffer(ctx context.Context, msg *drpgrpc.DrpMessage
 	if msg.Body == nil {
 		return errors.New("body is nil")
 	}
-
 	return h.handleOffer(ctx, msg)
 }
 
@@ -162,7 +161,6 @@ func (h *offerHandler) handleOffer(ctx context.Context, msg *drpgrpc.DrpMessage)
 	case drpgrpc.MessageType_MessageDirectOfferType:
 		probe.SendOffer(ctx, drpgrpc.MessageType_MessageDirectOfferAnswerType, msg.To, msg.From)
 	case drpgrpc.MessageType_MessageDrpOfferType:
-		// handle drp offer
 		probe.SendOffer(ctx, drpgrpc.MessageType_MessageDrpOfferAnswerType, msg.To, msg.From)
 	case drpgrpc.MessageType_MessageRelayOfferType:
 		probe.SendOffer(ctx, drpgrpc.MessageType_MessageRelayAnswerType, msg.To, msg.From)

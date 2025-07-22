@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"flag"
+	"fmt"
 	"io"
 	"linkany/internal"
 	"linkany/management/grpc/mgt"
@@ -20,13 +21,18 @@ import (
 )
 
 type GrpcConfig struct {
-	Logger *log.Logger
-	Addr   string
+	Logger        *log.Logger
+	Addr          string
+	KeepaliveChan chan struct{}
+	WatchChan     chan struct{}
 }
 
 type Client struct {
 	client mgt.ManagementServiceClient
 	logger *log.Logger
+	//channel for close for keepalive
+	keepaliveChan chan struct{}
+	watchChan     chan struct{}
 }
 
 func NewClient(cfg *GrpcConfig) (*Client, error) {
@@ -44,7 +50,7 @@ func NewClient(cfg *GrpcConfig) (*Client, error) {
 	grpc.WithKeepaliveParams(keepAliveArgs)
 	c := mgt.NewManagementServiceClient(conn)
 
-	return &Client{client: c, logger: cfg.Logger}, nil
+	return &Client{client: c, logger: cfg.Logger, keepaliveChan: cfg.KeepaliveChan, watchChan: cfg.WatchChan}, nil
 
 }
 
@@ -87,30 +93,37 @@ func (c *Client) Watch(ctx context.Context, in *mgt.ManagementMessage, callback 
 	errChan := make(chan error, 1)
 	go func() {
 		for {
-			in, err := stream.Recv()
-			if err == io.EOF {
-				c.logger.Errorf("%v", err)
-				errChan <- err
+			select {
+			case <-c.watchChan:
+				logger.Infof("watching stream closed by user")
 				return
-			}
-			if err != nil {
-				logger.Errorf("err: %v", err)
-				errChan <- err
-				return
+			default:
+				in, err := stream.Recv()
+				if err == io.EOF {
+					c.logger.Errorf("%v", err)
+					errChan <- err
+					return
+				}
+				if err != nil {
+					logger.Errorf("err: %v", err)
+					errChan <- err
+					return
+				}
+
+				var message internal.Message
+				if err := json.Unmarshal(in.Body, &message); err != nil {
+					logger.Errorf("Failed to parse network map: %v", err)
+					errChan <- err
+					return
+				}
+
+				if err = callback(&message); err != nil {
+					c.logger.Errorf("Failed to callback: %v", err)
+					errChan <- err
+					return
+				}
 			}
 
-			var message internal.Message
-			if err := json.Unmarshal(in.Body, &message); err != nil {
-				logger.Errorf("Failed to parse network map: %v", err)
-				errChan <- err
-				return
-			}
-
-			if err = callback(&message); err != nil {
-				c.logger.Errorf("Failed to callback: %v", err)
-				errChan <- err
-				return
-			}
 		}
 	}()
 
@@ -140,34 +153,41 @@ func (c *Client) Keepalive(ctx context.Context, in *mgt.ManagementMessage) error
 	}()
 
 	for {
-		msg, err := stream.Recv()
-		s, ok := status.FromError(err)
+		fmt.Println("")
+		select {
+		case <-c.keepaliveChan:
+			c.logger.Infof("keepalive stream closed by user")
+			return nil
+		default:
+			msg, err := stream.Recv()
+			s, ok := status.FromError(err)
 
-		if ok && s.Code() == codes.Canceled {
-			errChan <- err
-			return err
-		} else if err == io.EOF {
-			errChan <- err
-			return err
-		} else if err != nil {
-			c.logger.Errorf("receive check living packet failed: %v", err)
-			errChan <- err
-			return err
-		}
-
-		var req mgt.Request
-		if err = proto.Unmarshal(msg.Body, &req); err != nil {
-			c.logger.Errorf("failed unmarshal check packet: %v", err)
-			return err
-		}
-		c.logger.Verbosef("receive check living packet from server: %v, elapsed: %v", &req, time.Since(time.UnixMilli(msg.Timestamp)).Milliseconds())
-
-		if err = stream.Send(in); err != nil {
-			if errors.Is(err, io.EOF) {
-				c.logger.Errorf("server closed the stream")
-				return nil
+			if ok && s.Code() == codes.Canceled {
+				errChan <- err
+				return err
+			} else if err == io.EOF {
+				errChan <- err
+				return err
+			} else if err != nil {
+				c.logger.Errorf("receive check living packet failed: %v", err)
+				errChan <- err
+				return err
 			}
-			c.logger.Errorf("send check living packet failed: %v", err)
+
+			var req mgt.Request
+			if err = proto.Unmarshal(msg.Body, &req); err != nil {
+				c.logger.Errorf("failed unmarshal check packet: %v", err)
+				return err
+			}
+			c.logger.Verbosef("receive check living packet from server: %v, elapsed: %v", &req, time.Since(time.UnixMilli(msg.Timestamp)).Milliseconds())
+
+			if err = stream.Send(in); err != nil {
+				if errors.Is(err, io.EOF) {
+					c.logger.Errorf("server closed the stream")
+					return nil
+				}
+				c.logger.Errorf("send check living packet failed: %v", err)
+			}
 		}
 
 	}

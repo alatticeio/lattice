@@ -25,6 +25,7 @@ func up() *cobra.Command {
 	fs.StringVarP(&flags.ManagementUrl, "control-url", "", "", "management server url, need not give when you are using our service")
 	fs.StringVarP(&flags.TurnServerUrl, "turn-url", "", "", "just need modify when you custom your own relay server")
 	fs.StringVarP(&flags.SignalingUrl, "", "", "", "signaling service, not need to modify")
+	fs.BoolVarP(&flags.DaemonGround, "daemon", "d", false, "run in daemon mode, default is forground mode")
 
 	return cmd
 }

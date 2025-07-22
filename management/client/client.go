@@ -43,6 +43,10 @@ type Client struct {
 	probeManager internal.ProbeManager
 	turnManager  *turnclient.TurnManager
 	engine       internal.EngineManager
+
+	//channel for close for keepalive
+	keepaliveChan chan struct{}
+	watchChan     chan struct{}
 }
 
 type ClientConfig struct {
@@ -53,9 +57,11 @@ type ClientConfig struct {
 
 func NewClient(cfg *ClientConfig) *Client {
 	client := &Client{
-		logger:     cfg.Logger,
-		conf:       cfg.Conf,
-		grpcClient: cfg.GrpcClient,
+		logger:        cfg.Logger,
+		conf:          cfg.Conf,
+		grpcClient:    cfg.GrpcClient,
+		keepaliveChan: make(chan struct{}),
+		watchChan:     make(chan struct{}),
 	}
 
 	return client

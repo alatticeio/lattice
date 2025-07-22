@@ -12,7 +12,8 @@ import (
 	"time"
 )
 
-// Proxy will send data to local engine
+// Proxy will send data to local engine when using drp relay,
+// and also send data to other node from local engine
 type Proxy struct {
 	logger *log.Logger
 	// Address is the address of the proxy server
@@ -150,9 +151,5 @@ func (p *Proxy) Send(ep conn.Endpoint, bufs [][]byte) (err error) {
 // WriteMessage will send actual message to data channel
 func (p *Proxy) WriteMessage(ctx context.Context, msg *drpgrpc.DrpMessage) error {
 	p.outBoundQueue <- msg
-	return nil
-}
-
-func (p *Proxy) ReadMessage(ctx context.Context) error {
 	return nil
 }
