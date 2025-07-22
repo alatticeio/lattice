@@ -39,6 +39,7 @@ func init() {
 	rootCmd.AddCommand(managementCmd())
 	rootCmd.AddCommand(signalingCmd())
 	rootCmd.AddCommand(turnCmd())
+	rootCmd.AddCommand(stop())
 }
 
 //

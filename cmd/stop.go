@@ -10,11 +10,11 @@ func stop() *cobra.Command {
 	var flags node.LinkFlags
 	cmd := &cobra.Command{
 		Short:        "stop",
-		Use:          "up",
+		Use:          "stop",
 		SilenceUsage: true,
 		Long:         `linkany stop,will stop the linkany daemon and remove the wireguard interface`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runLinkanyd(&flags)
+			return stopLinkanyd(&flags)
 		},
 	}
 
@@ -29,5 +29,5 @@ func stopLinkanyd(flags *node.LinkFlags) error {
 		flags.LogLevel = "error"
 	}
 	log.Loglevel = log.SetLogLevel(flags.LogLevel)
-	return node.Start(flags)
+	return node.Stop(flags)
 }

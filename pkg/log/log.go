@@ -50,7 +50,6 @@ func logLevel(level string) int {
 func DiscardLogf(format string, args ...any) {}
 
 func (logger *Logger) logf(prefix string) func(string, ...any) {
-	//return log.New(os.Stdout, prefix+": "+logger.moduleName, log.Ldate|log.Ltime|log.Lshortfile).Printf
 	return log.New(os.Stdout, logger.moduleName+" "+prefix+": ", log.Ldate|log.Ltime|log.Lshortfile).Printf
 }
 

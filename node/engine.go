@@ -1,11 +1,15 @@
 package node
 
 import (
+	"bufio"
 	"context"
 	"errors"
+	"fmt"
 	wg "golang.zx2c4.com/wireguard/device"
+	"golang.zx2c4.com/wireguard/ipc"
 	"golang.zx2c4.com/wireguard/tun"
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
+	"io"
 	drpclient "linkany/drp/client"
 	"linkany/internal"
 	mgtclient "linkany/management/client"
@@ -13,6 +17,7 @@ import (
 	"linkany/management/vo"
 	"linkany/pkg/config"
 	"linkany/pkg/drp"
+	lipc "linkany/pkg/ipc"
 	"linkany/pkg/log"
 	"linkany/pkg/probe"
 	"linkany/pkg/wrapper"
@@ -77,26 +82,57 @@ type EngineConfig struct {
 	ShowWgLog     bool
 }
 
-func (e *Engine) IpcHandle(conn net.Conn) {
-	defer conn.Close()
+func (e *Engine) IpcHandle(socket net.Conn) {
+	defer socket.Close()
 
-	buf := make([]byte, 4096)
-	n, err := conn.Read(buf)
-	if err != nil {
-		return
-	}
+	buffered := func(s io.ReadWriter) *bufio.ReadWriter {
+		reader := bufio.NewReader(s)
+		writer := bufio.NewWriter(s)
+		return bufio.NewReadWriter(reader, writer)
+	}(socket)
+	for {
+		op, err := buffered.ReadString('\n')
+		if err != nil {
+			return
+		}
 
-	cmd := string(buf[:n])
-	if cmd == "stop\n\n" {
-		// 响应停止命令
-		conn.Write([]byte("OK\n\n"))
-		// 触发程序退出
-		e.close()
-		// 向主程序发送退出信号
-		syscall.Kill(os.Getpid(), syscall.SIGTERM)
-		return
-	} else {
-		e.device.IpcHandle(conn)
+		// handle operation
+		switch op {
+		case "stop\n":
+			buffered.Write([]byte("OK\n\n"))
+			// send kill signal
+			syscall.Kill(os.Getpid(), syscall.SIGTERM)
+		case "set=1\n":
+			err = e.device.IpcSetOperation(buffered.Reader)
+		case "get=1\n":
+			var nextByte byte
+			nextByte, err = buffered.ReadByte()
+			if err != nil {
+				return
+			}
+			if nextByte != '\n' {
+				err = lipc.IpcErrorf(ipc.IpcErrorInvalid, "trailing character in UAPI get: %q", nextByte)
+				break
+			}
+			err = e.device.IpcGetOperation(buffered.Writer)
+		default:
+			e.logger.Errorf("invalid UAPI operation: %v", op)
+			return
+		}
+
+		// write status
+		var status *lipc.IPCError
+		if err != nil && !errors.As(err, &status) {
+			// shouldn't happen
+			status = lipc.IpcErrorf(ipc.IpcErrorUnknown, "other UAPI error: %w", err)
+		}
+		if status != nil {
+			e.logger.Errorf("%v", status)
+			fmt.Fprintf(buffered, "errno=%d\n\n", status.ErrorCode())
+		} else {
+			fmt.Fprintf(buffered, "errno=0\n\n")
+		}
+		buffered.Flush()
 	}
 
 }

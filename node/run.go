@@ -4,15 +4,14 @@ import (
 	"fmt"
 	wg "golang.zx2c4.com/wireguard/device"
 	"golang.zx2c4.com/wireguard/ipc"
+	"golang.zx2c4.com/wireguard/wgctrl"
 	"linkany/internal"
 	"linkany/management/vo"
 	"linkany/pkg/config"
 	"linkany/pkg/log"
+	"net"
 	"os"
-	"strconv"
-	"strings"
-	"syscall"
-	"time"
+	"path/filepath"
 )
 
 // Start start linkany daemon
@@ -52,45 +51,77 @@ func Start(flags *LinkFlags) error {
 	}
 
 	if flags.DaemonGround {
+		fmt.Println("Run linkany in daemon mode")
 		env := os.Environ()
-		files := [3]*os.File{}
-		//if os.Getenv("LOG_LEVEL") != "" && logLevel != device.LogLevelSilent {
-		//	files[0], _ = os.Open(os.DevNull)
-		//	files[1] = os.Stdout
-		//	files[2] = os.Stderr
-		//} else {
-		files[0], _ = os.Open(os.DevNull)
-		files[1], _ = os.Open(os.DevNull)
-		files[2], _ = os.Open(os.DevNull)
-		//}
-		attr := &os.ProcAttr{
-			Files: []*os.File{
-				files[0], // stdin
-				files[1], // stdout
-				files[2], // stderr
-				//tdev.File(),
-				//fileUAPI,
-			},
-			Dir: ".",
-			Env: env,
+		env = append(env, "LINKANY_DAEMON=true")
+		if os.Getenv("LINKANY_DAEMON") == "" {
+
+			// 确保日志目录存在
+			logDir := "/Library/Logs/linkany"
+			if err := os.MkdirAll(logDir, 0755); err != nil {
+				fmt.Printf("Failed to create log directory: %v\n", err)
+				os.Exit(1)
+			}
+
+			// 打开日志文件
+			logFile, err := os.OpenFile(
+				filepath.Join(logDir, "linkany.log"),
+				os.O_CREATE|os.O_WRONLY|os.O_APPEND,
+				0644,
+			)
+			if err != nil {
+				fmt.Printf("Failed to open log file: %v\n", err)
+				os.Exit(1)
+			}
+
+			files := [3]*os.File{}
+			if flags.LogLevel != "" && flags.LogLevel != "slient" {
+				files[0], _ = os.Open(os.DevNull)
+				files[1] = logFile
+				files[2] = logFile
+			} else {
+				files[0], _ = os.Open(os.DevNull)
+				files[1], _ = os.Open(os.DevNull)
+				files[2], _ = os.Open(os.DevNull)
+			}
+			attr := &os.ProcAttr{
+				Files: []*os.File{
+					files[0], // stdin
+					files[1], // stdout
+					files[2], // stderr
+					//tdev.File(),
+					//fileUAPI,
+				},
+				Dir: ".",
+				Env: env,
+			}
+
+			path, err := os.Executable()
+			if err != nil {
+				logger.Errorf("Failed to determine executable: %v", err)
+				os.Exit(1)
+			}
+
+			filteredArgs := make([]string, 0)
+			for _, arg := range os.Args {
+				if arg != "--daemon" && arg != "-d" && arg != "--foreground" && arg != "-f" {
+					filteredArgs = append(filteredArgs, arg)
+				}
+			}
+
+			process, err := os.StartProcess(
+				path,
+				filteredArgs,
+				attr,
+			)
+			if err != nil {
+				logger.Errorf("Failed to daemonize: %v", err)
+				os.Exit(1)
+			}
+			process.Release()
+			os.Exit(0) // exit parent
 		}
 
-		path, err := os.Executable()
-		if err != nil {
-			logger.Errorf("Failed to determine executable: %v", err)
-			os.Exit(1)
-		}
-
-		process, err := os.StartProcess(
-			path,
-			os.Args,
-			attr,
-		)
-		if err != nil {
-			logger.Errorf("Failed to daemonize: %v", err)
-			os.Exit(1)
-		}
-		process.Release()
 	}
 
 	engine, err := NewEngine(engineCfg)
@@ -148,99 +179,55 @@ func Start(flags *LinkFlags) error {
 func Stop(flags *LinkFlags) error {
 	interfaceName := flags.InterfaceName
 	if flags.InterfaceName == "" {
+		ctr, err := wgctrl.New()
+		if err != nil {
+			return nil
+		}
 
+		devices, err := ctr.Devices()
+		if err != nil {
+			return err
+		}
+
+		if len(devices) == 0 {
+			return fmt.Errorf("没有找到任何 Linkany 设备")
+		}
+
+		interfaceName = devices[0].Name
 	}
-
-	// 尝试通过 UAPI 发送停止命令
-	err := stopViaUAPI(interfaceName)
-	if err == nil {
-
-		return nil
-	}
-
 	// 如果 UAPI 失败，尝试通过 PID 文件停止进程
 	return stopViaPIDFile(interfaceName)
 
 }
 
-// 通过 UAPI 停止服务
-func stopViaUAPI(interfaceName string) error {
-	uapiConn, err := ipc.UAPIOpen(interfaceName)
-	if err != nil {
-		return fmt.Errorf("无法连接到守护进程的 UAPI 套接字: %v", err)
-	}
-	defer uapiConn.Close()
-
-	// 发送停止命令，可以是特定的命令字符串
-	_, err = uapiConn.Write([]byte("stop\n\n"))
-	if err != nil {
-		return fmt.Errorf("发送停止命令失败: %v", err)
-	}
-
-	// 读取响应
-	buf := make([]byte, 4096)
-	n, err := uapiConn.Read(buf)
-	if err != nil {
-		return fmt.Errorf("读取响应失败: %v", err)
-	}
-
-	if string(buf[:n]) != "OK\n\n" {
-		return fmt.Errorf("未收到成功响应")
-	}
-
-	return nil
-}
-
-// 通过 PID 文件停止进程
+// stop linkany daemon via sock file
 func stopViaPIDFile(interfaceName string) error {
-	// 获取 PID 文件路径
-	pidFilePath := fmt.Sprintf("/var/run/linkany-%s.pid", interfaceName)
+	// get sock
+	socketPath := fmt.Sprintf("/var/run/wireguard/%s.sock", interfaceName)
+	// check sock
+	if _, err := os.Stat(socketPath); os.IsNotExist(err) {
+		return fmt.Errorf("file %s not exists", socketPath)
+	}
 
-	// 读取 PID 文件
-	pidBytes, err := os.ReadFile(pidFilePath)
+	// connect to the socket
+	conn, err := net.Dial("unix", socketPath)
 	if err != nil {
-		return fmt.Errorf("无法读取 PID 文件: %v", err)
+		return fmt.Errorf("linkany sock connect failed: %v", err)
 	}
-
-	// 解析 PID
-	pid, err := strconv.Atoi(strings.TrimSpace(string(pidBytes)))
+	defer conn.Close()
+	// 发送消息到服务器
+	_, err = conn.Write([]byte("stop\n"))
 	if err != nil {
-		return fmt.Errorf("无效的 PID: %v", err)
+		return fmt.Errorf("send stop failed: %v", err)
 	}
 
-	// 查找进程
-	process, err := os.FindProcess(pid)
+	// receive
+	buffer := make([]byte, 4096)
+	_, err = conn.Read(buffer)
 	if err != nil {
-		return fmt.Errorf("找不到进程 (PID %d): %v", pid, err)
+		return fmt.Errorf("receive error: %v", err)
 	}
 
-	// 发送 SIGTERM 信号
-	err = process.Signal(syscall.SIGTERM)
-	if err != nil {
-		return fmt.Errorf("无法发送终止信号: %v", err)
-	}
-
-	// 等待进程退出
-	done := make(chan error, 1)
-	go func() {
-		_, err := process.Wait()
-		done <- err
-	}()
-
-	// 设置超时
-	select {
-	case err := <-done:
-		if err != nil {
-			return fmt.Errorf("等待进程退出时出错: %v", err)
-		}
-	case <-time.After(5 * time.Second):
-		// 超时后尝试发送 SIGKILL
-		process.Kill()
-		return fmt.Errorf("进程未在预期时间内退出，已强制终止")
-	}
-
-	// 删除 PID 文件
-	os.Remove(pidFilePath)
-
+	fmt.Printf("linkany stopped: %s\n", interfaceName)
 	return nil
 }
