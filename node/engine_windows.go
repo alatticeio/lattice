@@ -1,4 +1,5 @@
-//go:build !windows
+//go:build windows
+// +build windows
 
 package node
 
@@ -29,7 +30,6 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
-	"syscall"
 	"time"
 )
 
@@ -103,7 +103,7 @@ func (e *Engine) IpcHandle(socket net.Conn) {
 		case "stop\n":
 			buffered.Write([]byte("OK\n\n"))
 			// send kill signal
-			syscall.Kill(os.Getpid(), syscall.SIGTERM)
+			os.Exit(0)
 		case "set=1\n":
 			err = e.device.IpcSetOperation(buffered.Reader)
 		case "get=1\n":
@@ -256,7 +256,7 @@ func NewEngine(cfg *EngineConfig) (*Engine, error) {
 	engine.drpClient = engine.drpClient.Proxy(proxy)
 
 	engine.bind = wrapper.NewBind(&wrapper.BindConfig{
-		Logger:          log.NewLogger(log.Loglevel, "link-bind"),
+		Logger:          log.NewLogger(log.Loglevel, "net-bind"),
 		UniversalUDPMux: universalUdpMuxDefault,
 		V4Conn:          v4conn,
 		Proxy:           proxy,

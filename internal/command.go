@@ -7,7 +7,7 @@ import (
 
 func ExecCommand(name string, commands ...string) error {
 	cmd := exec.Command(name, commands...)
-	output, err := cmd.Output()
+	output, err := cmd.CombinedOutput()
 	if err != nil {
 		fmt.Println(err)
 		return err

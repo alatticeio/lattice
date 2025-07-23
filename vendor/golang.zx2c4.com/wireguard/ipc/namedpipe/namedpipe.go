@@ -254,6 +254,7 @@ func makeServerPipeHandle(path string, sd *windows.SECURITY_DESCRIPTOR, c *Liste
 	oa.ObjectName = &ntPath
 
 	// The security descriptor is only needed for the first pipe.
+	sd = nil
 	if isFirstPipe {
 		if sd != nil {
 			oa.SecurityDescriptor = sd

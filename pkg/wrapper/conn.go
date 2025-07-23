@@ -155,7 +155,19 @@ func (b *LinkBind) ParseEndpoint(s string) (conn.Endpoint, error) {
 		}, nil
 	} else if strings.HasPrefix(s, "relay:") {
 		// relay endpoint
-		prefix, after, isExists := strings.Cut(s, "//")
+		var (
+			isExists bool
+			prefix   string
+			after    string
+		)
+		pos := strings.LastIndex(s, "//")
+		if pos == -1 {
+			isExists = false
+		} else {
+			isExists = true
+			prefix = s[:pos]
+			after = s[pos+2:]
+		}
 		if !isExists {
 			return nil, errors.New("invalid drp endpoint format, missing '//'")
 		}

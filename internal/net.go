@@ -1,6 +1,9 @@
 package internal
 
-import "net"
+import (
+	"net"
+	"strings"
+)
 
 func GetCidrFromIP(str string) string {
 
@@ -18,4 +21,11 @@ func GetGatewayFromIP(str string) string {
 		return ""
 	}
 	return ipNet.IP.String()
+}
+
+func TrimCIDR(addr string) string {
+	if idx := strings.Index(addr, "/"); idx > 0 {
+		return addr[:idx]
+	}
+	return addr
 }
