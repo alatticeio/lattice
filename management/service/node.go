@@ -77,6 +77,7 @@ type nodeServiceImpl struct {
 	nodeRepo        repository.NodeRepository
 	groupMemberRepo repository.GroupMemberRepository
 	groupNodeRepo   repository.GroupNodeRepository
+	groupRepo       repository.GroupRepository
 	labelRepo       repository.LabelRepository
 	nodeLabelRepo   repository.NodeLabelRepository
 	baseRepo        repository.BaseRepository[entity.NodeLabel]
@@ -90,8 +91,9 @@ func NewNodeService(db *gorm.DB) NodeService {
 		labelRepo:       repository.NewLabelRepository(db),
 		groupNodeRepo:   repository.NewGroupNodeRepository(db),
 		nodeLabelRepo:   repository.NewNodeLabelRepository(db),
+		groupRepo:       repository.NewGroupRepository(db),
 		baseRepo:        repository.NewNodeBaseRepository[entity.NodeLabel](db),
-		logger:          log.NewLogger(log.Loglevel, "peermapper")}
+		logger:          log.NewLogger(log.Loglevel, "node-mapper")}
 }
 
 func (n *nodeServiceImpl) Register(ctx context.Context, e *dto.NodeDto) (*entity.Node, error) {
@@ -207,6 +209,37 @@ func (n *nodeServiceImpl) Update(ctx context.Context, nodeDto *dto.NodeDto) erro
 			}
 		}
 
+		// update node to group
+		groupNode, err := n.groupNodeRepo.FindByGroupNodeId(ctx, 0, nodeDto.ID)
+		if err != nil {
+			return err
+		}
+
+		group, err := n.groupRepo.WithTx(tx).FindByName(ctx, nodeDto.GroupName)
+		if err != nil {
+			return err
+		}
+
+		if groupNode != nil {
+			groupNode.GroupId = group.ID
+			groupNode.GroupName = nodeDto.GroupName
+			if err = n.groupNodeRepo.WithTx(tx).UpdateById(ctx, groupNode); err != nil {
+				return err
+			}
+		} else {
+			// create new group node
+			groupNodeDto := &entity.GroupNode{
+				GroupId:   group.ID,
+				NodeId:    nodeDto.ID,
+				GroupName: nodeDto.GroupName,
+				NodeName:  nodeDto.Name,
+			}
+
+			if err = n.groupNodeRepo.WithTx(tx).Create(ctx, groupNodeDto); err != nil {
+				return err
+			}
+		}
+
 		nodeRepo := n.nodeRepo.WithTx(tx)
 		return nodeRepo.Update(ctx, nodeDto)
 	})
@@ -279,8 +312,8 @@ func transferToVos(nodes []*entity.Node) []*vo.NodeVo {
 			Port:                node.Port,
 			Status:              node.Status,
 			ActiveStatus:        node.ActiveStatus,
-			//GroupName:           node.GroupName,
-			//LabelValues:         labelValue,
+			GroupName:           node.Group.GroupName,
+			ConnectType:         node.ConnectType,
 		}
 
 		if node.NodeLabels != nil {
@@ -604,7 +637,6 @@ func (n *nodeServiceImpl) AddNodeLabel(ctx context.Context, dto *dto.NodeLabelUp
 		}
 	}
 	return nil
-
 }
 
 func (n *nodeServiceImpl) RemoveNodeLabel(ctx context.Context, nodeId, labelId uint64) error {

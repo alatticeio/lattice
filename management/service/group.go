@@ -154,29 +154,29 @@ func (g *groupServiceImpl) handleGP(ctx context.Context, tx *gorm.DB, dto *dto.N
 			if err != nil {
 				return err
 			}
-			if _, err = g.groupNodeRepo.FindByGroupNodeId(ctx, group.ID, nodeId); err != nil {
-				if errors.Is(err, gorm.ErrRecordNotFound) {
-					var node *entity.Node
-					if node, err = g.nodeRepo.Find(ctx, nodeId); err != nil {
-						return err
-					}
-
-					groupNode = entity.GroupNode{
-						GroupId:   group.ID,
-						NodeId:    node.ID,
-						GroupName: group.Name,
-						NodeName:  node.Name,
-						CreatedBy: ctx.Value("username").(string),
-					}
-					if err = g.groupNodeRepo.Create(ctx, &groupNode); err != nil {
-						return err
-					}
-
-					// add push message
-					g.manager.Push(node.PublicKey, internal.NewMessage().AddNode(
-						node.TransferToNodeVo().TransferToNodeMessage(),
-					))
+			if gn, err := g.groupNodeRepo.FindByGroupNodeId(ctx, group.ID, nodeId); err != nil || gn.GroupName == "" {
+				//if errors.Is(err, gorm.ErrRecordNotFound) {
+				var node *entity.Node
+				if node, err = g.nodeRepo.Find(ctx, nodeId); err != nil {
+					return err
 				}
+
+				groupNode = entity.GroupNode{
+					GroupId:   group.ID,
+					NodeId:    node.ID,
+					GroupName: group.Name,
+					NodeName:  node.Name,
+					CreatedBy: ctx.Value("username").(string),
+				}
+				if err = g.groupNodeRepo.Create(ctx, &groupNode); err != nil {
+					return err
+				}
+
+				// add push message
+				g.manager.Push(node.PublicKey, internal.NewMessage().AddNode(
+					node.TransferToNodeVo().TransferToNodeMessage(),
+				))
+				//}
 			}
 		}
 	}

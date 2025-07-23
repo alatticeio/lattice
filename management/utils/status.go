@@ -32,14 +32,14 @@ func (n NodeStatus) String() string {
 	}
 }
 
-type Status int
+type ActiveStatus int
 
 const (
-	DISABLED Status = iota
+	DISABLED ActiveStatus = iota
 	ENABLED
 )
 
-func (s Status) String() string {
+func (s ActiveStatus) String() string {
 	switch s {
 	case DISABLED:
 		return "disabled"
@@ -50,17 +50,17 @@ func (s Status) String() string {
 	}
 }
 
-func (s Status) MarshalJSON() ([]byte, error) {
+func (s ActiveStatus) MarshalJSON() ([]byte, error) {
 	// 将枚举值转换为字符串
 	return json.Marshal(s.String())
 }
 
-var statusMap = map[string]Status{
+var statusMap = map[string]ActiveStatus{
 	"disabled": DISABLED,
 	"enabled":  ENABLED,
 }
 
-func (s *Status) UnmarshalJSON(data []byte) error {
+func (s *ActiveStatus) UnmarshalJSON(data []byte) error {
 	var str string
 	if err := json.Unmarshal(data, &str); err != nil {
 		return err
@@ -104,15 +104,15 @@ func (r RuleType) MarshalJSON() ([]byte, error) {
 	return json.Marshal(r.String())
 }
 
-type ActiveStatus int
-
-func (a ActiveStatus) String() string {
-	switch a {
-	case 0:
-		return "forbidden"
-	case 1:
-		return "active"
-	default:
-		return "unknown"
-	}
-}
+//type ActiveStatus int
+//
+//func (a ActiveStatus) String() string {
+//	switch a {
+//	case 0:
+//		return "forbidden"
+//	case 1:
+//		return "active"
+//	default:
+//		return "unknown"
+//	}
+//}

@@ -62,8 +62,9 @@ func (r *nodeRepository) DeleteByAppId(ctx context.Context, appId string) error 
 
 func (r *nodeRepository) Update(ctx context.Context, nodeDto *dto.NodeDto) error {
 	return r.db.WithContext(ctx).Model(&entity.Node{}).Where("id = ?", nodeDto.ID).Updates(map[string]interface{}{
-		"status": nodeDto.Status,
-		"name":   nodeDto.Name,
+		"active_status": nodeDto.ActiveStatus,
+		"connect_type":  nodeDto.ConnectType,
+		"name":          nodeDto.Name,
 	}).Error
 }
 

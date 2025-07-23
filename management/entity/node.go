@@ -49,7 +49,7 @@ type Node struct {
 	ActiveStatus        utils.ActiveStatus
 	ConnectType         internal.ConnectType // direct, relay, drp
 
-	Group      GroupNode   `gorm:"foreignKey:GroupId;"`
+	Group      GroupNode   `gorm:"foreignKey:NodeId;"`
 	NodeLabels []NodeLabel `gorm:"foreignKey:NodeId;"`
 }
 
@@ -69,12 +69,12 @@ type NodeGroup struct {
 	Name        string `gorm:"column:name;size:64" json:"name"`
 	Description string `gorm:"column:description;size:255" json:"description"`
 
-	OwnId     uint64       `gorm:"column:own_id;size:20" json:"ownerId"`
-	Owner     string       `gorm:"column:owner;size:64" json:"owner"`
-	IsPublic  bool         `gorm:"column:is_public" json:"isPublic"`
-	Status    utils.Status `gorm:"column:status" json:"status"` // 0: unapproved, 1: approved, 2: rejected
-	CreatedBy string       `gorm:"column:created_by;size:64" json:"createdBy"`
-	UpdatedBy string       `gorm:"column:updated_by;size:64" json:"updatedBy"`
+	OwnId     uint64             `gorm:"column:own_id;size:20" json:"ownerId"`
+	Owner     string             `gorm:"column:owner;size:64" json:"owner"`
+	IsPublic  bool               `gorm:"column:is_public" json:"isPublic"`
+	Status    utils.ActiveStatus `gorm:"column:status" json:"status"` // 0: unapproved, 1: approved, 2: rejected
+	CreatedBy string             `gorm:"column:created_by;size:64" json:"createdBy"`
+	UpdatedBy string             `gorm:"column:updated_by;size:64" json:"updatedBy"`
 
 	GroupNodes    []GroupNode   `gorm:"foreignKey:GroupId;"`
 	GroupPolicies []GroupPolicy `gorm:"foreignKey:GroupId;"`

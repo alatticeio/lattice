@@ -14,15 +14,15 @@ type GroupVo struct {
 	Name      string `json:"name"`
 	NodeCount int    `json:"nodeCount"`
 
-	GroupNodes    []GroupNodeVo   `json:"groupNodes"`
-	GroupPolicies []GroupPolicyVo `json:"groupPolicies"`
-	Status        utils.Status    `json:"status"`
-	Description   string          `json:"description"`
-	CreatedAt     time.Time       `json:"createdAt"`
-	DeletedAt     gorm.DeletedAt  `json:"deletedAt"`
-	UpdatedAt     time.Time       `json:"updatedAt"`
-	CreatedBy     string          `json:"createdBy"`
-	UpdatedBy     string          `json:"updatedBy"`
+	GroupNodes    []GroupNodeVo      `json:"groupNodes"`
+	GroupPolicies []GroupPolicyVo    `json:"groupPolicies"`
+	Status        utils.ActiveStatus `json:"status"`
+	Description   string             `json:"description"`
+	CreatedAt     time.Time          `json:"createdAt"`
+	DeletedAt     gorm.DeletedAt     `json:"deletedAt"`
+	UpdatedAt     time.Time          `json:"updatedAt"`
+	CreatedBy     string             `json:"createdBy"`
+	UpdatedBy     string             `json:"updatedBy"`
 }
 
 // GroupRelationVo for tom-select show

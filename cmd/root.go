@@ -8,8 +8,8 @@ import (
 
 var rootCmd = &cobra.Command{
 	Use:   "linkany",
-	Short: "linkany is a fast wireguard proxy",
-	Long:  `A fast wireguard proxy that supports relay and direct connection modes.`,
+	Short: "linkany is a tool for creating fast and secure wireguard proxies",
+	Long:  `linkany is a tool for creating fast and secure wireguard proxies. It allows you to create a wireguard interface and manage it easily.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		// Do Stuff Here
 	},
@@ -17,7 +17,7 @@ var rootCmd = &cobra.Command{
 
 func Execute() {
 	if err := rootCmd.Execute(); err != nil {
-		fmt.Fprintln(os.Stderr, err)
+		fmt.Fprintln(os.Stderr, err.Error())
 		os.Exit(1)
 	}
 }
@@ -40,6 +40,7 @@ func init() {
 	rootCmd.AddCommand(signalingCmd())
 	rootCmd.AddCommand(turnCmd())
 	rootCmd.AddCommand(stop())
+	rootCmd.AddCommand(status())
 }
 
 //

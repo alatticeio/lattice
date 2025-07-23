@@ -254,7 +254,7 @@ func NewEngine(cfg *EngineConfig) (*Engine, error) {
 	engine.drpClient = engine.drpClient.Proxy(proxy)
 
 	engine.bind = wrapper.NewBind(&wrapper.BindConfig{
-		Logger:          log.NewLogger(log.Loglevel, "net-bind"),
+		Logger:          log.NewLogger(log.Loglevel, "link-bind"),
 		UniversalUDPMux: universalUdpMuxDefault,
 		V4Conn:          v4conn,
 		Proxy:           proxy,
