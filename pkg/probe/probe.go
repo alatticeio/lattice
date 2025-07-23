@@ -157,7 +157,9 @@ func (p *probe) HandleOffer(ctx context.Context, offer internal.Offer) error {
 
 			p.probeManager.AddProbe(p.to, p)
 		}
-		return p.handleDirectOffer(ctx, offer.(*direct.DirectOffer))
+		if err := p.handleDirectOffer(ctx, offer.(*direct.DirectOffer)); err != nil {
+			return err
+		}
 
 	case internal.OfferTypeRelayOffer, internal.OfferTypeRelayAnswer:
 		if p.relayChecker == nil {
