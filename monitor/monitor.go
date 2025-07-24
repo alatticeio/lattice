@@ -1,10 +1,80 @@
-package main
+package monitor
 
-type MetricService interface {
-	Get() (MetricInfo, error)
+import (
+	"linkany/monitor/collector"
+	"linkany/pkg/log"
+	"time"
+)
+
+// NodeMonitor 节点监控器
+type NodeMonitor struct {
+	collectors []collector.MetricCollector
+	interval   time.Duration
+	storage    collector.Storage
+	alerter    collector.Alerter
+	stopChan   chan struct{}
+	logger     *log.Logger
 }
 
-type MetricInfo interface {
-	// MetricService is a struct that contains the total memory, free memory, and used memory percentage.
-	String() (string, error)
+func NewNodeMonitor(interval time.Duration, storage collector.Storage, alerter collector.Alerter) *NodeMonitor {
+	return &NodeMonitor{
+		collectors: make([]collector.MetricCollector, 0),
+		interval:   interval,
+		storage:    storage,
+		alerter:    alerter,
+		stopChan:   make(chan struct{}),
+		logger:     log.NewLogger(log.Loglevel, "monitor"),
+	}
+}
+
+func (m *NodeMonitor) AddCollector(collector collector.MetricCollector) {
+	m.collectors = append(m.collectors, collector)
+}
+
+func (m *NodeMonitor) Start() error {
+	go func() {
+		ticker := time.NewTicker(m.interval)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-m.stopChan:
+				return
+			case <-ticker.C:
+				allMetrics := make([]collector.Metric, 0)
+
+				// 从所有收集器获取指标
+				for _, collector := range m.collectors {
+					metrics, err := collector.Collect()
+					if err != nil {
+						m.logger.Errorf("Error collecting metrics from %s: %v", collector.Name(), err)
+						continue
+					}
+					allMetrics = append(allMetrics, metrics...)
+				}
+
+				// 存储指标数据
+				if err := m.storage.Store(allMetrics); err != nil {
+					m.logger.Errorf("Error storing metrics: %v", err)
+				}
+
+				// 告警检查
+				//alerts, err := m.alerter.Evaluate(allMetrics)
+				//if err != nil {
+				//	log.Printf("Error evaluating alerts: %v", err)
+				//} else if len(alerts) > 0 {
+				//	if err := m.alerter.Send(alerts); err != nil {
+				//		log.Printf("Error sending alerts: %v", err)
+				//	}
+				//}
+
+				m.logger.Verbosef("Storing %d metrics", len(allMetrics))
+			}
+		}
+	}()
+	return nil
+}
+
+func (m *NodeMonitor) Stop() {
+	close(m.stopChan)
 }

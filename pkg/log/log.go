@@ -3,6 +3,7 @@
 package log
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"strings"
@@ -50,7 +51,7 @@ func logLevel(level string) int {
 func DiscardLogf(format string, args ...any) {}
 
 func (logger *Logger) logf(prefix string) func(string, ...any) {
-	return log.New(os.Stdout, logger.moduleName+" "+prefix+": ", log.Ldate|log.Ltime|log.Lshortfile).Printf
+	return log.New(os.Stdout, fmt.Sprintf("[%s] %s: ", logger.moduleName, prefix), log.Ldate|log.Ltime|log.Lshortfile).Printf
 }
 
 // NewLogger constructs a Logger that writes to stdout.

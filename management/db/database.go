@@ -15,7 +15,7 @@ import (
 type DatabaseConfig struct {
 	Host     string `yaml:"dsn,omitempty"`
 	Port     int    `yaml:"port,omitempty"`
-	Name     string `yaml:"Name,omitempty"`
+	Name     string `yaml:"MetricName,omitempty"`
 	User     string `yaml:"user,omitempty"`
 	Password string `yaml:"password,omitempty"`
 }

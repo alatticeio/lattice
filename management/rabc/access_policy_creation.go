@@ -6,7 +6,7 @@ package rbac
 //// 创建访问策略
 //func createSamplePolicy(svc AccessPolicyService) error {
 //	policy := &AccessPolicy{
-//		Name:        "限制数据节点访问",
+//		MetricName:        "限制数据节点访问",
 //		GroupId:     1,
 //		Priority:    100,
 //		Effect:      "allow",

@@ -22,7 +22,7 @@ type DeviceConf struct {
 // Node nodes sync from linkany server will transfer to
 //type Node struct {
 //	Connected           atomic.Bool
-//	Name                string           `json:"name,omitempty"`
+//	MetricName                string           `json:"name,omitempty"`
 //	Hostname            string           `json:"hostname,omitempty"`
 //	AppID               string           `json:"app_id,omitempty"`
 //	PrivateKey          string           `json:"private_key,omitempty"`

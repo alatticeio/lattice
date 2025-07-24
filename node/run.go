@@ -9,12 +9,15 @@ import (
 	"golang.zx2c4.com/wireguard/wgctrl"
 	"linkany/internal"
 	"linkany/management/vo"
+	"linkany/monitor"
+	"linkany/monitor/collector"
 	"linkany/pkg/config"
 	"linkany/pkg/log"
 	"net"
 	"os"
 	"path/filepath"
 	"runtime"
+	"time"
 )
 
 // Start start linkany
@@ -139,6 +142,17 @@ func Start(flags *LinkFlags) error {
 			os.Exit(0) // exit parent
 		}
 
+	}
+
+	if flags.MetricsEnable {
+		go func() {
+			metric := monitor.NewNodeMonitor(10*time.Second, collector.NewPrometheusStorage(""), nil)
+			metric.AddCollector(&collector.CPUCollector{})
+			metric.AddCollector(&collector.MemoryCollector{})
+			metric.AddCollector(&collector.DiskCollector{})
+			metric.AddCollector(&collector.TrafficCollector{})
+			metric.Start()
+		}()
 	}
 
 	engine, err := NewEngine(engineCfg)

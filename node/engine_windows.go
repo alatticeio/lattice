@@ -172,7 +172,7 @@ func NewEngine(cfg *EngineConfig) (*Engine, error) {
 	// control-mgtClient
 	if grpcClient, err = grpcclient.NewClient(&grpcclient.GrpcConfig{
 		Addr:          cfg.ManagementUrl,
-		Logger:        log.NewLogger(log.Loglevel, "grpc-mgtClient"),
+		Logger:        log.NewLogger(log.Loglevel, "grpc-mgtclient"),
 		KeepaliveChan: engine.keepaliveChan,
 		WatchChan:     engine.watchChan}); err != nil {
 		return nil, err

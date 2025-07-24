@@ -10,7 +10,8 @@ type LinkFlags struct {
 	AppKey        string
 
 	// DaemonGround is a flag to indicate whether the node should run in foreground mode
-	DaemonGround bool
+	DaemonGround  bool
+	MetricsEnable bool
 
 	//Url
 	ManagementUrl string
