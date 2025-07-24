@@ -7,6 +7,7 @@ import (
 	wg "golang.zx2c4.com/wireguard/device"
 	"golang.zx2c4.com/wireguard/ipc"
 	"golang.zx2c4.com/wireguard/wgctrl"
+	"linkany/dns"
 	"linkany/internal"
 	"linkany/management/vo"
 	"linkany/monitor"
@@ -144,6 +145,7 @@ func Start(flags *LinkFlags) error {
 
 	}
 
+	// enable metrics
 	if flags.MetricsEnable {
 		go func() {
 			metric := monitor.NewNodeMonitor(10*time.Second, collector.NewPrometheusStorage(""), nil)
@@ -152,6 +154,16 @@ func Start(flags *LinkFlags) error {
 			metric.AddCollector(&collector.DiskCollector{})
 			metric.AddCollector(&collector.TrafficCollector{})
 			metric.Start()
+			fmt.Println("metrics started")
+		}()
+	}
+
+	// enable linkDNS
+	if flags.DnsEnable {
+		go func() {
+			linkDns := dns.NewLinkDNS(&dns.DNSConfig{})
+			linkDns.Start()
+			fmt.Println("linkDNS started")
 		}()
 	}
 

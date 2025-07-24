@@ -27,6 +27,7 @@ func up() *cobra.Command {
 	fs.StringVarP(&flags.SignalingUrl, "", "", "", "signaling service, not need to modify")
 	fs.BoolVarP(&flags.DaemonGround, "daemon", "d", false, "run in daemon mode, default is forground mode")
 	fs.BoolVarP(&flags.MetricsEnable, "metrics", "m", false, "enable metrics")
+	fs.BoolVarP(&flags.DnsEnable, "dns", "", false, "enable dns")
 
 	return cmd
 }

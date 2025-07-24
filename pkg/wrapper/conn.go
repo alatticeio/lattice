@@ -68,6 +68,7 @@ type LinkBind struct {
 type BindConfig struct {
 	Logger          *log.Logger
 	V4Conn          *net.UDPConn
+	V6Conn          *net.UDPConn
 	UniversalUDPMux *ice.UniversalUDPMuxDefault
 	RelayConn       net.PacketConn // relay conn, used for relay endpoint
 	Proxy           *drpclient.Proxy
@@ -79,6 +80,7 @@ func NewBind(cfg *BindConfig) *LinkBind {
 		logger:          cfg.Logger,
 		proxy:           cfg.Proxy,
 		v4conn:          cfg.V4Conn,
+		v6conn:          cfg.V6Conn,
 		universalUdpMux: cfg.UniversalUDPMux,
 		keyManager:      cfg.KeyManager,
 		relayConn:       cfg.RelayConn,
@@ -222,12 +224,12 @@ func listenNet(network string, port int) (*net.UDPConn, int, error) {
 
 func ListenUDP(net string, uport uint16) (*net.UDPConn, int, error) {
 	port := int(uport)
-	v4conn, port, err := listenNet("udp4", port)
+	conn, port, err := listenNet(net, port)
 	if err != nil && !errors.Is(err, syscall.EAFNOSUPPORT) {
 		return nil, 0, err
 	}
 
-	return v4conn, port, nil
+	return conn, port, nil
 }
 
 // Open copy from wiregaurd, add a drp ReceiveFunc
@@ -241,6 +243,7 @@ func (b *LinkBind) Open(uport uint16) ([]conn.ReceiveFunc, uint16, error) {
 
 	port := int(uport)
 	var v4pc *ipv4.PacketConn
+	var v6pc *ipv6.PacketConn
 
 	// Listen on the same port as we're using for ipv4.
 	var fns []conn.ReceiveFunc
@@ -251,6 +254,15 @@ func (b *LinkBind) Open(uport uint16) ([]conn.ReceiveFunc, uint16, error) {
 		}
 		fns = append(fns, b.makeReceiveIPv4(v4pc, b.v4conn))
 		b.ipv4 = b.v4conn
+	}
+
+	if b.v6conn != nil {
+		if runtime.GOOS == "linux" {
+			v6pc = ipv6.NewPacketConn(b.v6conn)
+			b.ipv6PC = v6pc
+		}
+		fns = append(fns, b.makeReceiveIPv6(v6pc, b.v6conn))
+		b.ipv6 = b.v6conn
 	}
 	if len(fns) == 0 {
 		return nil, 0, syscall.EAFNOSUPPORT
@@ -385,6 +397,16 @@ func (b *LinkBind) makeReceiveIPv6(pc *ipv6.PacketConn, udpConn *net.UDPConn) co
 		}
 		for i := 0; i < numMsgs; i++ {
 			msg := &(*msgs)[i]
+
+			ok, err := b.universalUdpMux.FilterMessage(msg.Buffers[0], msg.N, msg.Addr.(*net.UDPAddr))
+			if err != nil {
+				b.logger.Errorf("handle stun message error: %v", err)
+				return 0, nil
+			}
+
+			if ok {
+				return 0, nil
+			}
 			sizes[i] = msg.N
 			addrPort := msg.Addr.(*net.UDPAddr).AddrPort()
 			ep := &internal.LinkEndpoint{Direct: struct{ AddrPort netip.AddrPort }{AddrPort: addrPort}} // TODO: remove allocation

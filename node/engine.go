@@ -150,6 +150,8 @@ func NewEngine(cfg *EngineConfig) (*Engine, error) {
 		proxy        *drpclient.Proxy
 		turnClient   *turnclient.Client
 		grpcClient   *grpcclient.Client
+		v4conn       *net.UDPConn
+		v6conn       *net.UDPConn
 	)
 	engine = new(Engine)
 	engine.logger = cfg.Logger
@@ -215,9 +217,11 @@ func NewEngine(cfg *EngineConfig) (*Engine, error) {
 	engine.keyManager = internal.NewKeyManager(privateKey)
 	engine.nodeManager.AddPeer(engine.keyManager.GetPublicKey(), engine.current)
 
-	v4conn, _, err := wrapper.ListenUDP("udp4", uint16(cfg.Port))
+	if v4conn, _, err = wrapper.ListenUDP("udp4", uint16(cfg.Port)); err != nil {
+		return nil, err
+	}
 
-	if err != nil {
+	if v6conn, _, err = wrapper.ListenUDP("udp6", uint16(cfg.Port)); err != nil {
 		return nil, err
 	}
 
@@ -259,6 +263,7 @@ func NewEngine(cfg *EngineConfig) (*Engine, error) {
 		Logger:          log.NewLogger(log.Loglevel, "link-bind"),
 		UniversalUDPMux: universalUdpMuxDefault,
 		V4Conn:          v4conn,
+		V6Conn:          v6conn,
 		Proxy:           proxy,
 		KeyManager:      engine.keyManager,
 		RelayConn:       info.RelayConn,

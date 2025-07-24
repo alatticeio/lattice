@@ -12,6 +12,7 @@ type LinkFlags struct {
 	// DaemonGround is a flag to indicate whether the node should run in foreground mode
 	DaemonGround  bool
 	MetricsEnable bool
+	DnsEnable     bool
 
 	//Url
 	ManagementUrl string

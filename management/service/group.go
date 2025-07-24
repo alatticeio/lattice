@@ -154,7 +154,7 @@ func (g *groupServiceImpl) handleGP(ctx context.Context, tx *gorm.DB, dto *dto.N
 			if err != nil {
 				return err
 			}
-			if gn, err := g.groupNodeRepo.FindByGroupNodeId(ctx, group.ID, nodeId); err != nil || gn.GroupName == "" {
+			if gn, err := g.groupNodeRepo.FindByGroupNodeId(ctx, group.ID, nodeId); err != nil || gn == nil {
 				//if errors.Is(err, gorm.ErrRecordNotFound) {
 				var node *entity.Node
 				if node, err = g.nodeRepo.Find(ctx, nodeId); err != nil {
