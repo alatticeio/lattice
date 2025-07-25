@@ -57,3 +57,20 @@ func (p *GroupController) ListGroups(ctx context.Context, params *dto.GroupParam
 func (p *GroupController) QueryGroups(ctx context.Context, params *dto.GroupParams) ([]*vo.GroupVo, error) {
 	return p.groupService.QueryGroups(ctx, params)
 }
+
+// api group
+func (p *GroupController) JoinGroup(ctx context.Context, params *dto.ApiCommandParams) error {
+	return p.groupService.JoinGroup(ctx, params)
+}
+
+func (p *GroupController) LeaveGroup(ctx context.Context, params *dto.ApiCommandParams) error {
+	return p.groupService.LeaveGroup(ctx, params)
+}
+
+func (p *GroupController) RemoveGroup(ctx context.Context, params *dto.ApiCommandParams) error {
+	return p.groupService.RemoveGroup(ctx, params)
+}
+
+func (p *GroupController) AddGroup(ctx context.Context, params *dto.ApiCommandParams) error {
+	return p.groupService.AddGroup(ctx, params)
+}

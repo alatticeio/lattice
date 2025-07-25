@@ -136,3 +136,20 @@ func (p *NodeController) ListNodeLabels(ctx context.Context, params *dto.NodeLab
 func (p *NodeController) QueryLabels(ctx context.Context, params *dto.LabelParams) ([]*vo.LabelVo, error) {
 	return p.nodeService.QueryLabels(ctx, params)
 }
+
+// node apis
+func (p *NodeController) ListUserNodes(ctx context.Context, params *dto.ApiCommandParams) ([]vo.NodeVo, error) {
+	return p.nodeService.ListUserNodes(ctx, params)
+}
+
+func (p *NodeController) AddLabel(ctx context.Context, params *dto.ApiCommandParams) error {
+	return p.nodeService.AddLabelToNode(ctx, params)
+}
+
+func (p *NodeController) ShowLabel(ctx context.Context, params *dto.ApiCommandParams) ([]vo.NodeLabelVo, error) {
+	return p.nodeService.ShowLabel(ctx, params)
+}
+
+func (p *NodeController) RemoveLabel(ctx context.Context, params *dto.ApiCommandParams) error {
+	return p.nodeService.RemoveLabel(ctx, params)
+}

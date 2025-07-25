@@ -79,6 +79,9 @@ func (s *Server) initRoute() {
 	s.RegisterSharedRoutes()
 	s.RegisterSettingsRoutes()
 
+	// register api
+	s.RegisterApis()
+
 	s.GET("/ping", func(c *gin.Context) {
 		c.JSON(200, gin.H{
 			"message": "pong",

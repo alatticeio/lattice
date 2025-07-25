@@ -8,6 +8,7 @@ import (
 	"linkany/management/dto"
 	"linkany/management/entity"
 	"linkany/management/repository"
+	"linkany/management/utils"
 	"linkany/management/vo"
 	"linkany/pkg/log"
 	"strconv"
@@ -27,6 +28,12 @@ type GroupService interface {
 	ListGroupPolicy(ctx context.Context, params *dto.GroupPolicyParams) ([]*vo.GroupPolicyVo, error)
 	DeleteGroupPolicy(ctx context.Context, groupId, policyId uint64) error
 	DeleteGroupNode(ctx context.Context, groupId, nodeId uint64) error
+
+	//api
+	JoinGroup(ctx context.Context, params *dto.ApiCommandParams) error
+	LeaveGroup(ctx context.Context, params *dto.ApiCommandParams) error
+	RemoveGroup(ctx context.Context, params *dto.ApiCommandParams) error
+	AddGroup(ctx context.Context, params *dto.ApiCommandParams) error
 }
 
 var (
@@ -448,5 +455,118 @@ func (g *groupServiceImpl) DeleteGroupNode(ctx context.Context, groupId, nodeId 
 		))
 
 		return nil
+	})
+}
+
+// api groups
+
+func (g *groupServiceImpl) JoinGroup(ctx context.Context, params *dto.ApiCommandParams) error {
+	return g.db.Transaction(func(tx *gorm.DB) error {
+		var (
+			err       error
+			group     *entity.NodeGroup
+			node      *entity.Node
+			groupNode *entity.GroupNode
+		)
+		// find group
+		if group, err = g.groupRepo.WithTx(tx).FindByName(ctx, params.Name); err != nil {
+			return err
+		}
+
+		if group == nil {
+			return fmt.Errorf("group %s not found", params.Name)
+		}
+
+		if node, err = g.nodeRepo.WithTx(tx).FindByAppId(ctx, params.AppId); err != nil {
+			return err
+		}
+
+		if groupNode, err = g.groupNodeRepo.WithTx(tx).FindByGroupNodeId(ctx, group.ID, node.ID); err != nil {
+			return err
+		}
+
+		if groupNode != nil {
+			return fmt.Errorf("node %s already in group %s, please leave first", node.Name, group.Name)
+		} else {
+			//create
+			return g.groupNodeRepo.WithTx(tx).Create(ctx, &entity.GroupNode{
+				GroupId:   group.ID,
+				NodeId:    node.ID,
+				GroupName: group.Name,
+				NodeName:  node.Name,
+			})
+		}
+
+		return nil
+	})
+}
+
+func (g *groupServiceImpl) LeaveGroup(ctx context.Context, params *dto.ApiCommandParams) error {
+	return g.db.Transaction(func(tx *gorm.DB) error {
+		var (
+			err   error
+			group *entity.NodeGroup
+			node  *entity.Node
+		)
+		// find group
+		if group, err = g.groupRepo.WithTx(tx).FindByName(ctx, params.Name); err != nil {
+			return err
+		}
+
+		if group == nil {
+			return fmt.Errorf("group %s not found", params.Name)
+		}
+
+		if node, err = g.nodeRepo.WithTx(tx).FindByAppId(ctx, params.AppId); err != nil {
+			return err
+		}
+
+		return g.groupNodeRepo.DeleteByGroupNodeId(ctx, group.ID, node.ID)
+
+	})
+}
+
+func (g *groupServiceImpl) RemoveGroup(ctx context.Context, params *dto.ApiCommandParams) error {
+	return g.db.Transaction(func(tx *gorm.DB) error {
+		var (
+			err   error
+			group *entity.NodeGroup
+		)
+		// find group
+		if group, err = g.groupRepo.WithTx(tx).FindByName(ctx, params.Name); err != nil {
+			return err
+		}
+
+		if group == nil {
+			return fmt.Errorf("group %s not found", params.Name)
+		}
+
+		return g.groupRepo.WithTx(tx).Delete(ctx, group.ID)
+	})
+}
+
+func (g *groupServiceImpl) AddGroup(ctx context.Context, params *dto.ApiCommandParams) error {
+	return g.db.Transaction(func(tx *gorm.DB) error {
+		var (
+			err   error
+			group *entity.NodeGroup
+		)
+
+		// find group
+		if group, err = g.groupRepo.WithTx(tx).FindByName(ctx, params.Name); err != nil {
+			if !errors.Is(err, gorm.ErrRecordNotFound) {
+				return err
+			}
+		}
+
+		if group != nil {
+			return fmt.Errorf("group %s already exists", params.Name)
+		}
+
+		return g.groupRepo.WithTx(tx).Create(ctx, &entity.NodeGroup{
+			Name:  params.Name,
+			OwnId: utils.GetUserIdFromCtx(ctx),
+		})
+
 	})
 }

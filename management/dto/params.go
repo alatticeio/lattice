@@ -10,7 +10,7 @@ type QueryParams struct {
 	Keyword *string `json:"keyword" form:"keyword"`
 	Name    *string `json:"name" form:"name"`
 	PubKey  *string `json:"pubKey" form:"pubKey"`
-	UserId  string  `json:"userId" form:"userId"`
+	UserId  uint64  `json:"userId" form:"userId"`
 	Page    *int    `json:"page" form:"page"`
 	Size    *int    `json:"size" form:"size"`
 	Status  *int
@@ -27,7 +27,7 @@ func (p *QueryParams) Generate() []*utils.KeyValue {
 		result = append(result, utils.NewKeyValue("public_key", *p.PubKey))
 	}
 
-	if p.UserId != "" {
+	if p.UserId != 0 {
 		result = append(result, utils.NewKeyValue("user_id", p.UserId))
 	}
 

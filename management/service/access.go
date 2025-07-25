@@ -46,6 +46,8 @@ type AccessPolicyService interface {
 
 	// Permissions
 	QueryPermissions(ctx context.Context, params *dto.PermissionParams) ([]*vo.PermissionVo, error)
+
+	ListUserPolicies(ctx context.Context, params *dto.ApiCommandParams) ([]vo.AccessPolicyVo, error)
 }
 
 // 访问请求结构
@@ -590,4 +592,34 @@ func (a *accessPolicyServiceImpl) DeleteUserResourcePermission(ctx context.Conte
 		return nil
 	})
 
+}
+
+func (a *accessPolicyServiceImpl) ListUserPolicies(ctx context.Context, params *dto.ApiCommandParams) ([]vo.AccessPolicyVo, error) {
+	var (
+		err      error
+		policies []*entity.AccessPolicy
+		vos      []vo.AccessPolicyVo
+	)
+
+	if policies, _, err = a.policyRepo.List(ctx, &dto.AccessPolicyParams{}); err != nil {
+		return nil, err
+	}
+
+	for _, policy := range policies {
+		vos = append(vos, vo.AccessPolicyVo{
+			ID:          policy.ID,
+			Name:        policy.Name,
+			GroupID:     policy.GroupID,
+			Priority:    policy.Priority,
+			Effect:      policy.Effect,
+			Description: policy.Description,
+			Status:      policy.Status,
+			CreatedBy:   policy.CreatedBy,
+			UpdatedBy:   policy.UpdatedBy,
+			CreatedAt:   policy.CreatedAt,
+			UpdatedAt:   policy.UpdatedAt,
+		})
+	}
+
+	return vos, nil
 }

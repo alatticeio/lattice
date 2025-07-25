@@ -95,7 +95,7 @@ func (s *Server) listNodes() gin.HandlerFunc {
 		}
 		token := c.GetHeader("Authorization")
 		user, err := s.userController.Get(c, token)
-		params.UserId = strconv.Itoa(int(user.ID))
+		params.UserId = user.ID
 
 		nodes, err := s.nodeController.ListNodes(c, params)
 		if err != nil {

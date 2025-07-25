@@ -7,6 +7,7 @@ import (
 
 type LabelParams struct {
 	vo.PageModel
+	Label     string
 	CreatedBy string
 	UpdatedBy string
 }
@@ -16,6 +17,10 @@ func (l *LabelParams) Generate() []*utils.KeyValue {
 
 	if l.CreatedBy != "" {
 		result = append(result, utils.NewKeyValue("created_by", l.CreatedBy))
+	}
+
+	if l.Label != "" {
+		result = append(result, utils.NewKeyValue("label", l.Label))
 	}
 
 	if l.UpdatedBy != "" {

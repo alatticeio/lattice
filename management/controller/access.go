@@ -91,3 +91,7 @@ func (a *AccessController) QueryPermissions(ctx context.Context, params *dto.Per
 func (a *AccessController) DeleteUserResourcePermission(ctx context.Context, inviteId, permissionId uint) error {
 	return a.accessService.DeleteUserResourcePermission(ctx, inviteId, permissionId)
 }
+
+func (a *AccessController) ListUserPolicies(ctx context.Context, params *dto.ApiCommandParams) ([]vo.AccessPolicyVo, error) {
+	return a.accessService.ListUserPolicies(ctx, params)
+}

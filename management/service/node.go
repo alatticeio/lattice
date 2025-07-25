@@ -65,6 +65,12 @@ type NodeService interface {
 	AddNodeLabel(ctx context.Context, dto *dto.NodeLabelUpdateReq) error
 	RemoveNodeLabel(ctx context.Context, nodeId, labelId uint64) error
 	ListNodeLabels(ctx context.Context, params *dto.NodeLabelParams) (*vo.PageVo, error)
+
+	// nodeapis
+	ListUserNodes(ctx context.Context, params *dto.ApiCommandParams) ([]vo.NodeVo, error)
+	AddLabelToNode(ctx context.Context, dto *dto.ApiCommandParams) error
+	RemoveLabel(ctx context.Context, dto *dto.ApiCommandParams) error
+	ShowLabel(ctx context.Context, params *dto.ApiCommandParams) ([]vo.NodeLabelVo, error)
 }
 
 var (
@@ -345,6 +351,13 @@ func (n *nodeServiceImpl) GetNetworkMap(ctx context.Context, appId, userId strin
 
 	//find current node which group in
 	groupNode, err = n.groupNodeRepo.FindByGroupNodeId(ctx, 0, current.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	if groupNode == nil {
+		return nil, nil
+	}
 
 	groupNodes, _, err = n.groupNodeRepo.List(ctx, &dto.GroupNodeParams{
 		GroupID: groupNode.GroupId,
@@ -662,4 +675,155 @@ func (n *nodeServiceImpl) ListNodeLabels(ctx context.Context, params *dto.NodeLa
 	result.Data = nodeLabels
 
 	return result, nil
+}
+
+// all node apis
+func (n *nodeServiceImpl) ListUserNodes(ctx context.Context, params *dto.ApiCommandParams) ([]vo.NodeVo, error) {
+	var (
+		nodes []*entity.Node
+		err   error
+	)
+	userId := utils.GetUserIdFromCtx(ctx)
+	nodes, _, err = n.nodeRepo.ListNodes(ctx, &dto.QueryParams{
+		UserId: userId,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	var nodeVos []vo.NodeVo
+	for _, node := range nodes {
+		nodeVo := vo.NodeVo{
+			ID:                  node.ID,
+			Name:                node.Name,
+			Description:         node.Description,
+			CreatedBy:           node.CreatedBy,
+			UserId:              node.UserId,
+			Hostname:            node.Hostname,
+			AppID:               node.AppID,
+			Address:             node.Address,
+			Endpoint:            node.Endpoint,
+			PersistentKeepalive: node.PersistentKeepalive,
+			PublicKey:           node.PublicKey,
+			AllowedIPs:          node.AllowedIPs,
+			RelayIP:             node.RelayIP,
+			TieBreaker:          node.TieBreaker,
+			Ufrag:               node.Ufrag,
+			Pwd:                 node.Pwd,
+			Port:                node.Port,
+			Status:              node.Status,
+			GroupName:           node.Group.GroupName,
+			ConnectType:         node.ConnectType,
+		}
+		nodeVos = append(nodeVos, nodeVo)
+	}
+
+	return nodeVos, nil
+}
+
+func (n *nodeServiceImpl) AddLabelToNode(ctx context.Context, params *dto.ApiCommandParams) error {
+	return n.db.Transaction(func(tx *gorm.DB) error {
+		appId := params.AppId
+		node, err := n.nodeRepo.FindByAppId(ctx, appId)
+		if err != nil {
+			return fmt.Errorf("failed to find node by appId %s: %w", appId, err)
+		}
+
+		if node == nil {
+			return fmt.Errorf("node with appId %s not found", appId)
+		}
+		_, count, err := n.nodeLabelRepo.WithTx(tx).List(ctx, &dto.NodeLabelParams{
+			Label: params.Name,
+		})
+
+		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+			return fmt.Errorf("failed to query label: %w", err)
+		}
+
+		if count > 0 {
+			return fmt.Errorf("label %s already exists", params.Name)
+		}
+
+		//add
+		labels, count, err := n.labelRepo.WithTx(tx).List(ctx, &dto.LabelParams{
+			Label: params.Name,
+		})
+
+		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+			return fmt.Errorf("failed to query label: %w", err)
+		}
+
+		if count == 0 {
+			return fmt.Errorf("label %s not found", params.Name)
+		}
+
+		return n.nodeLabelRepo.WithTx(tx).Create(ctx, &entity.NodeLabel{
+			LabelId:   labels[0].ID,
+			LabelName: labels[0].Label,
+			NodeId:    node.ID,
+		})
+
+	})
+}
+
+func (n *nodeServiceImpl) RemoveLabel(ctx context.Context, params *dto.ApiCommandParams) error {
+	return n.db.Transaction(func(tx *gorm.DB) error {
+		appId := params.AppId
+		node, err := n.nodeRepo.FindByAppId(ctx, appId)
+		if err != nil {
+			return fmt.Errorf("failed to find node by appId %s: %w", appId, err)
+		}
+
+		if node == nil {
+			return fmt.Errorf("node with appId %s not found", appId)
+		}
+		labels, count, err := n.nodeLabelRepo.WithTx(tx).List(ctx, &dto.NodeLabelParams{
+			Label: params.Name,
+		})
+
+		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+			return fmt.Errorf("failed to query label: %w", err)
+		}
+
+		if count == 0 {
+			return fmt.Errorf("label %s not found", params.Name)
+		}
+
+		return n.nodeLabelRepo.WithTx(tx).DeleteByLabelId(ctx, node.ID, labels[0].ID)
+
+	})
+}
+
+func (n *nodeServiceImpl) ShowLabel(ctx context.Context, params *dto.ApiCommandParams) ([]vo.NodeLabelVo, error) {
+	appId := params.AppId
+	node, err := n.nodeRepo.FindByAppId(ctx, appId)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find node by appId %s: %w", appId, err)
+	}
+
+	if node == nil {
+		return nil, fmt.Errorf("node with appId %s not found", appId)
+	}
+	labels, count, err := n.nodeLabelRepo.List(ctx, &dto.NodeLabelParams{
+		NodeId: node.ID,
+	})
+
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, fmt.Errorf("failed to query label: %w", err)
+	}
+
+	if count == 0 {
+		return nil, nil
+	}
+
+	var vos []vo.NodeLabelVo
+	for _, label := range labels {
+		vos = append(vos, vo.NodeLabelVo{
+			LabelName: label.LabelName,
+			LabelId:   label.LabelId,
+		})
+	}
+
+	return vos, nil
 }

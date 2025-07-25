@@ -23,6 +23,7 @@ func (s *Server) RegisterGroupRoutes() {
 	nodeGroup.DELETE("/:id", s.tokenFilter(), s.authFilter(), s.deleteGroup())
 	nodeGroup.GET("/list", s.tokenFilter(), s.listGroups())
 	nodeGroup.GET("/q", s.tokenFilter(), s.queryGroups())
+
 }
 
 func (s *Server) listGroupPolicies() gin.HandlerFunc {
