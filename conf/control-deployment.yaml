@@ -1,27 +1,28 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: linkany-control
-  namespace: linkany
+  name: wireflow-control
+  namespace: wireflow
   labels:
-    k8s-app: linkany-control
+    k8s-app: wireflow-control
 spec:
   replicas: 1
   selector:
     matchLabels:
-      k8s-app: linkany-control
+      k8s-app: wireflow-control
   template:
     metadata:
       labels:
-        k8s-app: linkany-control
+        k8s-app: wireflow-control
     spec:
       imagePullSecrets:
         - name: ali-registry
+      serviceAccountName: wireflow-controller-admin
       containers:
-        - name: linkany-control
-          image: registry.cn-hangzhou.aliyuncs.com/linkany-io/linkany
+        - name: wireflow-control
+          image: registry.cn-hangzhou.aliyuncs.com/wireflow-io/wireflow
           imagePullPolicy: Always
-          command: [ "linkany", "manager" ]
+          command: [ "wireflow", "manager" ]
           args:
             - "--log-level=INFO"
           volumeMounts:
@@ -31,7 +32,7 @@ spec:
       volumes:
         - name: conf
           configMap:
-            name: linkany-control-config
+            name: wireflow-control-config
             items:
               - key: control.yaml
                 path: control.yaml
@@ -39,8 +40,8 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: linkany-control-svc
-  namespace: linkany
+  name: wireflow-control-svc
+  namespace: wireflow
 spec:
   ports:
     - protocol: TCP
@@ -54,14 +55,14 @@ spec:
       targetPort: 32051
       nodePort: 32051
   selector:
-    k8s-app: linkany-control
+    k8s-app: wireflow-control
   type: NodePort
 ---
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: linkany-control-config
-  namespace: linkany
+  name: wireflow-control-config
+  namespace: wireflow
 data:
   control.yaml: |
     listen: :8080
@@ -74,3 +75,4 @@ data:
     Redis:
       Addr: 81.68.109.143:6379
       Password: dhvuYap
+

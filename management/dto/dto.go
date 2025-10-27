@@ -1,10 +1,10 @@
 package dto
 
 import (
-	"linkany/internal"
-	"linkany/management/entity"
-	"linkany/management/utils"
 	"time"
+	"wireflow/internal"
+	"wireflow/management/entity"
+	"wireflow/management/utils"
 
 	"gorm.io/gorm"
 )
@@ -121,12 +121,12 @@ type GroupMemberDto struct {
 }
 
 type GroupNodeDto struct {
-	ID        uint64 `json:"id"`
-	GroupID   uint64 `json:"groupID"`
-	GroupName string `json:"groupName"`
-	NodeID    uint64 `json:"nodeID"`
-	NodeName  string `json:"nodeName"`
-	CreatedBy string `json:"createdBy"`
+	ID          uint64 `json:"id"`
+	NetworkId   string `json:"networkId"`
+	NetworkName string `json:"networkName"`
+	NodeID      uint64 `json:"nodeID"`
+	NodeName    string `json:"nodeName"`
+	CreatedBy   string `json:"createdBy"`
 }
 
 type AccessPolicyDto struct {

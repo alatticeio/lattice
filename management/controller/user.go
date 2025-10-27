@@ -3,12 +3,12 @@ package controller
 import (
 	"context"
 	"gorm.io/gorm"
-	"linkany/management/dto"
-	"linkany/management/entity"
-	"linkany/management/service"
-	"linkany/management/vo"
-	"linkany/pkg/log"
-	"linkany/pkg/redis"
+	"wireflow/management/dto"
+	"wireflow/management/entity"
+	"wireflow/management/service"
+	"wireflow/management/vo"
+	"wireflow/pkg/log"
+	"wireflow/pkg/redis"
 )
 
 type UserController struct {

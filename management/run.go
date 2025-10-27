@@ -2,11 +2,14 @@ package management
 
 import (
 	"github.com/spf13/viper"
-	"linkany/management/db"
-	grpcserver "linkany/management/grpc/server"
-	"linkany/management/http"
-	"linkany/pkg/log"
-	"linkany/pkg/redis"
+	"github.com/wireflowio/wireflow-controller/pkg/signals"
+	"k8s.io/klog/v2"
+
+	"wireflow/management/db"
+	grpcserver "wireflow/management/grpc/server"
+	"wireflow/management/http"
+	"wireflow/pkg/log"
+	"wireflow/pkg/redis"
 )
 
 func Start(listen string) error {
@@ -35,7 +38,9 @@ func Start(listen string) error {
 
 	cfg.Rdb = redisClient
 	dbService := db.GetDB(&cfg.Database)
+	ctx := signals.SetupSignalHandler()
 	gServer := grpcserver.NewServer(&grpcserver.ServerConfig{
+		Ctx:             ctx,
 		Logger:          logger,
 		Port:            32051,
 		DataBaseService: dbService,
@@ -48,9 +53,13 @@ func Start(listen string) error {
 		}
 	}()
 
-	cfg.DatabaseService = dbService
+	//cfg.DatabaseService = dbService
 	// Create a new server
-	s := http.NewServer(&cfg)
+	//s := http.NewServer(&cfg)
 	// Start the server
-	return s.Start()
+	//return s.Start()
+	klog.Info("grpc server start successfully")
+	<-ctx.Done()
+
+	return nil
 }

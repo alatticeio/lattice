@@ -2,7 +2,7 @@ package service
 
 import (
 	"gorm.io/gorm"
-	"linkany/management/entity"
+	"wireflow/management/entity"
 )
 
 type UserConfigInterface interface {

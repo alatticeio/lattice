@@ -4,15 +4,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"linkany/internal"
-	"linkany/management/dto"
-	"linkany/management/entity"
-	"linkany/management/repository"
-	"linkany/management/utils"
-	"linkany/management/vo"
-	"linkany/pkg/log"
 	"strconv"
 	"strings"
+	"wireflow/internal"
+	"wireflow/management/dto"
+	"wireflow/management/entity"
+	"wireflow/management/repository"
+	"wireflow/management/utils"
+	"wireflow/management/vo"
+	"wireflow/pkg/log"
 
 	"gorm.io/gorm"
 )
@@ -37,9 +37,6 @@ type NodeService interface {
 	ListNodes(ctx context.Context, params *dto.QueryParams) (*vo.PageVo, error)
 
 	QueryNodes(ctx context.Context, params *dto.QueryParams) ([]*vo.NodeVo, error)
-
-	// Watch returns a channel that will be used to send the latest peers to the client
-	//Watch() (<-chan *entity.Node, error)
 
 	//GroupVo memeber
 	AddGroupMember(ctx context.Context, dto *dto.GroupMemberDto) error
@@ -99,41 +96,12 @@ func NewNodeService(db *gorm.DB) NodeService {
 		nodeLabelRepo:   repository.NewNodeLabelRepository(db),
 		groupRepo:       repository.NewGroupRepository(db),
 		baseRepo:        repository.NewNodeBaseRepository[entity.NodeLabel](db),
-		logger:          log.NewLogger(log.Loglevel, "node-mapper")}
+		logger:          log.NewLogger(log.Loglevel, "node-mapper"),
+	}
 }
 
 func (n *nodeServiceImpl) Register(ctx context.Context, e *dto.NodeDto) (*entity.Node, error) {
-	count := n.GetAddress() + 1
-	if count == -1 {
-		return nil, errors.New("the address can not be allocated")
-	}
-
-	addressIP := fmt.Sprintf("10.0.%d.%d", (count-1)/254, ((count-1)%254)+1)
-
-	peer := &entity.Node{
-		Description:         e.Description,
-		UserId:              e.UserID,
-		Name:                e.Name,
-		Hostname:            e.Hostname,
-		AppID:               e.AppID,
-		Address:             addressIP,
-		Endpoint:            e.Endpoint,
-		PersistentKeepalive: e.PersistentKeepalive,
-		PublicKey:           e.PublicKey,
-		PrivateKey:          e.PrivateKey,
-		AllowedIPs:          addressIP + "/32",
-		RelayIP:             e.RelayIP,
-		TieBreaker:          e.TieBreaker,
-		Ufrag:               e.Ufrag,
-		Pwd:                 e.Pwd,
-		Port:                e.Port,
-		Status:              e.Status,
-	}
-	err := n.nodeRepo.Create(ctx, peer)
-	if err != nil {
-		return nil, err
-	}
-	return peer, nil
+	return nil, nil
 }
 
 func (n *nodeServiceImpl) CreateAppId(ctx context.Context) (*entity.Node, error) {
@@ -159,96 +127,8 @@ func (n *nodeServiceImpl) CreateAppId(ctx context.Context) (*entity.Node, error)
 	return peer, nil
 }
 
-func (n *nodeServiceImpl) Update(ctx context.Context, nodeDto *dto.NodeDto) error {
-	return n.db.Transaction(func(tx *gorm.DB) error {
-		var (
-			err       error
-			nodeLabes []entity.NodeLabel
-		)
-
-		// find current NodeLabel
-		conditions := utils.NewQueryConditions()
-		conditions.AddWhere("node_id", nodeDto.ID)
-		query := conditions.BuildQuery(tx.Model(&entity.NodeLabel{}))
-		if err = query.Find(&nodeLabes).Error; err != nil {
-			return err
-		}
-
-		exists := make(map[uint64]bool, 1)
-		for _, nodeLabel := range nodeLabes {
-			if !exists[nodeLabel.LabelId] {
-				exists[nodeLabel.LabelId] = true
-			}
-		}
-
-		var allIds []interface{}
-		if nodeDto.LabelIds != "" {
-			ids := strings.Split(nodeDto.LabelIds, ",")
-			for _, id := range ids {
-				labelId, err := strconv.ParseUint(id, 10, 64)
-				if err != nil {
-					return err
-				}
-				if !exists[labelId] {
-					allIds = append(allIds, labelId)
-				}
-			}
-
-			// insert into new node labels
-			var labels []entity.Label
-			conditions := utils.NewQueryConditions()
-			conditions.AddIn("id", allIds)
-			query := conditions.BuildQuery(tx.Model(&entity.Label{}))
-			if err = query.Find(&labels).Error; err != nil {
-				return err
-			}
-
-			for _, label := range labels {
-				nodeLabelRepo := n.nodeLabelRepo.WithTx(tx)
-				if err = nodeLabelRepo.Create(ctx, &entity.NodeLabel{
-					LabelId:   label.ID,
-					LabelName: label.Label,
-					NodeId:    nodeDto.ID,
-				}); err != nil {
-					return err
-				}
-			}
-		}
-
-		// update node to group
-		groupNode, err := n.groupNodeRepo.FindByGroupNodeId(ctx, 0, nodeDto.ID)
-		if err != nil {
-			return err
-		}
-
-		group, err := n.groupRepo.WithTx(tx).FindByName(ctx, nodeDto.GroupName)
-		if err != nil {
-			return err
-		}
-
-		if groupNode != nil {
-			groupNode.GroupId = group.ID
-			groupNode.GroupName = nodeDto.GroupName
-			if err = n.groupNodeRepo.WithTx(tx).UpdateById(ctx, groupNode); err != nil {
-				return err
-			}
-		} else {
-			// create new group node
-			groupNodeDto := &entity.GroupNode{
-				GroupId:   group.ID,
-				NodeId:    nodeDto.ID,
-				GroupName: nodeDto.GroupName,
-				NodeName:  nodeDto.Name,
-			}
-
-			if err = n.groupNodeRepo.WithTx(tx).Create(ctx, groupNodeDto); err != nil {
-				return err
-			}
-		}
-
-		nodeRepo := n.nodeRepo.WithTx(tx)
-		return nodeRepo.Update(ctx, nodeDto)
-	})
+func (n *nodeServiceImpl) Update(ctx context.Context, node *dto.NodeDto) error {
+	return nil
 }
 
 func (n *nodeServiceImpl) UpdateStatus(ctx context.Context, nodeDto *dto.NodeDto) error {
@@ -360,7 +240,7 @@ func (n *nodeServiceImpl) GetNetworkMap(ctx context.Context, appId, userId strin
 	}
 
 	groupNodes, _, err = n.groupNodeRepo.List(ctx, &dto.GroupNodeParams{
-		GroupID: groupNode.GroupId,
+		GroupID: groupNode.NetworkId,
 	})
 
 	var nodeIds []uint64
@@ -371,14 +251,13 @@ func (n *nodeServiceImpl) GetNetworkMap(ctx context.Context, appId, userId strin
 	// find nodes in group
 	nodes, err = n.nodeRepo.FindIn(ctx, nodeIds)
 
-	var resultNodes []*internal.NodeMessage
+	var resultNodes []*internal.Node
 	for _, node := range nodes {
 		if node.Status == utils.Online {
-			resultNodes = append(resultNodes, &internal.NodeMessage{
-				ID:                  node.ID,
+			resultNodes = append(resultNodes, &internal.Node{
 				Name:                node.Name,
 				Description:         node.Description,
-				GroupID:             node.Group.GroupId,
+				NetworkId:           node.Group.NetworkId,
 				Hostname:            node.Hostname,
 				AppID:               node.AppID,
 				Address:             node.Address,
@@ -404,7 +283,7 @@ func (n *nodeServiceImpl) GetNetworkMap(ctx context.Context, appId, userId strin
 			ID:                  current.ID,
 			Name:                current.Name,
 			Description:         current.Description,
-			GroupID:             groupNode.GroupId,
+			NetworkID:           groupNode.NetworkId,
 			CreatedBy:           current.CreatedBy,
 			Hostname:            current.Hostname,
 			AppID:               current.AppID,
@@ -425,11 +304,6 @@ func (n *nodeServiceImpl) GetNetworkMap(ctx context.Context, appId, userId strin
 	}, nil
 
 	return nil, nil
-}
-
-// GetAddress get peer address
-func (n *nodeServiceImpl) GetAddress() int64 {
-	return n.nodeRepo.GetAddress()
 }
 
 // GroupVo Members
@@ -576,9 +450,9 @@ func (n *nodeServiceImpl) GetLabel(ctx context.Context, id uint64) (*entity.Labe
 // GroupVo Node
 func (n *nodeServiceImpl) AddGroupNode(ctx context.Context, dto *dto.GroupNodeDto) error {
 	groupNode := &entity.GroupNode{
-		GroupId:   dto.GroupID,
+		NetworkId: dto.NetworkId,
 		NodeId:    dto.NodeID,
-		GroupName: dto.GroupName,
+		GroupName: dto.NetworkName,
 		CreatedBy: dto.CreatedBy,
 	}
 	return n.groupNodeRepo.Create(ctx, groupNode)

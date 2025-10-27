@@ -1,10 +1,10 @@
 package controller
 
 import (
-	"linkany/management/dto"
-	"linkany/management/entity"
-	"linkany/management/service"
-	"linkany/pkg/log"
+	"wireflow/management/dto"
+	"wireflow/management/entity"
+	"wireflow/management/service"
+	"wireflow/pkg/log"
 )
 
 type SupportController struct {

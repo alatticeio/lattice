@@ -2,9 +2,9 @@ package http
 
 import (
 	"github.com/gin-gonic/gin"
-	"linkany/management/client"
-	"linkany/management/dto"
 	"strconv"
+	"wireflow/management/client"
+	"wireflow/management/dto"
 )
 
 func (s *Server) RegisterAccessRoutes() {

@@ -3,9 +3,10 @@ package internal
 import (
 	"encoding/hex"
 	"fmt"
-	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 	"strconv"
 	"strings"
+
+	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 )
 
 type Config struct {
@@ -14,9 +15,9 @@ type Config struct {
 
 // DeviceConf will used to fetchPeers,then config to the device
 type DeviceConf struct {
-	DrpUrl string         `json:"drpUrl,omitempty"` // a drp server user created.
-	Device *DeviceConfig  `json:"device,omitempty"`
-	Nodes  []*NodeMessage `json:"list,omitempty"`
+	DrpUrl string        `json:"drpUrl,omitempty"` // a drp server user created.
+	Device *DeviceConfig `json:"device,omitempty"`
+	Nodes  []*Node       `json:"list,omitempty"`
 }
 
 // Node nodes sync from linkany server will transfer to
@@ -142,7 +143,7 @@ func (d *DeviceConf) Parse(str string) (*DeviceConf, error) {
 
 	conf := &DeviceConf{
 		Device: &DeviceConfig{},
-		Nodes:  make([]*NodeMessage, 0),
+		Nodes:  make([]*Node, 0),
 	}
 	setPeer := new(setPeer)
 	result := strings.Split(str, "\n")
@@ -154,7 +155,7 @@ func (d *DeviceConf) Parse(str string) (*DeviceConf, error) {
 
 		if key == "RemoteKey" {
 			deviceConfig = false
-			setPeer.peer = &NodeMessage{
+			setPeer.peer = &Node{
 				PublicKey: value,
 			}
 			conf.Nodes = append(conf.Nodes, setPeer.peer)
@@ -207,5 +208,5 @@ func (d *DeviceConf) Parse(str string) (*DeviceConf, error) {
 }
 
 type setPeer struct {
-	peer *NodeMessage
+	peer *Node
 }

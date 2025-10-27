@@ -5,12 +5,11 @@ import (
 	"encoding/json"
 	"errors"
 	"flag"
-	"fmt"
 	"io"
-	"linkany/internal"
-	"linkany/management/grpc/mgt"
-	"linkany/pkg/log"
 	"time"
+	"wireflow/internal"
+	"wireflow/management/grpc/mgt"
+	"wireflow/pkg/log"
 
 	"github.com/golang/protobuf/proto"
 	"google.golang.org/grpc"
@@ -70,7 +69,7 @@ func (c *Client) Login(ctx context.Context, in *mgt.ManagementMessage) (*mgt.Man
 	return c.client.Login(ctx, in)
 }
 
-func (c *Client) Watch(ctx context.Context, in *mgt.ManagementMessage, callback func(wm *internal.Message) error) error {
+func (c *Client) Watch(ctx context.Context, in *mgt.ManagementMessage, fn func(message *internal.Message) error) error {
 	logger := c.logger
 	stream, err := c.client.Watch(ctx)
 	if err != nil {
@@ -117,7 +116,7 @@ func (c *Client) Watch(ctx context.Context, in *mgt.ManagementMessage, callback 
 					return
 				}
 
-				if err = callback(&message); err != nil {
+				if err = fn(&message); err != nil {
 					c.logger.Errorf("Failed to callback: %v", err)
 					errChan <- err
 					return
@@ -153,7 +152,6 @@ func (c *Client) Keepalive(ctx context.Context, in *mgt.ManagementMessage) error
 	}()
 
 	for {
-		fmt.Println("")
 		select {
 		case <-c.keepaliveChan:
 			c.logger.Infof("keepalive stream closed by user")

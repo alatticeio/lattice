@@ -1,8 +1,8 @@
 package dto
 
 import (
-	"linkany/management/utils"
-	"linkany/management/vo"
+	"wireflow/management/utils"
+	"wireflow/management/vo"
 )
 
 type Params interface {
@@ -19,7 +19,7 @@ type GroupPolicyDto struct {
 
 type GroupPolicyParams struct {
 	vo.PageModel
-	GroupId    uint64 `json:"groupId" form:"groupId"`
+	NetworkId  string `json:"networkId" form:"networkId"`
 	PolicyId   uint64 `json:"policyId" form:"policyId"`
 	PolicyName string `json:"policyName" form:"policyName"`
 }

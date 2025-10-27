@@ -1,6 +1,6 @@
 package turn
 
-import "linkany/turn/server"
+import "wireflow/turn/server"
 
 func Start(cfg *server.TurnServerConfig) error {
 	// Start the TURN server

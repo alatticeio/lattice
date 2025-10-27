@@ -3,9 +3,9 @@ package controller
 import (
 	"context"
 	"gorm.io/gorm"
-	"linkany/management/entity"
-	"linkany/management/service"
-	"linkany/pkg/log"
+	"wireflow/management/entity"
+	"wireflow/management/service"
+	"wireflow/pkg/log"
 )
 
 type TokenController struct {

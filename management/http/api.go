@@ -2,8 +2,8 @@ package http
 
 import (
 	"github.com/gin-gonic/gin"
-	"linkany/management/dto"
-	"linkany/management/vo"
+	"wireflow/management/dto"
+	"wireflow/management/vo"
 )
 
 func (s *Server) RegisterApis() {

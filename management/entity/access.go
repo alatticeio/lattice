@@ -1,7 +1,7 @@
 package entity
 
 import (
-	"linkany/management/utils"
+	"wireflow/management/utils"
 )
 
 // AccessPolicy policy for node

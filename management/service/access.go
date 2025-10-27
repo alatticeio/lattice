@@ -4,14 +4,15 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"wireflow/management/dto"
+	"wireflow/management/entity"
+	"wireflow/management/repository"
+	"wireflow/management/utils"
+	"wireflow/management/vo"
+	"wireflow/pkg/log"
+	"wireflow/pkg/wferrors"
+
 	"gorm.io/gorm"
-	"linkany/management/dto"
-	"linkany/management/entity"
-	"linkany/management/repository"
-	"linkany/management/utils"
-	"linkany/management/vo"
-	"linkany/pkg/linkerrors"
-	"linkany/pkg/log"
 )
 
 type AccessPolicyService interface {
@@ -513,7 +514,7 @@ func (a *accessPolicyServiceImpl) CheckAccess(ctx context.Context, resourceType 
 
 	//check whether user has permission
 	if count == 0 {
-		return false, linkerrors.ErrNoAccessPermissions
+		return false, wferrors.ErrNoAccessPermissions
 	}
 
 	return true, nil

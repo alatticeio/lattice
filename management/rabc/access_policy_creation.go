@@ -7,7 +7,7 @@ package rbac
 //func createSamplePolicy(svc AccessPolicyService) error {
 //	policy := &AccessPolicy{
 //		MetricName:        "限制数据节点访问",
-//		GroupId:     1,
+//		NetworkID:     1,
 //		Priority:    100,
 //		Effect:      "allow",
 //		Description: "允许带有data标签的节点之间互相访问",

@@ -1,8 +1,8 @@
 package entity
 
 import (
-	"linkany/management/utils"
 	"time"
+	"wireflow/management/utils"
 )
 
 // InviterEntity invites invite others

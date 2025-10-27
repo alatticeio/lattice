@@ -1,15 +1,16 @@
 package server
 
 import (
-	"github.com/pion/turn/v4"
-	"linkany/management/client"
-	"linkany/pkg/config"
-	"linkany/pkg/log"
 	"net"
 	"os"
 	"os/signal"
 	"strconv"
 	"syscall"
+	"wireflow/management/client"
+	"wireflow/pkg/config"
+	"wireflow/pkg/log"
+
+	"github.com/pion/turn/v4"
 )
 
 type TurnServer struct {
@@ -49,13 +50,13 @@ func (ts *TurnServer) start(publicIP string, port int) error {
 	// If passwords are stored they should be saved to your DB hashed using turn.GenerateAuthKey
 	//usersMap := map[string][]byte{}
 	//for _, kv := range regexp.MustCompile(`(\w+)=(\w+)`).FindAllStringSubmatch(users, -1) {
-	//	usersMap[kv[1]] = turn.GenerateAuthKey(kv[1], "linkany.io", kv[2])
+	//	usersMap[kv[1]] = turn.GenerateAuthKey(kv[1], "wireflow.io", kv[2])
 	//}
 
 	usersMap := generateAuthKeyMap(ts.client.GetUsers())
 
 	s, err := turn.NewServer(turn.ServerConfig{
-		Realm: "linkany.io",
+		Realm: "wireflow.io",
 		// Set AuthHandler callback
 		// This is called every time a user tries to authenticate with the TURN server
 		// Return the remoteKey for that user, or false when no user is found
@@ -95,7 +96,7 @@ func (ts *TurnServer) start(publicIP string, port int) error {
 func generateAuthKeyMap(users []*config.User) map[string][]byte {
 	usersMap := map[string][]byte{}
 	for _, user := range users {
-		usersMap[user.Username] = generateAuthKey(user.Username, "linkany.io", user.Password)
+		usersMap[user.Username] = generateAuthKey(user.Username, "wireflow.io", user.Password)
 	}
 	return usersMap
 }

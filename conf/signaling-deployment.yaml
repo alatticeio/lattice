@@ -1,39 +1,39 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: linkany-signaling
-  namespace: linkany
+  name: wireflow-signaling
+  namespace: wireflow
   labels:
-    k8s-app: linkany-signaling
+    k8s-app: wireflow-signaling
 spec:
   replicas: 1
   selector:
     matchLabels:
-      k8s-app: linkany-signaling
+      k8s-app: wireflow-signaling
   template:
     metadata:
       labels:
-        k8s-app: linkany-signaling
+        k8s-app: wireflow-signaling
     spec:
       imagePullSecrets:
         - name: ali-registry
       hostAliases:
         - ip: "10.96.98.115"
           hostnames:
-            - "console.linkany.io"
+            - "console.wireflow.io"
       containers:
-        - name: linkany-signaling
-          image: registry.cn-hangzhou.aliyuncs.com/linkany-io/linkany:latest
+        - name: wireflow-signaling
+          image: registry.cn-hangzhou.aliyuncs.com/wireflow-io/wireflow:latest
           imagePullPolicy: Always
-          command: [ "linkany", "signaling" ]
+          command: [ "wireflow", "signaling" ]
           args:
             - "--log-level=verbose"
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: linkany-signaling-svc
-  namespace: linkany
+  name: wireflow-signaling-svc
+  namespace: wireflow
 spec:
   ports:
     - protocol: TCP
@@ -41,5 +41,5 @@ spec:
       targetPort: 32132
       nodePort: 32132
   selector:
-    k8s-app: linkany-signaling
+    k8s-app: wireflow-signaling
   type: NodePort

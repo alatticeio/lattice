@@ -2,10 +2,10 @@ package service
 
 import (
 	"context"
-	"linkany/management/dto"
-	"linkany/management/entity"
-	"linkany/management/repository"
-	"linkany/pkg/log"
+	"wireflow/management/dto"
+	"wireflow/management/entity"
+	"wireflow/management/repository"
+	"wireflow/pkg/log"
 )
 
 type NodeToService interface {

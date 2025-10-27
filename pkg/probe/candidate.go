@@ -1,8 +1,8 @@
 package probe
 
 import (
-	"github.com/linkanyio/ice"
-	"linkany/internal"
+	"github.com/wireflowio/ice"
+	"wireflow/internal"
 )
 
 func (p *probe) GetCandidates(agent *internal.Agent) string {

@@ -1,7 +1,7 @@
 package wrapper
 
 import (
-	"linkany/internal"
+	"wireflow/internal"
 )
 
 // TODO: macOS, FreeBSD and other BSDs likely do support this feature set, but

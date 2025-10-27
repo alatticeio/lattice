@@ -3,11 +3,11 @@ package controller
 import (
 	"context"
 	"gorm.io/gorm"
-	"linkany/management/dto"
-	"linkany/management/entity"
-	"linkany/management/service"
-	"linkany/management/vo"
-	"linkany/pkg/log"
+	"wireflow/management/dto"
+	"wireflow/management/entity"
+	"wireflow/management/service"
+	"wireflow/management/vo"
+	"wireflow/pkg/log"
 )
 
 type GroupController struct {

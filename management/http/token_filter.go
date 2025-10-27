@@ -2,7 +2,7 @@ package http
 
 import (
 	"github.com/gin-gonic/gin"
-	"linkany/management/client"
+	"wireflow/management/client"
 )
 
 func (s *Server) tokenFilter() gin.HandlerFunc {
@@ -42,5 +42,6 @@ func (s *Server) tokenFilter() gin.HandlerFunc {
 		c.Set("userId", u.ID)
 
 		c.Next()
+
 	}
 }

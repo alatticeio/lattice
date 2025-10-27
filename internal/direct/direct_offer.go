@@ -3,7 +3,7 @@ package direct
 import (
 	"encoding/binary"
 	"encoding/json"
-	"linkany/internal"
+	"wireflow/internal"
 )
 
 var (
@@ -11,12 +11,12 @@ var (
 )
 
 type DirectOffer struct {
-	WgPort    uint32                `json:"wgPort,omitempty"`     // WireGuard port
-	Ufrag     string                `json:"ufrag,omitempty"`      // ICE username fragment
-	Pwd       string                `json:"pwd,omitempty"`        // ICE password
-	LocalKey  uint64                `json:"localKey,omitempty"`   // local key for tie breaker
-	Candidate string                `json:"candidate, omitempty"` // ; separated
-	Node      *internal.NodeMessage `json:"node,omitempty"`       // Node information, if needed
+	WgPort    uint32         `json:"wgPort,omitempty"`     // WireGuard port
+	Ufrag     string         `json:"ufrag,omitempty"`      // ICE username fragment
+	Pwd       string         `json:"pwd,omitempty"`        // ICE password
+	LocalKey  uint64         `json:"localKey,omitempty"`   // local key for tie breaker
+	Candidate string         `json:"candidate, omitempty"` // ; separated
+	Node      *internal.Node `json:"node,omitempty"`       // Node information, if needed
 }
 
 type DirectOfferConfig struct {
@@ -25,7 +25,7 @@ type DirectOfferConfig struct {
 	Pwd        string
 	LocalKey   uint64
 	Candidates string
-	Node       *internal.NodeMessage
+	Node       *internal.Node
 }
 
 func NewOffer(config *DirectOfferConfig) *DirectOffer {
@@ -61,7 +61,7 @@ func (o *DirectOffer) len() int {
 	return 64 + len(o.Candidate)
 }
 
-func (o *DirectOffer) GetNode() *internal.NodeMessage {
+func (o *DirectOffer) GetNode() *internal.Node {
 	return o.Node
 }
 

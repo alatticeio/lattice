@@ -2,10 +2,10 @@ package http
 
 import (
 	"github.com/gin-gonic/gin"
-	"linkany/management/client"
-	"linkany/management/dto"
 	"strconv"
 	"strings"
+	"wireflow/management/client"
+	"wireflow/management/dto"
 )
 
 func (s *Server) RegisterGroupRoutes() {
@@ -14,7 +14,7 @@ func (s *Server) RegisterGroupRoutes() {
 	// group policy
 	nodeGroup.GET("/policy/list", s.tokenFilter(), s.listGroupPolicies())
 	nodeGroup.DELETE("/:id/policy/:policyId", s.tokenFilter(), s.deleteGroupPolicy())
-	nodeGroup.DELETE("/:id/node/:nodeId", s.tokenFilter(), s.deleteGroupNode())
+	nodeGroup.DELETE("/:id/node/:nodeId", s.tokenFilter(), s.withCallback(), s.deleteGroupNode())
 
 	// node group
 	nodeGroup.GET("/:id", s.tokenFilter(), s.GetNodeGroup())

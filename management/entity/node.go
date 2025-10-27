@@ -1,9 +1,9 @@
 package entity
 
 import (
-	"linkany/internal"
-	"linkany/management/utils"
-	"linkany/management/vo"
+	"wireflow/internal"
+	"wireflow/management/utils"
+	"wireflow/management/vo"
 )
 
 type GroupRoleType string
@@ -66,6 +66,7 @@ func (Node) TableName() string {
 // NodeGroup a node may be in multi groups
 type NodeGroup struct {
 	Model
+	NetworkID   string `gorm:"column:network_id;size:20" json:"networkId"`
 	Name        string `gorm:"column:name;size:64" json:"name"`
 	Description string `gorm:"column:description;size:255" json:"description"`
 
@@ -76,8 +77,8 @@ type NodeGroup struct {
 	CreatedBy string             `gorm:"column:created_by;size:64" json:"createdBy"`
 	UpdatedBy string             `gorm:"column:updated_by;size:64" json:"updatedBy"`
 
-	GroupNodes    []GroupNode   `gorm:"foreignKey:GroupId;"`
-	GroupPolicies []GroupPolicy `gorm:"foreignKey:GroupId;"`
+	GroupNodes    []GroupNode   `gorm:"foreignKey:NetworkID;"`
+	GroupPolicies []GroupPolicy `gorm:"foreignKey:NetworkID;"`
 }
 
 func (NodeGroup) TableName() string {
@@ -104,7 +105,7 @@ func (GroupMember) TableName() string {
 // GroupNode relationship between GroupVo and Node
 type GroupNode struct {
 	Model
-	GroupId   uint64 `gorm:"column:group_id;size:20" json:"groupId"`
+	NetworkId string `gorm:"column:network_id;size:20" json:"networkId"`
 	NodeId    uint64 `gorm:"column:node_id;size:20" json:"nodeId"`
 	GroupName string `gorm:"column:group_name;size:64" json:"groupName"`
 	NodeName  string `gorm:"column:node_name;size:64" json:"nodeName"`

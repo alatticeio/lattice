@@ -2,7 +2,7 @@
 
 package main
 
-import "linkany/cmd"
+import "wireflow/cmd"
 
 func main() {
 	cmd.Execute()

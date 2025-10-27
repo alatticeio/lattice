@@ -2,8 +2,8 @@ package cmd
 
 import (
 	"github.com/spf13/cobra"
-	"linkany/node"
-	"linkany/pkg/log"
+	"wireflow/node"
+	"wireflow/pkg/log"
 )
 
 func stop() *cobra.Command {

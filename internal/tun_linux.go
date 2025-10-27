@@ -2,9 +2,9 @@ package internal
 
 import (
 	"golang.zx2c4.com/wireguard/tun"
-	"linkany/pkg/log"
 	"math/rand"
 	"time"
+	"wireflow/pkg/log"
 )
 
 func CreateTUN(mtu int, logger *log.Logger) (string, tun.Device, error) {
@@ -21,5 +21,5 @@ func getInterfaceName() string {
 		bytes[i] = letters[rand.Intn(len(letters))]
 	}
 
-	return "linkany-" + string(bytes)
+	return "wireflow-" + string(bytes)
 }

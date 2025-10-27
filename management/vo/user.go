@@ -1,8 +1,8 @@
 package vo
 
 import (
-	"linkany/management/utils"
 	"time"
+	"wireflow/management/utils"
 )
 
 type UserVo struct {

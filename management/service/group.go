@@ -4,14 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"linkany/internal"
-	"linkany/management/dto"
-	"linkany/management/entity"
-	"linkany/management/repository"
-	"linkany/management/utils"
-	"linkany/management/vo"
-	"linkany/pkg/log"
 	"strconv"
+	"wireflow/internal"
+	"wireflow/management/dto"
+	"wireflow/management/entity"
+	"wireflow/management/repository"
+	"wireflow/management/utils"
+	"wireflow/management/vo"
+	"wireflow/pkg/log"
 
 	"gorm.io/gorm"
 )
@@ -76,7 +76,7 @@ func (g *groupServiceImpl) GetNodeGroup(ctx context.Context, nodeId uint64) (*vo
 		return nil, err
 	}
 
-	res, err := g.fetchNodeAndGroup(ctx, group.ID)
+	res, err := g.fetchNodeAndGroup(ctx, group.NetworkID)
 
 	return &vo.GroupVo{
 		ID:          group.ID,
@@ -169,7 +169,7 @@ func (g *groupServiceImpl) handleGP(ctx context.Context, tx *gorm.DB, dto *dto.N
 				}
 
 				groupNode = entity.GroupNode{
-					GroupId:   group.ID,
+					NetworkId: group.NetworkID,
 					NodeId:    node.ID,
 					GroupName: group.Name,
 					NodeName:  node.Name,
@@ -179,11 +179,6 @@ func (g *groupServiceImpl) handleGP(ctx context.Context, tx *gorm.DB, dto *dto.N
 					return err
 				}
 
-				// add push message
-				g.manager.Push(node.PublicKey, internal.NewMessage().AddNode(
-					node.TransferToNodeVo().TransferToNodeMessage(),
-				))
-				//}
 			}
 		}
 	}
@@ -328,7 +323,7 @@ func (g *groupServiceImpl) QueryGroups(ctx context.Context, params *dto.GroupPar
 
 	var nodeVos []*vo.GroupVo
 	for _, group := range nodeGroups {
-		res, err := g.fetchNodeAndGroup(ctx, group.ID)
+		res, err := g.fetchNodeAndGroup(ctx, group.NetworkID)
 		if err != nil {
 			return nil, err
 		}
@@ -348,20 +343,20 @@ func (g *groupServiceImpl) QueryGroups(ctx context.Context, params *dto.GroupPar
 	return nodeVos, nil
 }
 
-func (g *groupServiceImpl) fetchNodeAndGroup(ctx context.Context, groupId uint64) (*vo.GroupRelationVo, error) {
+func (g *groupServiceImpl) fetchNodeAndGroup(ctx context.Context, networkId string) (*vo.GroupRelationVo, error) {
 	// query group node
 	var (
 		groupNodes []*entity.GroupNode
 		err        error
 	)
-	//if err = g.Model(&entity.GroupNode{}).Where("group_id = ?", groupId).Find(&groupNodes).Error; err != nil {
+	//if err = g.Model(&entity.GroupNode{}).Where("group_id = ?", networkId).Find(&groupNodes).Error; err != nil {
 	//	if !errors.Is(err, gorm.ErrRecordNotFound) {
 	//		return nil, err
 	//	}
 	//}
 
 	if groupNodes, _, err = g.groupNodeRepo.List(ctx, &dto.GroupNodeParams{
-		GroupID: groupId,
+		GroupID: networkId,
 	}); err != nil {
 		if !errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, err
@@ -382,7 +377,7 @@ func (g *groupServiceImpl) fetchNodeAndGroup(ctx context.Context, groupId uint64
 	var groupPolicies []*entity.GroupPolicy
 
 	if groupPolicies, _, err = g.groupPolicyRepo.List(ctx, &dto.GroupPolicyParams{
-		GroupId: groupId,
+		NetworkId: networkId,
 	}); err != nil {
 		if !errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, err
@@ -445,14 +440,10 @@ func (g *groupServiceImpl) DeleteGroupNode(ctx context.Context, groupId, nodeId 
 		}
 
 		nodeRepo := g.nodeRepo.WithTx(tx)
-		node, err := nodeRepo.Find(ctx, nodeId)
+		_, err = nodeRepo.Find(ctx, nodeId)
 		if err != nil {
 			return err
 		}
-
-		g.manager.Push(node.PublicKey, internal.NewMessage().RemoveNode(
-			node.TransferToNodeVo().TransferToNodeMessage(),
-		))
 
 		return nil
 	})
@@ -490,7 +481,7 @@ func (g *groupServiceImpl) JoinGroup(ctx context.Context, params *dto.ApiCommand
 		} else {
 			//create
 			return g.groupNodeRepo.WithTx(tx).Create(ctx, &entity.GroupNode{
-				GroupId:   group.ID,
+				NetworkId: group.NetworkID,
 				NodeId:    node.ID,
 				GroupName: group.Name,
 				NodeName:  node.Name,

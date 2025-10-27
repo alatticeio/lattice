@@ -2,15 +2,15 @@ package client
 
 import (
 	"fmt"
-	"linkany/pkg/log"
 	"testing"
+	"wireflow/pkg/log"
 )
 
 func TestClient_GetRelayInfo(t *testing.T) {
 	t.Run("TestClient_GetRelayInfo", func(t *testing.T) {
 
 		client, err := NewClient(&ClientConfig{
-			ServerUrl: "stun.linkany.io:3478",
+			ServerUrl: "stun.wireflow.io:3478",
 			Logger:    log.NewLogger(log.Loglevel, fmt.Sprintf("[%s] ", "turnclient")),
 		})
 

@@ -5,23 +5,23 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"linkany/internal"
-	mgtclient "linkany/management/grpc/client"
-	"linkany/management/grpc/mgt"
-	grpcserver "linkany/management/grpc/server"
-	"linkany/management/vo"
-	"linkany/pkg/config"
-	"linkany/pkg/linkerrors"
-	"linkany/pkg/log"
-	turnclient "linkany/turn/client"
 	"net"
 	"os"
 	"path/filepath"
 	"sync"
 	"time"
+	"wireflow/internal"
+	"wireflow/management/dto"
+	grpclient "wireflow/management/grpc/client"
+	"wireflow/management/grpc/mgt"
+	"wireflow/management/vo"
+	"wireflow/pkg/config"
+	"wireflow/pkg/log"
+	"wireflow/pkg/wferrors"
+	turnclient "wireflow/turn/client"
 
 	"github.com/golang/protobuf/proto"
-	"github.com/linkanyio/ice"
+	"github.com/wireflowio/ice"
 )
 
 type NodeMap struct {
@@ -29,14 +29,14 @@ type NodeMap struct {
 	m    map[string]ice.Candidate
 }
 
-// Client is control client of linkany, will fetch config from origin server interval
+// Client is control client of wireflow, will fetch config from origin server interval
 type Client struct {
 	as           internal.AgentManagerFactory
 	logger       *log.Logger
 	keyManager   internal.KeyManager
 	nodeManager  *internal.NodeManager
 	conf         *config.LocalConfig
-	grpcClient   *mgtclient.Client
+	grpcClient   *grpclient.Client
 	conn4        net.PacketConn
 	agentManager internal.AgentManagerFactory
 	offerHandler internal.OfferHandler
@@ -50,19 +50,36 @@ type Client struct {
 }
 
 type ClientConfig struct {
-	Logger     *log.Logger
-	Conf       *config.LocalConfig
-	GrpcClient *mgtclient.Client
+	Logger        *log.Logger
+	Conf          *config.LocalConfig
+	ManagementUrl string
+	KeepaliveChan chan struct{}
+	WatchChan     chan struct{}
+	GrpcClient    *grpclient.Client
 }
 
+// NewClient will create a new client for connect grpc management server
 func NewClient(cfg *ClientConfig) *Client {
 	client := &Client{
 		logger:        cfg.Logger,
 		conf:          cfg.Conf,
-		grpcClient:    cfg.GrpcClient,
 		keepaliveChan: make(chan struct{}),
 		watchChan:     make(chan struct{}),
 	}
+
+	c, err := grpclient.NewClient(&grpclient.GrpcConfig{
+		Addr:          cfg.ManagementUrl,
+		Logger:        log.NewLogger(log.Loglevel, "grpc-grpclient"),
+		KeepaliveChan: cfg.KeepaliveChan,
+		WatchChan:     cfg.WatchChan,
+	})
+
+	if err != nil {
+		client.logger.Errorf("create grpc client failed: %v", err)
+		return nil
+	}
+
+	client.grpcClient = c
 
 	return client
 }
@@ -97,7 +114,7 @@ func (c *Client) SetTurnManager(turnManager *turnclient.TurnManager) *Client {
 	return c
 }
 
-// RegisterToManagement will register device to linkany center
+// RegisterToManagement will register device to wireflow center
 func (c *Client) RegisterToManagement() (*internal.DeviceConf, error) {
 	// TODO implement this function
 	return nil, nil
@@ -129,7 +146,7 @@ func (c *Client) Login(user *config.User) error {
 	}
 
 	homeDir, err := os.UserHomeDir()
-	path := filepath.Join(homeDir, ".linkany/config.json")
+	path := filepath.Join(homeDir, ".wireflow/config.json")
 	_, err = os.Stat(path)
 	var file *os.File
 	if os.IsNotExist(err) {
@@ -211,9 +228,16 @@ func (c *Client) GetNetMap() (*vo.NetworkMap, error) {
 	return &networkMap, nil
 }
 
-func (c *Client) ToConfigPeer(peer *internal.NodeMessage) *internal.NodeMessage {
+// TODO implement this function
+func (c *Client) GetUsers() []*config.User {
+	var users []*config.User
+	users = append(users, config.NewUser("wireflow", "123456"))
+	return users
+}
 
-	return &internal.NodeMessage{
+func (c *Client) ToConfigPeer(peer *internal.Node) *internal.Node {
+
+	return &internal.Node{
 		PublicKey:           peer.PublicKey,
 		Endpoint:            peer.Endpoint,
 		Address:             peer.Address,
@@ -223,34 +247,7 @@ func (c *Client) ToConfigPeer(peer *internal.NodeMessage) *internal.NodeMessage 
 	}
 }
 
-func (c *Client) HandleWatchMessage(msg *internal.Message) error {
-	var err error
-
-	switch msg.EventType {
-	case internal.EventTypeGroupNodeRemove:
-		for _, node := range msg.GroupMessage.Nodes {
-			c.logger.Infof("watch received event type: %v, node: %v", internal.EventTypeGroupNodeRemove, node.String())
-			err := c.RemovePeer(node)
-			if err != nil {
-				c.logger.Errorf("remove node failed: %v", err)
-			}
-		}
-	case internal.EventTypeGroupNodeAdd:
-		for _, node := range msg.GroupMessage.Nodes {
-			c.logger.Infof("watch received event type: %v, node: %v", internal.EventTypeGroupNodeAdd, node.String())
-			if err = c.AddPeer(node); err != nil {
-				c.logger.Errorf("add node failed: %v", err)
-			}
-		}
-	case internal.EventTypeGroupAdd:
-		c.logger.Verbosef("watching received event type: %v >>> add group: %v", internal.EventTypeGroupAdd, msg.GroupMessage.GroupName)
-	}
-
-	return nil
-
-}
-
-func (c *Client) AddPeer(p *internal.NodeMessage) error {
+func (c *Client) AddPeer(p *internal.Node) error {
 	var (
 		err   error
 		probe internal.Probe
@@ -308,7 +305,7 @@ func (c *Client) AddPeer(p *internal.NodeMessage) error {
 }
 
 // doProbe will start a direct check to the node, if the peer is not connected, it will send drp offer to remote
-func (c *Client) doProbe(probe internal.Probe, node *internal.NodeMessage) {
+func (c *Client) doProbe(probe internal.Probe, node *internal.Node) {
 	errChan := make(chan error, 10)
 	limitRetries := 7
 	retries := 0
@@ -318,7 +315,7 @@ func (c *Client) doProbe(probe internal.Probe, node *internal.NodeMessage) {
 		for {
 			if retries > limitRetries {
 				c.logger.Errorf("direct check until limit times")
-				errChan <- linkerrors.ErrProbeFailed
+				errChan <- wferrors.ErrProbeFailed
 				return
 			}
 
@@ -334,7 +331,7 @@ func (c *Client) doProbe(probe internal.Probe, node *internal.NodeMessage) {
 					case internal.ConnectionStateNew:
 						if err := probe.Start(context.Background(), c.keyManager.GetPublicKey(), node.PublicKey); err != nil {
 							c.logger.Errorf("send directOffer failed: %v", err)
-							err = linkerrors.ErrProbeFailed
+							err = wferrors.ErrProbeFailed
 							return
 						} else if probe.GetConnState() != internal.ConnectionStateConnected {
 							retries++
@@ -350,7 +347,7 @@ func (c *Client) doProbe(probe internal.Probe, node *internal.NodeMessage) {
 					}
 				}
 			case <-probe.ProbeDone():
-				errChan <- linkerrors.ErrProbeFailed
+				errChan <- wferrors.ErrProbeFailed
 				return
 			}
 		}
@@ -371,14 +368,7 @@ func (c *Client) doProbe(probe internal.Probe, node *internal.NodeMessage) {
 	}
 }
 
-// TODO implement this function
-func (c *Client) GetUsers() []*config.User {
-	var users []*config.User
-	users = append(users, config.NewUser("linkany", "123456"))
-	return users
-}
-
-func (c *Client) Get(ctx context.Context) (*internal.NodeMessage, int64, error) {
+func (c *Client) Get(ctx context.Context) (*internal.Node, int64, error) {
 	req := &mgt.Request{
 		AppId: c.conf.AppId,
 		Token: c.conf.Token,
@@ -395,7 +385,7 @@ func (c *Client) Get(ctx context.Context) (*internal.NodeMessage, int64, error) 
 	}
 
 	type Result struct {
-		Peer  internal.NodeMessage
+		Peer  internal.Node
 		Count int64
 	}
 	var result Result
@@ -405,9 +395,10 @@ func (c *Client) Get(ctx context.Context) (*internal.NodeMessage, int64, error) 
 	return &result.Peer, result.Count, nil
 }
 
-func (c *Client) Watch(ctx context.Context, callback func(msg *internal.Message) error) error {
+func (c *Client) Watch(ctx context.Context, fn func(message *internal.Message) error) error {
 	req := &mgt.Request{
 		PubKey: c.keyManager.GetPublicKey(),
+		AppId:  c.conf.AppId,
 	}
 
 	body, err := proto.Marshal(req)
@@ -415,12 +406,13 @@ func (c *Client) Watch(ctx context.Context, callback func(msg *internal.Message)
 		return err
 	}
 
-	return c.grpcClient.Watch(ctx, &mgt.ManagementMessage{Body: body}, callback)
+	return c.grpcClient.Watch(ctx, &mgt.ManagementMessage{Body: body}, fn)
 }
 
 func (c *Client) Keepalive(ctx context.Context) error {
 	req := &mgt.Request{
 		PubKey: c.keyManager.GetPublicKey(),
+		AppId:  c.conf.AppId,
 		Token:  c.conf.Token,
 	}
 
@@ -432,10 +424,9 @@ func (c *Client) Keepalive(ctx context.Context) error {
 	return c.grpcClient.Keepalive(ctx, &mgt.ManagementMessage{Body: body})
 }
 
-// Register will register device to linkany center
-func (c *Client) Register(privateKey, publicKey, token string) (*internal.DeviceConf, error) {
+// Register will register device to wireflow center
+func (c *Client) Register(ctx context.Context, appId string) (*internal.Node, error) {
 	var err error
-	ctx := context.Background()
 
 	hostname, err := os.Hostname()
 	if err != nil {
@@ -447,13 +438,10 @@ func (c *Client) Register(privateKey, publicKey, token string) (*internal.Device
 	if err != nil && err != io.EOF {
 		return nil, err
 	}
-	registryRequest := &grpcserver.RegRequest{
-		Token:               token,
+	registryRequest := &dto.NodeDto{
 		Hostname:            hostname,
 		AppID:               local.AppId,
 		PersistentKeepalive: 25,
-		PrivateKey:          privateKey,
-		PublicKey:           publicKey,
 		Port:                51820,
 		Status:              1,
 	}
@@ -461,26 +449,18 @@ func (c *Client) Register(privateKey, publicKey, token string) (*internal.Device
 	if err != nil {
 		return nil, err
 	}
-	_, err = c.grpcClient.Registry(ctx, &mgt.ManagementMessage{
+	resp, err := c.grpcClient.Registry(ctx, &mgt.ManagementMessage{
 		Body: body,
 	})
 
 	if err != nil {
 		return nil, err
 	}
-	return &internal.DeviceConf{}, nil
-}
 
-func (c *Client) RemovePeer(node *internal.NodeMessage) error {
-	wgConfigure := c.engine.GetWgConfiger()
-	if err := wgConfigure.RemovePeer(&internal.SetPeer{
-		PublicKey: node.PublicKey,
-		Remove:    true,
-	}); err != nil {
-		return err
+	var node internal.Node
+	if err = json.Unmarshal(resp.Body, &node); err != nil {
+		return nil, err
 	}
 
-	//TODO add check when no same network peers exists, then delete the route.
-	internal.SetRoute(c.logger)("delete", wgConfigure.GetAddress(), wgConfigure.GetIfaceName())
-	return nil
+	return &node, nil
 }

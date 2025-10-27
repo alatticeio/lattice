@@ -2,8 +2,8 @@ package cmd
 
 import (
 	"github.com/spf13/cobra"
-	"linkany/drp"
-	"linkany/pkg/log"
+	"wireflow/drp"
+	"wireflow/pkg/log"
 )
 
 type signalerOptions struct {

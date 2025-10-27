@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"github.com/golang-jwt/jwt/v5"
 	"gorm.io/gorm"
-	"linkany/management/entity"
-	"linkany/management/repository"
-	"linkany/pkg/log"
 	"time"
+	"wireflow/management/entity"
+	"wireflow/management/repository"
+	"wireflow/pkg/log"
 )
 
 type TokenService interface {
@@ -18,7 +18,7 @@ type TokenService interface {
 	Parse(token string) (*entity.User, error)
 }
 
-var haSalt = []byte("linkany.io")
+var haSalt = []byte("wireflow.io")
 
 type tokenServiceImpl struct {
 	logger   *log.Logger

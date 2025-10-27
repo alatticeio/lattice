@@ -3,6 +3,9 @@ package server
 import (
 	"context"
 	"fmt"
+	"wireflow/internal"
+	"wireflow/pkg/wferrors"
+
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -10,16 +13,15 @@ import (
 	"google.golang.org/grpc/status"
 
 	"io"
-	drpclient "linkany/drp/client"
-	drpgrpc "linkany/drp/grpc"
-	"linkany/management/grpc/client"
-	"linkany/management/service"
-	"linkany/pkg/drp"
-	"linkany/pkg/linkerrors"
-	"linkany/pkg/log"
 	"net"
 	"sync"
 	"time"
+	drpclient "wireflow/drp/client"
+	drpgrpc "wireflow/drp/grpc"
+	"wireflow/management/grpc/client"
+	"wireflow/management/service"
+	"wireflow/pkg/drp"
+	"wireflow/pkg/log"
 )
 
 type Server struct {
@@ -45,7 +47,7 @@ type ServerConfig struct {
 func NewServer(cfg *ServerConfig) (*Server, error) {
 
 	mgtClient, err := client.NewClient(&client.GrpcConfig{
-		Addr:   "console.linkany.io:32051",
+		Addr:   fmt.Sprintf("%s:%d", internal.ManagementDomain, internal.DefaultSignalingPort),
 		Logger: log.NewLogger(log.Loglevel, "mgt-client"),
 	})
 	if err != nil {
@@ -61,7 +63,7 @@ func NewServer(cfg *ServerConfig) (*Server, error) {
 }
 
 func (s *Server) Start() error {
-	listen, err := net.Listen("tcp", fmt.Sprintf(":%d", 32132))
+	listen, err := net.Listen("tcp", fmt.Sprintf(":%d", internal.DefaultSignalingPort))
 	if err != nil {
 		return err
 	}
@@ -181,10 +183,10 @@ func (s *Server) receiveLoop(ctx context.Context, stream grpc.BidiStreamingServe
 				state, ok := status.FromError(err)
 				if ok && state.Code() == codes.Canceled {
 					s.logger.Infof("client canceled")
-					return linkerrors.ErrClientCanceled
+					return wferrors.ErrClientCanceled
 				} else if err == io.EOF {
 					s.logger.Infof("client closed")
-					return linkerrors.ErrClientClosed
+					return wferrors.ErrClientClosed
 				}
 
 				s.logger.Errorf("receive msg failed: %v", err)

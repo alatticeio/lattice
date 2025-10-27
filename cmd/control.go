@@ -2,8 +2,8 @@ package cmd
 
 import (
 	"github.com/spf13/cobra"
-	"linkany/management"
-	"linkany/pkg/log"
+	"wireflow/management"
+	"wireflow/pkg/log"
 )
 
 type managementOptions struct {

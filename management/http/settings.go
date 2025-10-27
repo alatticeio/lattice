@@ -2,8 +2,8 @@ package http
 
 import (
 	"github.com/gin-gonic/gin"
-	"linkany/management/dto"
 	"strconv"
+	"wireflow/management/dto"
 )
 
 func (s *Server) RegisterSettingsRoutes() {

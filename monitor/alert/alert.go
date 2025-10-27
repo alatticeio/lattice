@@ -1,9 +1,9 @@
 package alert
 
 import (
-	"linkany/monitor/collector"
 	"log"
 	"time"
+	"wireflow/monitor/collector"
 )
 
 // ThresholdAlerter 基于阈值的告警器

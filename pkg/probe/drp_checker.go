@@ -2,8 +2,8 @@ package probe
 
 import (
 	"context"
-	"linkany/internal"
-	"linkany/pkg/log"
+	"wireflow/internal"
+	"wireflow/pkg/log"
 )
 
 var (

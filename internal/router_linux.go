@@ -2,10 +2,10 @@ package internal
 
 import (
 	"fmt"
-	"linkany/pkg/log"
+	"wireflow/pkg/log"
 )
 
-// example: route add -net 5.244.24.0/24 dev linkany-xx
+// example: route add -net 5.244.24.0/24 dev wireflow-xx
 func SetRoute(logger *log.Logger) RouterPrintf {
 	return func(action, address, name string) {
 		switch action {

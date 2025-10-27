@@ -2,7 +2,7 @@ package internal
 
 import (
 	"fmt"
-	"linkany/pkg/log"
+	"wireflow/pkg/log"
 )
 
 func SetRoute(logger *log.Logger) RouterPrintf {

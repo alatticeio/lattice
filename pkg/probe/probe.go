@@ -4,20 +4,21 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/linkanyio/ice"
-	drpgrpc "linkany/drp/grpc"
-	"linkany/internal"
-	"linkany/internal/direct"
-	"linkany/internal/drp"
-	"linkany/internal/relay"
-	"linkany/pkg/linkerrors"
-	"linkany/pkg/log"
-	turnclient "linkany/turn/client"
 	"net"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
+	drpgrpc "wireflow/drp/grpc"
+	"wireflow/internal"
+	"wireflow/internal/direct"
+	"wireflow/internal/drp"
+	"wireflow/internal/relay"
+	"wireflow/pkg/log"
+	"wireflow/pkg/wferrors"
+	turnclient "wireflow/turn/client"
+
+	"github.com/wireflowio/ice"
 )
 
 var (
@@ -270,7 +271,7 @@ func (p *probe) ProbeFailed(ctx context.Context, checker internal.Checker, offer
 		p.UpdateConnectionState(internal.ConnectionStateFailed)
 	}()
 
-	return linkerrors.ErrProbeFailed
+	return wferrors.ErrProbeFailed
 }
 
 func (p *probe) IsForceRelay() bool {

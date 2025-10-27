@@ -1,9 +1,9 @@
 package dto
 
 import (
-	"linkany/management/entity"
-	"linkany/management/utils"
-	"linkany/management/vo"
+	"wireflow/management/entity"
+	"wireflow/management/utils"
+	"wireflow/management/vo"
 )
 
 type AppKeyDto struct {

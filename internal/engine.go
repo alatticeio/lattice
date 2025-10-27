@@ -9,4 +9,6 @@ type EngineManager interface {
 
 	// GetWgConfiger  // Get the WireGuard configuration manager
 	GetWgConfiger() ConfigureManager
+
+	DeviceConfigure(conf *DeviceConfig) error
 }

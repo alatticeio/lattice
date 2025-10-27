@@ -6,29 +6,29 @@ import (
 
 type NodeManager struct {
 	lock  sync.Mutex
-	peers map[string]*NodeMessage
+	nodes map[string]*Node
 }
 
 func NewNodeManager() *NodeManager {
 	return &NodeManager{
-		peers: make(map[string]*NodeMessage),
+		nodes: make(map[string]*Node),
 	}
 }
 
-func (p *NodeManager) AddPeer(key string, peer *NodeMessage) {
-	p.lock.Lock()
-	defer p.lock.Unlock()
-	p.peers[key] = peer
+func (nm *NodeManager) AddPeer(key string, peer *Node) {
+	nm.lock.Lock()
+	defer nm.lock.Unlock()
+	nm.nodes[key] = peer
 }
 
-func (p *NodeManager) GetPeer(key string) *NodeMessage {
-	p.lock.Lock()
-	defer p.lock.Unlock()
-	return p.peers[key]
+func (nm *NodeManager) GetPeer(key string) *Node {
+	nm.lock.Lock()
+	defer nm.lock.Unlock()
+	return nm.nodes[key]
 }
 
-func (p *NodeManager) Remove(key string) {
-	p.lock.Lock()
-	defer p.lock.Unlock()
-	delete(p.peers, key)
+func (nm *NodeManager) Remove(key string) {
+	nm.lock.Lock()
+	defer nm.lock.Unlock()
+	delete(nm.nodes, key)
 }

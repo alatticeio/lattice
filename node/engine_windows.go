@@ -13,24 +13,24 @@ import (
 	"golang.zx2c4.com/wireguard/tun"
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 	"io"
-	drpclient "linkany/drp/client"
-	"linkany/internal"
-	mgtclient "linkany/management/client"
-	grpcclient "linkany/management/grpc/client"
-	"linkany/management/vo"
-	"linkany/pkg/config"
-	"linkany/pkg/drp"
-	lipc "linkany/pkg/ipc"
-	"linkany/pkg/log"
-	"linkany/pkg/probe"
-	"linkany/pkg/wrapper"
-	turnclient "linkany/turn/client"
 	"net"
 	"os"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
+	drpclient "wireflow/drp/client"
+	"wireflow/internal"
+	mgtclient "wireflow/management/client"
+	grpcclient "wireflow/management/grpc/client"
+	"wireflow/management/vo"
+	"wireflow/pkg/config"
+	"wireflow/pkg/drp"
+	lipc "wireflow/pkg/ipc"
+	"wireflow/pkg/log"
+	"wireflow/pkg/probe"
+	"wireflow/pkg/wrapper"
+	turnclient "wireflow/turn/client"
 )
 
 var (
@@ -370,13 +370,13 @@ func (e *Engine) DeviceConfigure(conf *internal.DeviceConfig) error {
 }
 
 func (e *Engine) AddPeer(peer internal.NodeMessage) error {
-	return e.device.IpcSet(peer.NodeString())
+	return e.device.IpcSet(peer.Node())
 }
 
 // RemovePeer add remove=true
 func (e *Engine) RemovePeer(peer internal.NodeMessage) error {
 	peer.Remove = true
-	return e.device.IpcSet(peer.NodeString())
+	return e.device.IpcSet(peer.Node())
 }
 
 func (e *Engine) close() {

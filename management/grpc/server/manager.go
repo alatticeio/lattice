@@ -1,15 +1,15 @@
 package server
 
 import (
-	"linkany/internal"
+	"wireflow/internal"
 )
 
-func CreateChannel(pubKey string) *internal.NodeChannel {
+func CreateChannel(clientId string) *internal.NodeChannel {
 	manager := internal.NewWatchManager()
-	return manager.GetChannel(pubKey)
+	return manager.GetChannel(clientId)
 }
 
-func RemoveChannel(pubKey string) {
+func RemoveChannel(clientId string) {
 	manager := internal.NewWatchManager()
-	manager.Remove(pubKey)
+	manager.Remove(clientId)
 }

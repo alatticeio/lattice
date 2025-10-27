@@ -1,9 +1,9 @@
 package monitor
 
 import (
-	"linkany/monitor/collector"
-	"linkany/pkg/log"
 	"time"
+	"wireflow/monitor/collector"
+	"wireflow/pkg/log"
 )
 
 // NodeMonitor 节点监控器

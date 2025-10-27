@@ -3,12 +3,12 @@ package service
 import (
 	"context"
 	"gorm.io/gorm"
-	"linkany/management/dto"
-	"linkany/management/entity"
-	"linkany/management/repository"
-	"linkany/management/utils"
-	"linkany/management/vo"
-	"linkany/pkg/log"
+	"wireflow/management/dto"
+	"wireflow/management/entity"
+	"wireflow/management/repository"
+	"wireflow/management/utils"
+	"wireflow/management/vo"
+	"wireflow/pkg/log"
 )
 
 type UserSettingsService interface {

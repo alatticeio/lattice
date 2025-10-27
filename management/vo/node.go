@@ -1,9 +1,9 @@
 package vo
 
 import (
-	"linkany/internal"
-	"linkany/management/utils"
 	"time"
+	"wireflow/internal"
+	"wireflow/management/utils"
 
 	"gorm.io/gorm"
 )
@@ -60,7 +60,7 @@ type NodeVo struct {
 	ID                  uint64               `json:"id,string"`
 	Name                string               `json:"name,omitempty"`
 	Description         string               `json:"description,omitempty"`
-	GroupID             uint64               `json:"groupID,omitempty"`   // belong to which group
+	NetworkID           string               `json:"networkID,omitempty"` // belong to which group
 	CreatedBy           string               `json:"createdBy,omitempty"` // ownerID
 	UserId              uint64               `json:"userId,omitempty"`
 	Hostname            string               `json:"hostname,omitempty"`

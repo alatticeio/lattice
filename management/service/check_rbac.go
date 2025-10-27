@@ -45,13 +45,13 @@ package service
 //	}
 //
 //	// 2. 如果不在同一分组，直接拒绝
-//	if sourceNode.GroupId != targetNode.GroupId {
+//	if sourceNode.NetworkID != targetNode.NetworkID {
 //		return false, nil
 //	}
 //
 //	// 3. 获取分组内所有适用的策略
 //	var policies []entity.AccessPolicy
-//	if err := s.Where("group_id = ? AND status = ?", sourceNode.GroupId, true).
+//	if err := s.Where("group_id = ? AND status = ?", sourceNode.NetworkID, true).
 //		Order("priority DESC").Find(&policies).Error; err != nil {
 //		return false, err
 //	}

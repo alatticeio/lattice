@@ -4,8 +4,9 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
-	"github.com/spf13/viper"
 	"io"
+
+	"github.com/spf13/viper"
 )
 
 type Protocol string
@@ -86,7 +87,7 @@ func GetAppId() (string, error) {
 		}
 
 		l.AppId = hex.EncodeToString(appId[:])
-		err := UpdateLocalConfig(l)
+		err = UpdateLocalConfig(l)
 		if err != nil {
 			return "", err
 		}

@@ -3,8 +3,8 @@ package repository
 import (
 	"context"
 	"gorm.io/gorm"
-	"linkany/management/entity"
-	"linkany/pkg/log"
+	"wireflow/management/entity"
+	"wireflow/pkg/log"
 )
 
 type NodeToRepository interface {

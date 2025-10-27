@@ -1,9 +1,9 @@
 package http
 
 import (
-	"linkany/management/dto"
-	"linkany/management/utils"
 	"strconv"
+	"wireflow/management/dto"
+	"wireflow/management/utils"
 
 	"github.com/gin-gonic/gin"
 )

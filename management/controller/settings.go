@@ -3,10 +3,10 @@ package controller
 import (
 	"context"
 	"gorm.io/gorm"
-	"linkany/management/dto"
-	"linkany/management/service"
-	"linkany/management/vo"
-	"linkany/pkg/log"
+	"wireflow/management/dto"
+	"wireflow/management/service"
+	"wireflow/management/vo"
+	"wireflow/pkg/log"
 )
 
 type SettingsController struct {

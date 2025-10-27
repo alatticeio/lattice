@@ -2,7 +2,7 @@ package controller
 
 import (
 	"gorm.io/gorm"
-	"linkany/pkg/log"
+	"wireflow/pkg/log"
 )
 
 type PlanController struct {

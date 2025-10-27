@@ -4,7 +4,7 @@ import (
 	"errors"
 )
 
-// drp is a protocol for relaying packets between two peers, except stun service, drp just forward.
+// drp is a protocol for relaying packets between two nodes, except stun service, drp just forward.
 // as all nodes will join to the drp node，what drp do just is auth check and forward.
 // Header: 5byte=1 byte for frame type,4 bytes for frame length
 

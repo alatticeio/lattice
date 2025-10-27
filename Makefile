@@ -10,16 +10,16 @@ build: clean
 		--env GOPROXY=https://goproxy.cn \
 		--env GOOS=linux \
 		--env GOARCH=amd64 \
-		-v $(shell pwd):/root/linkany \
-		-w /root/linkany \
-		registry.cn-hangzhou.aliyuncs.com/linkany-io/golang:1.23.0 \
-		go build -v -o /root/linkany/bin/linkany \
-		-v /root/linkany/main.go
+		-v $(shell pwd):/root/wireflow \
+		-w /root/wireflow \
+		registry.cn-hangzhou.aliyuncs.com/wireflow-io/golang:1.25.2 \
+		go build -v -o /root/wireflow/bin/wireflow \
+		-v /root/wireflow/main.go
 
 build-image:
 	cd $(shell pwd)/bin && docker build \
-		-t registry.cn-hangzhou.aliyuncs.com/linkany-io/linkany:latest \
-		-f /root/docker/maven/build/linkany/docker/Dockerfile . \
+		-t registry.cn-hangzhou.aliyuncs.com/wireflow-io/wireflow:latest \
+		-f /root/docker/maven/build/wireflow/docker/Dockerfile . \
 		--push
 
 generate:

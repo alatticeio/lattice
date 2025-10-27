@@ -2,9 +2,9 @@ package service
 
 import (
 	"fmt"
-	"linkany/management/dto"
-	"linkany/management/utils"
 	"testing"
+	"wireflow/management/dto"
+	"wireflow/management/utils"
 )
 
 func TestQueryParams_Generate(t *testing.T) {

@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-option go_package = "linkany/drp/grpc";
+option go_package = "wireflow/drp/grpc";
 
 // The greeting service definition.
 service DrpServer {

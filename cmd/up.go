@@ -2,8 +2,8 @@ package cmd
 
 import (
 	"github.com/spf13/cobra"
-	"linkany/node"
-	"linkany/pkg/log"
+	"wireflow/node"
+	"wireflow/pkg/log"
 )
 
 func up() *cobra.Command {
@@ -12,9 +12,9 @@ func up() *cobra.Command {
 		Short:        "up",
 		Use:          "up [command]",
 		SilenceUsage: true,
-		Long:         `linkany startup, will create a wireguard interface and join your linkany network,and also will config the interface automatically`,
+		Long:         `wireflow startup, will create a wireguard interface and join your wireflow network,and also will config the interface automatically`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runLinkanyd(&flags)
+			return runWireflowd(&flags)
 		},
 	}
 
@@ -32,7 +32,7 @@ func up() *cobra.Command {
 	return cmd
 }
 
-func runLinkanyd(flags *node.LinkFlags) error {
+func runWireflowd(flags *node.LinkFlags) error {
 	if flags.LogLevel == "" {
 		flags.LogLevel = "error"
 	}

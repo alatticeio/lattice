@@ -2,11 +2,11 @@ package cmd
 
 import (
 	"github.com/spf13/cobra"
-	"linkany/management/client"
-	"linkany/pkg/config"
-	"linkany/pkg/log"
-	"linkany/turn"
-	"linkany/turn/server"
+	"wireflow/management/client"
+	"wireflow/pkg/config"
+	"wireflow/pkg/log"
+	"wireflow/turn"
+	"wireflow/turn/server"
 )
 
 type turnOptions struct {

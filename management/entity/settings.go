@@ -1,7 +1,7 @@
 package entity
 
 import (
-	"linkany/management/utils"
+	"wireflow/management/utils"
 )
 
 type AppKey struct {

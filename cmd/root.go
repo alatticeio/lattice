@@ -7,9 +7,9 @@ import (
 )
 
 var rootCmd = &cobra.Command{
-	Use:   "linkany",
-	Short: "linkany is a tool for creating fast and secure wireguard proxies",
-	Long:  `linkany is a tool for creating fast and secure wireguard proxies. It allows you to create a wireguard interface and manage it easily.`,
+	Use:   "wireflow",
+	Short: "wireflow is a tool for creating fast and secure wireguard proxies",
+	Long:  `wireflow is a tool for creating fast and secure wireguard proxies. It allows you to create a wireguard interface and manage it easily.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		// Do Stuff Here
 	},

@@ -2,8 +2,8 @@ package cmd
 
 import (
 	"github.com/spf13/cobra"
-	"linkany/node"
-	"linkany/pkg/log"
+	"wireflow/node"
+	"wireflow/pkg/log"
 )
 
 func status() *cobra.Command {
@@ -12,9 +12,9 @@ func status() *cobra.Command {
 		Short:        "status",
 		Use:          "status",
 		SilenceUsage: true,
-		Long:         `linkany status command is used to check the status of the linkany daemon.`,
+		Long:         `wireflow status command is used to check the status of the wireflow daemon.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return linkanyInfo(&flags)
+			return wireflowInfo(&flags)
 		},
 	}
 
@@ -24,7 +24,7 @@ func status() *cobra.Command {
 	return cmd
 }
 
-func linkanyInfo(flags *node.LinkFlags) error {
+func wireflowInfo(flags *node.LinkFlags) error {
 	if flags.LogLevel == "" {
 		flags.LogLevel = "error"
 	}

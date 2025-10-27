@@ -9,12 +9,12 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/status"
-	"linkany/internal"
+	"wireflow/internal"
 
 	"io"
-	drpgrpc "linkany/drp/grpc"
-	"linkany/pkg/log"
 	"time"
+	drpgrpc "wireflow/drp/grpc"
+	"wireflow/pkg/log"
 )
 
 type Client struct {

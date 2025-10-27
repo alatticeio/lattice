@@ -7,23 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	wg "golang.zx2c4.com/wireguard/device"
-	"golang.zx2c4.com/wireguard/ipc"
-	"golang.zx2c4.com/wireguard/tun"
-	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 	"io"
-	drpclient "linkany/drp/client"
-	"linkany/internal"
-	mgtclient "linkany/management/client"
-	grpcclient "linkany/management/grpc/client"
-	"linkany/management/vo"
-	"linkany/pkg/config"
-	"linkany/pkg/drp"
-	lipc "linkany/pkg/ipc"
-	"linkany/pkg/log"
-	"linkany/pkg/probe"
-	"linkany/pkg/wrapper"
-	turnclient "linkany/turn/client"
 	"net"
 	"os"
 	"strings"
@@ -31,6 +15,21 @@ import (
 	"sync/atomic"
 	"syscall"
 	"time"
+	drpclient "wireflow/drp/client"
+	"wireflow/internal"
+	mgtclient "wireflow/management/client"
+	"wireflow/management/vo"
+	"wireflow/pkg/config"
+	"wireflow/pkg/drp"
+	lipc "wireflow/pkg/ipc"
+	"wireflow/pkg/log"
+	"wireflow/pkg/probe"
+	"wireflow/pkg/wrapper"
+	turnclient "wireflow/turn/client"
+
+	wg "golang.zx2c4.com/wireguard/device"
+	"golang.zx2c4.com/wireguard/ipc"
+	"golang.zx2c4.com/wireguard/tun"
 )
 
 var (
@@ -44,6 +43,7 @@ const (
 
 // Engine is the daemon that manages the wireGuard device
 type Engine struct {
+	ctx           context.Context
 	logger        *log.Logger
 	keyManager    internal.KeyManager
 	Name          string
@@ -59,13 +59,15 @@ type Engine struct {
 	nodeManager  *internal.NodeManager
 	agentManager internal.AgentManagerFactory
 	wgConfigure  internal.ConfigureManager
-	current      *internal.NodeMessage
+	current      *internal.Node
 	turnManager  *turnclient.TurnManager
 
 	callback func(message *internal.Message) error
 
 	keepaliveChan chan struct{} // channel for keepalive
 	watchChan     chan struct{} // channel for watch
+
+	eventHandler *EventHandler
 }
 
 type EngineConfig struct {
@@ -145,73 +147,48 @@ func NewEngine(cfg *EngineConfig) (*Engine, error) {
 		device       tun.Device
 		err          error
 		engine       *Engine
-		count        int64
 		probeManager internal.ProbeManager
 		proxy        *drpclient.Proxy
 		turnClient   *turnclient.Client
-		grpcClient   *grpcclient.Client
 		v4conn       *net.UDPConn
 		v6conn       *net.UDPConn
 	)
-	engine = new(Engine)
-	engine.logger = cfg.Logger
+	engine = &Engine{
+		ctx:           context.Background(),
+		nodeManager:   internal.NewNodeManager(),
+		agentManager:  drp.NewAgentManager(),
+		logger:        cfg.Logger,
+		keepaliveChan: make(chan struct{}),
+		watchChan:     make(chan struct{}),
+	}
 
 	engine.turnManager = new(turnclient.TurnManager)
 	once.Do(func() {
 		engine.Name, device, err = internal.CreateTUN(DefaultMTU, cfg.Logger)
-		engine.keepaliveChan = make(chan struct{}, 1)
-		engine.watchChan = make(chan struct{}, 1)
 	})
-
 	if err != nil {
 		return nil, err
 	}
 
-	// init managers
-	engine.nodeManager = internal.NewNodeManager()
-	engine.agentManager = drp.NewAgentManager()
-
-	// control-mgtClient
-	if grpcClient, err = grpcclient.NewClient(&grpcclient.GrpcConfig{
-		Addr:          cfg.ManagementUrl,
-		Logger:        log.NewLogger(log.Loglevel, "grpc-mgtclient"),
-		KeepaliveChan: engine.keepaliveChan,
-		WatchChan:     engine.watchChan}); err != nil {
-		return nil, err
-	}
 	engine.mgtClient = mgtclient.NewClient(&mgtclient.ClientConfig{
-		Logger:     log.NewLogger(log.Loglevel, "control-mgtClient"),
-		GrpcClient: grpcClient,
-		Conf:       cfg.Conf,
+		Logger:        log.NewLogger(log.Loglevel, "control-mgtClient"),
+		ManagementUrl: cfg.ManagementUrl,
+		KeepaliveChan: engine.keepaliveChan,
+		WatchChan:     engine.watchChan,
+		Conf:          cfg.Conf,
 	})
 
-	// limit node count
-	if engine.current, count, err = engine.mgtClient.Get(context.Background()); err != nil {
+	appId, err := config.GetAppId()
+	if err != nil {
+		return nil, err
+	}
+	var privateKey string
+	engine.current, err = engine.mgtClient.Register(context.Background(), appId)
+	if err != nil {
 		return nil, err
 	}
 
-	// TODO
-	if count >= 5 {
-		return nil, errors.New("your device count has reached the maximum limit")
-	}
-	var privateKey string
-	var publicKey string
-	if engine.current.AppID != cfg.Conf.AppId {
-		key, err := wgtypes.GeneratePrivateKey()
-		if err != nil {
-			return nil, err
-		}
-		privateKey = key.String()
-		publicKey = key.PublicKey().String()
-		_, err = engine.mgtClient.Register(privateKey, publicKey, cfg.Conf.Token)
-		if err != nil {
-			engine.logger.Errorf("register failed, with err: %s\n", err.Error())
-			return nil, err
-		}
-		engine.logger.Infof("register to manager success")
-	} else {
-		privateKey = engine.current.PrivateKey
-	}
+	privateKey = engine.current.PrivateKey
 
 	//update key
 	engine.keyManager = internal.NewKeyManager(privateKey)
@@ -305,40 +282,22 @@ func NewEngine(cfg *EngineConfig) (*Engine, error) {
 
 // Start will get networkmap
 func (e *Engine) Start() error {
+	// init event handler
+	e.eventHandler = NewEventHandler(e, log.NewLogger(log.Loglevel, "event-handler"), e.mgtClient)
 	// start engine, open udp port
 	if err := e.device.Up(); err != nil {
 		return err
 	}
-	// GetNetMap peers from control plane first time, then use watch
-	networkMap, err := e.GetNetworkMap()
-	if err != nil {
-		e.logger.Errorf("sync peers failed: %v", err)
-	}
-
-	e.logger.Verbosef("get network map: %s", networkMap)
-
-	// config device
-	internal.SetDeviceIP()("add", e.current.Address, e.Name)
-
-	if err = e.DeviceConfigure(&internal.DeviceConfig{
-		PrivateKey: e.keyManager.GetKey(),
-	}); err != nil {
-		return err
-	}
-
-	for _, node := range networkMap.Nodes {
-		e.nodeManager.AddPeer(node.PublicKey, node)
-	}
 	// watch
 	go func() {
-		if err := e.mgtClient.Watch(context.Background(), e.mgtClient.HandleWatchMessage); err != nil {
+		if err := e.mgtClient.Watch(e.ctx, e.eventHandler.HandleEvent()); err != nil {
 			e.logger.Errorf("watch failed: %v", err)
 			time.Sleep(10 * time.Second) // retry after 10 seconds
 		}
 	}()
 
 	go func() {
-		if err := e.mgtClient.Keepalive(context.Background()); err != nil {
+		if err := e.mgtClient.Keepalive(e.ctx); err != nil {
 			e.logger.Errorf("keepalive failed: %v", err)
 		} else {
 			e.logger.Infof("mgt mgtClient keepliving...")
@@ -374,14 +333,14 @@ func (e *Engine) DeviceConfigure(conf *internal.DeviceConfig) error {
 	return e.device.IpcSet(conf.String())
 }
 
-func (e *Engine) AddPeer(peer internal.NodeMessage) error {
-	return e.device.IpcSet(peer.NodeString())
+func (e *Engine) AddPeer(node internal.Node) error {
+	return e.device.IpcSet(node.String())
 }
 
 // RemovePeer add remove=true
-func (e *Engine) RemovePeer(peer internal.NodeMessage) error {
-	peer.Remove = true
-	return e.device.IpcSet(peer.NodeString())
+func (e *Engine) RemovePeer(node internal.Node) error {
+	node.Remove = true
+	return e.device.IpcSet(node.String())
 }
 
 func (e *Engine) close() {

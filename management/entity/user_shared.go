@@ -1,7 +1,7 @@
 package entity
 
 import (
-	"linkany/management/utils"
+	"wireflow/management/utils"
 )
 
 // SharedNodeGroup is the entity that represents the shared group
@@ -17,8 +17,8 @@ type SharedNodeGroup struct {
 	GrantedAt    utils.NullTime
 	RevokedAt    utils.NullTime
 
-	GroupNodes    []GroupNode   `gorm:"foreignKey:GroupId;references:GroupId"`
-	GroupPolicies []GroupPolicy `gorm:"foreignKey:GroupId;references:GroupId"`
+	GroupNodes    []GroupNode   `gorm:"foreignKey:NetworkID;references:NetworkID"`
+	GroupPolicies []GroupPolicy `gorm:"foreignKey:NetworkID;references:NetworkID"`
 }
 
 // TableName returns the table name of the shared group

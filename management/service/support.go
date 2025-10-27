@@ -1,8 +1,8 @@
 package service
 
 import (
-	"linkany/management/dto"
-	"linkany/management/entity"
+	"wireflow/management/dto"
+	"wireflow/management/entity"
 )
 
 type SupportService interface {

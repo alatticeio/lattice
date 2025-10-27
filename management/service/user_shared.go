@@ -3,11 +3,11 @@ package service
 import (
 	"context"
 	"fmt"
-	"linkany/management/dto"
-	"linkany/management/entity"
-	"linkany/management/repository"
-	"linkany/management/vo"
-	"linkany/pkg/log"
+	"wireflow/management/dto"
+	"wireflow/management/entity"
+	"wireflow/management/repository"
+	"wireflow/management/vo"
+	"wireflow/pkg/log"
 
 	"gorm.io/gorm"
 )

@@ -3,10 +3,10 @@ package client
 import (
 	"github.com/pion/logging"
 	"github.com/pion/turn/v4"
-	configlocal "linkany/pkg/config"
-	"linkany/pkg/log"
 	"net"
 	"sync"
+	configlocal "wireflow/pkg/config"
+	"wireflow/pkg/log"
 )
 
 type Client struct {
@@ -27,7 +27,7 @@ type RelayInfo struct {
 
 type ClientConfig struct {
 	Logger    *log.Logger
-	ServerUrl string // stun.linkany.io:3478
+	ServerUrl string // stun.wireflow.io:3478
 	Realm     string
 	Conf      *configlocal.LocalConfig
 }
@@ -50,7 +50,7 @@ func NewClient(cfg *ClientConfig) (*Client, error) {
 		Conn:           turn.NewSTUNConn(conn),
 		Username:       username,
 		Password:       password,
-		Realm:          "linkany.io",
+		Realm:          "wireflow.io",
 		LoggerFactory:  logging.NewDefaultLoggerFactory(),
 	}
 

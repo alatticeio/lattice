@@ -1,8 +1,8 @@
 package dto
 
 import (
-	"linkany/management/utils"
-	"linkany/management/vo"
+	"wireflow/management/utils"
+	"wireflow/management/vo"
 )
 
 type LabelParams struct {
@@ -103,7 +103,7 @@ func (p *GroupMemberParams) Generate() []*utils.KeyValue {
 
 type GroupNodeParams struct {
 	vo.PageModel
-	GroupID   uint64 `json:"groupID"`
+	GroupID   string `json:"groupID"`
 	NodeId    uint64 `json:"nodeId"`
 	GroupName string `json:"groupName"`
 	NodeName  string `json:"nodeName"`
@@ -113,7 +113,7 @@ type GroupNodeParams struct {
 func (p *GroupNodeParams) Generate() []*utils.KeyValue {
 	var result []*utils.KeyValue
 
-	if p.GroupID != 0 {
+	if p.GroupID != "" {
 		result = append(result, utils.NewKeyValue("group_id", p.GroupID))
 	}
 

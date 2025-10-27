@@ -1,0 +1,1 @@
+Resource is kubernetes custom resource pkg.

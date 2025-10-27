@@ -1,11 +1,11 @@
 package vo
 
 import (
-	"linkany/internal"
+	"wireflow/internal"
 )
 
 type NetworkMap struct {
 	UserId  string
 	Current *NodeVo
-	Nodes   []*internal.NodeMessage
+	Nodes   []*internal.Node
 }

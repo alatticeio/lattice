@@ -2,12 +2,11 @@ package client
 
 import (
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
-	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
-	"linkany/pkg/config"
-	"os"
 	"testing"
+	"wireflow/pkg/config"
+
+	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 )
 
 func TestClient_Login(t *testing.T) {
@@ -47,41 +46,9 @@ func TestClient_Get(t *testing.T) {
 }
 
 func TestFetchPeers(t *testing.T) {
-	bs, err := os.ReadFile("test.json")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	type records struct {
-		Records []config.Node `json:"records,omitempty"`
-	}
-
-	var resp HttpResponse[records]
-	err = json.Unmarshal(bs, &resp)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	fmt.Println(resp)
 }
 
 func TestParse(t *testing.T) {
-	bs, err := os.ReadFile("test.json")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	type records struct {
-		Records []config.Node `json:"records,omitempty"`
-	}
-
-	var resp HttpResponse[records]
-	err = json.Unmarshal(bs, &resp)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	fmt.Println(resp)
 
 }
 

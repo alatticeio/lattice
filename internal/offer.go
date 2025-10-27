@@ -4,14 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	drpgrpc "linkany/drp/grpc"
+	drpgrpc "wireflow/drp/grpc"
 )
 
 type Offer interface {
 	Marshal() (int, []byte, error)
 	GetOfferType() OfferType
 	TieBreaker() uint64
-	GetNode() *NodeMessage
+	GetNode() *Node
 }
 
 type OfferHandler interface {

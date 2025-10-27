@@ -1,8 +1,8 @@
 package dto
 
 import (
-	"linkany/management/utils"
-	"linkany/management/vo"
+	"wireflow/management/utils"
+	"wireflow/management/vo"
 )
 
 type QueryParams struct {

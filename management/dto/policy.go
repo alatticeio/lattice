@@ -1,8 +1,8 @@
 package dto
 
 import (
-	"linkany/management/utils"
-	"linkany/management/vo"
+	"wireflow/management/utils"
+	"wireflow/management/vo"
 )
 
 type AccessPolicyParams struct {
@@ -62,7 +62,7 @@ func (p *AccessPolicyRuleParams) Generate() []*utils.KeyValue {
 	if p.OwnId != nil {
 		result = append(result, utils.NewKeyValue("own_id", *p.OwnId))
 	}
-	
+
 	if p.PolicyId != 0 {
 		result = append(result, utils.NewKeyValue("policy_id", p.PolicyId))
 	}
