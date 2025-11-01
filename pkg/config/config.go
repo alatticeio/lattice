@@ -47,12 +47,12 @@ type PeerInfo struct {
 }
 
 func InitConfig() (config *LocalConfig, err error) {
-	viper.SetConfigName("app")            // name of config file (without extension)
-	viper.SetConfigType("yaml")           // REQUIRED if the config file does not have the extension in the name
-	viper.AddConfigPath("/etc/linkany/")  // path to look for the config file in
-	viper.AddConfigPath("$HOME/.linkany") // call multiple times to add many search paths
-	viper.AddConfigPath(".")              // optionally look for config in the working directory
-	viper.AddConfigPath("./conf/")
+	viper.SetConfigName("app")             // name of config file (without extension)
+	viper.SetConfigType("yaml")            // REQUIRED if the config file does not have the extension in the name
+	viper.AddConfigPath("/etc/wireflow/")  // path to look for the config file in
+	viper.AddConfigPath("$HOME/.wireflow") // call multiple times to add many search paths
+	viper.AddConfigPath(".")               // optionally look for config in the working directory
+	viper.AddConfigPath("./deploy")
 
 	// read default
 	//viper.ReadConfig(bytes.NewBuffer(defaultYaml))

@@ -2,7 +2,7 @@ package entity
 
 import (
 	"time"
-	"wireflow/management/utils"
+	"wireflow/pkg/utils"
 )
 
 // InviterEntity invites invite others

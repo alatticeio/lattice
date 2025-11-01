@@ -140,6 +140,9 @@ func (c *Controller) syncNetworkHandler(ctx context.Context, item WorkerItem) er
 				nodeCopy := node.DeepCopy()
 				nodeCopy.Spec.Network = utils.RemoveStringFromSlice(nodeCopy.Spec.Network, current.Name)
 				addedLabels := fmt.Sprintf("wireflow.io/%s", current.Name)
+				if nodeCopy.Labels == nil {
+					nodeCopy.Labels = make(map[string]string)
+				}
 				nodeCopy.Labels[addedLabels] = "true"
 				nodeCopy.SetLabels(nodeCopy.Labels)
 

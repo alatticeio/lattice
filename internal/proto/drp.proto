@@ -1,0 +1,34 @@
+syntax = "proto3";
+
+option go_package = "internal/grpc";
+
+// The greeting service definition.
+service DrpServer {
+  rpc HandleMessage(stream DrpMessage) returns (stream DrpMessage) {}
+}
+
+// SignalingMessage is dynamic message for kind to request and response
+message DrpMessage  {
+  string from = 1;
+  string to = 2;
+  bytes body = 3;
+  int32 encrypt = 4;
+  int32 version = 5;
+  int64 timestamp = 6;
+  MessageType msgType = 7;
+}
+
+// MessageType defines the type of message
+enum MessageType {
+  MessageDirectOfferType = 0;
+  MessageDirectOfferAnswerType = 1;
+  MessageRelayOfferType = 2;
+  MessageRelayAnswerType = 3;
+  MessageForwardType = 4;
+  MessageHeartBeatType = 5;
+  MessageDRPType = 6;
+  MessageDrpOfferType = 7;
+  MessageDrpOfferAnswerType = 8;
+  MessageDrpDataType = 9;
+  MessageRegisterType = 10;
+}

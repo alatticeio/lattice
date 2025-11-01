@@ -7,7 +7,7 @@ import (
 	"os"
 	"wireflow/internal"
 	"wireflow/management/client"
-	mgtclient "wireflow/management/grpc/client"
+	mgtclient "wireflow/management/grpc"
 	"wireflow/pkg/config"
 	"wireflow/pkg/log"
 	"wireflow/pkg/redis"

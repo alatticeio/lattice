@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/golang/protobuf/proto"
+	"github.com/wireflowio/ice"
 	"io"
 	"net"
 	"os"
@@ -11,17 +13,14 @@ import (
 	"sync"
 	"time"
 	"wireflow/internal"
+	"wireflow/internal/grpc"
 	"wireflow/management/dto"
-	grpclient "wireflow/management/grpc/client"
-	"wireflow/management/grpc/mgt"
+	grpclient "wireflow/management/grpc"
 	"wireflow/management/vo"
 	"wireflow/pkg/config"
 	"wireflow/pkg/log"
+	turnclient "wireflow/pkg/turn"
 	"wireflow/pkg/wferrors"
-	turnclient "wireflow/turn/client"
-
-	"github.com/golang/protobuf/proto"
-	"github.com/wireflowio/ice"
 )
 
 type NodeMap struct {
@@ -123,7 +122,7 @@ func (c *Client) RegisterToManagement() (*internal.DeviceConf, error) {
 func (c *Client) Login(user *config.User) error {
 	var err error
 	ctx := context.Background()
-	loginRequest := &mgt.LoginRequest{
+	loginRequest := &grpc.LoginRequest{
 		Username: user.Username,
 		Password: user.Password,
 	}
@@ -132,7 +131,7 @@ func (c *Client) Login(user *config.User) error {
 	if err != nil {
 		return err
 	}
-	resp, err := c.grpcClient.Login(ctx, &mgt.ManagementMessage{
+	resp, err := c.grpcClient.Login(ctx, &grpc.ManagementMessage{
 		Body: body,
 	})
 
@@ -140,7 +139,7 @@ func (c *Client) Login(user *config.User) error {
 		return err
 	}
 
-	var loginResponse mgt.LoginResponse
+	var loginResponse grpc.LoginResponse
 	if err := proto.Unmarshal(resp.Body, &loginResponse); err != nil {
 		return err
 	}
@@ -195,7 +194,7 @@ func (c *Client) GetNetMap() (*vo.NetworkMap, error) {
 		return nil, err
 	}
 
-	request := &mgt.Request{
+	request := &grpc.Request{
 		AppId:  c.conf.AppId,
 		Token:  info.Token,
 		PubKey: c.keyManager.GetPublicKey(),
@@ -206,7 +205,7 @@ func (c *Client) GetNetMap() (*vo.NetworkMap, error) {
 		return nil, err
 	}
 
-	resp, err := c.grpcClient.GetNetMap(ctx, &mgt.ManagementMessage{
+	resp, err := c.grpcClient.GetNetMap(ctx, &grpc.ManagementMessage{
 		Body: body,
 	})
 
@@ -309,8 +308,8 @@ func (c *Client) doProbe(probe internal.Probe, node *internal.Node) {
 	errChan := make(chan error, 10)
 	limitRetries := 7
 	retries := 0
-	timer := time.NewTimer(1 * time.Second)
-
+	ticker := time.NewTicker(1 * time.Second)
+	defer ticker.Stop()
 	check := func() {
 		for {
 			if retries > limitRetries {
@@ -320,7 +319,7 @@ func (c *Client) doProbe(probe internal.Probe, node *internal.Node) {
 			}
 
 			select {
-			case <-timer.C:
+			case <-ticker.C:
 				switch probe.GetConnState() {
 				case internal.ConnectionStateConnected, internal.ConnectionStateFailed:
 					return
@@ -335,13 +334,13 @@ func (c *Client) doProbe(probe internal.Probe, node *internal.Node) {
 							return
 						} else if probe.GetConnState() != internal.ConnectionStateConnected {
 							retries++
-							timer.Reset(30 * time.Second)
+							ticker.Reset(30 * time.Second)
 						}
 
 					case internal.ConnectionStateDisconnected:
 						c.logger.Verbosef("node %s is disconnected, retry direct check", node.PublicKey)
 						retries++
-						timer.Reset(30 * time.Second)
+						ticker.Reset(30 * time.Second)
 					case internal.ConnectionStateConnected:
 						c.logger.Verbosef("node %s is already connected, skip direct check", node.PublicKey)
 					}
@@ -369,7 +368,7 @@ func (c *Client) doProbe(probe internal.Probe, node *internal.Node) {
 }
 
 func (c *Client) Get(ctx context.Context) (*internal.Node, int64, error) {
-	req := &mgt.Request{
+	req := &grpc.Request{
 		AppId: c.conf.AppId,
 		Token: c.conf.Token,
 	}
@@ -379,7 +378,7 @@ func (c *Client) Get(ctx context.Context) (*internal.Node, int64, error) {
 		return nil, -1, err
 	}
 
-	msg, err := c.grpcClient.Get(ctx, &mgt.ManagementMessage{Body: body})
+	msg, err := c.grpcClient.Get(ctx, &grpc.ManagementMessage{Body: body})
 	if err != nil {
 		return nil, -1, err
 	}
@@ -396,7 +395,7 @@ func (c *Client) Get(ctx context.Context) (*internal.Node, int64, error) {
 }
 
 func (c *Client) Watch(ctx context.Context, fn func(message *internal.Message) error) error {
-	req := &mgt.Request{
+	req := &grpc.Request{
 		PubKey: c.keyManager.GetPublicKey(),
 		AppId:  c.conf.AppId,
 	}
@@ -406,11 +405,11 @@ func (c *Client) Watch(ctx context.Context, fn func(message *internal.Message) e
 		return err
 	}
 
-	return c.grpcClient.Watch(ctx, &mgt.ManagementMessage{Body: body}, fn)
+	return c.grpcClient.Watch(ctx, &grpc.ManagementMessage{Body: body}, fn)
 }
 
 func (c *Client) Keepalive(ctx context.Context) error {
-	req := &mgt.Request{
+	req := &grpc.Request{
 		PubKey: c.keyManager.GetPublicKey(),
 		AppId:  c.conf.AppId,
 		Token:  c.conf.Token,
@@ -421,7 +420,7 @@ func (c *Client) Keepalive(ctx context.Context) error {
 		return err
 	}
 
-	return c.grpcClient.Keepalive(ctx, &mgt.ManagementMessage{Body: body})
+	return c.grpcClient.Keepalive(ctx, &grpc.ManagementMessage{Body: body})
 }
 
 // Register will register device to wireflow center
@@ -449,12 +448,12 @@ func (c *Client) Register(ctx context.Context, appId string) (*internal.Node, er
 	if err != nil {
 		return nil, err
 	}
-	resp, err := c.grpcClient.Registry(ctx, &mgt.ManagementMessage{
+	resp, err := c.grpcClient.Registry(ctx, &grpc.ManagementMessage{
 		Body: body,
 	})
 
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("register failed. %v", err)
 	}
 
 	var node internal.Node

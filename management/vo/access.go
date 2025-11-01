@@ -2,7 +2,7 @@ package vo
 
 import (
 	"time"
-	"wireflow/management/utils"
+	"wireflow/pkg/utils"
 )
 
 type AccessPolicyVo struct {

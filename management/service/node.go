@@ -10,9 +10,9 @@ import (
 	"wireflow/management/dto"
 	"wireflow/management/entity"
 	"wireflow/management/repository"
-	"wireflow/management/utils"
 	"wireflow/management/vo"
 	"wireflow/pkg/log"
+	utils2 "wireflow/pkg/utils"
 
 	"gorm.io/gorm"
 )
@@ -115,7 +115,7 @@ func (n *nodeServiceImpl) CreateAppId(ctx context.Context) (*entity.Node, error)
 	}
 
 	peer := &entity.Node{
-		AppID:     utils.GenerateUUID(),
+		AppID:     utils2.GenerateUUID(),
 		UserId:    userId.(uint64),
 		CreatedBy: username.(string),
 	}
@@ -253,7 +253,7 @@ func (n *nodeServiceImpl) GetNetworkMap(ctx context.Context, appId, userId strin
 
 	var resultNodes []*internal.Node
 	for _, node := range nodes {
-		if node.Status == utils.Online {
+		if node.Status == utils2.Online {
 			resultNodes = append(resultNodes, &internal.Node{
 				Name:                node.Name,
 				Description:         node.Description,
@@ -557,7 +557,7 @@ func (n *nodeServiceImpl) ListUserNodes(ctx context.Context, params *dto.ApiComm
 		nodes []*entity.Node
 		err   error
 	)
-	userId := utils.GetUserIdFromCtx(ctx)
+	userId := utils2.GetUserIdFromCtx(ctx)
 	nodes, _, err = n.nodeRepo.ListNodes(ctx, &dto.QueryParams{
 		UserId: userId,
 	})

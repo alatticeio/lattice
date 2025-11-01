@@ -3,7 +3,7 @@ package vo
 import (
 	"time"
 	"wireflow/internal"
-	"wireflow/management/utils"
+	"wireflow/pkg/utils"
 
 	"gorm.io/gorm"
 )

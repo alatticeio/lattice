@@ -1,9 +1,7 @@
 package turn
 
-import "wireflow/turn/server"
-
-func Start(cfg *server.TurnServerConfig) error {
+func Start(cfg *TurnServerConfig) error {
 	// Start the TURN server
-	turnServer := server.NewTurnServer(cfg)
+	turnServer := NewTurnServer(cfg)
 	return turnServer.Start()
 }

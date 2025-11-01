@@ -1,73 +1,104 @@
-# wireflow
+# Wireflow
 
-## introduction
+[![English](https://img.shields.io/badge/lang-English-informational)](README.md) [![中文](https://img.shields.io/badge/语言-中文-informational)](README_zh.md)
+[![Go Version](https://img.shields.io/badge/go-1.25%2B-00ADD8?logo=go&logoColor=white)](https://go.dev/)
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
+[![Docker Pulls](https://img.shields.io/docker/pulls/wireflow/wireflow.svg?logo=docker&logoColor=white)](https://hub.docker.com/r/wireflow/wireflow)
+[![Go Report Card](https://goreportcard.com/badge/github.com/wireflowio/wireflow)](https://goreportcard.com/report/github.com/wireflowio/wireflow)
+![Platforms](https://img.shields.io/badge/platforms-windows%20%7C%20linux%20%7C%20macos%20%7C%20android%20%7C%20ios-informational)
 
-wireflow can create your own secure private network based on wireguard, and also provide a web ui to manage the network.
-wireflow can connect multiple devices, and you can manage the devices through the web ui. wireflow can also provide access
-control for you own secure private network.
 
+## Introduction
+
+Wireflow helps you create a secure private network powered by WireGuard, with a web UI to manage devices, access policies, and connectivity. Connect multiple devices across platforms and centrally control access to your own zero‑config overlay network.
 ## Technology
 
-## Network Topology
+- Control plane / Data plane separation
+- WireGuard for encrypted tunnels (ChaCha20‑Poly1305)
+- Automatic key distribution and rotation via the control plane
+- NAT traversal: direct P2P first, relay (TURN) fallback when required
+- Peer discovery and connection orchestration engine
+- Private DNS for service/name resolution inside the overlay
+- Metrics and monitoring (Prometheus‑friendly exporters)
+- Management API and Web UI with RBAC‑ready access policies
+- Deployable via Docker; Kubernetes manifests and examples in `conf/`
+- Cross‑platform agents (Linux, macOS, Windows; mobile in progress)
 
-## Quick start
+## Network Topology (High level)
 
-- First, you need register an account on wireflow, and then login.
-- Second, you need create a network, and then you can configure the network on the ui.
-- Third, download the wireguard, run the wireguard on you devices,login with the account you registered, and then you
-  can connect to the network.
+- Devices form a mesh overlay using WireGuard.
+- Direct P2P is preferred; if not possible, traffic relays via a TURN/relay node.
+- A control plane manages device membership, keys, and policy.
+
+
+## Quick Start
+
+1. Register an account on Wireflow and sign in.
+2. Create a network in the web UI and follow the prompts to add devices.
+3. Install and run the Wireflow app/agent on each device, sign in with your account, and join the network.
+
+You should now be able to reach devices over the private network according to the access rules you configured.
 
 ## Installation
 
-serval way to install wireflow, you can choose the way you like.
+Choose the method that best fits your environment.
 
 ### Docker
 
 ```bash
-docker run -d --privilege --name wireflow -p 51820:51820/udp wireflow/wireflow
+docker run -d \
+  --name wireflow \
+  --cap-add NET_ADMIN \
+  --device /dev/net/tun \
+  -p 51820:51820/udp \
+  wireflow/wireflow:latest
 ```
 
-### Binary
+### Binary (one‑liner)
 
 ```bash
-bash <(curl -s https://wireflow.io/install.sh)
+bash <(curl -fsSL https://wireflow.io/install.sh)
 ```
 
-### Source
+### From source
 
 ```bash
 git clone https://github.com/wireflowio/wireflow.git
-make build && install
+cd wireflow
+make build
+# then install or run the built binaries as needed
 ```
 
-### App
+### Desktop/Mobile App
 
-Download the app from the [wireflow.io](https://wireflow.io) and install it.
+Download installers from the website: [wireflow.io](https://wireflow.io)
 
-### Nas
+## Relay (TURN) Overview
 
-## About relay
+If direct P2P connectivity fails (e.g., strict NAT), Wireflow can relay traffic. A free public relay is available for convenience, and you can also deploy your own. You may use the provided relay image or run a compatible TURN server such as `coturn`.
 
-if direct connect to the network failed, you can use relay to connect to the network. We provide a free relay server for
-relaying your data, but you can also use your own relay server. We also provide a relay image to help you deploy the
-relay server easily, also you can use coturn[] which is a great turn server.
+## Deploying a Relay (self‑hosted)
 
-## How to deploy relay
+Basic steps:
+
+1. Provision a server with a public IP/UDP open (default 3478/5349 or your chosen port).
+2. Deploy the Wireflow relay image or configure `coturn`.
+3. In the Wireflow control plane, add your relay endpoint so clients can discover it.
+
+Refer to `conf/` and `turn/` directories in this repo for deployment examples and manifests.
 
 ## Features
 
-- [x] Configure-free: Just register an account and login, and then you can create you own network.
-- [x] Secure: Based on wireguard, and provide access control.
-- [x] Access control: You can control the access of the network, building rules you like.
-- [x] Web ui: Provide a web ui to manage the network.
-- [x] Relay: Provide relay service to help you connect to the network, once you can't connect to the network directly(
-  P2P).
-- [x] Multi-platform: Support multiple platforms, such as windows, linux, macos, android, ios, nas...
-- [] Metrics: Provide metrics for the network, such as traffic, connection, etc.
-- [] Multi-network: You can create multiple networks, and manage them through the web ui.
-- [] Docker: Provide docker image to help you deploy the network easily, also have a web ui for docker client, need not
-  install pc app.
-- [] DNS: Provide dns service for the network, you can use you own dns domain to access the network.
+- [x] Zero‑config onboarding: register, sign in, create a network
+- [x] Security: WireGuard encryption and key management
+- [x] Access control: define rules and policies for who can reach what
+- [x] Web UI: manage devices, rules, and visibility
+- [x] Relay fallback: seamless connectivity when direct P2P isn’t possible
+- [x] Multi‑platform: Windows, Linux, macOS, Android, iOS, NAS
+- [ ] Metrics: traffic, connections, and health insights
+- [ ] Multi‑network: manage multiple isolated overlays
+- [ ] Docker UI: manage networks without a desktop app
+- [ ] DNS: built‑in service and custom domain support
 
 ## License
 

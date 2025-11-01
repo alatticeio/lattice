@@ -10,10 +10,10 @@ import (
 	"wireflow/management/dto"
 	"wireflow/management/entity"
 	"wireflow/management/repository"
-	"wireflow/management/utils"
 	"wireflow/management/vo"
 	"wireflow/pkg/log"
 	"wireflow/pkg/redis"
+	utils2 "wireflow/pkg/utils"
 	"wireflow/pkg/wferrors"
 
 	"github.com/pion/turn/v4"
@@ -97,7 +97,7 @@ func (u *userServiceImpl) Login(ctx context.Context, dto *dto.UserDto) (*entity.
 		return nil, err
 	}
 
-	if err := utils.ComparePassword(user.Password, dto.Password); err != nil {
+	if err := utils2.ComparePassword(user.Password, dto.Password); err != nil {
 		return nil, wferrors.ErrInvalidPassword
 	}
 
@@ -116,7 +116,7 @@ func (u *userServiceImpl) Login(ctx context.Context, dto *dto.UserDto) (*entity.
 
 // Register creates a new user
 func (u *userServiceImpl) Register(ctx context.Context, dto *dto.UserDto) (*entity.User, error) {
-	hashedPassword, err := utils.EncryptPassword(dto.Password)
+	hashedPassword, err := utils2.EncryptPassword(dto.Password)
 	if err != nil {
 		return nil, err
 	}
@@ -324,7 +324,7 @@ func addResourcePermission(tx *gorm.DB, inviteId uint64, dto *dto.InviteDto) err
 	)
 
 	if dto.PolicyIdList != nil {
-		names, values, ids, err := getActualPermission(tx, utils.Policy, dto)
+		names, values, ids, err := getActualPermission(tx, utils2.Policy, dto)
 		if err != nil {
 			return err
 		}
@@ -345,7 +345,7 @@ func addResourcePermission(tx *gorm.DB, inviteId uint64, dto *dto.InviteDto) err
 				AcceptStatus: entity.NewInvite,
 				PolicyId:     policy.ID,
 				PolicyName:   policy.Name,
-				GrantedAt:    utils.NewNullTime(time.Now()),
+				GrantedAt:    utils2.NewNullTime(time.Now()),
 			}
 
 			if err = tx.Model(&entity.SharedPolicy{}).Create(sharedPolicy).Error; err != nil {
@@ -354,7 +354,7 @@ func addResourcePermission(tx *gorm.DB, inviteId uint64, dto *dto.InviteDto) err
 
 			if err = createResourcePermission(&createPermissonParams{
 				Tx:               tx,
-				ResourceType:     utils.Policy,
+				ResourceType:     utils2.Policy,
 				OwnerId:          sharedPolicy.OwnerId,
 				InvitationId:     sharedPolicy.UserId,
 				InviteId:         inviteId,
@@ -369,7 +369,7 @@ func addResourcePermission(tx *gorm.DB, inviteId uint64, dto *dto.InviteDto) err
 	}
 
 	if dto.NodeIdList != nil {
-		names, values, ids, err := getActualPermission(tx, utils.Node, dto)
+		names, values, ids, err := getActualPermission(tx, utils2.Node, dto)
 		if err != nil {
 			return err
 		}
@@ -389,7 +389,7 @@ func addResourcePermission(tx *gorm.DB, inviteId uint64, dto *dto.InviteDto) err
 				AcceptStatus: entity.NewInvite,
 				NodeId:       node.ID,
 				NodeName:     node.Name,
-				GrantedAt:    utils.NewNullTime(time.Now()),
+				GrantedAt:    utils2.NewNullTime(time.Now()),
 			}
 
 			if err = tx.Model(&entity.SharedNode{}).Create(sharedNode).Error; err != nil {
@@ -398,7 +398,7 @@ func addResourcePermission(tx *gorm.DB, inviteId uint64, dto *dto.InviteDto) err
 
 			if err = createResourcePermission(&createPermissonParams{
 				Tx:               tx,
-				ResourceType:     utils.Node,
+				ResourceType:     utils2.Node,
 				OwnerId:          sharedNode.OwnerId,
 				InvitationId:     sharedNode.UserId,
 				InviteId:         inviteId,
@@ -413,7 +413,7 @@ func addResourcePermission(tx *gorm.DB, inviteId uint64, dto *dto.InviteDto) err
 	}
 
 	if dto.LabelIdList != nil {
-		names, values, ids, err := getActualPermission(tx, utils.Label, dto)
+		names, values, ids, err := getActualPermission(tx, utils2.Label, dto)
 		if err != nil {
 			return err
 		}
@@ -434,7 +434,7 @@ func addResourcePermission(tx *gorm.DB, inviteId uint64, dto *dto.InviteDto) err
 				AcceptStatus: entity.NewInvite,
 				LabelId:      label.ID,
 				LabelName:    label.Label,
-				GrantedAt:    utils.NewNullTime(time.Now()),
+				GrantedAt:    utils2.NewNullTime(time.Now()),
 			}
 
 			if err = tx.Model(&entity.SharedLabel{}).Create(sharedLabel).Error; err != nil {
@@ -443,7 +443,7 @@ func addResourcePermission(tx *gorm.DB, inviteId uint64, dto *dto.InviteDto) err
 
 			if err = createResourcePermission(&createPermissonParams{
 				Tx:               tx,
-				ResourceType:     utils.Label,
+				ResourceType:     utils2.Label,
 				OwnerId:          sharedLabel.OwnerId,
 				InvitationId:     sharedLabel.UserId,
 				InviteId:         inviteId,
@@ -458,7 +458,7 @@ func addResourcePermission(tx *gorm.DB, inviteId uint64, dto *dto.InviteDto) err
 	}
 
 	if dto.GroupIdList != nil {
-		names, values, ids, err := getActualPermission(tx, utils.Group, dto)
+		names, values, ids, err := getActualPermission(tx, utils2.Group, dto)
 		if err != nil {
 			return err
 		}
@@ -478,7 +478,7 @@ func addResourcePermission(tx *gorm.DB, inviteId uint64, dto *dto.InviteDto) err
 				InviteId:     inviteId,
 				AcceptStatus: entity.NewInvite,
 				GroupId:      group.ID,
-				GrantedAt:    utils.NewNullTime(time.Now()),
+				GrantedAt:    utils2.NewNullTime(time.Now()),
 			}
 
 			if err = tx.Model(&entity.SharedNodeGroup{}).Create(sharedGroup).Error; err != nil {
@@ -487,7 +487,7 @@ func addResourcePermission(tx *gorm.DB, inviteId uint64, dto *dto.InviteDto) err
 
 			if err = createResourcePermission(&createPermissonParams{
 				Tx:               tx,
-				ResourceType:     utils.Group,
+				ResourceType:     utils2.Group,
 				OwnerId:          sharedGroup.OwnerId,
 				InvitationId:     sharedGroup.UserId,
 				InviteId:         inviteId,
@@ -511,7 +511,7 @@ func addResourcePermission(tx *gorm.DB, inviteId uint64, dto *dto.InviteDto) err
 
 type createPermissonParams struct {
 	Tx               *gorm.DB
-	ResourceType     utils.ResourceType
+	ResourceType     utils2.ResourceType
 	OwnerId          uint64
 	InvitationId     uint64
 	InviteId         uint64
@@ -543,7 +543,7 @@ func createResourcePermission(params *createPermissonParams) error {
 }
 
 // getActualPermission return names, values, ids, err
-func getActualPermission(tx *gorm.DB, resType utils.ResourceType, dto *dto.InviteDto) ([]string, []string, []uint64, error) {
+func getActualPermission(tx *gorm.DB, resType utils2.ResourceType, dto *dto.InviteDto) ([]string, []string, []uint64, error) {
 	var permissions []entity.Permissions
 	if err := tx.Model(&entity.Permissions{}).Where("id in ? and permission_type = ?", dto.PermissionIdList, resType.String()).Find(&permissions).Error; err != nil {
 		return nil, nil, nil, err
@@ -614,7 +614,7 @@ func getGroupNames(tx *gorm.DB, ids []uint64) string {
 		result = append(result, group.Name)
 	}
 
-	return utils.Join(result, ",")
+	return utils2.Join(result, ",")
 }
 
 func (u *userServiceImpl) GetInvitation(ctx context.Context, userId uint64, email string) (*entity.InviteeEntity, error) {
@@ -801,7 +801,7 @@ func (u *userServiceImpl) ListInvitesEntity(ctx context.Context, params *dto.Inv
 	)
 
 	if invs, count, err = u.inviteRepo.ListInviters(ctx, &dto.InviterParams{
-		InviterId: utils.GetUserIdFromCtx(ctx),
+		InviterId: utils2.GetUserIdFromCtx(ctx),
 	}); err != nil {
 		return nil, err
 	}

@@ -4,8 +4,8 @@ import (
 	"context"
 	"wireflow/management/dto"
 	"wireflow/management/entity"
-	"wireflow/management/utils"
 	"wireflow/pkg/log"
+	utils2 "wireflow/pkg/utils"
 
 	"gorm.io/gorm"
 )
@@ -75,7 +75,7 @@ func (r *groupNodeRepository) Find(ctx context.Context, groupNodeId uint64) (*en
 
 func (r *groupNodeRepository) FindByGroupNodeId(ctx context.Context, groupId, nodeId uint64) (*entity.GroupNode, error) {
 	var groupNode entity.GroupNode
-	conditions := utils.NewQueryConditions()
+	conditions := utils2.NewQueryConditions()
 	if groupId != 0 {
 		conditions.AddWhere("group_id", groupId)
 	}
@@ -100,7 +100,7 @@ func (r *groupNodeRepository) List(ctx context.Context, params *dto.GroupNodePar
 		err        error
 	)
 
-	conditions := utils.GenerateQuery(params, false)
+	conditions := utils2.GenerateQuery(params, false)
 	query := conditions.BuildQuery(r.db.WithContext(ctx).Model(&entity.GroupNode{}))
 
 	if err = query.Count(&count).Error; err != nil {
@@ -122,7 +122,7 @@ func (r *groupNodeRepository) List(ctx context.Context, params *dto.GroupNodePar
 
 func (r *groupNodeRepository) QueryNodes(ctx context.Context, params *dto.QueryParams) ([]*entity.Node, error) {
 	var nodes []*entity.Node
-	conditions := utils.GenerateQuery(params, true)
+	conditions := utils2.GenerateQuery(params, true)
 	query := conditions.BuildQuery(r.db.WithContext(ctx).Model(&entity.Node{}))
 
 	if err := query.Find(&nodes).Error; err != nil {

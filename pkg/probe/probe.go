@@ -4,21 +4,18 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/wireflowio/ice"
 	"net"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
-	drpgrpc "wireflow/drp/grpc"
+	"wireflow/drp"
 	"wireflow/internal"
-	"wireflow/internal/direct"
-	"wireflow/internal/drp"
-	"wireflow/internal/relay"
+	drpgrpc "wireflow/internal/grpc"
 	"wireflow/pkg/log"
+	"wireflow/pkg/turn"
 	"wireflow/pkg/wferrors"
-	turnclient "wireflow/turn/client"
-
-	"github.com/wireflowio/ice"
 )
 
 var (
@@ -59,7 +56,7 @@ type probe struct {
 
 	offerHandler internal.OfferHandler
 
-	turnManager *turnclient.TurnManager
+	turnManager *turn.TurnManager
 
 	gatherCh chan interface{}
 
@@ -158,7 +155,7 @@ func (p *probe) HandleOffer(ctx context.Context, offer internal.Offer) error {
 
 			p.probeManager.AddProbe(p.to, p)
 		}
-		if err := p.handleDirectOffer(ctx, offer.(*direct.DirectOffer)); err != nil {
+		if err := p.handleDirectOffer(ctx, offer.(*internal.DirectOffer)); err != nil {
 			return err
 		}
 
@@ -188,7 +185,7 @@ func (p *probe) HandleOffer(ctx context.Context, offer internal.Offer) error {
 	return p.ProbeConnect(context.Background(), offer)
 }
 
-func (p *probe) handleDirectOffer(ctx context.Context, offer *direct.DirectOffer) error {
+func (p *probe) handleDirectOffer(ctx context.Context, offer *internal.DirectOffer) error {
 	candidates := strings.Split(offer.Candidate, ";")
 	for _, candString := range candidates {
 		if candString == "" {
@@ -324,7 +321,7 @@ func (p *probe) SendOffer(ctx context.Context, msgType drpgrpc.MessageType, from
 			return err
 		}
 		candidates := p.GetCandidates(p.agent)
-		offer = direct.NewOffer(&direct.DirectOfferConfig{
+		offer = internal.NewDirectOffer(&internal.DirectOfferConfig{
 			WgPort:     51820,
 			Ufrag:      ufrag,
 			Pwd:        pwd,
@@ -334,15 +331,15 @@ func (p *probe) SendOffer(ctx context.Context, msgType drpgrpc.MessageType, from
 		})
 	case drpgrpc.MessageType_MessageRelayOfferType, drpgrpc.MessageType_MessageRelayAnswerType:
 		relayInfo := p.turnManager.GetInfo()
-		relayAddr, err = turnclient.AddrToUdpAddr(relayInfo.RelayConn.LocalAddr())
-		offer = relay.NewOffer(&relay.RelayOfferConfig{
+		relayAddr, err = turn.AddrToUdpAddr(relayInfo.RelayConn.LocalAddr())
+		offer = internal.NewRelayOffer(&internal.RelayOfferConfig{
 			MappedAddr: relayInfo.MappedAddr,
 			RelayConn:  *relayAddr,
 			Node:       p.nodeManager.GetPeer(from),
 		})
 
 	case drpgrpc.MessageType_MessageDrpOfferType, drpgrpc.MessageType_MessageDrpOfferAnswerType:
-		offer = drp.NewOffer(&drp.DrpOfferConfig{
+		offer = drp.NewDrpOffer(&drp.DrpOfferConfig{
 			Node: p.nodeManager.GetPeer(from),
 		})
 	default:

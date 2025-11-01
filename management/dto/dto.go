@@ -4,7 +4,7 @@ import (
 	"time"
 	"wireflow/internal"
 	"wireflow/management/entity"
-	"wireflow/management/utils"
+	"wireflow/pkg/utils"
 
 	"gorm.io/gorm"
 )

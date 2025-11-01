@@ -5,8 +5,8 @@ import (
 	"gorm.io/gorm"
 	"wireflow/management/dto"
 	"wireflow/management/entity"
-	"wireflow/management/utils"
 	"wireflow/pkg/log"
+	"wireflow/pkg/utils"
 )
 
 type NodeRepository interface {

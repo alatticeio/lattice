@@ -1,7 +1,7 @@
 package entity
 
 import (
-	"wireflow/management/utils"
+	"wireflow/pkg/utils"
 )
 
 type User struct {

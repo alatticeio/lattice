@@ -6,9 +6,9 @@ import (
 	"wireflow/management/dto"
 	"wireflow/management/entity"
 	"wireflow/management/repository"
-	"wireflow/management/utils"
 	"wireflow/management/vo"
 	"wireflow/pkg/log"
+	"wireflow/pkg/utils"
 )
 
 type UserSettingsService interface {

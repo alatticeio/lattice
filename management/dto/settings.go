@@ -2,8 +2,8 @@ package dto
 
 import (
 	"wireflow/management/entity"
-	"wireflow/management/utils"
 	"wireflow/management/vo"
+	utils2 "wireflow/pkg/utils"
 )
 
 type AppKeyDto struct {
@@ -17,11 +17,11 @@ type AppKeyParams struct {
 	UserId uint64 `json:"userId" form:"userId"`
 }
 
-func (p *AppKeyParams) Generate() []*utils.KeyValue {
-	var result []*utils.KeyValue
+func (p *AppKeyParams) Generate() []*utils2.KeyValue {
+	var result []*utils2.KeyValue
 
 	if p.UserId != 0 {
-		result = append(result, utils.NewKeyValue("user_id", p.UserId))
+		result = append(result, utils2.NewKeyValue("user_id", p.UserId))
 	}
 
 	return result
@@ -34,6 +34,6 @@ type UserSettingsDto struct {
 	NodeFree   uint64
 	GroupLimit uint64
 	GroupFree  uint64
-	FromDate   utils.NullTime
-	EndDate    utils.NullTime
+	FromDate   utils2.NullTime
+	EndDate    utils2.NullTime
 }

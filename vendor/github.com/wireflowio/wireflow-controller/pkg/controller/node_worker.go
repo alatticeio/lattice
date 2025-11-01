@@ -106,7 +106,10 @@ func (c *Controller) handleNodeAddEvent(ctx context.Context, node *wireflowv1alp
 
 // allocateIPsForNode 为节点在其所属的网络中分配 IP
 func (c *Controller) allocateIPsForNode(ctx context.Context, node *wireflowv1alpha1.Node) error {
-
+	if len(node.Spec.Network) == 0 {
+		//clear node's address
+		return c.updateNodeAddress(ctx, node, "")
+	}
 	primaryNetwork := node.Spec.Network[0]
 
 	// 获取 Network 资源
@@ -122,12 +125,10 @@ func (c *Controller) allocateIPsForNode(ctx context.Context, node *wireflowv1alp
 		if err = c.ipAllocator.ValidateIP(network.Spec.CIDR, currentAddress); err != nil {
 			// 分配新的 IP
 			return c.allocate(ctx, network, node)
-		} else {
-			klog.Infof("Node %s already has IP %s in network %s", node.Name, currentAddress, network.Name)
-			return nil
 		}
+
 		klog.Infof("Node %s/%s already has IP: %s", node.Namespace, node.Name, node.Spec.Address)
-		return nil
+		return c.updateNodeAddress(ctx, node, currentAddress)
 	}
 
 	// 节点可能属于多个网络,这里只为第一个网络分配 IP
@@ -140,13 +141,8 @@ func (c *Controller) allocateIPsForNode(ctx context.Context, node *wireflowv1alp
 	existingIP := c.ipAllocator.GetNodeIP(network, node.Name)
 	if existingIP != "" {
 		//校验ip是否是network合法ip
-		if err = c.ipAllocator.ValidateIP(network.Spec.CIDR, existingIP); err != nil {
-			// 分配新的 IP
-			return c.allocate(ctx, network, node)
-		} else {
-			klog.Infof("Node %s already has IP %s in network %s", node.Name, existingIP, network.Name)
-			return nil
-		}
+		klog.Infof("Node %s already has IP %s in network %s", node.Name, existingIP, network.Name)
+		return c.updateNodeAddress(ctx, node, existingIP)
 	}
 
 	// 分配新的 IP
@@ -212,10 +208,14 @@ func (c *Controller) updateNetworkIPAllocation(ctx context.Context, network *wir
 
 // updateNodeAddress 更新节点的 IP 地址
 func (c *Controller) updateNodeAddress(ctx context.Context, node *wireflowv1alpha1.Node, address string) error {
+	node, err := c.nodesLister.Nodes(node.Namespace).Get(node.Name)
+	if err != nil {
+		return err
+	}
 	nodeCopy := node.DeepCopy()
 	nodeCopy.Spec.Address = address
 
-	_, err := c.wireflowclientset.WireflowcontrollerV1alpha1().Nodes(node.Namespace).Update(
+	_, err = c.wireflowclientset.WireflowcontrollerV1alpha1().Nodes(node.Namespace).Update(
 		ctx, nodeCopy, metav1.UpdateOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to update node: %v", err)
@@ -293,6 +293,10 @@ func (c *Controller) releaseIPsForNode(ctx context.Context, node *wireflowv1alph
 
 // syncNodeNetworkLabels 同步节点的网络标签
 func (c *Controller) syncNodeNetworkLabels(ctx context.Context, node *wireflowv1alpha1.Node) error {
+	node, err := c.nodesLister.Nodes(node.Namespace).Get(node.Name)
+	if err != nil {
+		return fmt.Errorf("failed to get node %s: %v", node.Name, err)
+	}
 	nodeCopy := node.DeepCopy()
 
 	if nodeCopy.Labels == nil {
@@ -309,7 +313,7 @@ func (c *Controller) syncNodeNetworkLabels(ctx context.Context, node *wireflowv1
 		nodeCopy.Labels["wireflow.io/has-network"] = "true"
 	}
 
-	_, err := c.wireflowclientset.WireflowcontrollerV1alpha1().Nodes(node.Namespace).Update(
+	_, err = c.wireflowclientset.WireflowcontrollerV1alpha1().Nodes(node.Namespace).Update(
 		ctx, nodeCopy, metav1.UpdateOptions{})
 	return err
 }

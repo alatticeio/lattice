@@ -3,7 +3,7 @@ package http
 import (
 	"strconv"
 	"wireflow/management/dto"
-	"wireflow/management/utils"
+	"wireflow/pkg/utils"
 
 	"github.com/gin-gonic/gin"
 )

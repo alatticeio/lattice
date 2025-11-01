@@ -19,18 +19,17 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
-	drpclient "wireflow/drp/client"
+	drp2 "wireflow/drp"
 	"wireflow/internal"
 	mgtclient "wireflow/management/client"
-	grpcclient "wireflow/management/grpc/client"
+	grpcclient "wireflow/management/grpc"
 	"wireflow/management/vo"
 	"wireflow/pkg/config"
-	"wireflow/pkg/drp"
 	lipc "wireflow/pkg/ipc"
 	"wireflow/pkg/log"
 	"wireflow/pkg/probe"
 	"wireflow/pkg/wrapper"
-	turnclient "wireflow/turn/client"
+	"wireflow/turn"
 )
 
 var (
@@ -49,7 +48,7 @@ type Engine struct {
 	Name          string
 	device        *wg.Device
 	mgtClient     *mgtclient.Client
-	drpClient     *drpclient.Client
+	drpClient     *drp2.Client
 	bind          *wrapper.LinkBind
 	GetNetworkMap func() (*vo.NetworkMap, error)
 	updated       atomic.Bool
@@ -60,7 +59,7 @@ type Engine struct {
 	agentManager internal.AgentManagerFactory
 	wgConfigure  internal.ConfigureManager
 	current      *internal.NodeMessage
-	turnManager  *turnclient.TurnManager
+	turnManager  *turn.TurnManager
 
 	callback func(message *internal.Message) error
 
@@ -75,7 +74,7 @@ type EngineConfig struct {
 	UdpConn       *net.UDPConn
 	InterfaceName string
 	client        *mgtclient.Client
-	drpClient     *drpclient.Client
+	drpClient     *drp2.Client
 	WgLogger      *wg.Logger
 	TurnServerUrl string
 	ForceRelay    bool
@@ -147,14 +146,14 @@ func NewEngine(cfg *EngineConfig) (*Engine, error) {
 		engine       *Engine
 		count        int64
 		probeManager internal.ProbeManager
-		proxy        *drpclient.Proxy
-		turnClient   *turnclient.Client
+		proxy        *drp2.Proxy
+		turnClient   *turn.Client
 		grpcClient   *grpcclient.Client
 	)
 	engine = new(Engine)
 	engine.logger = cfg.Logger
 
-	engine.turnManager = new(turnclient.TurnManager)
+	engine.turnManager = new(turn.TurnManager)
 	once.Do(func() {
 		engine.Name, device, err = internal.CreateTUN(DefaultMTU, cfg.Logger)
 		engine.keepaliveChan = make(chan struct{}, 1)
@@ -167,7 +166,7 @@ func NewEngine(cfg *EngineConfig) (*Engine, error) {
 
 	// init managers
 	engine.nodeManager = internal.NewNodeManager()
-	engine.agentManager = drp.NewAgentManager()
+	engine.agentManager = drp2.NewAgentManager()
 
 	// control-mgtClient
 	if grpcClient, err = grpcclient.NewClient(&grpcclient.GrpcConfig{
@@ -221,13 +220,13 @@ func NewEngine(cfg *EngineConfig) (*Engine, error) {
 		return nil, err
 	}
 
-	if engine.drpClient, err = drpclient.NewClient(&drpclient.ClientConfig{Addr: cfg.SignalingUrl, Logger: log.NewLogger(log.Loglevel, "drp-mgtClient")}); err != nil {
+	if engine.drpClient, err = drp2.NewClient(&drp2.ClientConfig{Addr: cfg.SignalingUrl, Logger: log.NewLogger(log.Loglevel, "drp-mgtClient")}); err != nil {
 		return nil, err
 	}
 	engine.drpClient = engine.drpClient.KeyManager(engine.keyManager)
 
 	// init stun
-	if turnClient, err = turnclient.NewClient(&turnclient.ClientConfig{
+	if turnClient, err = turn.NewClient(&turn.ClientConfig{
 		ServerUrl: cfg.TurnServerUrl,
 		Conf:      cfg.Conf,
 		Logger:    log.NewLogger(log.Loglevel, "turnclient"),
@@ -235,7 +234,7 @@ func NewEngine(cfg *EngineConfig) (*Engine, error) {
 		return nil, err
 	}
 
-	var info *turnclient.RelayInfo
+	var info *turn.RelayInfo
 	if info, err = turnClient.GetRelayInfo(true); err != nil {
 		return nil, err
 	}
@@ -246,7 +245,7 @@ func NewEngine(cfg *EngineConfig) (*Engine, error) {
 
 	universalUdpMuxDefault := engine.agentManager.NewUdpMux(v4conn)
 
-	if proxy, err = drpclient.NewProxy(&drpclient.ProxyConfig{
+	if proxy, err = drp2.NewProxy(&drp2.ProxyConfig{
 		DrpClient: engine.drpClient,
 		DrpAddr:   cfg.SignalingUrl,
 	}); err != nil {
@@ -266,7 +265,7 @@ func NewEngine(cfg *EngineConfig) (*Engine, error) {
 
 	probeManager = probe.NewManager(cfg.ForceRelay, universalUdpMuxDefault.UDPMuxDefault, universalUdpMuxDefault, engine, cfg.TurnServerUrl)
 
-	offerHandler := drp.NewOfferHandler(&drp.OfferHandlerConfig{
+	offerHandler := drp2.NewOfferHandler(&drp2.OfferHandlerConfig{
 		Logger:       log.NewLogger(log.Loglevel, "offer-handler"),
 		ProbeManager: probeManager,
 		AgentManager: engine.agentManager,
@@ -300,7 +299,7 @@ func NewEngine(cfg *EngineConfig) (*Engine, error) {
 
 // Start will get networkmap
 func (e *Engine) Start() error {
-	// start engine, open udp port
+	// start e, open udp port
 	if err := e.device.Up(); err != nil {
 		return err
 	}
@@ -383,7 +382,7 @@ func (e *Engine) close() {
 	close(e.keepaliveChan)
 	e.drpClient.Close()
 	//e.device.Close()
-	e.logger.Verbosef("engine closed")
+	e.logger.Verbosef("e closed")
 }
 
 func (e *Engine) GetWgConfiger() internal.ConfigureManager {

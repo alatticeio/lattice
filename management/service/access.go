@@ -7,9 +7,9 @@ import (
 	"wireflow/management/dto"
 	"wireflow/management/entity"
 	"wireflow/management/repository"
-	"wireflow/management/utils"
 	"wireflow/management/vo"
 	"wireflow/pkg/log"
+	utils2 "wireflow/pkg/utils"
 	"wireflow/pkg/wferrors"
 
 	"gorm.io/gorm"
@@ -36,7 +36,7 @@ type AccessPolicyService interface {
 	QueryPolicyRules(ctx context.Context, params *dto.AccessPolicyRuleParams) ([]*vo.AccessRuleVo, error)
 
 	// Access control
-	CheckAccess(ctx context.Context, resourceType utils.ResourceType, resourceId uint64, action string) (bool, error)
+	CheckAccess(ctx context.Context, resourceType utils2.ResourceType, resourceId uint64, action string) (bool, error)
 	BatchCheckAccess(ctx context.Context, requests []AccessRequest) ([]AccessResult, error)
 
 	// Audit log
@@ -265,7 +265,7 @@ func (a *accessPolicyServiceImpl) AddRule(ctx context.Context, ruleDto *dto.Acce
 		return err
 	}
 	return a.ruleRepo.Create(ctx, &entity.AccessRule{
-		OwnId:      utils.GetUserIdFromCtx(ctx),
+		OwnId:      utils2.GetUserIdFromCtx(ctx),
 		PolicyId:   ruleDto.PolicyID,
 		SourceType: ruleDto.SourceType,
 		SourceId:   ruleDto.SourceID,
@@ -394,16 +394,16 @@ func (a *accessPolicyServiceImpl) ListPolicyRules(ctx context.Context, params *d
 	return result, nil
 }
 
-func (a *accessPolicyServiceImpl) CheckAccess(ctx context.Context, resourceType utils.ResourceType, resourceId uint64, action string) (bool, error) {
+func (a *accessPolicyServiceImpl) CheckAccess(ctx context.Context, resourceType utils2.ResourceType, resourceId uint64, action string) (bool, error) {
 	var (
 		count int64
 		err   error
 	)
 
-	userId := utils.GetUserIdFromCtx(ctx)
+	userId := utils2.GetUserIdFromCtx(ctx)
 	//check shared
 	switch resourceType {
-	case utils.Group:
+	case utils2.Group:
 		// first check own
 		_, count, err = a.groupRepo.List(ctx, &dto.GroupParams{
 			OwnId: &userId,
@@ -428,7 +428,7 @@ func (a *accessPolicyServiceImpl) CheckAccess(ctx context.Context, resourceType 
 		if groups[0].OwnerId == userId {
 			return true, nil
 		}
-	case utils.Policy:
+	case utils2.Policy:
 		var policies []*entity.SharedPolicy
 		// first check own
 		_, count, err = a.policyRepo.List(ctx, &dto.AccessPolicyParams{
@@ -451,7 +451,7 @@ func (a *accessPolicyServiceImpl) CheckAccess(ctx context.Context, resourceType 
 			return true, nil
 		}
 
-	case utils.Node:
+	case utils2.Node:
 		nodes, count, err := a.sharedRepo.ListNode(ctx, &dto.SharedNodeParams{})
 
 		if err != nil || count == 0 {
@@ -461,7 +461,7 @@ func (a *accessPolicyServiceImpl) CheckAccess(ctx context.Context, resourceType 
 		if nodes[0].OwnerId == userId {
 			return true, nil
 		}
-	case utils.Label:
+	case utils2.Label:
 		labels, count, err := a.sharedRepo.ListGroup(ctx, &dto.SharedGroupParams{
 			GroupParams: dto.GroupParams{
 				GroupId: resourceId,
@@ -475,9 +475,9 @@ func (a *accessPolicyServiceImpl) CheckAccess(ctx context.Context, resourceType 
 		if labels[0].OwnerId == userId {
 			return true, nil
 		}
-	case utils.Rule:
+	case utils2.Rule:
 		// first check own
-		userId := utils.GetUserIdFromCtx(ctx)
+		userId := utils2.GetUserIdFromCtx(ctx)
 		_, count, err = a.ruleRepo.List(ctx, &dto.AccessPolicyRuleParams{
 			OwnId: &userId,
 		})

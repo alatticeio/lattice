@@ -4,8 +4,8 @@ import (
 	"context"
 	"wireflow/management/dto"
 	"wireflow/management/entity"
-	"wireflow/management/utils"
 	"wireflow/pkg/log"
+	utils2 "wireflow/pkg/utils"
 
 	"gorm.io/gorm"
 )
@@ -75,25 +75,25 @@ func (r *policyRuleRepository) List(ctx context.Context, params *dto.AccessPolic
 		// 使用子查询，根据主表的 source_type 进行过滤
 		return db.Where("EXISTS (SELECT 1 FROM la_access_rule WHERE "+
 			"la_access_rule.source_id = la_node.id AND "+
-			"la_access_rule.source_type = ?)", utils.Node.String())
+			"la_access_rule.source_type = ?)", utils2.Node.String())
 	}).Preload("TargetNode", func(db *gorm.DB) *gorm.DB {
 		// 使用子查询，根据主表的 source_type 进行过滤
 		return db.Where("EXISTS (SELECT 1 FROM la_access_rule WHERE "+
 			"la_access_rule.target_id = la_node.id AND "+
-			"la_access_rule.target_type = ?)", utils.Node.String())
+			"la_access_rule.target_type = ?)", utils2.Node.String())
 	}).Preload("SourceLabel", func(db *gorm.DB) *gorm.DB {
 		// 使用子查询，根据主表的 source_type 进行过滤
 		return db.Where("EXISTS (SELECT 1 FROM la_access_rule WHERE "+
 			"la_access_rule.source_id = la_label.id AND "+
-			"la_access_rule.source_type = ?)", utils.Label.String())
+			"la_access_rule.source_type = ?)", utils2.Label.String())
 	}).Preload("TargetLabel", func(db *gorm.DB) *gorm.DB {
 		// 使用子查询，根据主表的 source_type 进行过滤
 		return db.Where("EXISTS (SELECT 1 FROM la_access_rule WHERE "+
 			"la_access_rule.target_id = la_label.id AND "+
-			"la_access_rule.target_type = ?)", utils.Label.String())
+			"la_access_rule.target_type = ?)", utils2.Label.String())
 	})
 
-	conditions := utils.GenerateQuery(params, false)
+	conditions := utils2.GenerateQuery(params, false)
 	realQuery := conditions.BuildQuery(query)
 
 	if err = realQuery.Count(&count).Error; err != nil {
@@ -114,7 +114,7 @@ func (r *policyRuleRepository) List(ctx context.Context, params *dto.AccessPolic
 
 func (r *policyRuleRepository) Query(ctx context.Context, params *dto.AccessPolicyRuleParams) ([]*entity.AccessRule, error) {
 	var rules []*entity.AccessRule
-	conditions := utils.GenerateQuery(params, true)
+	conditions := utils2.GenerateQuery(params, true)
 	query := conditions.BuildQuery(r.db.WithContext(ctx).Model(&entity.AccessRule{}))
 	if err := query.Find(&rules).Error; err != nil {
 		return nil, err

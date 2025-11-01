@@ -6,8 +6,8 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"wireflow/management/utils"
 	"wireflow/pkg/log"
+	"wireflow/pkg/utils"
 
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 )
@@ -23,9 +23,11 @@ var manager *WatchManager
 // m is a map of groupId_nodeId to channel, a channel is used to send messages to the connected peer
 // The key is a combination of networkId and publicKey, which is used to identify the connected peer
 type WatchManager struct {
-	mu       sync.Mutex
-	channels map[string]*NodeChannel // key: clientId, value: channel
-	logger   *log.Logger
+	mu sync.Mutex
+	// push channel
+	channels     map[string]*NodeChannel // key: clientId, value: channel
+	recvChannels map[string]*NodeChannel
+	logger       *log.Logger
 }
 
 type NodeChannel struct {
@@ -190,6 +192,7 @@ const (
 	EventTypeNodeAdd
 	EventTypeNodeRemove
 	EventTypeIPChange
+	EventTypeKeyChanged
 	EventTypePolicyRuleAdd
 	EventTypePolicyRuleChanged
 	EventTypePolicyRuleRemove
@@ -240,7 +243,7 @@ func (p *Node) String() string {
 	printf(&sb, "preshared_key", p.PresharedKey, keyf)
 	printf(&sb, "replace_allowed_ips", strconv.FormatBool(true), nil)
 	printf(&sb, "persistent_keepalive_interval", strconv.Itoa(p.PersistentKeepalive), nil)
-	printf(&sb, "allowed_ip", p.AllowedIPs, nil)
+	printf(&sb, "allowed_ips", p.AllowedIPs, nil)
 	printf(&sb, "endpoint", p.Endpoint, nil)
 
 	return sb.String()

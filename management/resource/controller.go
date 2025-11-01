@@ -31,6 +31,7 @@ type Controller struct {
 	ruleQueue       workqueue.TypedRateLimitingInterface[controller.WorkerItem]
 	informerFactory informers.SharedInformerFactory
 	nodeSynced      cache.InformerSynced
+	networkSynced   cache.InformerSynced
 }
 
 func NewController(
@@ -66,19 +67,23 @@ func NewController(
 	}
 
 	ratelimiter := workqueue.NewTypedMaxOfRateLimiter(
-		workqueue.NewTypedItemExponentialFailureRateLimiter[controller.WorkerItem](5*time.Millisecond, 1000*time.Second),
+		workqueue.NewTypedItemExponentialFailureRateLimiter[controller.WorkerItem](5*time.Millisecond, 10*time.Second),
 		&workqueue.TypedBucketRateLimiter[controller.WorkerItem]{Limiter: rate.NewLimiter(rate.Limit(50), 300)},
 	)
 
 	informerFactory := informers.NewSharedInformerFactory(cs, time.Minute*10)
 
-	nodeInformer := informerFactory.Wireflowcontroller().V1alpha1().Nodes().Informer()
-	//networkInformer := informerFactory.Wireflowcontroller().V1alpha1().Networks().Informer()
+	nodeInformer := informerFactory.Wireflowcontroller().V1alpha1().Nodes()
+	networkInformer := informerFactory.Wireflowcontroller().V1alpha1().Networks()
 
 	nodeQueue, networkQueue := workqueue.NewTypedRateLimitingQueue(ratelimiter), workqueue.NewTypedRateLimitingQueue(ratelimiter)
+
+	nodeLister := nodeInformer.Lister()
+
 	eventHandlers := make([]EventHandler, 0)
 	eventHandlers = append(eventHandlers,
 		NewNodeEventHandler(ctx, nodeInformer, wt, nodeQueue),
+		NewNetworkEventHandler(ctx, networkInformer, cs, wt, nodeLister, networkQueue),
 	)
 
 	c := &Controller{
@@ -88,10 +93,12 @@ func NewController(
 		nodeQueue:       nodeQueue,
 		networkQueue:    networkQueue,
 		informerFactory: informerFactory,
-		nodeSynced:      nodeInformer.HasSynced,
+		nodeSynced:      nodeInformer.Informer().HasSynced,
+		networkSynced:   networkInformer.Informer().HasSynced,
 	}
 
-	informerFactory.Start(ctx.Done())
+	stopCh := make(chan struct{})
+	informerFactory.Start(stopCh)
 
 	return c, nil
 }

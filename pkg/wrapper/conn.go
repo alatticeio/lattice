@@ -16,9 +16,8 @@ import (
 	"sync"
 	"syscall"
 	"time"
-	drpclient "wireflow/drp/client"
+	drpclient "wireflow/drp"
 	"wireflow/internal"
-	"wireflow/pkg/drp"
 	"wireflow/pkg/log"
 )
 
@@ -36,7 +35,7 @@ type LinkBind struct {
 	agent           *ice.Agent
 	universalUdpMux *ice.UniversalUDPMuxDefault
 	conn            net.Conn // drp client conn
-	node            *drp.Node
+	node            *drpclient.Node
 	PublicKey       wgtypes.Key
 	keyManager      internal.KeyManager
 

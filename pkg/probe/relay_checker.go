@@ -4,10 +4,9 @@ import (
 	"context"
 	"net"
 	"time"
-	drpgrpc "wireflow/drp/grpc"
 	"wireflow/internal"
-	"wireflow/internal/relay"
-	turnclient "wireflow/turn/client"
+	drpgrpc "wireflow/internal/grpc"
+	turnclient "wireflow/pkg/turn"
 )
 
 var (
@@ -65,7 +64,7 @@ func (c *relayChecker) ProbeConnect(ctx context.Context, isControlling bool, rel
 	c.startCh = make(chan struct{})
 	c.startTime = time.Now()
 
-	offer := relayOffer.(*relay.RelayOffer)
+	offer := relayOffer.(*internal.RelayOffer)
 	switch relayOffer.GetOfferType() {
 	case internal.OfferTypeRelayOffer:
 		return c.ProbeSuccess(ctx, offer.RelayConn.String())
@@ -78,7 +77,7 @@ func (c *relayChecker) ProbeConnect(ctx context.Context, isControlling bool, rel
 
 func (c *relayChecker) HandleOffer(ctx context.Context, offer internal.Offer) error {
 	// set the destination permission
-	relayOffer := offer.(*relay.RelayOffer)
+	relayOffer := offer.(*internal.RelayOffer)
 
 	switch offer.GetOfferType() {
 	case internal.OfferTypeRelayOffer:

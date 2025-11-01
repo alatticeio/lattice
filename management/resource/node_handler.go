@@ -2,6 +2,7 @@ package resource
 
 import (
 	"context"
+	"github.com/wireflowio/wireflow-controller/pkg/generated/informers/externalversions/wireflowcontroller/v1alpha1"
 	"time"
 	"wireflow/internal"
 
@@ -15,14 +16,14 @@ import (
 
 type NodeEventHandler struct {
 	ctx      context.Context
-	informer cache.SharedIndexInformer
+	informer v1alpha1.NodeInformer
 	wt       *internal.WatchManager
 	queue    workqueue.TypedRateLimitingInterface[controller.WorkerItem]
 }
 
 func NewNodeEventHandler(
 	ctx context.Context,
-	informer cache.SharedIndexInformer,
+	informer v1alpha1.NodeInformer,
 	wt *internal.WatchManager,
 	queue workqueue.TypedRateLimitingInterface[controller.WorkerItem]) *NodeEventHandler {
 	h := &NodeEventHandler{
@@ -32,7 +33,7 @@ func NewNodeEventHandler(
 		queue:    queue,
 	}
 
-	informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+	informer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			node := obj.(*wireflowv1alpha1.Node)
 			if time.Since(node.CreationTimestamp.Time) > 5*time.Minute {
@@ -80,7 +81,6 @@ func (n *NodeEventHandler) syncHandler(ctx context.Context, item controller.Work
 		if oldNode.Spec.Address != newNode.Spec.Address {
 			n.handleIPChange(newNode)
 			logger.Info("Node IP address changed", "oldAddress", oldNode.Spec.Address, "newAddress", newNode.Spec.Address)
-
 		}
 
 	case controller.DeleteEvent:
@@ -131,7 +131,7 @@ func (n *NodeEventHandler) ProcessNextItem(ctx context.Context) bool {
 }
 
 func (n *NodeEventHandler) Informer() cache.SharedIndexInformer {
-	return n.informer
+	return n.informer.Informer()
 }
 
 func (n *NodeEventHandler) WorkQueue() workqueue.TypedRateLimitingInterface[controller.WorkerItem] {
@@ -145,8 +145,11 @@ func (n *NodeEventHandler) handleIPChange(node *wireflowv1alpha1.Node) {
 	msg.EventType = internal.EventTypeIPChange
 	msg.Current = new(internal.Node)
 	msg.Current.Address = node.Spec.Address
+	msg.Current.AppID = node.Spec.AppId
 	msg.Current.PublicKey = node.Spec.PublicKey
-	msg.Current.PrivateKey = node.Spec.ClientId
-	n.wt.Send(msg.Current.PublicKey, msg)
-	logger.Info("Node IP address send to client success", "address", node.Spec.Address)
+	msg.Current.PrivateKey = node.Spec.PrivateKey
+	n.wt.Send(msg.Current.AppID, msg)
+	logger.Info("Node IP address send to %s client success", "address", msg.Current.AppID, node.Spec.Address)
 }
+
+// handleNodeAdd will send msg to client

@@ -4,8 +4,8 @@ import (
 	"context"
 	"wireflow/management/dto"
 	"wireflow/management/entity"
-	"wireflow/management/utils"
 	"wireflow/pkg/log"
+	"wireflow/pkg/utils"
 
 	"gorm.io/gorm"
 )

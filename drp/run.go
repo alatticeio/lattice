@@ -1,13 +1,12 @@
 package drp
 
 import (
-	"wireflow/drp/server"
 	"wireflow/pkg/log"
 )
 
 func Start(listen string) error {
 	// Create a new server
-	s, err := server.NewServer(&server.ServerConfig{
+	s, err := NewServer(&ServerConfig{
 		Listen: listen,
 		Logger: log.NewLogger(log.Loglevel, "drp-signaling"),
 	})

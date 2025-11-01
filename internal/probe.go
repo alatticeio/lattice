@@ -3,9 +3,9 @@ package internal
 import (
 	"context"
 	"time"
-	drpgrpc "wireflow/drp/grpc"
+	drpgrpc "wireflow/internal/grpc"
 	"wireflow/pkg/log"
-	"wireflow/turn/client"
+	"wireflow/pkg/turn"
 )
 
 type Probe interface {
@@ -70,7 +70,7 @@ type ProbeConfig struct {
 	NodeManager             *NodeManager
 	From                    string
 	To                      string
-	TurnManager             *client.TurnManager
+	TurnManager             *turn.TurnManager
 	SignalingChannel        chan *drpgrpc.DrpMessage
 	Ufrag                   string
 	Pwd                     string

@@ -1,8 +1,8 @@
 package dto
 
 import (
-	"wireflow/management/utils"
 	"wireflow/management/vo"
+	"wireflow/pkg/utils"
 )
 
 type LabelParams struct {

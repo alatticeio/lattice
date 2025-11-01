@@ -3,8 +3,8 @@ package repository
 import (
 	"context"
 	"gorm.io/gorm"
-	"wireflow/management/utils"
 	"wireflow/pkg/log"
+	"wireflow/pkg/utils"
 )
 
 type BaseRepository[T any] interface {

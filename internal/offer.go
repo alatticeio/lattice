@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	drpgrpc "wireflow/drp/grpc"
+	drpgrpc "wireflow/internal/grpc"
 )
 
 type Offer interface {

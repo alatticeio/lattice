@@ -7,34 +7,31 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	wg "golang.zx2c4.com/wireguard/device"
+	"golang.zx2c4.com/wireguard/ipc"
+	"golang.zx2c4.com/wireguard/tun"
 	"io"
 	"net"
 	"os"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"syscall"
 	"time"
-	drpclient "wireflow/drp/client"
+	drp2 "wireflow/drp"
 	"wireflow/internal"
 	mgtclient "wireflow/management/client"
 	"wireflow/management/vo"
 	"wireflow/pkg/config"
-	"wireflow/pkg/drp"
 	lipc "wireflow/pkg/ipc"
 	"wireflow/pkg/log"
 	"wireflow/pkg/probe"
+	turnclient "wireflow/pkg/turn"
 	"wireflow/pkg/wrapper"
-	turnclient "wireflow/turn/client"
-
-	wg "golang.zx2c4.com/wireguard/device"
-	"golang.zx2c4.com/wireguard/ipc"
-	"golang.zx2c4.com/wireguard/tun"
+	"wireflow/turn"
 )
 
 var (
-	once sync.Once
-	_    internal.EngineManager = (*Engine)(nil)
+	_ internal.EngineManager = (*Engine)(nil)
 )
 
 const (
@@ -49,7 +46,7 @@ type Engine struct {
 	Name          string
 	device        *wg.Device
 	mgtClient     *mgtclient.Client
-	drpClient     *drpclient.Client
+	drpClient     *drp2.Client
 	bind          *wrapper.LinkBind
 	GetNetworkMap func() (*vo.NetworkMap, error)
 	updated       atomic.Bool
@@ -77,7 +74,7 @@ type EngineConfig struct {
 	UdpConn       *net.UDPConn
 	InterfaceName string
 	client        *mgtclient.Client
-	drpClient     *drpclient.Client
+	drpClient     *drp2.Client
 	WgLogger      *wg.Logger
 	TurnServerUrl string
 	ForceRelay    bool
@@ -148,24 +145,22 @@ func NewEngine(cfg *EngineConfig) (*Engine, error) {
 		err          error
 		engine       *Engine
 		probeManager internal.ProbeManager
-		proxy        *drpclient.Proxy
-		turnClient   *turnclient.Client
+		proxy        *drp2.Proxy
+		turnClient   turnclient.Client
 		v4conn       *net.UDPConn
 		v6conn       *net.UDPConn
 	)
 	engine = &Engine{
 		ctx:           context.Background(),
 		nodeManager:   internal.NewNodeManager(),
-		agentManager:  drp.NewAgentManager(),
+		agentManager:  drp2.NewAgentManager(),
 		logger:        cfg.Logger,
-		keepaliveChan: make(chan struct{}),
-		watchChan:     make(chan struct{}),
+		keepaliveChan: make(chan struct{}, 1),
+		watchChan:     make(chan struct{}, 1),
 	}
 
 	engine.turnManager = new(turnclient.TurnManager)
-	once.Do(func() {
-		engine.Name, device, err = internal.CreateTUN(DefaultMTU, cfg.Logger)
-	})
+	engine.Name, device, err = internal.CreateTUN(DefaultMTU, cfg.Logger)
 	if err != nil {
 		return nil, err
 	}
@@ -202,13 +197,13 @@ func NewEngine(cfg *EngineConfig) (*Engine, error) {
 		return nil, err
 	}
 
-	if engine.drpClient, err = drpclient.NewClient(&drpclient.ClientConfig{Addr: cfg.SignalingUrl, Logger: log.NewLogger(log.Loglevel, "drp-mgtClient")}); err != nil {
+	if engine.drpClient, err = drp2.NewClient(&drp2.ClientConfig{Addr: cfg.SignalingUrl, Logger: log.NewLogger(log.Loglevel, "drp-mgtClient")}); err != nil {
 		return nil, err
 	}
 	engine.drpClient = engine.drpClient.KeyManager(engine.keyManager)
 
 	// init stun
-	if turnClient, err = turnclient.NewClient(&turnclient.ClientConfig{
+	if turnClient, err = turn.NewClient(&turn.ClientConfig{
 		ServerUrl: cfg.TurnServerUrl,
 		Conf:      cfg.Conf,
 		Logger:    log.NewLogger(log.Loglevel, "turnclient"),
@@ -227,7 +222,7 @@ func NewEngine(cfg *EngineConfig) (*Engine, error) {
 
 	universalUdpMuxDefault := engine.agentManager.NewUdpMux(v4conn)
 
-	if proxy, err = drpclient.NewProxy(&drpclient.ProxyConfig{
+	if proxy, err = drp2.NewProxy(&drp2.ProxyConfig{
 		DrpClient: engine.drpClient,
 		DrpAddr:   cfg.SignalingUrl,
 	}); err != nil {
@@ -248,7 +243,7 @@ func NewEngine(cfg *EngineConfig) (*Engine, error) {
 
 	probeManager = probe.NewManager(cfg.ForceRelay, universalUdpMuxDefault.UDPMuxDefault, universalUdpMuxDefault, engine, cfg.TurnServerUrl)
 
-	offerHandler := drp.NewOfferHandler(&drp.OfferHandlerConfig{
+	offerHandler := drp2.NewOfferHandler(&drp2.OfferHandlerConfig{
 		Logger:       log.NewLogger(log.Loglevel, "offer-handler"),
 		ProbeManager: probeManager,
 		AgentManager: engine.agentManager,
@@ -284,24 +279,59 @@ func NewEngine(cfg *EngineConfig) (*Engine, error) {
 func (e *Engine) Start() error {
 	// init event handler
 	e.eventHandler = NewEventHandler(e, log.NewLogger(log.Loglevel, "event-handler"), e.mgtClient)
-	// start engine, open udp port
+	// start e, open udp port
 	if err := e.device.Up(); err != nil {
 		return err
 	}
+
+	if e.current.Address != "" {
+		// 设置Device
+		internal.SetDeviceIP()("add", e.current.Address, e.wgConfigure.GetIfaceName())
+	}
+
+	if e.keyManager.GetKey() != "" {
+		if err := e.DeviceConfigure(&internal.DeviceConfig{
+			PrivateKey: e.current.PrivateKey,
+		}); err != nil {
+			return err
+		}
+	}
 	// watch
 	go func() {
-		if err := e.mgtClient.Watch(e.ctx, e.eventHandler.HandleEvent()); err != nil {
-			e.logger.Errorf("watch failed: %v", err)
-			time.Sleep(10 * time.Second) // retry after 10 seconds
+		e.watchChan <- struct{}{}
+		for {
+			select {
+			case <-e.watchChan:
+				e.logger.Infof("watching chan")
+				if err := e.mgtClient.Watch(e.ctx, e.eventHandler.HandleEvent()); err != nil {
+					e.logger.Errorf("watch failed: %v", err)
+					time.Sleep(10 * time.Second) // retry after 10 seconds
+					e.watchChan <- struct{}{}
+				}
+			case <-e.ctx.Done():
+				e.logger.Infof("watching chan closed")
+				return
+			}
 		}
 	}()
 
 	go func() {
-		if err := e.mgtClient.Keepalive(e.ctx); err != nil {
-			e.logger.Errorf("keepalive failed: %v", err)
-		} else {
-			e.logger.Infof("mgt mgtClient keepliving...")
+		e.keepaliveChan <- struct{}{}
+		for {
+			select {
+			case <-e.keepaliveChan:
+				e.logger.Infof("keepalive chan")
+				if err := e.mgtClient.Keepalive(e.ctx); err != nil {
+					e.logger.Errorf("keepalive failed: %v", err)
+					time.Sleep(10 * time.Second)
+					e.keepaliveChan <- struct{}{}
+				}
+			case <-e.ctx.Done():
+				e.logger.Infof("keepalive chan closed")
+				return
+			}
 		}
+
 	}()
 
 	return nil
@@ -347,7 +377,7 @@ func (e *Engine) close() {
 	close(e.keepaliveChan)
 	e.drpClient.Close()
 	//e.device.Close()
-	e.logger.Verbosef("engine closed")
+	e.logger.Verbosef("e closed")
 }
 
 func (e *Engine) GetWgConfiger() internal.ConfigureManager {

@@ -7,7 +7,6 @@ import (
 	"strings"
 	"sync/atomic"
 	"wireflow/internal"
-	"wireflow/internal/direct"
 	"wireflow/pkg/log"
 )
 
@@ -64,14 +63,14 @@ func NewDirectChecker(config *DirectCheckerConfig) *directChecker {
 }
 
 func (dt *directChecker) HandleOffer(offer internal.Offer) error {
-	o := offer.(*direct.DirectOffer)
+	o := offer.(*internal.DirectOffer)
 	if dt.prober == nil {
 
 	}
 	return dt.handleDirectOffer(o)
 }
 
-func (dt *directChecker) handleDirectOffer(offer *direct.DirectOffer) error {
+func (dt *directChecker) handleDirectOffer(offer *internal.DirectOffer) error {
 	// add remote candidate
 	candidates := strings.Split(offer.Candidate, ";")
 	for _, candString := range candidates {
@@ -106,7 +105,7 @@ func (dt *directChecker) ProbeConnect(ctx context.Context, isControlling bool, r
 	agent := dt.prober.GetProbeAgent()
 	candidates, _ := agent.GetRemoteCandidates()
 
-	offer := remoteOffer.(*direct.DirectOffer)
+	offer := remoteOffer.(*internal.DirectOffer)
 
 	ufrag, pwd, err := agent.GetLocalUserCredentials()
 	if err != nil {

@@ -1,0 +1,48 @@
+syntax = "proto3";
+
+option go_package = "internal/grpc";
+
+// The Management service definition.
+service ManagementService {
+
+  rpc Login(ManagementMessage) returns (ManagementMessage) {}
+
+  rpc Get (ManagementMessage) returns (ManagementMessage) {}
+
+  rpc List (ManagementMessage) returns (ManagementMessage) {}
+
+  rpc GetNetMap (ManagementMessage) returns (ManagementMessage) {}
+
+  rpc Watch (stream ManagementMessage) returns (stream ManagementMessage) {}
+
+  rpc Keepalive(stream ManagementMessage) returns (stream ManagementMessage) {}
+
+  rpc Registry (ManagementMessage) returns (ManagementMessage) {}
+
+  // valid token for service
+  rpc VerifyToken(ManagementMessage) returns (ManagementMessage) {}
+}
+
+// ControlMessage is dynamic message for kind to request and response
+message ManagementMessage  {
+  string pub_key = 1;
+  bytes body = 2;
+  int32 encrypt = 3;
+  int32 version = 4;
+  int64 timestamp = 6;
+}
+
+message LoginRequest {
+  string username = 1;
+  string password = 2;
+}
+
+message LoginResponse {
+  string token = 1;
+}
+
+message Request {
+  string pub_key = 1;
+  string appId = 2;
+  string token = 3;
+}

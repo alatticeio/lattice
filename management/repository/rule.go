@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"wireflow/management/dto"
 	"wireflow/management/entity"
-	"wireflow/management/utils"
 	"wireflow/pkg/log"
+	utils2 "wireflow/pkg/utils"
 
 	"gorm.io/gorm"
 )
@@ -61,7 +61,7 @@ func (r *ruleRepository) Update(ctx context.Context, ruleDto *dto.AccessRuleDto)
 		return err
 	}
 	return r.db.WithContext(ctx).Model(&entity.AccessRule{}).Where("id=?", ruleDto.ID).Updates(map[string]interface{}{
-		"own_id":      utils.GetUserIdFromCtx(ctx),
+		"own_id":      utils2.GetUserIdFromCtx(ctx),
 		"policy_id":   ruleDto.PolicyID,
 		"source_type": ruleDto.SourceType,
 		"source_id":   ruleDto.SourceID,
@@ -90,7 +90,7 @@ func (r *ruleRepository) List(ctx context.Context, params *dto.AccessPolicyRuleP
 		err   error
 	)
 
-	conditions := utils.GenerateQuery(params, false)
+	conditions := utils2.GenerateQuery(params, false)
 	query := conditions.BuildQuery(r.db.WithContext(ctx).Model(&entity.AccessRule{}))
 	if err = query.Count(&count).Error; err != nil {
 		return nil, 0, err
@@ -109,7 +109,7 @@ func (r *ruleRepository) List(ctx context.Context, params *dto.AccessPolicyRuleP
 
 func (r *ruleRepository) Query(ctx context.Context, params *dto.AccessPolicyRuleParams) ([]*entity.AccessRule, error) {
 	var rules []*entity.AccessRule
-	conditions := utils.GenerateQuery(params, true)
+	conditions := utils2.GenerateQuery(params, true)
 	query := conditions.BuildQuery(r.db.WithContext(ctx).Model(&entity.AccessRule{}))
 
 	if err := query.Find(&rules).Error; err != nil {

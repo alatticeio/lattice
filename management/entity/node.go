@@ -2,8 +2,8 @@ package entity
 
 import (
 	"wireflow/internal"
-	"wireflow/management/utils"
 	"wireflow/management/vo"
+	"wireflow/pkg/utils"
 )
 
 type GroupRoleType string

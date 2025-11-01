@@ -1,0 +1,10 @@
+listen: :8080
+database:
+  host: 81.68.109.143
+  port: 3306
+  name: linkany
+  user: root
+  password: dhvuYUoxnSZMavdJ
+Redis:
+  Addr: 81.68.109.143:6379
+  Password: dhvuYap

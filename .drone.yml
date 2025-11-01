@@ -16,7 +16,7 @@ steps: # 定义流水线执行步骤，这些步骤将顺序执行
       port: 22 # 远程连接端口
       script:
         - cd /root/docker/maven/build/wireflow && source ~/.bash_profile
-        - git pull
+        - git pull --rebase
         - make -B build && make build-image
 #  - name: management
 #    image: registry.cn-hangzhou.aliyuncs.com/wireflow-io/drone-ssh:latest # SSH工具镜像

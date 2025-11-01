@@ -6,9 +6,9 @@ import (
 	"wireflow/management/dto"
 	"wireflow/management/entity"
 	"wireflow/management/service"
-	"wireflow/management/utils"
 	"wireflow/management/vo"
 	"wireflow/pkg/log"
+	"wireflow/pkg/utils"
 )
 
 type AccessController struct {

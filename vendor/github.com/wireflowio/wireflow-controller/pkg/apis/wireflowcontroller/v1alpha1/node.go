@@ -27,7 +27,7 @@ type NodeSpec struct {
 	Policy string `json:"policy"`
 
 	// node's public key
-	ClientId string `json:"clientId"`
+	PrivateKey string `json:"privateKey"`
 
 	PublicKey string `json:"publicKey"`
 

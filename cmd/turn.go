@@ -6,7 +6,6 @@ import (
 	"wireflow/pkg/config"
 	"wireflow/pkg/log"
 	"wireflow/turn"
-	"wireflow/turn/server"
 )
 
 type turnOptions struct {
@@ -45,7 +44,7 @@ func runTurn(opts turnOptions) error {
 		Conf: conf,
 	})
 
-	return turn.Start(&server.TurnServerConfig{
+	return turn.Start(&turn.TurnServerConfig{
 		Logger:   log.NewLogger(log.Loglevel, "turnserver"),
 		PublicIP: opts.PublicIP,
 		Port:     opts.Port,

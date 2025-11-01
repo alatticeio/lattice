@@ -4,9 +4,9 @@ import (
 	"github.com/spf13/viper"
 	"github.com/wireflowio/wireflow-controller/pkg/signals"
 	"k8s.io/klog/v2"
+	grpcserver "wireflow/management/grpc"
 
 	"wireflow/management/db"
-	grpcserver "wireflow/management/grpc/server"
 	"wireflow/management/http"
 	"wireflow/pkg/log"
 	"wireflow/pkg/redis"
@@ -15,7 +15,7 @@ import (
 func Start(listen string) error {
 	logger := log.NewLogger(log.Loglevel, "management")
 	viper.AddConfigPath("/app/")
-	viper.AddConfigPath("conf/")
+	viper.AddConfigPath("deploy/")
 	viper.SetConfigName("control")
 	viper.SetConfigType("yaml")
 	if err := viper.ReadInConfig(); err != nil {
@@ -51,6 +51,10 @@ func Start(listen string) error {
 		if err := gServer.Start(); err != nil {
 			logger.Errorf("grpc server start failed: %v", err)
 		}
+	}()
+
+	go func() {
+		http.NewPush()
 	}()
 
 	//cfg.DatabaseService = dbService

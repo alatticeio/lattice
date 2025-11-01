@@ -17,22 +17,16 @@ build: clean
 		-v /root/wireflow/main.go
 
 build-image:
-	cd $(shell pwd)/bin && docker build \
+	docker build \
 		-t registry.cn-hangzhou.aliyuncs.com/wireflow-io/wireflow:latest \
-		-f /root/docker/maven/build/wireflow/docker/Dockerfile . \
+		-f deploy/docker/Dockerfile . \
 		--push
 
 generate:
-	protoc --go_out=. \
+	protoc --proto_path=internal/proto \
+		--go_out=internal/grpc \
 		--go_opt=paths=source_relative \
-		--go-grpc_out=. \
-		--go-grpc_opt=paths=source_relative \
-		management/grpc/mgt/management.proto
-	protoc --go_out=. \
-		--go_opt=paths=source_relative \
-		--go-grpc_out=. \
-		--go-grpc_opt=paths=source_relative \
-		drp/grpc/drp.proto
-
+		--go-grpc_out=internal/grpc \
+		--go-grpc_opt=paths=source_relative drp.proto management.proto
 clean:
 	rm -rf bin
