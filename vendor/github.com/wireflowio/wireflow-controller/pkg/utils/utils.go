@@ -28,3 +28,36 @@ func RemoveStringFromSlice(slice []string, s string) (result []string) {
 
 	return
 }
+
+func StringSliceEqual(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
+// 辅助函数
+func StringSet(list []string) map[string]struct{} {
+	set := make(map[string]struct{}, len(list))
+	for _, item := range list {
+		set[item] = struct{}{}
+	}
+	return set
+}
+
+func SetsEqual(a, b map[string]struct{}) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for k := range a {
+		if _, exists := b[k]; !exists {
+			return false
+		}
+	}
+	return true
+}

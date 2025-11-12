@@ -28,10 +28,9 @@ import (
 type WireflowcontrollerV1alpha1Interface interface {
 	RESTClient() rest.Interface
 	NetworksGetter
+	NetworkPoliciesGetter
 	NodesGetter
 	NodeConnectionsGetter
-	PoliciesGetter
-	RulesGetter
 }
 
 // WireflowcontrollerV1alpha1Client is used to interact with features provided by the wireflowcontroller.k8s.io group.
@@ -43,20 +42,16 @@ func (c *WireflowcontrollerV1alpha1Client) Networks(namespace string) NetworkInt
 	return newNetworks(c, namespace)
 }
 
+func (c *WireflowcontrollerV1alpha1Client) NetworkPolicies(namespace string) NetworkPolicyInterface {
+	return newNetworkPolicies(c, namespace)
+}
+
 func (c *WireflowcontrollerV1alpha1Client) Nodes(namespace string) NodeInterface {
 	return newNodes(c, namespace)
 }
 
 func (c *WireflowcontrollerV1alpha1Client) NodeConnections(namespace string) NodeConnectionInterface {
 	return newNodeConnections(c, namespace)
-}
-
-func (c *WireflowcontrollerV1alpha1Client) Policies(namespace string) PolicyInterface {
-	return newPolicies(c, namespace)
-}
-
-func (c *WireflowcontrollerV1alpha1Client) Rules(namespace string) RuleInterface {
-	return newRules(c, namespace)
 }
 
 // NewForConfig creates a new WireflowcontrollerV1alpha1Client for the given config.

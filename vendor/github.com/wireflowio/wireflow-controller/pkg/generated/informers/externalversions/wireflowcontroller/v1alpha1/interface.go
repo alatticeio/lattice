@@ -25,14 +25,12 @@ import (
 type Interface interface {
 	// Networks returns a NetworkInformer.
 	Networks() NetworkInformer
+	// NetworkPolicies returns a NetworkPolicyInformer.
+	NetworkPolicies() NetworkPolicyInformer
 	// Nodes returns a NodeInformer.
 	Nodes() NodeInformer
 	// NodeConnections returns a NodeConnectionInformer.
 	NodeConnections() NodeConnectionInformer
-	// Policies returns a PolicyInformer.
-	Policies() PolicyInformer
-	// Rules returns a RuleInformer.
-	Rules() RuleInformer
 }
 
 type version struct {
@@ -51,6 +49,11 @@ func (v *version) Networks() NetworkInformer {
 	return &networkInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
 }
 
+// NetworkPolicies returns a NetworkPolicyInformer.
+func (v *version) NetworkPolicies() NetworkPolicyInformer {
+	return &networkPolicyInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
+}
+
 // Nodes returns a NodeInformer.
 func (v *version) Nodes() NodeInformer {
 	return &nodeInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
@@ -59,14 +62,4 @@ func (v *version) Nodes() NodeInformer {
 // NodeConnections returns a NodeConnectionInformer.
 func (v *version) NodeConnections() NodeConnectionInformer {
 	return &nodeConnectionInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
-}
-
-// Policies returns a PolicyInformer.
-func (v *version) Policies() PolicyInformer {
-	return &policyInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
-}
-
-// Rules returns a RuleInformer.
-func (v *version) Rules() RuleInformer {
-	return &ruleInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
 }

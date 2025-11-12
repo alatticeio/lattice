@@ -43,19 +43,91 @@ type NodeSpec struct {
 
 	// node ip, when a node is created, it will have a ip, and it will change when the network is changed
 	Address string `json:"address"`
+
+	//labels for node
+	Labels []string `json:"labels"`
 }
 
 // NodeStatus is the status for a Node resource
 type NodeStatus struct {
+	Conditions []metav1.Condition `json:"conditions,omitempty"`
+
 	// Node status
 	Status Status `json:"status,omitempty"`
+
+	Phase NodePhase `json:"phase,omitempty"`
+
+	ActiveNetworks []string `json:"activeNetworks,omitempty"`
+
+	AllocatedAddress string `json:"allocatedAddress,omitempty"`
 
 	// Connection summary
 	ConnectionSummary ConnectionSummary `json:"connectionSummary,omitempty"`
 
-	// Connections states
-	Connections []NodeConnection `json:"connections, omitempty"`
+	LastSyncTime *metav1.Time `json:"lastSyncTime,omitempty"`
+
+	// ObserveGeneration is the generation observed by the controller.
+	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
 }
+
+type NodePhase string
+
+const (
+	// NodePending 节点刚创建,等待处理
+	NodePending NodePhase = "Pending"
+
+	// NodeProvisioning 正在为节点分配资源(IP等)
+	NodeProvisioning NodePhase = "Provisioning"
+
+	// NodeReady 节点已就绪,网络配置完成
+	NodeReady NodePhase = "Ready"
+
+	// NodeUpdating 节点配置正在更新，比如节点配置策略，添加Label等
+	NodeUpdating NodePhase = "Updating"
+
+	NodeUpdatingPolicy NodePhase = "UpdatingPolicy"
+
+	// NodeTerminating 节点正在离开网络/清理资源
+	NodeTerminating NodePhase = "Terminating"
+
+	// NodeFailed 节点处于错误状态
+	NodeFailed NodePhase = "Failed"
+
+	//部分功能不可用
+	NodeDegraded NodePhase = "Degraded"
+)
+
+// Condition Types
+const (
+	NodeConditionInitialized = "Initialized"
+
+	// NodeConditionProvisioned 节点是否就绪
+	NodeConditionProvisioned = "Provisioned"
+
+	// NodeConditionNetworkConfigured 网络配置是否完成
+	NodeConditionNetworkConfigured = "NetworkConfigured"
+
+	// NodeConditionIPAllocated IP 是否已分配
+	NodeConditionIPAllocated = "IPAllocated"
+
+	NodeConditionPolicyUpdating = "PolicyUpdating"
+
+	// NodeConditionPolicyApplied 策略是否已应用
+	NodeConditionPolicyApplied = "PolicyApplied"
+)
+
+// Condition Reasons
+const (
+	ReasonInitializing     = "Initializing"
+	ReasonAllocating       = "Allocating"
+	ReasonConfiguring      = "Configuring"
+	ReasonReady            = "Ready"
+	ReasonNotReady         = "NotReady"
+	ReasonUpdating         = "Updating"
+	ReasonLeaving          = "Leaving"
+	ReasonAllocationFailed = "AllocationFailed"
+	ReasonConfigFailed     = "ConfigurationFailed"
+)
 
 type Status string
 

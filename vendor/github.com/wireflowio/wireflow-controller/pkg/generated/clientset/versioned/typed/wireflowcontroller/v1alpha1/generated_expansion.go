@@ -19,10 +19,8 @@ package v1alpha1
 
 type NetworkExpansion interface{}
 
+type NetworkPolicyExpansion interface{}
+
 type NodeExpansion interface{}
 
 type NodeConnectionExpansion interface{}
-
-type PolicyExpansion interface{}
-
-type RuleExpansion interface{}

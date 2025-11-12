@@ -55,11 +55,17 @@ type Controller struct {
 
 	deploymentsLister appslisters.DeploymentLister
 	deploymentsSynced cache.InformerSynced
-	nodesLister       listers.NodeLister
-	nodesSynced       cache.InformerSynced
-	networkSynced     cache.InformerSynced
 
-	networkLister listers.NetworkLister
+	nodeInformer informers.NodeInformer
+	nodesLister  listers.NodeLister
+	nodesSynced  cache.InformerSynced
+
+	networkInformer informers.NetworkInformer
+	networkLister   listers.NetworkLister
+	networkSynced   cache.InformerSynced
+
+	networkPolicyLister listers.NetworkPolicyLister
+	networkPolicySynced cache.InformerSynced
 
 	httpClient *http.HttpClient
 
@@ -68,13 +74,16 @@ type Controller struct {
 	// means we can ensure we only process a fixed amount of resources at a
 	// time, and makes it easy to ensure we are never processing the same item
 	// simultaneously in two different workers.
-	nodeQueue    workqueue.TypedRateLimitingInterface[WorkerItem]
-	networkQueue workqueue.TypedRateLimitingInterface[WorkerItem]
+	nodeQueue          workqueue.TypedRateLimitingInterface[WorkerItem]
+	networkQueue       workqueue.TypedRateLimitingInterface[WorkerItem]
+	networkPolicyQueue workqueue.TypedRateLimitingInterface[WorkerItem]
 	// recorder is an event recorder for recording Event resources to the
 	// Kubernetes API.
 	recorder record.EventRecorder
 
 	ipAllocator *IPAllocator
+
+	policyChangeDetector *PolicyChangeDetector
 }
 
 type EventType string
@@ -99,7 +108,8 @@ func NewController(
 	wireflowclientset clientset.Interface,
 	httpClient *http.HttpClient,
 	nodeInformer informers.NodeInformer,
-	networkInformer informers.NetworkInformer) *Controller {
+	networkInformer informers.NetworkInformer,
+	networkPolicyInformer informers.NetworkPolicyInformer) *Controller {
 	logger := klog.FromContext(ctx)
 
 	// Create event broadcaster
@@ -118,17 +128,23 @@ func NewController(
 	)
 
 	controller := &Controller{
-		kubeclientset:     kubeclientset,
-		wireflowclientset: wireflowclientset,
-		httpClient:        httpClient,
-		nodesLister:       nodeInformer.Lister(),
-		networkLister:     networkInformer.Lister(),
-		nodesSynced:       nodeInformer.Informer().HasSynced,
-		networkSynced:     networkInformer.Informer().HasSynced,
-		nodeQueue:         workqueue.NewTypedRateLimitingQueue(ratelimiter),
-		networkQueue:      workqueue.NewTypedRateLimitingQueue(ratelimiter),
-		recorder:          recorder,
-		ipAllocator:       NewIPAllocator(),
+		kubeclientset:        kubeclientset,
+		wireflowclientset:    wireflowclientset,
+		httpClient:           httpClient,
+		nodesLister:          nodeInformer.Lister(),
+		networkLister:        networkInformer.Lister(),
+		nodeInformer:         nodeInformer,
+		nodesSynced:          nodeInformer.Informer().HasSynced,
+		networkSynced:        networkInformer.Informer().HasSynced,
+		networkPolicySynced:  networkPolicyInformer.Informer().HasSynced,
+		nodeQueue:            workqueue.NewTypedRateLimitingQueue(ratelimiter),
+		networkInformer:      networkInformer,
+		networkQueue:         workqueue.NewTypedRateLimitingQueue(ratelimiter),
+		networkPolicyQueue:   workqueue.NewTypedRateLimitingQueue(ratelimiter),
+		recorder:             recorder,
+		ipAllocator:          NewIPAllocator(),
+		policyChangeDetector: NewPolicyChangeDetector(),
+		networkPolicyLister:  networkPolicyInformer.Lister(),
 	}
 
 	logger.Info("Setting up event handlers")
@@ -177,6 +193,44 @@ func NewController(
 		},
 	})
 
+	//通过netwrokName索引所有的Node
+	nodeInformer.Informer().GetIndexer().AddIndexers(cache.Indexers{
+		"network": func(obj interface{}) ([]string, error) {
+			node := obj.(*wireflowv1alpha1.Node)
+			return node.Spec.Network, nil
+		},
+	})
+
+	//通过策略名称索引所有的Network
+	networkInformer.Informer().GetIndexer().AddIndexers(cache.Indexers{
+		"policy": func(obj interface{}) ([]string, error) {
+			network := obj.(*wireflowv1alpha1.Network)
+			return network.Spec.Polices, nil
+		},
+	})
+
+	networkPolicyInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj interface{}) {
+			networkPolicy := obj.(*wireflowv1alpha1.NetworkPolicy)
+			if time.Since(networkPolicy.CreationTimestamp.Time) > 5*time.Minute {
+				klog.V(4).Infof("Skipping old node during initial sync: %s", networkPolicy.Name)
+				return
+			}
+			//加入队列
+			controller.enqueue(AddEvent, nil, obj, controller.networkPolicyQueue)
+		},
+		UpdateFunc: func(old, new interface{}) {
+			oldPolicy, newPolicy := old.(*wireflowv1alpha1.NetworkPolicy), new.(*wireflowv1alpha1.NetworkPolicy)
+			if oldPolicy.ResourceVersion == newPolicy.ResourceVersion {
+				return
+			}
+			controller.enqueue(UpdateEvent, old, new, controller.networkPolicyQueue)
+		},
+		DeleteFunc: func(obj interface{}) {
+			controller.enqueue(DeleteEvent, obj, nil, controller.networkPolicyQueue)
+		},
+	})
+
 	return controller
 }
 
@@ -205,6 +259,7 @@ func (c *Controller) Run(ctx context.Context, workers int) error {
 	for i := 0; i < workers; i++ {
 		go wait.UntilWithContext(ctx, c.runNodeWorker, time.Second)
 		go wait.UntilWithContext(ctx, c.runNetworkWorker, time.Second)
+		go wait.UntilWithContext(ctx, c.runNetworkPolicyWorker, time.Second)
 	}
 
 	logger.Info("Started workers")
@@ -293,4 +348,21 @@ func (c *Controller) handleObject(obj interface{}) {
 	//	c.enqueue(node)
 	//	return
 	//}
+}
+
+// GetNetworkByPolicyName 获取指定策略所关联的网络
+func (c *Controller) GetNetworkByPolicyName(policyName string) ([]*wireflowv1alpha1.Network, error) {
+	objs, err := c.networkInformer.Informer().GetIndexer().ByIndex("networkPolicyName", policyName)
+	if err != nil {
+		return nil, err
+	}
+
+	ans := make([]*wireflowv1alpha1.Network, 0)
+	for _, obj := range objs {
+		if net, ok := obj.(*wireflowv1alpha1.Network); ok {
+			ans = append(ans, net)
+		}
+	}
+
+	return ans, nil
 }

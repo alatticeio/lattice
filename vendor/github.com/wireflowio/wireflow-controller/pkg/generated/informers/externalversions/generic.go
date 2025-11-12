@@ -54,14 +54,12 @@ func (f *sharedInformerFactory) ForResource(resource schema.GroupVersionResource
 	// Group=wireflowcontroller.k8s.io, Version=v1alpha1
 	case v1alpha1.SchemeGroupVersion.WithResource("networks"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Wireflowcontroller().V1alpha1().Networks().Informer()}, nil
+	case v1alpha1.SchemeGroupVersion.WithResource("networkpolicies"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Wireflowcontroller().V1alpha1().NetworkPolicies().Informer()}, nil
 	case v1alpha1.SchemeGroupVersion.WithResource("nodes"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Wireflowcontroller().V1alpha1().Nodes().Informer()}, nil
 	case v1alpha1.SchemeGroupVersion.WithResource("nodeconnections"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Wireflowcontroller().V1alpha1().NodeConnections().Informer()}, nil
-	case v1alpha1.SchemeGroupVersion.WithResource("policies"):
-		return &genericInformer{resource: resource.GroupResource(), informer: f.Wireflowcontroller().V1alpha1().Policies().Informer()}, nil
-	case v1alpha1.SchemeGroupVersion.WithResource("rules"):
-		return &genericInformer{resource: resource.GroupResource(), informer: f.Wireflowcontroller().V1alpha1().Rules().Informer()}, nil
 
 	}
 

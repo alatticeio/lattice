@@ -33,11 +33,9 @@ type NetworkSpec struct {
 
 	Nodes []string `json:"nodes,omitempty"`
 
-	// 已分配的 IP 列表
-	AllocatedIPs []IPAllocation `json:"allocatedIPs,omitempty"`
+	NodeSelector *metav1.LabelSelector `json:"nodeSelector,omitempty"`
 
-	// 可用 IP 数量
-	AvailableIPs int `json:"availableIPs,omitempty"`
+	Polices []string `json:"polices,omitempty"`
 }
 
 type Dns struct {
@@ -45,16 +43,30 @@ type Dns struct {
 	Servers []string `json:"servers"`
 }
 
+type NetworkPhase string
+
+const (
+	NetworkPhaseCreating NetworkPhase = "Pending"
+	NetworkPhaseReady    NetworkPhase = "Ready"
+	NetworkPhaseFailed   NetworkPhase = "Failed"
+)
+
 // NodeStatus is the status for a Node resource
 type NetworkStatus struct {
-	// Node status
-	Status Status `json:"status,omitempty"`
+	Phase NetworkPhase `json:"phase,omitempty"`
 
-	// Connection summary
-	ConnectionSummary ConnectionSummary `json:"connectionSummary,omitempty"`
+	Conditions []metav1.Condition `json:"conditions,omitempty"`
 
-	// Connections states
-	Connections []NodeConnection `json:"connections, omitempty"`
+	// 已分配的 IP 列表
+	AllocatedIPs []IPAllocation `json:"allocatedIPs,omitempty"`
+
+	// 可用 IP 数量
+	AvailableIPs int `json:"availableIPs,omitempty"`
+
+	//加入的节点数量
+	AddedNodes int `json:"addedNodes,omitempty"`
+
+	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

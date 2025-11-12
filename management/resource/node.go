@@ -2,12 +2,14 @@ package resource
 
 import (
 	"context"
+	"fmt"
 	"wireflow/internal"
 	"wireflow/management/dto"
 	"wireflow/management/entity"
 
 	wireflowcontrollerv1alpha1 "github.com/wireflowio/wireflow-controller/pkg/apis/wireflowcontroller/v1alpha1"
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
+	"k8s.io/apimachinery/pkg/api/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/klog/v2"
 
@@ -74,40 +76,29 @@ func (n *NodeResource) Register(ctx context.Context, e *dto.NodeDto) (*internal.
 	}, err
 }
 
-// UpdateNodeState
-func (n *NodeResource) UpdateNodeState(appId string, status internal.Status) error {
-	ctx := context.Background()
-	node, err := n.controller.Clientset.WireflowcontrollerV1alpha1().Nodes("default").Get(context.Background(), appId, v1.GetOptions{})
-	if err != nil {
-		klog.Errorf("get node %s failed: %v", appId, err)
-		return err
-	}
-
-	return n.UpdateCRDWithRetry(ctx, node.Name, func(node *wireflowcontrollerv1alpha1.Node) error {
-		updateNode := node.DeepCopy()
-		switch status {
-		case internal.Active:
-			updateNode.Status.Status = "Active"
-		case internal.Inactive:
-			updateNode.Status.Status = "Inactive"
-			break
-		}
-
-		_, err = n.controller.Clientset.WireflowcontrollerV1alpha1().Nodes("default").Update(ctx, updateNode, v1.UpdateOptions{})
-		return err
-	})
-}
-
-func (n *NodeResource) UpdateCRDWithRetry(ctx context.Context, crdName string, updateFunc func(node *wireflowcontrollerv1alpha1.Node) error) error {
-	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		// 获取最新的 CRD
-		crd, err := n.controller.Clientset.WireflowcontrollerV1alpha1().Nodes("default").Get(ctx, crdName, v1.GetOptions{})
+// UpdateNodeStatus used to update node status
+func (n *NodeResource) UpdateNodeStatus(ctx context.Context, namespace, name string, updateFunc func(status *wireflowcontrollerv1alpha1.NodeStatus)) error {
+	logger := klog.FromContext(ctx)
+	logger.Info("Update node status", "namespace", namespace, "name", name)
+	return retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+		node, err := n.controller.Clientset.WireflowcontrollerV1alpha1().Nodes(namespace).Get(ctx, name, v1.GetOptions{})
 		if err != nil {
-			return err
+			return fmt.Errorf("get node %s failed: %v", name, err)
 		}
 
-		// 应用修改
-		return updateFunc(crd)
+		nodeCopy := node.DeepCopy()
+		updateFunc(&nodeCopy.Status)
+
+		_, err = n.controller.Clientset.WireflowcontrollerV1alpha1().Nodes(namespace).UpdateStatus(ctx, nodeCopy, v1.UpdateOptions{})
+
+		if err != nil {
+			if errors.IsConflict(err) {
+				return nil
+			}
+			return fmt.Errorf("update node %s status failed: %v", name, err)
+		}
+		return err
+
 	})
 }
 

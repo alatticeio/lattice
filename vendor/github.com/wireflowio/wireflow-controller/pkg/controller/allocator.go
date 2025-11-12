@@ -40,7 +40,7 @@ func (a *IPAllocator) AllocateIP(network *wireflowv1alpha1.Network, nodeName str
 
 	// 获取已分配的 IP 集合
 	allocatedIPs := make(map[string]bool)
-	for _, allocated := range network.Spec.AllocatedIPs {
+	for _, allocated := range network.Status.AllocatedIPs {
 		allocatedIPs[allocated.IP] = true
 	}
 
@@ -73,19 +73,19 @@ func (a *IPAllocator) ReleaseIP(network *wireflowv1alpha1.Network, ip string) er
 
 	// 从已分配列表中移除
 	newAllocatedIPs := []wireflowv1alpha1.IPAllocation{}
-	for _, allocated := range network.Spec.AllocatedIPs {
+	for _, allocated := range network.Status.AllocatedIPs {
 		if allocated.IP != ip {
 			newAllocatedIPs = append(newAllocatedIPs, allocated)
 		}
 	}
 
-	network.Spec.AllocatedIPs = newAllocatedIPs
+	network.Status.AllocatedIPs = newAllocatedIPs
 	return nil
 }
 
 // GetNodeIP 获取节点在指定网络中的 IP
 func (a *IPAllocator) GetNodeIP(network *wireflowv1alpha1.Network, nodeName string) string {
-	for _, allocated := range network.Spec.AllocatedIPs {
+	for _, allocated := range network.Status.AllocatedIPs {
 		if allocated.Node == nodeName {
 			return allocated.IP
 		}
@@ -95,7 +95,7 @@ func (a *IPAllocator) GetNodeIP(network *wireflowv1alpha1.Network, nodeName stri
 
 // IsIPAllocated 检查 IP 是否已被分配
 func (a *IPAllocator) IsIPAllocated(network *wireflowv1alpha1.Network, ip string) bool {
-	for _, allocated := range network.Spec.AllocatedIPs {
+	for _, allocated := range network.Status.AllocatedIPs {
 		if allocated.IP == ip {
 			return true
 		}
@@ -118,7 +118,7 @@ func (a *IPAllocator) CountAvailableIPs(network *wireflowv1alpha1.Network) (int,
 	usableIPs := totalIPs - 2
 
 	// 减去已分配的 IP
-	allocatedCount := len(network.Spec.AllocatedIPs)
+	allocatedCount := len(network.Status.AllocatedIPs)
 
 	available := usableIPs - allocatedCount
 	if available < 0 {

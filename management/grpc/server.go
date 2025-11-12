@@ -23,6 +23,7 @@ import (
 	"wireflow/pkg/wferrors"
 
 	"github.com/golang/protobuf/proto"
+	"github.com/wireflowio/wireflow-controller/pkg/apis/wireflowcontroller/v1alpha1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -291,7 +292,9 @@ func (s *Server) Watch(stream wgrpc.ManagementService_WatchServer) error {
 		s.logger.Infof("close watch channel for client: %s", appId)
 		RemoveChannel(appId)
 		// Update node status to inactive when watch connection is closed
-		if err := s.nodeResource.UpdateNodeState(appId, internal.Inactive); err != nil {
+		if err := s.nodeResource.UpdateNodeStatus(ctx, "default", appId, func(status *v1alpha1.NodeStatus) {
+			status.Status = v1alpha1.InActive
+		}); err != nil {
 			s.logger.Errorf("update node %s status to inactive failed: %v", appId, err)
 		}
 		s.mu.Unlock()
@@ -369,14 +372,18 @@ func (s *Server) Keepalive(stream wgrpc.ManagementService_KeepaliveServer) error
 		defer cancel()
 		req, err = s.recv(newCtx, stream)
 		if err != nil {
-			if err = s.nodeResource.UpdateNodeState(appId, internal.Inactive); err != nil {
+			if err = s.nodeResource.UpdateNodeStatus(ctx, "default", appId, func(status *v1alpha1.NodeStatus) {
+				status.Status = v1alpha1.InActive
+			}); err != nil {
 				s.logger.Errorf("update node %s status to inactive failed: %v", appId, err)
 			}
 			return status.Errorf(codes.Internal, "receive keepalive packet failed: %v", err)
 		}
 
 		s.logger.Infof("recv keepalive packet from app, appId: %s", appId)
-		if err = s.nodeResource.UpdateNodeState(appId, internal.Active); err != nil {
+		if err = s.nodeResource.UpdateNodeStatus(ctx, "default", appId, func(status *v1alpha1.NodeStatus) {
+			status.Status = v1alpha1.Active
+		}); err != nil {
 			s.logger.Errorf("update node %s status to inactive failed: %v", req.AppId, err)
 		}
 		return nil

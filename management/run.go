@@ -1,15 +1,14 @@
 package management
 
 import (
+	grpcserver "wireflow/management/grpc"
+
 	"github.com/spf13/viper"
 	"github.com/wireflowio/wireflow-controller/pkg/signals"
 	"k8s.io/klog/v2"
-	grpcserver "wireflow/management/grpc"
 
-	"wireflow/management/db"
 	"wireflow/management/http"
 	"wireflow/pkg/log"
-	"wireflow/pkg/redis"
 )
 
 func Start(listen string) error {
@@ -27,24 +26,24 @@ func Start(listen string) error {
 		return err
 	}
 
-	redisClient, err := redis.NewClient(&redis.ClientConfig{
-		Addr:     viper.GetString("redis.addr"),
-		Password: viper.GetString("redis.password"),
-	})
+	//redisClient, err := redis.NewClient(&redis.ClientConfig{
+	//	Addr:     viper.GetString("redis.addr"),
+	//	Password: viper.GetString("redis.password"),
+	//})
 
-	if err != nil {
-		return err
-	}
+	//if err != nil {
+	//	return err
+	//}
 
-	cfg.Rdb = redisClient
-	dbService := db.GetDB(&cfg.Database)
+	//cfg.Rdb = redisClient
+	//dbService := db.GetDB(&cfg.Database)
 	ctx := signals.SetupSignalHandler()
 	gServer := grpcserver.NewServer(&grpcserver.ServerConfig{
-		Ctx:             ctx,
-		Logger:          logger,
-		Port:            32051,
-		DataBaseService: dbService,
-		Rdb:             redisClient,
+		Ctx:    ctx,
+		Logger: logger,
+		Port:   32051,
+		//DataBaseService: dbService,
+		//Rdb: redisClient,
 	})
 	// go run a grpc server
 	go func() {

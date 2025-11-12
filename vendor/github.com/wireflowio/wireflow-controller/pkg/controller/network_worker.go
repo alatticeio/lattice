@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	wireflowv1alpha1 "github.com/wireflowio/wireflow-controller/pkg/apis/wireflowcontroller/v1alpha1"
-	"github.com/wireflowio/wireflow-controller/pkg/utils"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -68,170 +67,292 @@ func (c *Controller) syncNetworkHandler(ctx context.Context, item WorkerItem) er
 	// Get the Node resource with this namespace/name
 	namespace, name := item.Key.Namespace, item.Key.Name
 
+	_, err := c.networkLister.Networks(namespace).Get(name)
+	if err != nil {
+		if errors.IsNotFound(err) {
+			logger.Info("Network not found, delete network", "namespace", namespace, "name", name)
+			return c.handleNetworkDeletion(ctx, namespace, name)
+		}
+	}
+
+	return c.reconcileNetwork(ctx, item)
+}
+
+func (c *Controller) reconcileNetwork(ctx context.Context, item WorkerItem) error {
+	logger := klog.FromContext(ctx)
+	network := item.NewObject.(*wireflowv1alpha1.Network)
+	logger.Info("Reconciling network", "network", network.Name,
+		"nodes", network.Spec.Nodes)
+
+	// 1. 确定哪些节点应该加入此网络
+	desiredNodes, err := c.getDesiredNodesForNetwork(ctx, network)
+	if err != nil {
+		return fmt.Errorf("failed to get desired nodes: %v", err)
+	}
+
+	//check policy changed
+	policyChanged, err := c.checkPolicy(ctx, item)
+	if err != nil {
+		return fmt.Errorf("failed to check policy changes: %v", err)
+	}
+
+	// 2. 获取当前实际加入此网络的节点
+	actualNodes, err := c.getActualNodesInNetwork(ctx, network)
+	if err != nil {
+		return fmt.Errorf("failed to get actual nodes: %v", err)
+	}
+
+	// 3. 计算差异
+	toAdd, toRemove := c.calculateNodeDiff(desiredNodes, actualNodes)
+
+	logger.Info("Node diff calculated",
+		"network", network.Name,
+		"desired", len(desiredNodes),
+		"actual", len(actualNodes),
+		"toAdd", len(toAdd),
+		"toRemove", len(toRemove))
+
+	// 4. 将节点加入网络
+	for _, nodeName := range toAdd {
+		if err = c.addNodeToNetwork(ctx, network, nodeName); err != nil {
+			logger.Error(err, "Failed to add node to network",
+				"node", nodeName, "network", network.Name)
+			// 继续处理其他节点
+		}
+	}
+
+	// 5. 将节点从网络移除
+	for _, nodeName := range toRemove {
+		if err = c.removeNodeFromNetwork(ctx, network, nodeName); err != nil {
+			logger.Error(err, "Failed to remove node from network",
+				"node", nodeName, "network", network.Name)
+			// 继续处理其他节点
+		}
+	}
+
+	// ====== 步骤 4: 如果有 Policy 变更,更新所有 Nodes ======
+	if policyChanged {
+		logger.Info("Policy changed, updating all nodes in network",
+			"network", network.Name)
+
+		if err := c.updateNodesForPolicyChange(ctx, network); err != nil {
+			logger.Error(err, "Failed to update nodes for policy change",
+				"network", network.Name)
+			// 不返回错误,继续更新 Network 状态
+		}
+	}
+
+	// 6. 更新 Network 状态
+	return c.updateNetworkStatus(ctx, network, func(status *wireflowv1alpha1.NetworkStatus) {
+		status.Phase = wireflowv1alpha1.NetworkPhaseReady
+		status.AddedNodes = len(desiredNodes)
+		status.ObservedGeneration = network.Generation
+
+		c.setNetworkCondition(status, "Ready", metav1.ConditionTrue,
+			"NetworkReady", "Network is ready")
+
+		if policyChanged {
+			c.setNetworkCondition(status, "PolicyChanged", metav1.ConditionTrue,
+				"PolicyChanged", "Policy Updated")
+		}
+	})
+
+}
+
+func (c *Controller) checkPolicy(ctx context.Context, item WorkerItem) (bool, error) {
+
 	switch item.EventType {
 	case AddEvent:
-		logger.Info("Add event", "namespace", namespace, "name", name, "resource type", "Network")
-		current := item.NewObject.(*wireflowv1alpha1.Network)
-		//if network has nodes, sync labels
-		if len(current.Spec.Nodes) > 0 {
-			for _, nodeName := range current.Spec.Nodes {
-				node, err := c.nodesLister.Nodes(namespace).Get(nodeName)
-				if err != nil {
-					if errors.IsNotFound(err) {
-						return nil
-					}
-					return err
-				}
-
-				_, err = c.SyncNodeNetworkLabels(item.Key.Name, node)
-				if err != nil {
-					return err
-				}
-			}
+		network := item.NewObject.(*wireflowv1alpha1.Network)
+		if len(network.Spec.Polices) > 0 {
+			return true, nil
 		}
-
 	case UpdateEvent:
-		oldNetwork, current := item.OldObject.(*wireflowv1alpha1.Network), item.NewObject.(*wireflowv1alpha1.Network)
-		adds, removes := utils.Differences(oldNetwork.Spec.Nodes, current.Spec.Nodes)
-		// update network need update node's labels
-		if len(removes) > 0 {
-			for _, nodeName := range removes {
-				node, err := c.nodesLister.Nodes(namespace).Get(nodeName)
-				if err != nil {
-					if errors.IsNotFound(err) {
-						return nil
-					}
-					return err
-				}
-
-				nodeCopy := node.DeepCopy()
-				nodeCopy.Spec.Network = utils.RemoveStringFromSlice(nodeCopy.Spec.Network, current.Name)
-
-				removedLables := fmt.Sprintf("wireflow.io/%s", current.Name)
-				delete(nodeCopy.Labels, removedLables)
-				if len(nodeCopy.Labels) == 0 {
-					delete(nodeCopy.Labels, "wireflow.io/has-network")
-				}
-
-				nodeCopy.SetLabels(nodeCopy.Labels)
-				_, err = c.wireflowclientset.WireflowcontrollerV1alpha1().Nodes(node.Namespace).Update(
-					ctx, nodeCopy, metav1.UpdateOptions{})
-				if err != nil {
-					return err
-				}
-				logger.Info(
-					"Remove node network label & spec networks",
-					"namespace", namespace,
-					"name", nodeName,
-				)
-			}
+		oldNetwork, network := item.OldObject.(*wireflowv1alpha1.Network), item.NewObject.(*wireflowv1alpha1.Network)
+		if !policesEqual(oldNetwork.Spec.Polices, network.Spec.Polices) {
+			return true, nil
 		}
 
-		if len(adds) > 0 {
-			for _, nodeName := range adds {
-				node, err := c.nodesLister.Nodes(namespace).Get(nodeName)
-				if err != nil {
-					if errors.IsNotFound(err) {
-						return nil
-					}
-					return err
-				}
+		return c.checkAndHandlePolicyChanges(ctx, network)
+	}
 
-				nodeCopy := node.DeepCopy()
-				nodeCopy.Spec.Network = utils.RemoveStringFromSlice(nodeCopy.Spec.Network, current.Name)
-				addedLabels := fmt.Sprintf("wireflow.io/%s", current.Name)
-				if nodeCopy.Labels == nil {
-					nodeCopy.Labels = make(map[string]string)
-				}
-				nodeCopy.Labels[addedLabels] = "true"
-				nodeCopy.SetLabels(nodeCopy.Labels)
+	return false, nil
+}
 
-				// set network to node spec
-				nodeCopy.Spec.Network = append(nodeCopy.Spec.Network, current.Name)
+func policesEqual(p1, p2 []string) bool {
+	if len(p1) != len(p2) {
+		return false
+	}
 
-				_, err = c.wireflowclientset.WireflowcontrollerV1alpha1().Nodes(node.Namespace).Update(
-					ctx, nodeCopy, metav1.UpdateOptions{})
-				if err != nil {
-					return err
-				}
-				logger.Info(
-					"Add node network label & spec networks",
-					"namespace", namespace,
-					"name", nodeName,
-				)
-			}
+	for i := range p1 {
+		if p1[i] != p2[i] {
+			return false
 		}
+	}
 
-	case DeleteEvent:
-		//删除network资源后的处理
-		labels := fmt.Sprintf("wireflow.io/%s", name)
-		nodes, err := c.wireflowclientset.WireflowcontrollerV1alpha1().Nodes(namespace).List(context.TODO(), metav1.ListOptions{
-			LabelSelector: labels,
-		})
+	return true
+}
 
-		if err != nil {
-			return err
+// checkAndHandlePolicyChanges 检查并处理 Policy 变更
+func (c *Controller) checkAndHandlePolicyChanges(ctx context.Context,
+	network *wireflowv1alpha1.Network) (bool, error) {
+
+	logger := klog.FromContext(ctx)
+
+	// 检查是否有 Policy 变更注解
+	if !c.hasPolicyChangeAnnotation(network) {
+		logger.V(4).Info("No policy change annotation found", "network", network.Name)
+		return false, nil
+	}
+
+	// 获取变更信息
+	changeType := network.Annotations["wireflow.io/policy-change-type"]
+	policyName := network.Annotations["wireflow.io/policy-name"]
+
+	logger.Info("Detected policy change",
+		"network", network.Name,
+		"changeType", changeType,
+		"policy", policyName)
+
+	// 验证 Policy 是否仍在 Network 的 Polices 列表中
+	policyStillApplied := false
+	for _, p := range network.Spec.Polices {
+		if p == policyName {
+			policyStillApplied = true
+			break
 		}
+	}
 
-		for _, node := range nodes.Items {
-			nodeCopy := node.DeepCopy()
-			nodeCopy.Spec.Network = utils.RemoveStringFromSlice(nodeCopy.Spec.Network, name)
+	if !policyStillApplied && changeType != string(PolicyChangeDeleted) {
+		logger.Info("Policy no longer applied to network, skipping update",
+			"network", network.Name,
+			"policy", policyName)
 
-			if len(nodeCopy.Spec.Network) == 0 {
-				nodeCopy.Spec.Address = ""
-			}
+		// 清理注解
+		c.clearPolicyChangeAnnotation(ctx, network)
+		return false, nil
+	}
 
-			removedLables := fmt.Sprintf("wireflow.io/%s", name)
-			delete(nodeCopy.Labels, removedLables)
-			if len(nodeCopy.Labels) == 0 {
-				delete(nodeCopy.Labels, "wireflow.io/has-network")
-			}
+	// 清理注解 (处理完后清除)
+	if err := c.clearPolicyChangeAnnotation(ctx, network); err != nil {
+		logger.Error(err, "Failed to clear policy change annotation",
+			"network", network.Name)
+		// 不返回错误,继续处理
+	}
 
-			_, err = c.wireflowclientset.WireflowcontrollerV1alpha1().Nodes(node.Namespace).Update(
-				ctx, nodeCopy, metav1.UpdateOptions{})
-			if err != nil {
-			}
+	return true, nil
+}
+
+// hasPolicyChangeAnnotation 检查是否有 Policy 变更注解
+func (c *Controller) hasPolicyChangeAnnotation(network *wireflowv1alpha1.Network) bool {
+	if network.Annotations == nil {
+		return false
+	}
+	_, hasType := network.Annotations["wireflow.io/policy-change-type"]
+	_, hasName := network.Annotations["wireflow.io/policy-name"]
+	return hasType && hasName
+}
+
+// clearPolicyChangeAnnotation 清理 Policy 变更注解
+func (c *Controller) clearPolicyChangeAnnotation(ctx context.Context,
+	network *wireflowv1alpha1.Network) error {
+
+	return c.updateNetworkSpec(ctx, network.Namespace, network.Name, func(network *wireflowv1alpha1.Network) {
+		delete(network.Annotations, "wireflow.io/policy-change-type")
+		delete(network.Annotations, "wireflow.io/policy-change-time")
+		delete(network.Annotations, "wireflow.io/policy-name")
+	})
+}
+
+// updateNodesForPolicyChange 为 Policy 变更更新所有 Nodes
+func (c *Controller) updateNodesForPolicyChange(ctx context.Context,
+	network *wireflowv1alpha1.Network) error {
+
+	logger := klog.FromContext(ctx)
+
+	// 1. 获取所有属于该网络的 Nodes
+	nodes, err := c.GetNodesByNetworkName(ctx, network)
+	if err != nil {
+		return fmt.Errorf("failed to get nodes for network: %w", err)
+	}
+
+	if len(nodes) == 0 {
+		logger.Info("No nodes in network", "network", network.Name)
+		return nil
+	}
+
+	logger.Info("Updating nodes for policy change",
+		"network", network.Name,
+		"nodeCount", len(nodes))
+
+	// 2. 为每个 Node 触发策略更新
+	var updateErrors []error
+	successCount := 0
+
+	for _, node := range nodes {
+		logger.Info("Triggering policy update for node",
+			"node", node.Name,
+			"network", network.Name)
+
+		if err := c.triggerNodePolicyUpdate(ctx, node, network); err != nil {
+			logger.Error(err, "Failed to trigger node policy update",
+				"node", node.Name)
+			updateErrors = append(updateErrors, err)
+		} else {
+			successCount++
 		}
+	}
 
-		logger.Info("Delete event", "namespace", namespace, "name", name, "resource type", "Network")
+	logger.Info("Policy update triggered for nodes",
+		"network", network.Name,
+		"success", successCount,
+		"failed", len(updateErrors),
+		"total", len(nodes))
 
+	if len(updateErrors) > 0 {
+		return fmt.Errorf("failed to update %d/%d nodes",
+			len(updateErrors), len(nodes))
 	}
 
 	return nil
 }
 
-// SyncNodeNetworkLabels syncs node labels based on networks the node belongs to
-func (c *Controller) SyncNodeNetworkLabels(network string, node *wireflowv1alpha1.Node) (*wireflowv1alpha1.Node, error) {
-	nodeCopy := node.DeepCopy()
-
-	// Initialize labels map if nil
-	if nodeCopy.Labels == nil {
-		nodeCopy.Labels = make(map[string]string)
-	}
-
-	// Add new network labels
-	labelKey := fmt.Sprintf("wireflow.io/%s", network)
-	nodeCopy.Labels[labelKey] = "true"
-
-	// Add network to node spec
-	nodeCopy.Spec.Network = append(nodeCopy.Spec.Network, network)
-	if len(node.Spec.Network) > 0 {
-		// Also add a common label to identify all nodes with networks
-		nodeCopy.Labels["wireflow.io/has-network"] = "true"
-	} else {
-		delete(nodeCopy.Labels, "wireflow.io/has-network")
-	}
-
-	// Update the node
-	updatedNode, err := c.wireflowclientset.WireflowcontrollerV1alpha1().Nodes(node.Namespace).Update(
-		context.TODO(),
-		nodeCopy,
-		metav1.UpdateOptions{},
-	)
-
+func (c *Controller) GetNodesByNetworkName(ctx context.Context,
+	network *wireflowv1alpha1.Network) ([]*wireflowv1alpha1.Node, error) {
+	logger := klog.FromContext(ctx)
+	logger.V(4).Info("Getting nodes by network", "network", network.Name)
+	objs, err := c.nodeInformer.Informer().GetIndexer().ByIndex("network", network.Name)
 	if err != nil {
-		return nil, fmt.Errorf("failed to update node labels: %v", err)
+		return nil, fmt.Errorf("failed to get nodes by network: %v", err)
 	}
 
-	return updatedNode, nil
+	ans := make([]*wireflowv1alpha1.Node, 0)
+	for _, obj := range objs {
+		node := obj.(*wireflowv1alpha1.Node)
+		ans = append(ans, node)
+	}
+
+	return ans, nil
+}
+
+// triggerNodePolicyUpdate 触发单个 Node 的策略更新
+func (c *Controller) triggerNodePolicyUpdate(ctx context.Context,
+	node *wireflowv1alpha1.Node, network *wireflowv1alpha1.Network) error {
+
+	logger := klog.FromContext(ctx)
+
+	// 方式 1: 更新 Node Status 标记需要重新应用策略
+	if err := c.updateNodeStatus(ctx, node.Namespace, node.Name,
+		func(status *wireflowv1alpha1.NodeStatus) {
+			// 标记策略需要更新
+			status.Phase = wireflowv1alpha1.NodeUpdatingPolicy
+		}); err != nil {
+		return err
+	}
+
+	logger.V(4).Info("Node policy update triggered",
+		"node", node.Name,
+		"network", network.Name)
+
+	return nil
 }

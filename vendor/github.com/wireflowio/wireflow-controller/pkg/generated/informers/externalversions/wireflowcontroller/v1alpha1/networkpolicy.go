@@ -31,71 +31,71 @@ import (
 	cache "k8s.io/client-go/tools/cache"
 )
 
-// PolicyInformer provides access to a shared informer and lister for
-// Policies.
-type PolicyInformer interface {
+// NetworkPolicyInformer provides access to a shared informer and lister for
+// NetworkPolicies.
+type NetworkPolicyInformer interface {
 	Informer() cache.SharedIndexInformer
-	Lister() wireflowcontrollerv1alpha1.PolicyLister
+	Lister() wireflowcontrollerv1alpha1.NetworkPolicyLister
 }
 
-type policyInformer struct {
+type networkPolicyInformer struct {
 	factory          internalinterfaces.SharedInformerFactory
 	tweakListOptions internalinterfaces.TweakListOptionsFunc
 	namespace        string
 }
 
-// NewPolicyInformer constructs a new informer for Policy type.
+// NewNetworkPolicyInformer constructs a new informer for NetworkPolicy type.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
-func NewPolicyInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers) cache.SharedIndexInformer {
-	return NewFilteredPolicyInformer(client, namespace, resyncPeriod, indexers, nil)
+func NewNetworkPolicyInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers) cache.SharedIndexInformer {
+	return NewFilteredNetworkPolicyInformer(client, namespace, resyncPeriod, indexers, nil)
 }
 
-// NewFilteredPolicyInformer constructs a new informer for Policy type.
+// NewFilteredNetworkPolicyInformer constructs a new informer for NetworkPolicy type.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
-func NewFilteredPolicyInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) cache.SharedIndexInformer {
+func NewFilteredNetworkPolicyInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) cache.SharedIndexInformer {
 	return cache.NewSharedIndexInformer(
 		&cache.ListWatch{
 			ListFunc: func(options v1.ListOptions) (runtime.Object, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.WireflowcontrollerV1alpha1().Policies(namespace).List(context.Background(), options)
+				return client.WireflowcontrollerV1alpha1().NetworkPolicies(namespace).List(context.Background(), options)
 			},
 			WatchFunc: func(options v1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.WireflowcontrollerV1alpha1().Policies(namespace).Watch(context.Background(), options)
+				return client.WireflowcontrollerV1alpha1().NetworkPolicies(namespace).Watch(context.Background(), options)
 			},
 			ListWithContextFunc: func(ctx context.Context, options v1.ListOptions) (runtime.Object, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.WireflowcontrollerV1alpha1().Policies(namespace).List(ctx, options)
+				return client.WireflowcontrollerV1alpha1().NetworkPolicies(namespace).List(ctx, options)
 			},
 			WatchFuncWithContext: func(ctx context.Context, options v1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.WireflowcontrollerV1alpha1().Policies(namespace).Watch(ctx, options)
+				return client.WireflowcontrollerV1alpha1().NetworkPolicies(namespace).Watch(ctx, options)
 			},
 		},
-		&apiswireflowcontrollerv1alpha1.Policy{},
+		&apiswireflowcontrollerv1alpha1.NetworkPolicy{},
 		resyncPeriod,
 		indexers,
 	)
 }
 
-func (f *policyInformer) defaultInformer(client versioned.Interface, resyncPeriod time.Duration) cache.SharedIndexInformer {
-	return NewFilteredPolicyInformer(client, f.namespace, resyncPeriod, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}, f.tweakListOptions)
+func (f *networkPolicyInformer) defaultInformer(client versioned.Interface, resyncPeriod time.Duration) cache.SharedIndexInformer {
+	return NewFilteredNetworkPolicyInformer(client, f.namespace, resyncPeriod, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}, f.tweakListOptions)
 }
 
-func (f *policyInformer) Informer() cache.SharedIndexInformer {
-	return f.factory.InformerFor(&apiswireflowcontrollerv1alpha1.Policy{}, f.defaultInformer)
+func (f *networkPolicyInformer) Informer() cache.SharedIndexInformer {
+	return f.factory.InformerFor(&apiswireflowcontrollerv1alpha1.NetworkPolicy{}, f.defaultInformer)
 }
 
-func (f *policyInformer) Lister() wireflowcontrollerv1alpha1.PolicyLister {
-	return wireflowcontrollerv1alpha1.NewPolicyLister(f.Informer().GetIndexer())
+func (f *networkPolicyInformer) Lister() wireflowcontrollerv1alpha1.NetworkPolicyLister {
+	return wireflowcontrollerv1alpha1.NewNetworkPolicyLister(f.Informer().GetIndexer())
 }

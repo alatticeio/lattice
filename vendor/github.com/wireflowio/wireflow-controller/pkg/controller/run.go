@@ -80,14 +80,15 @@ func Run(options *PushOptions) error {
 	controller := NewController(ctx, kubeClient, client,
 		httpClient,
 		informerFactory.Wireflowcontroller().V1alpha1().Nodes(),
-		informerFactory.Wireflowcontroller().V1alpha1().Networks())
+		informerFactory.Wireflowcontroller().V1alpha1().Networks(),
+		informerFactory.Wireflowcontroller().V1alpha1().NetworkPolicies())
 
 	// notice that there is no need to run Start methods in a separate goroutine. (i.e. go kubeInformerFactory.Start(ctx.done())
 	// Start method is non-blocking and runs all registered informers in a dedicated goroutine.
 	kubeInformerFactory.Start(ctx.Done())
 	informerFactory.Start(ctx.Done())
 
-	if err = controller.Run(ctx, 2); err != nil {
+	if err = controller.Run(ctx, 3); err != nil {
 		logger.Error(err, "Error running controller")
 		klog.FlushAndExit(klog.ExitFlushTimeout, 1)
 	}

@@ -97,9 +97,71 @@ func NewWatchManager() *WatchManager {
 
 // Message is the message which is sent to connected nodes
 type Message struct {
-	EventType EventType `json:"eventType"`
-	Current   *Node     `json:"node"`
-	Network   *Network  `json:"network"`
+	EventType     EventType      `json:"eventType"`     //主事件类型
+	ConfigVersion string         `json:"configVersion"` //版本号
+	Timestamp     int64          `json:"timestamp"`     //时间戳
+	Changes       *ChangeDetails `json:"changes"`       // 配置变化详情
+	Current       *Node          `json:"node"`          //当前节点信息
+	Network       *Network       `json:"network"`       //网络信息
+}
+
+type ChangeDetails struct {
+	//节点信息变化
+	AddressChanged  bool `json:"addressChanged,omitempty"`  //IP地址变化
+	KeyChanged      bool `json:"keyChanged,omitempty"`      //密钥变化
+	EndpointChanged bool `json:"endpointChanged,omitempty"` //远程地址变化
+
+	//网络拓扑变化
+	NodesAdded   []string `json:"nodesAdded,omitempty"`   //节点添加的列表
+	NodesRemoved []string `json:"nodesRemoved,omitempty"` //节点移除列表
+	NodesUpdated []string `json:"nodesUpdated,omitempty"` // 节点更新列表
+
+	//策略变化
+	PoliciesAdded   []string `json:"policiesAdded,omitempty"`
+	PoliciesRemoved []string `json:"policiesRemoved,omitempty"`
+	PoliciesUpdated []string `json:"policiesUpdated,omitempty"`
+
+	//网络配置变化
+	NetworkJoined        []string `json:"networkJoined,omitempty"`
+	NetworkLeft          []string `json:"networkLeft,omitempty"`
+	NetworkConfigChanged bool     `json:"networkConfigChanged,omitempty"`
+
+	Reason       string `json:"reason,omitempty"`       //变更原因描述
+	TotalChanges int    `json:"totalChanges,omitempty"` // 变更总数
+}
+
+func (c *ChangeDetails) HasChanges() bool {
+	return c.TotalChanges > 0
+}
+
+// Summary returns a summary of the changes
+func (c *ChangeDetails) Summary() string {
+	parts := make([]string, 0)
+
+	if c.AddressChanged {
+		parts = append(parts, "address")
+	}
+	if c.KeyChanged {
+		parts = append(parts, "key")
+	}
+	if len(c.NodesAdded) > 0 {
+		parts = append(parts, fmt.Sprintf("+%d nodes", len(c.NodesAdded)))
+	}
+	if len(c.NodesRemoved) > 0 {
+		parts = append(parts, fmt.Sprintf("-%d peers", len(c.NodesRemoved)))
+	}
+	if len(c.PoliciesAdded) > 0 {
+		parts = append(parts, fmt.Sprintf("+%d policies", len(c.PoliciesAdded)))
+	}
+	if len(c.PoliciesUpdated) > 0 {
+		parts = append(parts, fmt.Sprintf("~%d policies", len(c.PoliciesUpdated)))
+	}
+
+	if len(parts) == 0 {
+		return "no changes"
+	}
+
+	return strings.Join(parts, ", ")
 }
 
 // Node is the node information one client side
@@ -178,9 +240,10 @@ func (n *Network) WithPolicy(policy *Policy) *Network {
 	return n
 }
 
-func (w *WatchManager) Send(clientId string, msg *Message) {
+func (w *WatchManager) Send(clientId string, msg *Message) error {
 	channel := w.GetChannel(clientId)
 	channel.channel <- msg
+	return nil
 }
 
 type EventType int
@@ -193,9 +256,9 @@ const (
 	EventTypeNodeRemove
 	EventTypeIPChange
 	EventTypeKeyChanged
-	EventTypePolicyRuleAdd
-	EventTypePolicyRuleChanged
-	EventTypePolicyRuleRemove
+	EventTypeNetworkChanged
+	EventTypePolicyChanged
+	EventTypeNone
 )
 
 func (e EventType) String() string {

@@ -2,17 +2,20 @@ package resource
 
 import (
 	"context"
+	"crypto/sha3"
 	"encoding/json"
 	"fmt"
+	"strings"
+	"time"
+	"wireflow/internal"
+	utils2 "wireflow/pkg/utils"
+
 	clientset "github.com/wireflowio/wireflow-controller/pkg/generated/clientset/versioned"
 	"github.com/wireflowio/wireflow-controller/pkg/generated/informers/externalversions/wireflowcontroller/v1alpha1"
 	"github.com/wireflowio/wireflow-controller/pkg/utils"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/labels"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
-	"strings"
-	"time"
-	"wireflow/internal"
 
 	wireflowv1alpha1 "github.com/wireflowio/wireflow-controller/pkg/apis/wireflowcontroller/v1alpha1"
 	"github.com/wireflowio/wireflow-controller/pkg/controller"
@@ -173,7 +176,6 @@ func (n *NetworkEventHandler) handleNode(ctx context.Context, ns string, eventTy
 		},
 	}
 
-	//for _, node := range allNodes {
 	for _, name := range items {
 		//processNode, err := n.clientSet.WireflowcontrollerV1alpha1().Nodes(node.Namespace).Get(ctx, name, v1.GetOptions{})
 		processNode, err := n.nodeLister.Nodes(ns).Get(name)
@@ -198,7 +200,6 @@ func (n *NetworkEventHandler) handleNode(ctx context.Context, ns string, eventTy
 
 		msg.Network.Nodes = append(msg.Network.Nodes, Node)
 	}
-	//}
 
 	if len(msg.Network.Nodes) > 0 {
 		for _, node := range allNodes {
@@ -276,4 +277,63 @@ func (n *NetworkEventHandler) handelNodeType(ctx context.Context, event string, 
 		logger.Error(err, "marshal message error")
 	}
 	logger.Info("Send to client success", "address", node.Spec.Address, "data", string(b))
+}
+
+// handlePolicyHash
+func (n *NetworkEventHandler) handlePolicyHash(ctx context.Context, event string, networkName string) (string, error) {
+
+	objs, err := n.informer.Informer().GetIndexer().ByIndex("network", networkName)
+	if err != nil {
+		return "", err
+	}
+
+	policies := make([]*wireflowv1alpha1.NetworkPolicy, 0)
+	for _, obj := range objs {
+		if policy, ok := obj.(*wireflowv1alpha1.NetworkPolicy); ok {
+			policies = append(policies, policy)
+		}
+	}
+
+	//sort polices by priority
+
+	// then hash it
+	data, err := json.Marshal(policies)
+	if err != nil {
+		return "", err
+	}
+	return string(sha3.New256().Sum(data)), nil
+}
+
+// handlePolicy
+func (n *NetworkEventHandler) handlePolicy(ctx context.Context, oldPolices []*wireflowv1alpha1.NetworkPolicy, newPolices []*wireflowv1alpha1.NetworkPolicy) error {
+	m := make(map[string]*wireflowv1alpha1.NetworkPolicy)
+	for _, op := range newPolices {
+		m[op.Name] = op
+	}
+
+	for _, np := range newPolices {
+		if _, ok := m[np.Name]; !ok {
+			//not ok, is a new policy
+			continue
+		} else {
+			newData, err := json.Marshal(np.Spec)
+			if err != nil {
+				return err
+			}
+			oldData, err := json.Marshal(m[np.Name].Spec)
+			if err != nil {
+				return err
+			}
+
+			// if ==, not changed
+			if utils2.Hash(oldData) == utils2.Hash(newData) {
+				continue
+			} else {
+				//重新推送策略
+			}
+
+		}
+	}
+
+	return nil
 }
