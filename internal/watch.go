@@ -2,6 +2,7 @@ package internal
 
 import (
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
@@ -134,6 +135,11 @@ func (c *ChangeDetails) HasChanges() bool {
 	return c.TotalChanges > 0
 }
 
+func (c *ChangeDetails) String() string {
+	data, _ := json.Marshal(c)
+	return string(data)
+}
+
 // Summary returns a summary of the changes
 func (c *ChangeDetails) Summary() string {
 	parts := make([]string, 0)
@@ -233,6 +239,17 @@ func (m *Message) WithNode(node *Node) *Message {
 func (m *Message) WithNetwork(network *Network) *Message {
 	m.Network = network
 	return m
+}
+
+// FullConfig 全量配置
+func (m *Message) FullConfig() string {
+
+	return ""
+}
+
+func (m *Message) String() string {
+	data, _ := json.Marshal(m)
+	return string(data)
 }
 
 func (n *Network) WithPolicy(policy *Policy) *Network {

@@ -216,7 +216,10 @@ func (n *NodeEventHandler) reconcileNodeUpdate(ctx context.Context, oldNode, new
 	//更新缓存
 	n.cacheNodeContext(newNode.Name, newContext)
 
-	changes := n.changeDetector.DetectNodeChanges(oldNode, newNode, oldContext.Network, newContext.Network, oldContext.Policies, newContext.Policies)
+	changes := n.changeDetector.DetectNodeChanges(
+		oldContext.Node, newContext.Node,
+		oldContext.Network, newContext.Network,
+		oldContext.Policies, newContext.Policies)
 
 	if !changes.HasChanges() {
 		logger.V(4).Info("No significant changes tectected", "node", newNode.Name)
