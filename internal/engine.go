@@ -25,4 +25,6 @@ type EngineManager interface {
 	GetWgConfiger() ConfigureManager
 
 	DeviceConfigure(conf *DeviceConfig) error
+
+	AddNode(node *Node) error
 }

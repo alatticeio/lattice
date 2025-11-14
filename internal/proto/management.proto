@@ -21,6 +21,8 @@ service ManagementService {
 
   // valid token for service
   rpc VerifyToken(ManagementMessage) returns (ManagementMessage) {}
+
+  rpc Do (ManagementMessage) returns (ManagementMessage) {}
 }
 
 // ControlMessage is dynamic message for kind to request and response
@@ -29,7 +31,9 @@ message ManagementMessage  {
   bytes body = 2;
   int32 encrypt = 3;
   int32 version = 4;
+  Type type = 5;
   int64 timestamp = 6;
+
 }
 
 message LoginRequest {
@@ -45,4 +49,11 @@ message Request {
   string pub_key = 1;
   string appId = 2;
   string token = 3;
+}
+
+
+// MessageType defines the type of message
+enum Type {
+  MessageTypeJoinNetwork = 0;
+  MessageTypeLeaveNetwork = 1;
 }

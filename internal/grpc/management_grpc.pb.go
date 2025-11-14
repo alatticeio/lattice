@@ -27,6 +27,7 @@ const (
 	ManagementService_Keepalive_FullMethodName   = "/ManagementService/Keepalive"
 	ManagementService_Registry_FullMethodName    = "/ManagementService/Registry"
 	ManagementService_VerifyToken_FullMethodName = "/ManagementService/VerifyToken"
+	ManagementService_Do_FullMethodName          = "/ManagementService/Do"
 )
 
 // ManagementServiceClient is the client API for ManagementService service.
@@ -44,6 +45,7 @@ type ManagementServiceClient interface {
 	Registry(ctx context.Context, in *ManagementMessage, opts ...grpc.CallOption) (*ManagementMessage, error)
 	// valid token for service
 	VerifyToken(ctx context.Context, in *ManagementMessage, opts ...grpc.CallOption) (*ManagementMessage, error)
+	Do(ctx context.Context, in *ManagementMessage, opts ...grpc.CallOption) (*ManagementMessage, error)
 }
 
 type managementServiceClient struct {
@@ -140,6 +142,16 @@ func (c *managementServiceClient) VerifyToken(ctx context.Context, in *Managemen
 	return out, nil
 }
 
+func (c *managementServiceClient) Do(ctx context.Context, in *ManagementMessage, opts ...grpc.CallOption) (*ManagementMessage, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ManagementMessage)
+	err := c.cc.Invoke(ctx, ManagementService_Do_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ManagementServiceServer is the server API for ManagementService service.
 // All implementations must embed UnimplementedManagementServiceServer
 // for forward compatibility.
@@ -155,6 +167,7 @@ type ManagementServiceServer interface {
 	Registry(context.Context, *ManagementMessage) (*ManagementMessage, error)
 	// valid token for service
 	VerifyToken(context.Context, *ManagementMessage) (*ManagementMessage, error)
+	Do(context.Context, *ManagementMessage) (*ManagementMessage, error)
 	mustEmbedUnimplementedManagementServiceServer()
 }
 
@@ -188,6 +201,9 @@ func (UnimplementedManagementServiceServer) Registry(context.Context, *Managemen
 }
 func (UnimplementedManagementServiceServer) VerifyToken(context.Context, *ManagementMessage) (*ManagementMessage, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method VerifyToken not implemented")
+}
+func (UnimplementedManagementServiceServer) Do(context.Context, *ManagementMessage) (*ManagementMessage, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Do not implemented")
 }
 func (UnimplementedManagementServiceServer) mustEmbedUnimplementedManagementServiceServer() {}
 func (UnimplementedManagementServiceServer) testEmbeddedByValue()                           {}
@@ -332,6 +348,24 @@ func _ManagementService_VerifyToken_Handler(srv interface{}, ctx context.Context
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ManagementService_Do_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ManagementMessage)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ManagementServiceServer).Do(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ManagementService_Do_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ManagementServiceServer).Do(ctx, req.(*ManagementMessage))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // ManagementService_ServiceDesc is the grpc.ServiceDesc for ManagementService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -362,6 +396,10 @@ var ManagementService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "VerifyToken",
 			Handler:    _ManagementService_VerifyToken_Handler,
+		},
+		{
+			MethodName: "Do",
+			Handler:    _ManagementService_Do_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

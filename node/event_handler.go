@@ -15,6 +15,7 @@
 package node
 
 import (
+	"context"
 	"fmt"
 	"wireflow/internal"
 	mgtclient "wireflow/management/client"
@@ -25,24 +26,24 @@ import (
 
 // event handler for node to handle event from management
 type EventHandler struct {
-	e      internal.EngineManager
-	logger *log.Logger
-	client *mgtclient.Client
+	manager internal.EngineManager
+	logger  *log.Logger
+	client  *mgtclient.Client
 }
 
 func NewEventHandler(e internal.EngineManager, logger *log.Logger, client *mgtclient.Client) *EventHandler {
 	return &EventHandler{
-		e:      e,
-		logger: logger,
-		client: client,
+		manager: e,
+		logger:  logger,
+		client:  client,
 	}
 }
 
 type HandlerFunc func(msg *internal.Message) error
 
-func (h *EventHandler) HandleEvent() HandlerFunc {
+func (handler *EventHandler) HandleEvent() HandlerFunc {
 	return func(msg *internal.Message) error {
-		h.logger.Infof("Received config update %s: %s", msg.ConfigVersion, msg.Changes.Summary())
+		handler.logger.Infof("Received config update %s: %s", msg.ConfigVersion, msg.Changes.Summary())
 		if msg == nil {
 			return nil
 		}
@@ -57,29 +58,29 @@ func (h *EventHandler) HandleEvent() HandlerFunc {
 			// 地址变化
 			if msg.Changes.AddressChanged {
 				if msg.Current.Address == "" {
-					internal.SetDeviceIP()("remove", msg.Current.Address, h.e.GetWgConfiger().GetIfaceName())
+					internal.SetDeviceIP()("remove", msg.Current.Address, handler.manager.GetWgConfiger().GetIfaceName())
 				} else if msg.Current.Address != "" {
-					internal.SetDeviceIP()("add", msg.Current.Address, h.e.GetWgConfiger().GetIfaceName())
+					internal.SetDeviceIP()("add", msg.Current.Address, handler.manager.GetWgConfiger().GetIfaceName())
 				}
 				msg.Current.AllowedIPs = fmt.Sprintf("%s/%d", msg.Current.Address, 32)
-				h.e.GetWgConfiger().GetPeersManager().AddPeer(msg.Current.PublicKey, msg.Current)
+				handler.manager.GetWgConfiger().GetPeersManager().AddPeer(msg.Current.PublicKey, msg.Current)
 			}
 
 			//
 			if len(msg.Changes.NodesAdded) > 0 {
-				h.logger.Infof("nodes added: %v", msg.Changes.NodesAdded)
+				handler.logger.Infof("nodes added: %v", msg.Changes.NodesAdded)
 			}
 
 			if len(msg.Changes.NodesRemoved) > 0 {
-				h.logger.Infof("nodes removed: %v", msg.Changes.NodesRemoved)
+				handler.logger.Infof("nodes removed: %v", msg.Changes.NodesRemoved)
 			}
 
 			if len(msg.Changes.PoliciesAdded) > 0 {
-				h.logger.Infof("policies added: %v", msg.Changes.PoliciesAdded)
+				handler.logger.Infof("policies added: %v", msg.Changes.PoliciesAdded)
 			}
 
 			if len(msg.Changes.PoliciesUpdated) > 0 {
-				h.logger.Infof("policies updated: %v", msg.Changes.PoliciesUpdated)
+				handler.logger.Infof("policies updated: %v", msg.Changes.PoliciesUpdated)
 			}
 
 		}
@@ -88,6 +89,23 @@ func (h *EventHandler) HandleEvent() HandlerFunc {
 	}
 }
 
-func applyFullConfig(config *internal.Message) error {
+// ApplyFullConfig when node start, apply full config
+func (handler *EventHandler) ApplyFullConfig(ctx context.Context, msg *internal.Message) error {
+	logger := klog.FromContext(ctx)
+	logger.Info("ApplyFullConfig", "message", msg)
+	//apply nodes, add node to peers manager
+	for _, node := range msg.Network.Nodes {
+		handler.manager.GetWgConfiger().GetPeersManager().AddPeer(node.PublicKey, node)
+		if err := handler.manager.AddNode(node); err != nil {
+			return err
+		}
+	}
+
+	// apply policies
+	for _, policy := range msg.Network.Policies {
+		logger.Info("ApplyPolicy", "policy", policy)
+	}
+
+	logger.V(4).Info("ApplyFullConfig done", "message", msg)
 	return nil
 }

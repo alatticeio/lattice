@@ -25,6 +25,7 @@ import (
 	"github.com/wireflowio/wireflow-controller/pkg/controller"
 	clientset "github.com/wireflowio/wireflow-controller/pkg/generated/clientset/versioned"
 	informers "github.com/wireflowio/wireflow-controller/pkg/generated/informers/externalversions"
+	listers "github.com/wireflowio/wireflow-controller/pkg/generated/listers/wireflowcontroller/v1alpha1"
 	"golang.org/x/time/rate"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -46,6 +47,9 @@ type Controller struct {
 	informerFactory informers.SharedInformerFactory
 	nodeSynced      cache.InformerSynced
 	networkSynced   cache.InformerSynced
+	networkLister   listers.NetworkLister
+	nodeLister      listers.NodeLister
+	policyLister    listers.NetworkPolicyLister
 }
 
 func NewController(
@@ -91,7 +95,7 @@ func NewController(
 	networkInformer := informerFactory.Wireflowcontroller().V1alpha1().Networks()
 	policyInformer := informerFactory.Wireflowcontroller().V1alpha1().NetworkPolicies()
 
-	networkLister, policyLister := networkInformer.Lister(), policyInformer.Lister()
+	nodeLister, networkLister, policyLister := nodeInformer.Lister(), networkInformer.Lister(), policyInformer.Lister()
 
 	nodeQueue, networkQueue := workqueue.NewTypedRateLimitingQueue(ratelimiter), workqueue.NewTypedRateLimitingQueue(ratelimiter)
 
@@ -112,6 +116,9 @@ func NewController(
 		informerFactory: informerFactory,
 		nodeSynced:      nodeInformer.Informer().HasSynced,
 		networkSynced:   networkInformer.Informer().HasSynced,
+		networkLister:   networkLister,
+		nodeLister:      nodeLister,
+		policyLister:    policyLister,
 	}
 
 	stopCh := make(chan struct{})

@@ -314,7 +314,7 @@ func NewEngine(cfg *EngineConfig) (*Engine, error) {
 
 // Start will get networkmap
 func (e *Engine) Start() error {
-	// start e, open udp port
+	// start manager, open udp port
 	if err := e.device.Up(); err != nil {
 		return err
 	}
@@ -396,8 +396,8 @@ func (e *Engine) RemovePeer(peer internal.NodeMessage) error {
 func (e *Engine) close() {
 	close(e.keepaliveChan)
 	e.drpClient.Close()
-	//e.device.Close()
-	e.logger.Verbosef("e closed")
+	//manager.device.Close()
+	e.logger.Verbosef("manager closed")
 }
 
 func (e *Engine) GetWgConfiger() internal.ConfigureManager {

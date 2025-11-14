@@ -42,8 +42,6 @@ func Start(listen string) error {
 		Ctx:    ctx,
 		Logger: logger,
 		Port:   32051,
-		//DataBaseService: dbService,
-		//Rdb: redisClient,
 	})
 	// go run a grpc server
 	go func() {

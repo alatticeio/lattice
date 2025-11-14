@@ -25,7 +25,6 @@ import (
 	"time"
 	"wireflow/dns"
 	"wireflow/internal"
-	"wireflow/management/vo"
 	"wireflow/monitor"
 	"wireflow/monitor/collector"
 	"wireflow/pkg/config"
@@ -190,9 +189,9 @@ func Start(flags *LinkFlags) error {
 		return err
 	}
 
-	engine.GetNetworkMap = func() (*vo.NetworkMap, error) {
+	engine.GetNetworkMap = func() (*internal.Message, error) {
 		// get network map from list
-		conf, err := engine.mgtClient.GetNetMap()
+		msg, err := engine.mgtClient.GetNetMap()
 		if err != nil {
 			logger.Errorf("Get network map failed: %v", err)
 			return nil, err
@@ -200,7 +199,7 @@ func Start(flags *LinkFlags) error {
 
 		logger.Infof("Success get net map")
 
-		return conf, err
+		return msg, err
 	}
 
 	err = engine.Start()

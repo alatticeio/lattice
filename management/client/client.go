@@ -4,8 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/golang/protobuf/proto"
-	"github.com/wireflowio/ice"
 	"io"
 	"net"
 	"os"
@@ -16,11 +14,13 @@ import (
 	"wireflow/internal/grpc"
 	"wireflow/management/dto"
 	grpclient "wireflow/management/grpc"
-	"wireflow/management/vo"
 	"wireflow/pkg/config"
 	"wireflow/pkg/log"
 	turnclient "wireflow/pkg/turn"
 	"wireflow/pkg/wferrors"
+
+	"github.com/golang/protobuf/proto"
+	"github.com/wireflowio/ice"
 )
 
 type NodeMap struct {
@@ -185,7 +185,7 @@ func (c *Client) Login(user *config.User) error {
 }
 
 // GetNetMap get current node network map
-func (c *Client) GetNetMap() (*vo.NetworkMap, error) {
+func (c *Client) GetNetMap() (*internal.Message, error) {
 	ctx := context.Background()
 	var err error
 
@@ -213,18 +213,12 @@ func (c *Client) GetNetMap() (*vo.NetworkMap, error) {
 		return nil, err
 	}
 
-	var networkMap vo.NetworkMap
-	if err := json.Unmarshal(resp.Body, &networkMap); err != nil {
+	var msg internal.Message
+	if err = json.Unmarshal(resp.Body, &msg); err != nil {
 		return nil, err
 	}
 
-	for _, p := range networkMap.Nodes {
-		if err := c.AddPeer(p); err != nil {
-			c.logger.Errorf("add peer failed: %v", err)
-		}
-	}
-
-	return &networkMap, nil
+	return &msg, nil
 }
 
 // TODO implement this function

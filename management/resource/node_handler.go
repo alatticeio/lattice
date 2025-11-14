@@ -63,24 +63,25 @@ type StateCache struct {
 
 func NewNodeEventHandler(
 	ctx context.Context,
-	informer v1alpha1.NodeInformer,
+	nodeInformer v1alpha1.NodeInformer,
 	wt *internal.WatchManager,
 	networkLister listers.NetworkLister,
 	policyLister listers.NetworkPolicyLister,
 	queue workqueue.TypedRateLimitingInterface[controller.WorkerItem]) *NodeEventHandler {
 	h := &NodeEventHandler{
 		ctx:            ctx,
-		informer:       informer,
+		informer:       nodeInformer,
 		wt:             wt,
 		queue:          queue,
 		lastPushedHash: make(map[string]string),
 		changeDetector: NewChangeDetector(),
 		networkLister:  networkLister,
 		policyLister:   policyLister,
+		nodeLister:     nodeInformer.Lister(),
 		nodeContext:    make(map[string]*NodeContext),
 	}
 
-	informer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+	nodeInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			node := obj.(*wireflowv1alpha1.Node)
 			if time.Since(node.CreationTimestamp.Time) > 5*time.Minute {
@@ -552,6 +553,32 @@ func (n *NodeEventHandler) StatusEquals(old, new *wireflowv1alpha1.Node) bool {
 
 // getNodeContext 获取节点的完整上下文
 func (n *NodeEventHandler) getNodeContext(node *wireflowv1alpha1.Node) *NodeContext {
+	return nodeContext(node, n.nodeLister, n.networkLister, n.policyLister)
+}
+
+// buildFullConfigurationWithChanges 构建带变更详情的完整配置
+func (n *NodeEventHandler) buildFullConfigurationWithChanges(
+	node *wireflowv1alpha1.Node,
+	context *NodeContext,
+	changes *internal.ChangeDetails,
+) (*internal.Message, error) {
+
+	return buildFullConfig(node, context, changes, n.generateConfigVersion())
+}
+
+// generateConfigVersion 生成配置版本号
+func (n *NodeEventHandler) generateConfigVersion() string {
+	n.versionMu.Lock()
+	defer n.versionMu.Unlock()
+
+	n.versionCounter++
+	return fmt.Sprintf("v%d", n.versionCounter)
+}
+
+func nodeContext(node *wireflowv1alpha1.Node,
+	nodeLister listers.NodeLister,
+	networkLister listers.NetworkLister,
+	policyLister listers.NetworkPolicyLister) *NodeContext {
 	if node == nil {
 		return &NodeContext{}
 	}
@@ -563,7 +590,7 @@ func (n *NodeEventHandler) getNodeContext(node *wireflowv1alpha1.Node) *NodeCont
 	// 获取网络信息
 	if len(node.Spec.Network) > 0 {
 		networkName := node.Spec.Network[0]
-		network, err := n.networkLister.Networks(node.Namespace).Get(networkName)
+		network, err := networkLister.Networks(node.Namespace).Get(networkName)
 		if err == nil {
 			ctx.Network = network
 
@@ -572,7 +599,7 @@ func (n *NodeEventHandler) getNodeContext(node *wireflowv1alpha1.Node) *NodeCont
 				if nodeName == node.Name {
 					continue
 				}
-				peer, err := n.nodeLister.Nodes(node.Namespace).Get(nodeName)
+				peer, err := nodeLister.Nodes(node.Namespace).Get(nodeName)
 				if err == nil {
 					ctx.Nodes = append(ctx.Nodes, peer)
 				}
@@ -585,7 +612,7 @@ func (n *NodeEventHandler) getNodeContext(node *wireflowv1alpha1.Node) *NodeCont
 			//		LabelSelector: fmt.Sprintf("wireflow.io/network=%s", networkName),
 			//	})
 
-			policies, err := n.policyLister.NetworkPolicies(node.Namespace).List(labels.Everything())
+			policies, err := policyLister.NetworkPolicies(node.Namespace).List(labels.Everything())
 			if err == nil {
 				ctx.Policies = append(ctx.Policies, policies...)
 			}
@@ -595,16 +622,8 @@ func (n *NodeEventHandler) getNodeContext(node *wireflowv1alpha1.Node) *NodeCont
 	return ctx
 }
 
-// buildFullConfigurationWithChanges 构建带变更详情的完整配置
-func (n *NodeEventHandler) buildFullConfigurationWithChanges(
-	node *wireflowv1alpha1.Node,
-	context *NodeContext,
-	changes *internal.ChangeDetails,
-) (*internal.Message, error) {
-
+func buildFullConfig(node *wireflowv1alpha1.Node, context *NodeContext, changes *internal.ChangeDetails, version string) (*internal.Message, error) {
 	// 生成配置版本号
-	version := n.generateConfigVersion()
-
 	msg := &internal.Message{
 		EventType:     internal.EventTypeNodeUpdate, // 统一使用 ConfigUpdate
 		ConfigVersion: version,
@@ -657,13 +676,4 @@ func (n *NodeEventHandler) buildFullConfigurationWithChanges(
 	}
 
 	return msg, nil
-}
-
-// generateConfigVersion 生成配置版本号
-func (n *NodeEventHandler) generateConfigVersion() string {
-	n.versionMu.Lock()
-	defer n.versionMu.Unlock()
-
-	n.versionCounter++
-	return fmt.Sprintf("v%d", n.versionCounter)
 }

@@ -28,10 +28,9 @@ import (
 	"sync/atomic"
 	"syscall"
 	"time"
-	drp2 "wireflow/drp"
+	"wireflow/drp"
 	"wireflow/internal"
 	mgtclient "wireflow/management/client"
-	"wireflow/management/vo"
 	"wireflow/pkg/config"
 	lipc "wireflow/pkg/ipc"
 	"wireflow/pkg/log"
@@ -61,9 +60,9 @@ type Engine struct {
 	Name          string
 	device        *wg.Device
 	mgtClient     *mgtclient.Client
-	drpClient     *drp2.Client
+	drpClient     *drp.Client
 	bind          *wrapper.LinkBind
-	GetNetworkMap func() (*vo.NetworkMap, error)
+	GetNetworkMap func() (*internal.Message, error)
 	updated       atomic.Bool
 
 	group atomic.Value //belong to which group
@@ -89,7 +88,7 @@ type EngineConfig struct {
 	UdpConn       *net.UDPConn
 	InterfaceName string
 	client        *mgtclient.Client
-	drpClient     *drp2.Client
+	drpClient     *drp.Client
 	WgLogger      *wg.Logger
 	TurnServerUrl string
 	ForceRelay    bool
@@ -160,7 +159,7 @@ func NewEngine(cfg *EngineConfig) (*Engine, error) {
 		err          error
 		engine       *Engine
 		probeManager internal.ProbeManager
-		proxy        *drp2.Proxy
+		proxy        *drp.Proxy
 		turnClient   turnclient.Client
 		v4conn       *net.UDPConn
 		v6conn       *net.UDPConn
@@ -168,7 +167,7 @@ func NewEngine(cfg *EngineConfig) (*Engine, error) {
 	engine = &Engine{
 		ctx:           context.Background(),
 		nodeManager:   internal.NewNodeManager(),
-		agentManager:  drp2.NewAgentManager(),
+		agentManager:  drp.NewAgentManager(),
 		logger:        cfg.Logger,
 		keepaliveChan: make(chan struct{}, 1),
 		watchChan:     make(chan struct{}, 1),
@@ -212,7 +211,7 @@ func NewEngine(cfg *EngineConfig) (*Engine, error) {
 		return nil, err
 	}
 
-	if engine.drpClient, err = drp2.NewClient(&drp2.ClientConfig{Addr: cfg.SignalingUrl, Logger: log.NewLogger(log.Loglevel, "drp-mgtClient")}); err != nil {
+	if engine.drpClient, err = drp.NewClient(&drp.ClientConfig{Addr: cfg.SignalingUrl, Logger: log.NewLogger(log.Loglevel, "drp-mgtClient")}); err != nil {
 		return nil, err
 	}
 	engine.drpClient = engine.drpClient.KeyManager(engine.keyManager)
@@ -237,7 +236,7 @@ func NewEngine(cfg *EngineConfig) (*Engine, error) {
 
 	universalUdpMuxDefault := engine.agentManager.NewUdpMux(v4conn)
 
-	if proxy, err = drp2.NewProxy(&drp2.ProxyConfig{
+	if proxy, err = drp.NewProxy(&drp.ProxyConfig{
 		DrpClient: engine.drpClient,
 		DrpAddr:   cfg.SignalingUrl,
 	}); err != nil {
@@ -258,7 +257,7 @@ func NewEngine(cfg *EngineConfig) (*Engine, error) {
 
 	probeManager = probe.NewManager(cfg.ForceRelay, universalUdpMuxDefault.UDPMuxDefault, universalUdpMuxDefault, engine, cfg.TurnServerUrl)
 
-	offerHandler := drp2.NewOfferHandler(&drp2.OfferHandlerConfig{
+	offerHandler := drp.NewOfferHandler(&drp.OfferHandlerConfig{
 		Logger:       log.NewLogger(log.Loglevel, "offer-handler"),
 		ProbeManager: probeManager,
 		AgentManager: engine.agentManager,
@@ -292,9 +291,10 @@ func NewEngine(cfg *EngineConfig) (*Engine, error) {
 
 // Start will get networkmap
 func (e *Engine) Start() error {
+	ctx := context.Background()
 	// init event handler
 	e.eventHandler = NewEventHandler(e, log.NewLogger(log.Loglevel, "event-handler"), e.mgtClient)
-	// start e, open udp port
+	// start manager, open udp port
 	if err := e.device.Up(); err != nil {
 		return err
 	}
@@ -311,14 +311,22 @@ func (e *Engine) Start() error {
 			return err
 		}
 	}
+
+	// get network map
+	remoteCfg, err := e.GetNetworkMap()
+	if err != nil {
+		return err
+	}
+
+	e.eventHandler.ApplyFullConfig(ctx, remoteCfg)
+
 	// watch
 	go func() {
 		e.watchChan <- struct{}{}
 		for {
 			select {
 			case <-e.watchChan:
-				e.logger.Infof("watching chan")
-				if err := e.mgtClient.Watch(e.ctx, e.eventHandler.HandleEvent()); err != nil {
+				if err = e.mgtClient.Watch(e.ctx, e.eventHandler.HandleEvent()); err != nil {
 					e.logger.Errorf("watch failed: %v", err)
 					time.Sleep(10 * time.Second) // retry after 10 seconds
 					e.watchChan <- struct{}{}
@@ -335,14 +343,12 @@ func (e *Engine) Start() error {
 		for {
 			select {
 			case <-e.keepaliveChan:
-				e.logger.Infof("keepalive chan")
-				if err := e.mgtClient.Keepalive(e.ctx); err != nil {
+				if err = e.mgtClient.Keepalive(e.ctx); err != nil {
 					e.logger.Errorf("keepalive failed: %v", err)
 					time.Sleep(10 * time.Second)
 					e.keepaliveChan <- struct{}{}
 				}
 			case <-e.ctx.Done():
-				e.logger.Infof("keepalive chan closed")
 				return
 			}
 		}
@@ -391,10 +397,14 @@ func (e *Engine) RemovePeer(node internal.Node) error {
 func (e *Engine) close() {
 	close(e.keepaliveChan)
 	e.drpClient.Close()
-	//e.device.Close()
-	e.logger.Verbosef("e closed")
+	//manager.device.Close()
+	e.logger.Verbosef("manager closed")
 }
 
 func (e *Engine) GetWgConfiger() internal.ConfigureManager {
 	return e.wgConfigure
+}
+
+func (e *Engine) AddNode(node *internal.Node) error {
+	return e.mgtClient.AddPeer(node)
 }
