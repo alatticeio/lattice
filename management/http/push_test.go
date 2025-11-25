@@ -10,13 +10,13 @@ import (
 func TestJson(t *testing.T) {
 	msg := &internal.Message{
 		EventType: internal.EventTypeNodeAdd,
-		Current: &internal.Node{
+		Current: &internal.Peer{
 			AppID:      "30a589e950",
 			PrivateKey: "cOC8HdfGQsghJFPqjhEPEPNPHnoKKwyaip9ba7n/AXc=",
 			Address:    "192.168.1.101",
 		},
 		Network: &internal.Network{
-			Nodes: []*internal.Node{
+			Peers: []*internal.Peer{
 				{
 					AppID:     "30a589e950",
 					PublicKey: "aaaaaaaaaaaaaaaa/AXc=",

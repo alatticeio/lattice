@@ -15,21 +15,21 @@
 package cmd
 
 import (
-	"wireflow/node"
+	"wireflow/device"
 	"wireflow/pkg/log"
 
 	"github.com/spf13/cobra"
 )
 
 func up() *cobra.Command {
-	var flags node.LinkFlags
+	var flags device.Flags
 	cmd := &cobra.Command{
 		Short:        "up",
 		Use:          "up [command]",
 		SilenceUsage: true,
 		Long:         `wireflow startup, will create a wireguard interface and join your wireflow network,and also will config the interface automatically`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runWireflowd(&flags)
+			return runWireflow(&flags)
 		},
 	}
 
@@ -47,10 +47,10 @@ func up() *cobra.Command {
 	return cmd
 }
 
-func runWireflowd(flags *node.LinkFlags) error {
+func runWireflow(flags *device.Flags) error {
 	if flags.LogLevel == "" {
 		flags.LogLevel = "error"
 	}
-	log.Loglevel = log.SetLogLevel(flags.LogLevel)
-	return node.Start(flags)
+	log.SetLogLevel(flags.LogLevel)
+	return device.Start(flags)
 }

@@ -19,6 +19,8 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"sync"
+	"sync/atomic"
 	"wireflow/pkg/log"
 
 	"github.com/pion/logging"
@@ -39,6 +41,8 @@ type AgentManagerFactory interface {
 
 // Agent represents an ICE agent with its associated local key.
 type Agent struct {
+	lock            sync.Mutex
+	started         atomic.Bool
 	logger          *log.Logger
 	iceAgent        *ice.Agent
 	LocalKey        uint32
@@ -79,12 +83,19 @@ func NewAgent(params *AgentConfig) (*Agent, error) {
 		return nil, err
 	}
 
-	return &Agent{
+	a := &Agent{
 		iceAgent:        agent,
 		LocalKey:        ice.NewTieBreaker(),
 		universalUdpMux: params.UniversalUdpMux,
 		logger:          log.NewLogger(log.Loglevel, "agent"),
-	}, err
+	}
+
+	a.started.Store(false)
+	return a, nil
+}
+
+func (agent *Agent) GetStatus() atomic.Bool {
+	return agent.started
 }
 
 func (agent *Agent) GetUniversalUDPMuxDefault() *ice.UniversalUDPMuxDefault {

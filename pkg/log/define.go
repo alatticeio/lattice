@@ -16,7 +16,6 @@ package log
 
 var Loglevel = logLevel("silent")
 
-func SetLogLevel(level string) int {
+func SetLogLevel(level string) {
 	Loglevel = logLevel(level)
-	return Loglevel
 }

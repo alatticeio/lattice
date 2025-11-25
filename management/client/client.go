@@ -33,7 +33,7 @@ type Client struct {
 	as           internal.AgentManagerFactory
 	logger       *log.Logger
 	keyManager   internal.KeyManager
-	nodeManager  *internal.NodeManager
+	nodeManager  *internal.PeerManager
 	conf         *config.LocalConfig
 	grpcClient   *grpclient.Client
 	conn4        net.PacketConn
@@ -41,7 +41,7 @@ type Client struct {
 	offerHandler internal.OfferHandler
 	probeManager internal.ProbeManager
 	turnManager  *turnclient.TurnManager
-	engine       internal.EngineManager
+	engine       internal.DeviceManager
 
 	//channel for close for keepalive
 	keepaliveChan chan struct{}
@@ -88,7 +88,7 @@ func (c *Client) SetKeyManager(manager internal.KeyManager) *Client {
 	return c
 }
 
-func (c *Client) SetNodeManager(manager *internal.NodeManager) *Client {
+func (c *Client) SetNodeManager(manager *internal.PeerManager) *Client {
 	c.nodeManager = manager
 	return c
 }
@@ -98,7 +98,7 @@ func (c *Client) SetProbeManager(manager internal.ProbeManager) *Client {
 	return c
 }
 
-func (c *Client) SetEngine(engine internal.EngineManager) *Client {
+func (c *Client) SetEngine(engine internal.DeviceManager) *Client {
 	c.engine = engine
 	return c
 }
@@ -228,9 +228,9 @@ func (c *Client) GetUsers() []*config.User {
 	return users
 }
 
-func (c *Client) ToConfigPeer(peer *internal.Node) *internal.Node {
+func (c *Client) ToConfigPeer(peer *internal.Peer) *internal.Peer {
 
-	return &internal.Node{
+	return &internal.Peer{
 		PublicKey:           peer.PublicKey,
 		Endpoint:            peer.Endpoint,
 		Address:             peer.Address,
@@ -240,7 +240,7 @@ func (c *Client) ToConfigPeer(peer *internal.Node) *internal.Node {
 	}
 }
 
-func (c *Client) AddPeer(p *internal.Node) error {
+func (c *Client) AddPeer(p *internal.Peer) error {
 	var (
 		err   error
 		probe internal.Probe
@@ -252,7 +252,7 @@ func (c *Client) AddPeer(p *internal.Node) error {
 
 	node := c.ToConfigPeer(p)
 	// start probe when gather candidates finished
-	var connectType internal.ConnectType
+	var connectType internal.ConnType
 	current := c.nodeManager.GetPeer(c.keyManager.GetPublicKey())
 	if current.ConnectType == internal.DrpType || node.ConnectType == internal.DrpType {
 		connectType = internal.DrpType
@@ -275,7 +275,7 @@ func (c *Client) AddPeer(p *internal.Node) error {
 			Logger:        c.logger,
 			ProberManager: c.probeManager,
 			GatherChan:    make(chan interface{}),
-			WGConfiger:    c.engine.GetWgConfiger(),
+			WGConfiger:    c.engine.GetDeviceConfiger(),
 			NodeManager:   c.nodeManager,
 			To:            p.PublicKey,
 			OfferHandler:  c.offerHandler,
@@ -298,7 +298,7 @@ func (c *Client) AddPeer(p *internal.Node) error {
 }
 
 // doProbe will start a direct check to the node, if the peer is not connected, it will send drp offer to remote
-func (c *Client) doProbe(probe internal.Probe, node *internal.Node) {
+func (c *Client) doProbe(probe internal.Probe, node *internal.Peer) {
 	errChan := make(chan error, 10)
 	limitRetries := 7
 	retries := 0
@@ -361,7 +361,7 @@ func (c *Client) doProbe(probe internal.Probe, node *internal.Node) {
 	}
 }
 
-func (c *Client) Get(ctx context.Context) (*internal.Node, int64, error) {
+func (c *Client) Get(ctx context.Context) (*internal.Peer, int64, error) {
 	req := &grpc.Request{
 		AppId: c.conf.AppId,
 		Token: c.conf.Token,
@@ -378,7 +378,7 @@ func (c *Client) Get(ctx context.Context) (*internal.Node, int64, error) {
 	}
 
 	type Result struct {
-		Peer  internal.Node
+		Peer  internal.Peer
 		Count int64
 	}
 	var result Result
@@ -418,7 +418,7 @@ func (c *Client) Keepalive(ctx context.Context) error {
 }
 
 // Register will register device to wireflow center
-func (c *Client) Register(ctx context.Context, appId string) (*internal.Node, error) {
+func (c *Client) Register(ctx context.Context, appId string) (*internal.Peer, error) {
 	var err error
 
 	hostname, err := os.Hostname()
@@ -450,7 +450,7 @@ func (c *Client) Register(ctx context.Context, appId string) (*internal.Node, er
 		return nil, fmt.Errorf("register failed. %v", err)
 	}
 
-	var node internal.Node
+	var node internal.Peer
 	if err = json.Unmarshal(resp.Body, &node); err != nil {
 		return nil, err
 	}

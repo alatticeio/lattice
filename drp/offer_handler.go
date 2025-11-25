@@ -43,7 +43,7 @@ type offerHandler struct {
 	fn           func(key string, addr *net.UDPAddr) error
 	agentManager internal.AgentManagerFactory
 	probeManager internal.ProbeManager
-	nodeManager  *internal.NodeManager
+	nodeManager  *internal.PeerManager
 
 	proxy       *Proxy
 	relay       bool
@@ -62,7 +62,7 @@ type OfferHandlerConfig struct {
 	OfferManager    internal.OfferHandler
 	ProbeManager    internal.ProbeManager
 	Proxy           *Proxy
-	NodeManager     *internal.NodeManager
+	NodeManager     *internal.PeerManager
 	TurnManager     *turnclient.TurnManager
 }
 
@@ -121,7 +121,7 @@ func (h *offerHandler) handleOffer(ctx context.Context, msg *drpgrpc.DrpMessage)
 		err   error
 	)
 
-	var connectType internal.ConnectType
+	var connectType internal.ConnType
 	switch msg.MsgType {
 	case drpgrpc.MessageType_MessageDirectOfferType, drpgrpc.MessageType_MessageDirectOfferAnswerType:
 		offer, err = internal.UnmarshalOffer(msg.Body, &internal.DirectOffer{})
@@ -134,8 +134,8 @@ func (h *offerHandler) handleOffer(ctx context.Context, msg *drpgrpc.DrpMessage)
 		connectType = internal.RelayType
 	}
 
-	// add peer
-	if offer.GetNode() != nil {
+	// add peer if not exist in node manager
+	if offer.GetNode() != nil && h.nodeManager.GetPeer(msg.From) == nil {
 		h.nodeManager.AddPeer(msg.From, offer.GetNode())
 	}
 	probe := h.probeManager.GetProbe(msg.From)

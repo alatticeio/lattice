@@ -28,7 +28,7 @@ var (
 )
 
 type RelayOffer struct {
-	Node       *Node       `json:"node,omitempty"` // Node information, if needed
+	Node       *Peer       `json:"node,omitempty"` // Node information, if needed
 	LocalKey   uint64      `json:"localKey,omitempty"`
 	MappedAddr net.UDPAddr `json:"mappedAddr,omitempty"` // remote addr
 	RelayConn  net.UDPAddr `json:"relayConn,omitempty"`
@@ -39,7 +39,7 @@ type RelayOfferConfig struct {
 	OfferType  OfferType
 	MappedAddr net.UDPAddr
 	RelayConn  net.UDPAddr
-	Node       *Node // Node information, if needed
+	Node       *Peer // Node information, if needed
 }
 
 func NewRelayOffer(cfg *RelayOfferConfig) *RelayOffer {
@@ -64,7 +64,7 @@ func (r *RelayOffer) GetOfferType() OfferType {
 	return OfferTypeRelayOffer
 }
 
-func (r *RelayOffer) GetNode() *Node {
+func (r *RelayOffer) GetNode() *Peer {
 	return r.Node
 }
 

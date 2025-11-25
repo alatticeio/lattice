@@ -53,6 +53,6 @@ func runSignaling(opts signalerOptions) error {
 	if opts.LogLevel == "" {
 		opts.LogLevel = "error"
 	}
-	log.Loglevel = log.SetLogLevel(opts.LogLevel)
+	log.SetLogLevel(opts.LogLevel)
 	return drp.Start(opts.Listen)
 }

@@ -7,5 +7,5 @@ import (
 type NetworkMap struct {
 	UserId  string
 	Current *NodeVo
-	Nodes   []*internal.Node
+	Nodes   []*internal.Peer
 }

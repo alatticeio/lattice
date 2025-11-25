@@ -40,17 +40,17 @@ type Endpoint interface {
 	To() string
 }
 
-// LinkEndpoint is a connection endpoint that represents a link layer endpoint
+// WireflowEndpoint is a connection endpoint that represents a link layer endpoint
 // with a DRP (Direct Routing Protocol) status, a direct address and port,
 // and a sticky source address and interface index if supported.
 // It implements the conn.Endpoint interface.
 // It is used to represent a connection endpoint in the WireGuard context.
 var (
-	_ conn.Endpoint = (*LinkEndpoint)(nil)
-	_ Endpoint      = (*LinkEndpoint)(nil)
+	_ conn.Endpoint = (*WireflowEndpoint)(nil)
+	_ Endpoint      = (*WireflowEndpoint)(nil)
 )
 
-type LinkEndpoint struct {
+type WireflowEndpoint struct {
 	Relay *struct {
 		// FromType indicates the type of the endpoint.
 		FromType EndpointType
@@ -75,15 +75,15 @@ type LinkEndpoint struct {
 	}
 }
 
-func (e *LinkEndpoint) From() string {
+func (e *WireflowEndpoint) From() string {
 	return e.Relay.From
 }
 
-func (e *LinkEndpoint) To() string {
+func (e *WireflowEndpoint) To() string {
 	return e.Relay.To
 }
 
-func (e *LinkEndpoint) FromType() EndpointType {
+func (e *WireflowEndpoint) FromType() EndpointType {
 	if e.Relay != nil {
 		return e.Relay.FromType
 	}
@@ -91,15 +91,15 @@ func (e *LinkEndpoint) FromType() EndpointType {
 }
 
 var (
-	_ conn.Endpoint = &LinkEndpoint{}
+	_ conn.Endpoint = &WireflowEndpoint{}
 )
 
-func (e *LinkEndpoint) ClearSrc() {
+func (e *WireflowEndpoint) ClearSrc() {
 	e.src.ifidx = 0
 	e.src.Addr = netip.Addr{}
 }
 
-func (e *LinkEndpoint) DstIP() netip.Addr {
+func (e *WireflowEndpoint) DstIP() netip.Addr {
 	switch e.FromType() {
 	case Direct:
 		return e.Direct.AddrPort.Addr()
@@ -108,15 +108,15 @@ func (e *LinkEndpoint) DstIP() netip.Addr {
 	}
 }
 
-func (e *LinkEndpoint) SrcIP() netip.Addr {
+func (e *WireflowEndpoint) SrcIP() netip.Addr {
 	return e.src.Addr
 }
 
-func (e *LinkEndpoint) SrcIfidx() int32 {
+func (e *WireflowEndpoint) SrcIfidx() int32 {
 	return e.src.ifidx
 }
 
-func (e *LinkEndpoint) DstToBytes() []byte {
+func (e *WireflowEndpoint) DstToBytes() []byte {
 	var (
 		b []byte
 	)
@@ -131,7 +131,7 @@ func (e *LinkEndpoint) DstToBytes() []byte {
 	return b
 }
 
-func (e *LinkEndpoint) DstToString() string {
+func (e *WireflowEndpoint) DstToString() string {
 	switch e.FromType() {
 	case Direct:
 		return e.Direct.AddrPort.String()
@@ -140,6 +140,6 @@ func (e *LinkEndpoint) DstToString() string {
 	}
 }
 
-func (e *LinkEndpoint) SrcToString() string {
+func (e *WireflowEndpoint) SrcToString() string {
 	return e.src.Addr.String()
 }

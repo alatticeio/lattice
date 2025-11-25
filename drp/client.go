@@ -187,7 +187,7 @@ func (c *Client) receiveLoop(stream grpc2.DrpServer_HandleMessageClient, callbac
 			return err
 		}
 
-		c.logger.Infof("received message msgType: %v, from %s, to: %v, data: %v", msg.MsgType, msg.From, msg.To, msg.Body)
+		c.logger.Infof("received message msgType: %v, from %s, to: %v, data size: %v", msg.MsgType, msg.From, msg.To, len(msg.Body))
 		switch msg.MsgType {
 		case grpc2.MessageType_MessageHeartBeatType:
 		default:

@@ -16,25 +16,16 @@ package grpc
 
 import (
 	"context"
-
-	"github.com/wireflowio/wireflow-controller/pkg/apis/wireflowcontroller/v1alpha1"
 )
 
+// TODO implement for wireflow-cli
 // JoinNetwork
 func (s *Server) JoinNetwork(ctx context.Context, appId, networkId string) error {
 	//更新
-	return s.nodeResource.UpdateNetworkSpec(ctx, "default", networkId, func(network *v1alpha1.Network) {
-		network.Spec.Nodes = append(network.Spec.Nodes, appId)
-	})
+	return nil
 }
 
 // LeaveNetwork
 func (s *Server) LeaveNetwork(ctx context.Context, appId, networkId string) error {
-	return s.nodeResource.UpdateNetworkSpec(ctx, "default", networkId, func(network *v1alpha1.Network) {
-		for i, node := range network.Spec.Nodes {
-			if node == appId {
-				network.Spec.Nodes = append(network.Spec.Nodes[:i], network.Spec.Nodes[i+1:]...)
-			}
-		}
-	})
+	return nil
 }

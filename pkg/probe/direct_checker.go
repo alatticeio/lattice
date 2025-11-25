@@ -45,7 +45,7 @@ type directChecker struct {
 	offerManager internal.OfferHandler
 	km           internal.KeyManager
 	localKey     uint64
-	wgConfiger   internal.ConfigureManager
+	wgConfiger   internal.Configurer
 	prober       internal.Probe
 }
 
@@ -56,7 +56,7 @@ type DirectCheckerConfig struct {
 	IsControlling bool
 	Agent         *internal.Agent
 	Key           string
-	WgConfiger    internal.ConfigureManager
+	WgConfiger    internal.Configurer
 	LocalKey      uint64
 	Prober        internal.Probe
 }
@@ -114,10 +114,18 @@ func (dt *directChecker) handleDirectOffer(offer *internal.DirectOffer) error {
 
 // ProbeConnect probes the connection
 func (dt *directChecker) ProbeConnect(ctx context.Context, isControlling bool, remoteOffer internal.Offer) error {
+	logger := dt.logger
+	logger.Infof("starting direct checker, isControlling: %v, remoteOffer: %v, to: %v, addr: %v", isControlling, remoteOffer, dt.to, dt.addr)
 	var conn *ice.Conn
 	var err error
 
 	agent := dt.prober.GetProbeAgent()
+	status := agent.GetStatus()
+	if status.Load() {
+		logger.Infof("agent has started: %v", status)
+		return nil
+	}
+
 	candidates, _ := agent.GetRemoteCandidates()
 
 	offer := remoteOffer.(*internal.DirectOffer)
@@ -127,7 +135,7 @@ func (dt *directChecker) ProbeConnect(ctx context.Context, isControlling bool, r
 		dt.logger.Errorf("get local user credentials failed: %v", err)
 		return dt.ProbeFailure(ctx, remoteOffer)
 	}
-	dt.logger.Infof("===========agent %v, remote candidates: %v, current node is controlling: %v, local ufrag: %v, pwd: %v, remote ufrag: %v, pwd: %v", agent, candidates, isControlling, ufrag, pwd, offer.Ufrag, offer.Pwd)
+	logger.Infof("local user credentials, ufrag: %v, pwd: %v, candidates: %v, isControlling: %v, remoteOffer: %v, to: %v, addr: %v", ufrag, pwd, candidates, isControlling, remoteOffer, dt.to, dt.addr)
 	if isControlling {
 		conn, err = agent.Dial(ctx, offer.Ufrag, offer.Pwd)
 	} else {
@@ -140,7 +148,6 @@ func (dt *directChecker) ProbeConnect(ctx context.Context, isControlling bool, r
 	}
 
 	return dt.ProbeSuccess(ctx, conn.RemoteAddr().String())
-	//}
 }
 
 func (dt *directChecker) ProbeSuccess(ctx context.Context, conn string) error {

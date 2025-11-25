@@ -110,7 +110,7 @@ func (p *Proxy) MakeReceiveFromDrp() conn.ReceiveFunc {
 			for i := 0; i < len(bufs); i++ {
 				copy(bufs[i], msg.Body)
 				sizes[i] = len(msg.Body)
-				eps[i] = &internal.LinkEndpoint{
+				eps[i] = &internal.WireflowEndpoint{
 					Relay: &struct {
 						FromType internal.EndpointType
 						Status   bool

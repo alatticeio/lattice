@@ -38,14 +38,14 @@ type relayChecker struct {
 	outBound        chan RelayMessage
 	inBound         chan RelayMessage
 	permissionAddrs []net.Addr // Addr will be added to the permission list
-	wgConfiger      internal.ConfigureManager
+	wgConfiger      internal.Configurer
 	probe           internal.Probe
 	agentManager    internal.AgentManagerFactory
 }
 
 type RelayCheckerConfig struct {
 	TurnManager  *turnclient.TurnManager
-	WgConfiger   internal.ConfigureManager
+	WgConfiger   internal.Configurer
 	AgentManager internal.AgentManagerFactory
 	DstKey       string
 	SrcKey       string

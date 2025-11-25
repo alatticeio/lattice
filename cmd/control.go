@@ -53,6 +53,6 @@ func runManagement(opts managementOptions) error {
 	if opts.LogLevel == "" {
 		opts.LogLevel = "error"
 	}
-	log.Loglevel = log.SetLogLevel(opts.LogLevel)
+	log.SetLogLevel(opts.LogLevel)
 	return management.Start(opts.Listen)
 }

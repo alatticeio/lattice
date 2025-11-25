@@ -15,14 +15,14 @@
 package cmd
 
 import (
-	"wireflow/node"
+	"wireflow/device"
 	"wireflow/pkg/log"
 
 	"github.com/spf13/cobra"
 )
 
 func status() *cobra.Command {
-	var flags node.LinkFlags
+	var flags device.Flags
 	cmd := &cobra.Command{
 		Short:        "status",
 		Use:          "status",
@@ -39,10 +39,10 @@ func status() *cobra.Command {
 	return cmd
 }
 
-func wireflowInfo(flags *node.LinkFlags) error {
+func wireflowInfo(flags *device.Flags) error {
 	if flags.LogLevel == "" {
 		flags.LogLevel = "error"
 	}
-	log.Loglevel = log.SetLogLevel(flags.LogLevel)
-	return node.Status(flags)
+	log.SetLogLevel(flags.LogLevel)
+	return device.Status(flags)
 }

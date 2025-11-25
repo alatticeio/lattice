@@ -18,19 +18,19 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	drpgrpc "wireflow/internal/grpc"
+	"wireflow/internal/grpc"
 )
 
 type Offer interface {
 	Marshal() (int, []byte, error)
 	GetOfferType() OfferType
 	TieBreaker() uint64
-	GetNode() *Node
+	GetNode() *Peer
 }
 
 type OfferHandler interface {
-	SendOffer(context.Context, drpgrpc.MessageType, string, string, Offer) error
-	ReceiveOffer(ctx context.Context, message *drpgrpc.DrpMessage) error
+	SendOffer(context.Context, grpc.MessageType, string, string, Offer) error
+	ReceiveOffer(ctx context.Context, message *grpc.DrpMessage) error
 }
 
 type OfferType int
@@ -44,15 +44,15 @@ const (
 	OfferTypeRelayAnswer
 )
 
-type ConnectType int
+type ConnType int
 
 const (
-	DirectType ConnectType = iota
+	DirectType ConnType = iota
 	RelayType
 	DrpType
 )
 
-func (s ConnectType) String() string {
+func (s ConnType) String() string {
 	switch s {
 	case DirectType:
 		return "direct"
@@ -65,18 +65,18 @@ func (s ConnectType) String() string {
 	}
 }
 
-func (s ConnectType) MarshalJSON() ([]byte, error) {
+func (s ConnType) MarshalJSON() ([]byte, error) {
 	// 将枚举值转换为字符串
 	return json.Marshal(s.String())
 }
 
-var statusMap = map[string]ConnectType{
+var statusMap = map[string]ConnType{
 	"direct": DirectType,
 	"drp":    DrpType,
 	"Relay":  RelayType,
 }
 
-func (s *ConnectType) UnmarshalJSON(data []byte) error {
+func (s *ConnType) UnmarshalJSON(data []byte) error {
 	var str string
 	if err := json.Unmarshal(data, &str); err != nil {
 		return err

@@ -15,21 +15,21 @@
 package cmd
 
 import (
-	"wireflow/node"
+	"wireflow/device"
 	"wireflow/pkg/log"
 
 	"github.com/spf13/cobra"
 )
 
 func stop() *cobra.Command {
-	var flags node.LinkFlags
+	var flags device.Flags
 	cmd := &cobra.Command{
 		Short:        "down",
 		Use:          "down",
 		SilenceUsage: true,
 		Long:         `linkany will stop the linkany daemon and remove the wireguard interface`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return stopLinkanyd(&flags)
+			return stopWireflowd(&flags)
 		},
 	}
 
@@ -39,10 +39,10 @@ func stop() *cobra.Command {
 	return cmd
 }
 
-func stopLinkanyd(flags *node.LinkFlags) error {
+func stopWireflowd(flags *device.Flags) error {
 	if flags.LogLevel == "" {
 		flags.LogLevel = "error"
 	}
-	log.Loglevel = log.SetLogLevel(flags.LogLevel)
-	return node.Stop(flags)
+	log.SetLogLevel(flags.LogLevel)
+	return device.Stop(flags)
 }

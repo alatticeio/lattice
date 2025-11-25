@@ -1,6 +1,7 @@
 package http
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -8,6 +9,7 @@ import (
 	"wireflow/internal"
 
 	"github.com/gin-gonic/gin"
+	"k8s.io/klog/v2"
 )
 
 // 推送请求结构体
@@ -28,6 +30,8 @@ type HttpServer struct {
 }
 
 func NewPush() {
+	ctx := context.Background()
+	logger := klog.FromContext(ctx)
 	// 设置 Gin 模式
 	gin.SetMode(gin.ReleaseMode)
 
@@ -68,8 +72,8 @@ func NewPush() {
 		})
 	})
 
-	fmt.Println("推送服务启动在 http://localhost:8080")
-	fmt.Println("访问 http://localhost:8080 使用推送功能")
+	logger.Info("推送服务启动在 http://localhost:8080")
+	logger.Info("访问 http://localhost:8080 使用推送功能")
 
 	if err := router.Run(":32052"); err != nil {
 		panic(fmt.Sprintf("服务启动失败: %v", err))

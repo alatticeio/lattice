@@ -1,0 +1,190 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: wireflow-control
+  namespace: wireflow
+  labels:
+    k8s-app: wireflow-control
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      k8s-app: wireflow-control
+  template:
+    metadata:
+      labels:
+        k8s-app: wireflow-control
+    spec:
+#      imagePullSecrets:
+#        - name: ali-registry
+      serviceAccountName: wireflow-controller-admin
+      containers:
+        - name: wireflow-control
+          image: registry.cn-hangzhou.aliyuncs.com/wireflow-io/wireflow
+          imagePullPolicy: Always
+          command: [ "wireflow", "manager" ]
+          args:
+            - "--log-level=INFO"
+          volumeMounts:
+            - mountPath: /app/control.yaml
+              name: conf
+              subPath: control.yaml
+      volumes:
+        - name: conf
+          configMap:
+            name: wireflow-control-config
+            items:
+              - key: control.yaml
+                path: control.yaml
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: wireflow-control-svc
+  namespace: wireflow
+spec:
+  ports:
+    - protocol: TCP
+      name: http
+      port: 8080
+      targetPort: 8080
+      nodePort: 32138
+    - protocol: TCP
+      name: grpc
+      port: 32051
+      targetPort: 32051
+      nodePort: 32051
+  selector:
+    k8s-app: wireflow-control
+  type: NodePort
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: wireflow-control-config
+  namespace: wireflow
+data:
+  control.yaml: |
+    listen: :8080
+    database:
+      host: 81.68.109.143
+      port: 3306
+      name: linkany
+      user: root
+      password: dhvuYUoxnSZMavdJ
+    Redis:
+      Addr: 81.68.109.143:6379
+      Password: dhvuYap
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: wireflow-signaling
+  namespace: wireflow
+  labels:
+    k8s-app: wireflow-signaling
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      k8s-app: wireflow-signaling
+  template:
+    metadata:
+      labels:
+        k8s-app: wireflow-signaling
+    spec:
+      imagePullSecrets:
+        - name: ali-registry
+      hostAliases:
+        - ip: "10.96.98.115"
+          hostnames:
+            - "console.wireflow.io"
+      containers:
+        - name: wireflow-signaling
+          image: registry.cn-hangzhou.aliyuncs.com/wireflow-io/wireflow:latest
+          imagePullPolicy: Always
+          command: [ "wireflow", "signaling" ]
+          args:
+            - "--log-level=verbose"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: wireflow-signaling-svc
+  namespace: wireflow
+spec:
+  ports:
+    - protocol: TCP
+      port: 32132
+      targetPort: 32132
+      nodePort: 32132
+  selector:
+    k8s-app: wireflow-signaling
+  type: NodePort
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: wireflow-turn
+  namespace: wireflow
+  labels:
+    k8s-app: wireflow-turn
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      k8s-app: wireflow-turn
+  template:
+    metadata:
+      labels:
+        k8s-app: wireflow-turn
+    spec:
+      imagePullSecrets:
+        - name: ali-registry
+      hostAliases:
+        - ip: "10.96.80.105"
+          hostnames:
+            - "console.wireflow.io"
+      containers:
+        - name: wireflow-turn
+          image: registry.cn-hangzhou.aliyuncs.com/wireflow-io/wireflow:latest
+          imagePullPolicy: Always
+          command: [ "wireflow", "turn" ]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: wireflow-turn-svc
+  namespace: wireflow
+spec:
+  ports:
+    - protocol: TCP
+      port: 32132
+      targetPort: 32132
+      nodePort: 32132
+  selector:
+    k8s-app: wireflow-turn
+  type: NodePort
+---
+# ServiceAccount
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: wireflow-controller-admin
+  namespace: wireflow
+
+---
+# ClusterRoleBinding - 直接绑定到 cluster-admin
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: wireflow-controller-admin
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-admin  # 使用 Kubernetes 内置的 cluster-admin 角色
+subjects:
+  - kind: ServiceAccount
+    name: wireflow-controller-admin
+    namespace: wireflow

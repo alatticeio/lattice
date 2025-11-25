@@ -58,7 +58,7 @@ type Probe interface {
 
 	UpdateLastCheck()
 
-	SetConnectType(connType ConnectType)
+	SetConnectType(connType ConnType)
 }
 
 type ProbeManager interface {
@@ -74,14 +74,14 @@ type ProbeConfig struct {
 	StunUri                 string
 	IsControlling           bool
 	IsForceRelay            bool
-	ConnType                ConnectType
+	ConnType                ConnType
 	DirectChecker           Checker
 	RelayChecker            Checker
 	LocalKey                uint32
-	WGConfiger              ConfigureManager
+	WGConfiger              Configurer
 	OfferHandler            OfferHandler
 	ProberManager           ProbeManager
-	NodeManager             *NodeManager
+	NodeManager             *PeerManager
 	From                    string
 	To                      string
 	TurnManager             *turn.TurnManager
@@ -91,5 +91,5 @@ type ProbeConfig struct {
 	GatherChan              chan interface{}
 	OnConnectionStateChange func(state ConnectionState) error
 
-	ConnectType ConnectType
+	ConnectType ConnType
 }

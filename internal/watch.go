@@ -31,8 +31,8 @@ var lock sync.Mutex
 var once sync.Once
 var manager *WatchManager
 
-// WatchManager is a singleton that manages the watch channels for connected nodes
-// It is used to send messages to all connected nodes
+// WatchManager is a singleton that manages the watch channels for connected peers
+// It is used to send messages to all connected peers
 // watcher is a map of networkId to watcher, a watcher is a struct that contains the networkId
 // and the channel to send messages to
 // m is a map of groupId_nodeId to channel, a channel is used to send messages to the connected peer
@@ -93,7 +93,7 @@ func (w *WatchManager) Remove(clientID string) {
 	delete(w.channels, clientID)
 }
 
-// NewWatchManager create a whole manager for connected nodes
+// NewWatchManager create a whole manager for connected peers
 func NewWatchManager() *WatchManager {
 	lock.Lock()
 	defer lock.Unlock()
@@ -110,13 +110,13 @@ func NewWatchManager() *WatchManager {
 	return manager
 }
 
-// Message is the message which is sent to connected nodes
+// Message is the message which is sent to connected peers
 type Message struct {
 	EventType     EventType      `json:"eventType"`     //主事件类型
 	ConfigVersion string         `json:"configVersion"` //版本号
 	Timestamp     int64          `json:"timestamp"`     //时间戳
 	Changes       *ChangeDetails `json:"changes"`       // 配置变化详情
-	Current       *Node          `json:"node"`          //当前节点信息
+	Current       *Peer          `json:"peer"`          //当前节点信息
 	Network       *Network       `json:"network"`       //网络信息
 }
 
@@ -127,9 +127,9 @@ type ChangeDetails struct {
 	EndpointChanged bool `json:"endpointChanged,omitempty"` //远程地址变化
 
 	//网络拓扑变化
-	NodesAdded   []string `json:"nodesAdded,omitempty"`   //节点添加的列表
-	NodesRemoved []string `json:"nodesRemoved,omitempty"` //节点移除列表
-	NodesUpdated []string `json:"nodesUpdated,omitempty"` // 节点更新列表
+	PeersAdded   []*Peer  `json:"peersAdded,omitempty"`   //节点添加的列表
+	PeersRemoved []*Peer  `json:"peersRemoved,omitempty"` //节点移除列表
+	PeersUpdated []string `json:"peersUpdated,omitempty"` // 节点更新列表
 
 	//策略变化
 	PoliciesAdded   []string `json:"policiesAdded,omitempty"`
@@ -164,11 +164,11 @@ func (c *ChangeDetails) Summary() string {
 	if c.KeyChanged {
 		parts = append(parts, "key")
 	}
-	if len(c.NodesAdded) > 0 {
-		parts = append(parts, fmt.Sprintf("+%d nodes", len(c.NodesAdded)))
+	if len(c.PeersAdded) > 0 {
+		parts = append(parts, fmt.Sprintf("+%d peers", len(c.PeersAdded)))
 	}
-	if len(c.NodesRemoved) > 0 {
-		parts = append(parts, fmt.Sprintf("-%d peers", len(c.NodesRemoved)))
+	if len(c.PeersRemoved) > 0 {
+		parts = append(parts, fmt.Sprintf("-%d peers", len(c.PeersRemoved)))
 	}
 	if len(c.PoliciesAdded) > 0 {
 		parts = append(parts, fmt.Sprintf("+%d policies", len(c.PoliciesAdded)))
@@ -184,8 +184,8 @@ func (c *ChangeDetails) Summary() string {
 	return strings.Join(parts, ", ")
 }
 
-// Node is the node information one client side
-type Node struct {
+// Peer is the information of a wireflow peer, contains all the information of a peer
+type Peer struct {
 	Name                string           `json:"name,omitempty"`
 	Description         string           `json:"description,omitempty"`
 	NetworkId           string           `json:"networkId,omitempty"` // belong to which group
@@ -201,7 +201,7 @@ type Node struct {
 	PrivateKey          string           `json:"privateKey,omitempty"`
 	PublicKey           string           `json:"publicKey,omitempty"`
 	AllowedIPs          string           `json:"allowedIps,omitempty"`
-	ReplacePeers        bool             `json:"replacePeers,omitempty"` // whether to replace nodes when updating node
+	ReplacePeers        bool             `json:"replacePeers,omitempty"` // whether to replace peers when updating node
 	Port                int              `json:"port"`
 	Status              utils.NodeStatus `json:"status"`
 	GroupName           string           `json:"groupName"`
@@ -209,11 +209,11 @@ type Node struct {
 	LastUpdatedAt       string           `json:"lastUpdatedAt"`
 
 	//conn type
-	DrpAddr     string      `json:"drpAddr,omitempty"`     // drp server address, if is drp node
-	ConnectType ConnectType `json:"connectType,omitempty"` // DirectType, RelayType, DrpType
+	DrpAddr     string   `json:"drpAddr,omitempty"`     // drp server address, if is drp node
+	ConnectType ConnType `json:"connectType,omitempty"` // DirectType, RelayType, DrpType
 }
 
-// Network is the network information, contains all nodes/policies in the network
+// Network is the network information, contains all peers/policies in the network
 type Network struct {
 	Address     string    `json:"address"`
 	AllowedIps  []string  `json:"allowedIps"`
@@ -221,7 +221,7 @@ type Network struct {
 	NetworkId   string    `json:"networkId"`
 	NetworkName string    `json:"networkName"`
 	Policies    []*Policy `json:"policies"`
-	Nodes       []*Node   `json:"nodes"`
+	Peers       []*Peer   `json:"peers"`
 }
 
 type Policy struct {
@@ -245,7 +245,7 @@ func (m *Message) WithEventType(eventType EventType) *Message {
 	return m
 }
 
-func (m *Message) WithNode(node *Node) *Message {
+func (m *Message) WithNode(node *Peer) *Message {
 	m.Current = node
 	return m
 }
@@ -308,7 +308,7 @@ func (e EventType) String() string {
 	return "unknown"
 }
 
-func (p *Node) String() string {
+func (p *Peer) String() string {
 	keyf := func(value string) string {
 		if value == "" {
 			return ""

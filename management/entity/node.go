@@ -47,7 +47,7 @@ type Node struct {
 	Port                int              `gorm:"column:port" json:"port"`
 	Status              utils.NodeStatus `gorm:"type:int;column:status" json:"status"`
 	ActiveStatus        utils.ActiveStatus
-	ConnectType         internal.ConnectType // direct, relay, drp
+	ConnectType         internal.ConnType // direct, relay, drp
 
 	Group      GroupNode   `gorm:"foreignKey:NodeId;"`
 	NodeLabels []NodeLabel `gorm:"foreignKey:NodeId;"`

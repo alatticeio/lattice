@@ -31,7 +31,7 @@ type DirectOffer struct {
 	Pwd       string `json:"pwd,omitempty"`        // ICE password
 	LocalKey  uint64 `json:"localKey,omitempty"`   // local key for tie breaker
 	Candidate string `json:"candidate, omitempty"` // ; separated
-	Node      *Node  `json:"node,omitempty"`       // Node information, if needed
+	Node      *Peer  `json:"node,omitempty"`       // Node information, if needed
 }
 
 type DirectOfferConfig struct {
@@ -40,7 +40,7 @@ type DirectOfferConfig struct {
 	Pwd        string
 	LocalKey   uint64
 	Candidates string
-	Node       *Node
+	Node       *Peer
 }
 
 func NewDirectOffer(config *DirectOfferConfig) *DirectOffer {
@@ -78,6 +78,6 @@ func (o *DirectOffer) len() int {
 	return 64 + len(o.Candidate)
 }
 
-func (o *DirectOffer) GetNode() *Node {
+func (o *DirectOffer) GetNode() *Peer {
 	return o.Node
 }

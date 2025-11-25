@@ -1,10 +1,10 @@
 package management
 
 import (
+	"wireflow/internal"
 	grpcserver "wireflow/management/grpc"
 
 	"github.com/spf13/viper"
-	"github.com/wireflowio/wireflow-controller/pkg/signals"
 	"k8s.io/klog/v2"
 
 	"wireflow/management/http"
@@ -37,7 +37,7 @@ func Start(listen string) error {
 
 	//cfg.Rdb = redisClient
 	//dbService := db.GetDB(&cfg.Database)
-	ctx := signals.SetupSignalHandler()
+	ctx := internal.SetupSignalHandler()
 	gServer := grpcserver.NewServer(&grpcserver.ServerConfig{
 		Ctx:    ctx,
 		Logger: logger,

@@ -15,13 +15,14 @@
 package internal
 
 import (
+	"fmt"
 	"net"
 	"strings"
 )
 
-func GetCidrFromIP(str string) string {
+func GetCidrFromIP(address string) string {
 
-	_, ipNet, err := net.ParseCIDR("10.0.0.1/24")
+	_, ipNet, err := net.ParseCIDR(fmt.Sprint(address, "/24"))
 	if err != nil {
 		return ""
 	}

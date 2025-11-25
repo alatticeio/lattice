@@ -34,7 +34,7 @@ type manager struct {
 	wgLock       sync.Mutex
 	isForceRelay bool
 	agentManager internal.AgentManagerFactory
-	engine       internal.EngineManager
+	engine       internal.DeviceManager
 	offerHandler internal.OfferHandler
 	//relayer internal.Relay
 
@@ -45,7 +45,7 @@ type manager struct {
 
 func NewManager(isForceRelay bool, udpMux *ice.UDPMuxDefault,
 	universeUdpMux *ice.UniversalUDPMuxDefault,
-	engineManager internal.EngineManager,
+	engineManager internal.DeviceManager,
 	stunUrl string) internal.ProbeManager {
 	return &manager{
 		agentManager:    drp.NewAgentManager(),
@@ -55,7 +55,7 @@ func NewManager(isForceRelay bool, udpMux *ice.UDPMuxDefault,
 		universalUdpMux: universeUdpMux,
 		stunUrl:         stunUrl,
 		engine:          engineManager,
-		logger:          log.NewLogger(log.Loglevel, "probe-manager "),
+		logger:          log.NewLogger(log.Loglevel, "probe-manager"),
 	}
 }
 
@@ -117,12 +117,12 @@ func (m *manager) NewProbe(cfg *internal.ProbeConfig) (internal.Probe, error) {
 	)
 
 	newProbe := &probe{
-		logger:          log.NewLogger(log.Loglevel, "probe "),
+		logger:          log.NewLogger(log.Loglevel, "probe"),
 		connectionState: internal.ConnectionStateNew,
 		gatherCh:        cfg.GatherChan,
 		directChecker:   cfg.DirectChecker,
 		relayChecker:    cfg.RelayChecker,
-		wgConfiger:      m.engine.GetWgConfiger(),
+		wgConfiger:      m.engine.GetDeviceConfiger(),
 		nodeManager:     cfg.NodeManager,
 		offerHandler:    cfg.OfferHandler,
 		isForceRelay:    cfg.IsForceRelay,

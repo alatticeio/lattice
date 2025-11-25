@@ -42,8 +42,8 @@ import (
 }
 */
 
-func (vo *NodeVo) TransferToNode() *internal.Node {
-	return &internal.Node{
+func (vo *NodeVo) TransferToNode() *internal.Peer {
+	return &internal.Peer{
 		Name:                vo.Name,
 		Description:         vo.Description,
 		NetworkId:           vo.NetworkID,

@@ -7,10 +7,12 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/wireflowio/wireflow)](https://goreportcard.com/report/github.com/wireflowio/wireflow)
 ![Platforms](https://img.shields.io/badge/platforms-windows%20%7C%20linux%20%7C%20macos%20%7C%20android%20%7C%20ios-informational)
 
-
 ## Introduction
 
-Wireflow helps you create a secure private network powered by WireGuard, with a web UI to manage devices, access policies, and connectivity. Connect multiple devices across platforms and centrally control access to your own zero‑config overlay network.
+Wireflow helps you create a secure private network powered by WireGuard, with a web UI to manage devices, access
+policies, and connectivity. Connect multiple devices across platforms and centrally control access to your own
+zero‑config overlay network.
+
 ## Technology
 
 - Control plane / Data plane separation
@@ -27,9 +29,8 @@ Wireflow helps you create a secure private network powered by WireGuard, with a 
 ## Network Topology (High level)
 
 - Devices form a mesh overlay using WireGuard.
-- Direct P2P is preferred; if not possible, traffic relays via a TURN/relay node.
+- Direct P2P is preferred; if not possible, traffic relays via a TURN/relay server.
 - A control plane manages device membership, keys, and policy.
-
 
 ## Quick Start
 
@@ -40,6 +41,8 @@ Wireflow helps you create a secure private network powered by WireGuard, with a 
 You should now be able to reach devices over the private network according to the access rules you configured.
 
 ## Installation
+
+- client side installation ( data plane/wireflow agent or app)
 
 Choose the method that best fits your environment.
 
@@ -69,13 +72,25 @@ make build
 # then install or run the built binaries as needed
 ```
 
+## Wireflow signaling server
+
+Wireflow signaling server is required for the Wireflow app to work. Which is used to establish peer connections and to
+exchange peer metadata.
+you can use the public one at https://signaling.wireflow.io, or deploy your own.
+
 ### Desktop/Mobile App
 
 Download installers from the website: [wireflow.io](https://wireflow.io)
 
+- Server side installation (control plane and wireflow services)
+  Wireflow control plane using CRD and Kubernetes manifests. You can also deploy it on your own Kubernetes cluster.
+  follow the instructions in the [wireflow-controller](https://github.com/wireflowio/wireflow-controller) repo.
+
 ## Relay (TURN) Overview
 
-If direct P2P connectivity fails (e.g., strict NAT), Wireflow can relay traffic. A free public relay is available for convenience, and you can also deploy your own. You may use the provided relay image or run a compatible TURN server such as `coturn`.
+If direct P2P connectivity fails (e.g., strict NAT), Wireflow can relay traffic. A free public relay is available for
+convenience, and you can also deploy your own. You may use the provided relay image or run a compatible TURN server such
+as `coturn`.
 
 ## Deploying a Relay (self‑hosted)
 
@@ -89,12 +104,14 @@ Refer to `conf/` and `turn/` directories in this repo for deployment examples an
 
 ## Features
 
+- [ ] All platforms: Linux, macOS, Windows, Android, iOS
+- [x] All autoplay: no manual configuration required
 - [x] Zero‑config onboarding: register, sign in, create a network
-- [x] Security: WireGuard encryption and key management
-- [x] Access control: define rules and policies for who can reach what
-- [x] Web UI: manage devices, rules, and visibility
+- [x] Security: WireGuard encryption and key management in control plane
+- [x] Access control: define rules and policies for who can reach what or where then want
+- [ ] Web UI: manage devices, rules, and visibility
 - [x] Relay fallback: seamless connectivity when direct P2P isn’t possible
-- [x] Multi‑platform: Windows, Linux, macOS, Android, iOS, NAS
+- [ ] Multi‑platform: Windows, Linux, macOS, Android, iOS, NAS
 - [ ] Metrics: traffic, connections, and health insights
 - [ ] Multi‑network: manage multiple isolated overlays
 - [ ] Docker UI: manage networks without a desktop app

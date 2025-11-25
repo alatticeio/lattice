@@ -47,7 +47,7 @@ type probe struct {
 	isStarted       atomic.Bool
 	isForceRelay    bool
 	probeManager    internal.ProbeManager
-	nodeManager     *internal.NodeManager
+	nodeManager     *internal.PeerManager
 	agentManager    internal.AgentManagerFactory
 
 	lastCheck time.Time
@@ -57,7 +57,7 @@ type probe struct {
 
 	drpAddr string
 
-	connectType internal.ConnectType // connectType indicates the type of connection, direct or relay
+	connectType internal.ConnType // connectType indicates the type of connection, direct or relay
 
 	// directChecker is used to check the direct connection
 	directChecker internal.Checker
@@ -67,7 +67,7 @@ type probe struct {
 
 	drpChecker internal.Checker
 
-	wgConfiger internal.ConfigureManager
+	wgConfiger internal.Configurer
 
 	offerHandler internal.OfferHandler
 
@@ -197,6 +197,7 @@ func (p *probe) HandleOffer(ctx context.Context, offer internal.Offer) error {
 		}
 	}
 
+	p.logger.Infof("probe offer received: %v", offer.GetOfferType())
 	return p.ProbeConnect(context.Background(), offer)
 }
 
@@ -253,6 +254,7 @@ func (p *probe) ProbeSuccess(ctx context.Context, publicKey, addr string) error 
 
 	peer := p.nodeManager.GetPeer(publicKey)
 
+	p.logger.Infof("peer %v, address: %v, allowIps: %v connected", peer, peer.Address, peer.AllowedIPs)
 	switch p.connectType {
 	case internal.DrpType:
 
@@ -261,6 +263,11 @@ func (p *probe) ProbeSuccess(ctx context.Context, publicKey, addr string) error 
 		addr = fmt.Sprintf("relay:to=%s//%s", publicKey, addr)
 	default:
 
+	}
+
+	if peer.AllowedIPs == "" {
+		peer.AllowedIPs = fmt.Sprintf("%s/32", peer.Address)
+		p.nodeManager.AddPeer(publicKey, peer)
 	}
 
 	if err = p.wgConfiger.AddPeer(&internal.SetPeer{
@@ -313,7 +320,7 @@ func (p *probe) Start(ctx context.Context, srcKey, dstKey string) error {
 	return nil
 }
 
-func (p *probe) SetConnectType(connType internal.ConnectType) {
+func (p *probe) SetConnectType(connType internal.ConnType) {
 	p.connectType = connType
 	p.logger.Infof("set connect type: %v", connType)
 }

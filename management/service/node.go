@@ -44,7 +44,7 @@ type NodeService interface {
 	UpdateGroupMember(ctx context.Context, dto *dto.GroupMemberDto) error
 	ListGroupMembers(ctx context.Context, params *dto.GroupMemberParams) (*vo.PageVo, error)
 
-	//Node Label
+	//Peer Label
 	AddLabel(ctx context.Context, dto *dto.TagDto) error
 	UpdateLabel(ctx context.Context, dto *dto.TagDto) error
 	DeleteLabel(ctx context.Context, id uint64) error
@@ -52,13 +52,13 @@ type NodeService interface {
 	QueryLabels(ctx context.Context, params *dto.LabelParams) ([]*vo.LabelVo, error)
 	GetLabel(ctx context.Context, id uint64) (*entity.Label, error)
 
-	//GroupVo Node
+	//GroupVo Peer
 	AddGroupNode(ctx context.Context, dto *dto.GroupNodeDto) error
 	RemoveGroupNode(ctx context.Context, id uint64) error
 	ListGroupNodes(ctx context.Context, params *dto.GroupNodeParams) (*vo.PageVo, error)
 	GetGroupNode(ctx context.Context, id uint64) (*entity.GroupNode, error)
 
-	//Node Label
+	//Peer Label
 	AddNodeLabel(ctx context.Context, dto *dto.NodeLabelUpdateReq) error
 	RemoveNodeLabel(ctx context.Context, nodeId, labelId uint64) error
 	ListNodeLabels(ctx context.Context, params *dto.NodeLabelParams) (*vo.PageVo, error)
@@ -251,10 +251,10 @@ func (n *nodeServiceImpl) GetNetworkMap(ctx context.Context, appId, userId strin
 	// find nodes in group
 	nodes, err = n.nodeRepo.FindIn(ctx, nodeIds)
 
-	var resultNodes []*internal.Node
+	var resultNodes []*internal.Peer
 	for _, node := range nodes {
 		if node.Status == utils2.Online {
-			resultNodes = append(resultNodes, &internal.Node{
+			resultNodes = append(resultNodes, &internal.Peer{
 				Name:                node.Name,
 				Description:         node.Description,
 				NetworkId:           node.Group.NetworkId,
@@ -273,7 +273,7 @@ func (n *nodeServiceImpl) GetNetworkMap(ctx context.Context, appId, userId strin
 				Version:             0,
 			})
 		} else {
-			n.logger.Verbosef("Node %s is offline", node.AppID)
+			n.logger.Verbosef("Peer %s is offline", node.AppID)
 		}
 	}
 
@@ -356,7 +356,7 @@ func (n *nodeServiceImpl) UpdateGroupMember(ctx context.Context, dto *dto.GroupM
 	return n.groupMemberRepo.Update(ctx, dto)
 }
 
-// Node Tags
+// Peer Tags
 func (n *nodeServiceImpl) AddLabel(ctx context.Context, dto *dto.TagDto) error {
 	label := strings.Split(dto.Label, ":")
 	if len(label) != 2 || len(label[0]) == 0 || len(label[1]) == 0 {
@@ -447,7 +447,7 @@ func (n *nodeServiceImpl) GetLabel(ctx context.Context, id uint64) (*entity.Labe
 	return n.labelRepo.Find(ctx, id)
 }
 
-// GroupVo Node
+// GroupVo Peer
 func (n *nodeServiceImpl) AddGroupNode(ctx context.Context, dto *dto.GroupNodeDto) error {
 	groupNode := &entity.GroupNode{
 		NetworkId: dto.NetworkId,
@@ -487,7 +487,7 @@ func (n *nodeServiceImpl) GetGroupNode(ctx context.Context, groupNodeId uint64) 
 	return n.groupNodeRepo.Find(ctx, groupNodeId)
 }
 
-// Node Label
+// Peer Label
 func (n *nodeServiceImpl) AddNodeLabel(ctx context.Context, dto *dto.NodeLabelUpdateReq) error {
 
 	needAddLabelId := strings.Split(dto.LabelIds, ",")

@@ -23,12 +23,11 @@ import (
 	"wireflow/pkg/wferrors"
 
 	"github.com/golang/protobuf/proto"
-	"github.com/wireflowio/wireflow-controller/pkg/apis/wireflowcontroller/v1alpha1"
+	"github.com/wireflowio/wireflow-controller/api/v1alpha1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"gorm.io/gorm"
-	"k8s.io/klog/v2"
 )
 
 // Server is grpc server used to list watch resources to nodes.
@@ -39,25 +38,23 @@ type Server struct {
 	mu           sync.Mutex
 	watchManager *internal.WatchManager
 	wgrpc.UnimplementedManagementServiceServer
-	userController     *controller.UserController
-	nodeController     *controller.NodeController
-	nodeResource       *resource.NodeResource
-	port               int
-	tokenController    *controller.TokenController
-	resourceController *resource.Controller
-	loop               *loop.TaskLoop
-	checkInterval      time.Duration
+	userController  *controller.UserController
+	nodeController  *controller.NodeController
+	client          *resource.Client
+	port            int
+	tokenController *controller.TokenController
+	loop            *loop.TaskLoop
+	checkInterval   time.Duration
 }
 
 // ServerConfig used for Server builder
 type ServerConfig struct {
-	Ctx                context.Context
-	Logger             *log.Logger
-	Port               int
-	Database           db.DatabaseConfig
-	DataBaseService    *gorm.DB
-	Rdb                *redis.Client
-	ResourceController *resource.Controller
+	Ctx             context.Context
+	Logger          *log.Logger
+	Port            int
+	Database        db.DatabaseConfig
+	DataBaseService *gorm.DB
+	Rdb             *redis.Client
 }
 
 // RegRequest used for register to grpc server
@@ -90,26 +87,27 @@ func NewServer(cfg *ServerConfig) *Server {
 
 	stopCh := make(chan struct{})
 	wt := internal.NewWatchManager()
-	resourceController, err := resource.NewController(cfg.Ctx, "", wt)
+	client, err := resource.NewClient(wt)
 	if err != nil {
 		panic(err)
 	}
 
-	resourceController.Run(cfg.Ctx)
+	go func() {
+		client.Start()
+	}()
 
 	return &Server{
-		ctx:                cfg.Ctx,
-		stopCh:             stopCh,
-		logger:             cfg.Logger,
-		port:               cfg.Port,
-		userController:     controller.NewUserController(cfg.DataBaseService, cfg.Rdb),
-		nodeController:     controller.NewPeerController(cfg.DataBaseService),
-		tokenController:    controller.NewTokenController(cfg.DataBaseService),
-		watchManager:       wt,
-		resourceController: resourceController,
-		loop:               loop.NewTaskLoop(100),
-		nodeResource:       resource.NewNodeResource(resourceController),
-		checkInterval:      30,
+		ctx:             cfg.Ctx,
+		stopCh:          stopCh,
+		logger:          cfg.Logger,
+		port:            cfg.Port,
+		userController:  controller.NewUserController(cfg.DataBaseService, cfg.Rdb),
+		nodeController:  controller.NewPeerController(cfg.DataBaseService),
+		tokenController: controller.NewTokenController(cfg.DataBaseService),
+		watchManager:    wt,
+		client:          client,
+		loop:            loop.NewTaskLoop(100),
+		checkInterval:   30,
 	}
 }
 
@@ -147,7 +145,7 @@ func (s *Server) Registry(ctx context.Context, in *wgrpc.ManagementMessage) (*wg
 		return nil, err
 	}
 	s.logger.Infof("Received peer info: %+v", dto)
-	node, err := s.nodeResource.Register(ctx, &dto)
+	node, err := s.client.Register(ctx, &dto)
 
 	if err != nil {
 		return nil, err
@@ -172,17 +170,17 @@ func (s *Server) Get(ctx context.Context, in *wgrpc.ManagementMessage) (*wgrpc.M
 	//	return nil, err
 	//}
 
-	node, err := s.nodeResource.GetByAppId(ctx, req.AppId)
+	node, err := s.client.GetByAppId(ctx, req.AppId)
 	if err != nil {
 		return nil, err
 	}
 
 	type result struct {
-		Peer  *internal.Node
+		Peer  *internal.Peer
 		Count int64
 	}
 	body := &result{
-		Peer: &internal.Node{
+		Peer: &internal.Peer{
 			UserId:              node.UserId,
 			Name:                node.Name,
 			Description:         node.Description,
@@ -239,13 +237,13 @@ func (s *Server) List(ctx context.Context, in *wgrpc.ManagementMessage) (*wgrpc.
 
 // GetNetMap used to get node's net map, to connect to when node starting
 func (s *Server) GetNetMap(ctx context.Context, in *wgrpc.ManagementMessage) (*wgrpc.ManagementMessage, error) {
-	logger := klog.FromContext(ctx)
-	logger.Info("GetNetMap starting")
+	logger := s.logger
+	logger.Infof("GetNetMap starting")
 	var req wgrpc.Request
 	if err := proto.Unmarshal(in.Body, &req); err != nil {
 		return nil, status.Errorf(codes.Internal, "unmarshal failed: %v", err)
 	}
-	networkMap, err := s.nodeResource.GetNetworkMap(ctx, "default", req.AppId)
+	networkMap, err := s.client.GetNetworkMap(ctx, "default", req.AppId)
 	if err != nil {
 		return nil, err
 	}
@@ -284,8 +282,10 @@ func (s *Server) Watch(stream wgrpc.ManagementService_WatchServer) error {
 		s.mu.Lock()
 		s.logger.Infof("close watch channel for client: %s", appId)
 		RemoveChannel(appId)
-		// Update node status to inactive when watch connection is closed
-		if err := s.nodeResource.UpdateNodeStatus(ctx, "default", appId, func(status *v1alpha1.NodeStatus) {
+		// Update node status to inactive when watch connection is closed，give 30 second to receive watch message
+		newCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		if err = s.client.UpdateNodeStatus(newCtx, "default", appId, func(status *v1alpha1.NodeStatus) {
 			status.Status = v1alpha1.InActive
 		}); err != nil {
 			s.logger.Errorf("update node %s status to inactive failed: %v", appId, err)
@@ -365,7 +365,7 @@ func (s *Server) Keepalive(stream wgrpc.ManagementService_KeepaliveServer) error
 		defer cancel()
 		req, err = s.recv(newCtx, stream)
 		if err != nil {
-			if err = s.nodeResource.UpdateNodeStatus(ctx, "default", appId, func(status *v1alpha1.NodeStatus) {
+			if err = s.client.UpdateNodeStatus(ctx, "default", appId, func(status *v1alpha1.NodeStatus) {
 				status.Status = v1alpha1.InActive
 			}); err != nil {
 				s.logger.Errorf("update node %s status to inactive failed: %v", appId, err)
@@ -374,10 +374,10 @@ func (s *Server) Keepalive(stream wgrpc.ManagementService_KeepaliveServer) error
 		}
 
 		s.logger.Infof("recv keepalive packet from app, appId: %s", appId)
-		if err = s.nodeResource.UpdateNodeStatus(ctx, "default", appId, func(status *v1alpha1.NodeStatus) {
+		if err = s.client.UpdateNodeStatus(ctx, "default", appId, func(status *v1alpha1.NodeStatus) {
 			status.Status = v1alpha1.Active
 		}); err != nil {
-			s.logger.Errorf("update node %s status to inactive failed: %v", req.AppId, err)
+			s.logger.Errorf("update node %s status to active failed: %v", req.AppId, err)
 		}
 		return nil
 	}
@@ -483,8 +483,8 @@ func (s *Server) VerifyToken(ctx context.Context, in *wgrpc.ManagementMessage) (
 
 // Do will handle cli request
 func (s *Server) Do(ctx context.Context, in *wgrpc.ManagementMessage) (*wgrpc.ManagementMessage, error) {
-	logger := klog.FromContext(ctx)
-	logger.Info("Handle cli request", "pubKey", in.PubKey, "")
+	logger := s.logger
+	logger.Infof("Handle cli request,pubKey: %s", in.PubKey)
 
 	switch in.Type {
 	case wgrpc.Type_MessageTypeJoinNetwork:
@@ -496,7 +496,7 @@ func (s *Server) Do(ctx context.Context, in *wgrpc.ManagementMessage) (*wgrpc.Ma
 			return nil, err
 		}
 		if err := s.JoinNetwork(ctx, req.AppId, req.NetworkId); err != nil {
-			logger.Error(err, "Join network failed")
+			logger.Errorf("Join network failed: %v", err)
 			return nil, err
 		}
 
@@ -514,7 +514,7 @@ func (s *Server) Do(ctx context.Context, in *wgrpc.ManagementMessage) (*wgrpc.Ma
 			return nil, err
 		}
 		if err := s.LeaveNetwork(ctx, req.AppId, req.NetworkId); err != nil {
-			logger.Error(err, "Join network failed")
+			logger.Errorf("Join network failed: %v", err)
 			return nil, err
 		}
 
