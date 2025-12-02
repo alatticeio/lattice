@@ -13,7 +13,7 @@ import (
 	"wireflow/internal"
 	"wireflow/internal/grpc"
 	"wireflow/management/dto"
-	grpclient "wireflow/management/grpc"
+	grpclient "wireflow/management/grpc/client"
 	"wireflow/pkg/config"
 	"wireflow/pkg/log"
 	turnclient "wireflow/pkg/turn"

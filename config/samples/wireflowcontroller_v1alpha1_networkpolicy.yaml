@@ -1,0 +1,9 @@
+apiVersion: wireflowcontroller.wireflow.io/v1alpha1
+kind: NetworkPolicy
+metadata:
+  labels:
+    app.kubernetes.io/name: wireflow-controller
+    app.kubernetes.io/managed-by: kustomize
+  name: networkpolicy-sample
+spec:
+  # TODO(user): Add fields here

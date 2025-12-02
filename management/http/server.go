@@ -42,8 +42,8 @@ type Server struct {
 
 // ServerConfig is the server configuration
 type ServerConfig struct {
-	Listen          string            `mapstructure: "listen,omitempty"`
-	Database        db.DatabaseConfig `mapstructure: "database,omitempty"`
+	Listen          string
+	Database        db.DatabaseConfig
 	DatabaseService *gorm.DB
 	Rdb             *redis.Client
 }

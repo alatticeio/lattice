@@ -1,0 +1,11 @@
+apiVersion: wireflowcontroller.wireflow.io/v1alpha1
+kind: Node
+metadata:
+  labels:
+    app.kubernetes.io/name: wireflow-controller
+    app.kubernetes.io/managed-by: kustomize
+  name: 30a589e950
+spec:
+  appId: 30a589e950
+  networks:
+    - network-sample

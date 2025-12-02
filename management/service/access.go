@@ -415,21 +415,20 @@ func (a *accessPolicyServiceImpl) CheckAccess(ctx context.Context, resourceType 
 			return true, nil
 		}
 
-		groups, count, err := a.sharedRepo.ListGroup(ctx, &dto.SharedGroupParams{
-			GroupParams: dto.GroupParams{
-				GroupId: resourceId,
-			},
-		})
+		//groups, count, err := a.sharedRepo.ListGroup(ctx, &dto.SharedGroupParams{
+		//	GroupParams: dto.GroupParams{
+		//		GroupId: resourceId,
+		//	},
+		//})
 
-		if err != nil || count == 0 {
-			return false, err
-		}
-
-		if groups[0].OwnerId == userId {
-			return true, nil
-		}
+		//if err != nil || count == 0 {
+		//	return false, err
+		//}
+		//
+		//if groups[0].OwnerId == userId {
+		//	return true, nil
+		//}
 	case utils2.Policy:
-		var policies []*entity.SharedPolicy
 		// first check own
 		_, count, err = a.policyRepo.List(ctx, &dto.AccessPolicyParams{
 			OwnId: &userId,
@@ -441,15 +440,15 @@ func (a *accessPolicyServiceImpl) CheckAccess(ctx context.Context, resourceType 
 			return true, nil
 		}
 
-		policies, count, err = a.sharedRepo.ListPolicy(ctx, &dto.SharedPolicyParams{})
-
-		if err != nil || count == 0 {
-			return false, err
-		}
-
-		if policies[0].OwnerId == userId {
-			return true, nil
-		}
+		//policies, count, err = a.sharedRepo.ListPolicy(ctx, &dto.SharedPolicyParams{})
+		//
+		//if err != nil || count == 0 {
+		//	return false, err
+		//}
+		//
+		//if policies[0].OwnerId == userId {
+		//	return true, nil
+		//}
 
 	case utils2.Node:
 		nodes, count, err := a.sharedRepo.ListNode(ctx, &dto.SharedNodeParams{})

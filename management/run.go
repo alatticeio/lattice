@@ -2,7 +2,7 @@ package management
 
 import (
 	"wireflow/internal"
-	grpcserver "wireflow/management/grpc"
+	grpcserver "wireflow/management/grpc/server"
 
 	"github.com/spf13/viper"
 	"k8s.io/klog/v2"

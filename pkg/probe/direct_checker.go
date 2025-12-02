@@ -121,8 +121,8 @@ func (dt *directChecker) ProbeConnect(ctx context.Context, isControlling bool, r
 
 	agent := dt.prober.GetProbeAgent()
 	status := agent.GetStatus()
-	if status.Load() {
-		logger.Infof("agent has started: %v", status)
+	if status {
+		logger.Infof("agent has started")
 		return nil
 	}
 

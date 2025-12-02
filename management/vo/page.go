@@ -5,7 +5,7 @@ package vo
 type PageModel struct {
 	Total   int64 `json:"total" form:"total"`
 	Page    *int  `json:"page" form:"page"`
-	Current *int  `json:"current" form:"current""`
+	Current *int  `json:"current" form:"current"`
 	Size    *int  `json:"size" form:"size"`
 }
 

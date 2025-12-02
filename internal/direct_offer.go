@@ -26,12 +26,12 @@ var (
 )
 
 type DirectOffer struct {
-	WgPort    uint32 `json:"wgPort,omitempty"`     // WireGuard port
-	Ufrag     string `json:"ufrag,omitempty"`      // ICE username fragment
-	Pwd       string `json:"pwd,omitempty"`        // ICE password
-	LocalKey  uint64 `json:"localKey,omitempty"`   // local key for tie breaker
-	Candidate string `json:"candidate, omitempty"` // ; separated
-	Node      *Peer  `json:"node,omitempty"`       // Node information, if needed
+	WgPort    uint32 `json:"wgPort,omitempty"`    // WireGuard port
+	Ufrag     string `json:"ufrag,omitempty"`     // ICE username fragment
+	Pwd       string `json:"pwd,omitempty"`       // ICE password
+	LocalKey  uint64 `json:"localKey,omitempty"`  // local key for tie breaker
+	Candidate string `json:"candidate,omitempty"` // ; separated
+	Node      *Peer  `json:"node,omitempty"`      // Node information, if needed
 }
 
 type DirectOfferConfig struct {

@@ -12,19 +12,8 @@ COPY go.sum go.sum
 # RUN go env -w GOPROXY=https://goproxy.cn,direct && go mod download
 
 # Copy the go source
-COPY main.go main.go
-COPY cmd/ cmd/
-COPY device/ device/
-COPY dns/ dns/
-COPY drp/ drp/
-COPY internal/ internal/
-COPY management/ management/
-COPY monitor/ monitor/
-COPY pkg/ pkg/
-COPY static/ static/
-COPY templates/ templates/
-COPY turn/ turn/
-COPY vendor/ vendor/
+COPY . . 
+
 
 
 

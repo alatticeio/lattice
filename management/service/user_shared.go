@@ -260,7 +260,7 @@ func (s *shareServiceImpl) DeleteSharedNode(ctx context.Context, inviteId, nodeI
 			InviteId:   inviteId,
 			ResourceId: nodeId,
 		})
-		return nil
+		//return nil
 	})
 }
 
@@ -325,7 +325,7 @@ func (s *shareServiceImpl) DeleteSharedLabel(ctx context.Context, inviteId, labe
 			InviteId:   inviteId,
 			ResourceId: labelId,
 		})
-		return nil
+		//return nil
 	})
 }
 

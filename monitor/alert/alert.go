@@ -15,15 +15,14 @@
 package alert
 
 import (
-	"log"
 	"time"
 	"wireflow/monitor/collector"
 )
 
 // ThresholdAlerter 基于阈值的告警器
 type ThresholdAlerter struct {
-	rules     []AlertRule
-	notifiers []Notifier
+	rules []AlertRule
+	//notifiers []Notifier
 }
 
 type AlertRule struct {
@@ -42,10 +41,10 @@ func (a *ThresholdAlerter) Evaluate(metrics []collector.Metric) ([]collector.Ale
 
 func (a *ThresholdAlerter) Send(alerts []collector.Alert) error {
 	// 通过各种渠道发送告警
-	for _, notifier := range a.notifiers {
-		if err := notifier.Notify(alerts); err != nil {
-			log.Printf("Error sending alerts via %s: %v", notifier.Name(), err)
-		}
-	}
+	//for _, notifier := range a.notifiers {
+	//	if err := notifier.Notify(alerts); err != nil {
+	//		log.Printf("Error sending alerts via %s: %v", notifier.Name(), err)
+	//	}
+	//}
 	return nil
 }

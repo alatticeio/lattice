@@ -488,7 +488,7 @@ func (g *groupServiceImpl) JoinGroup(ctx context.Context, params *dto.ApiCommand
 			})
 		}
 
-		return nil
+		//return nil
 	})
 }
 

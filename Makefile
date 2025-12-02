@@ -1,5 +1,5 @@
 # Image URL to use all building/pushing image targets
-IMG ?= registry.cn-hangzhou.aliyuncs.com/wireflow-io/wireflow:latest
+IMG ?= registry.cn-hangzhou.aliyuncs.com/wireflow-io/wireflow-controller:latest
 
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
 ifeq (,$(shell go env GOBIN))
@@ -99,8 +99,29 @@ lint-config: golangci-lint ## Verify golangci-lint linter configuration
 ##@ Build
 
 .PHONY: build
-build: manifests generate fmt vet ## Build manager binary.
-	go build -o bin/manager cmd/main.go
+build-wireflow: fmt vet ## Build manager binary.
+	docker run --rm \
+    		--env CGO_ENABLED=0 \
+    		--env GOPROXY=https://goproxy.cn \
+    		--env GOOS=linux \
+    		--env GOARCH=amd64 \
+    		-v $(shell pwd):/root/wireflow \
+    		-w /root/wireflow \
+    		registry.cn-hangzhou.aliyuncs.com/wireflow-io/golang:1.25.2 \
+    		go build -v -o /root/wireflow/bin/wireflow \
+    		-v /root/wireflow/cmd/wireflow/main.go
+
+build-wfctl: fmt vet ## Build manager binary.
+	docker run --rm \
+    		--env CGO_ENABLED=0 \
+    		--env GOPROXY=https://goproxy.cn \
+    		--env GOOS=linux \
+    		--env GOARCH=amd64 \
+    		-v $(shell pwd):/root/wireflow \
+    		-w /root/wireflow \
+    		registry.cn-hangzhou.aliyuncs.com/wireflow-io/golang:1.25.2 \
+    		go build -v -o /root/wireflow/bin/wfctl \
+    		-v /root/wireflow/cmd/wfctl/main.go
 
 .PHONY: run
 run: manifests generate fmt vet ## Run a controller from your host.

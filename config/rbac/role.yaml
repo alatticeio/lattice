@@ -1,0 +1,50 @@
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: manager-role
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - wireflowcontroller.wireflow.io
+  resources:
+  - networkpolicies
+  - networks
+  - nodes
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - wireflowcontroller.wireflow.io
+  resources:
+  - networkpolicies/finalizers
+  - networks/finalizers
+  - nodes/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - wireflowcontroller.wireflow.io
+  resources:
+  - networkpolicies/status
+  - networks/status
+  - nodes/status
+  verbs:
+  - get
+  - patch
+  - update

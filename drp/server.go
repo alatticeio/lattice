@@ -18,8 +18,8 @@ import (
 	"context"
 	"fmt"
 	"wireflow/internal"
-	grpc3 "wireflow/internal/grpc"
-	grpc2 "wireflow/management/grpc"
+	internalgrpc "wireflow/internal/grpc"
+	grpclient "wireflow/management/grpc/client"
 	"wireflow/pkg/wferrors"
 
 	"golang.org/x/sync/errgroup"
@@ -40,11 +40,11 @@ type Server struct {
 	mu     sync.RWMutex
 	ru     sync.Mutex
 	logger *log.Logger
-	grpc3.UnimplementedDrpServerServer
+	internalgrpc.UnimplementedDrpServerServer
 	listen      string
 	userService service.UserService
-	mgtClient   *grpc2.Client
-	clients     map[string]chan *grpc3.DrpMessage
+	mgtClient   *grpclient.Client
+	clients     map[string]chan *internalgrpc.DrpMessage
 	msgManager  *MessageManager
 }
 
@@ -58,7 +58,7 @@ type ServerConfig struct {
 
 func NewServer(cfg *ServerConfig) (*Server, error) {
 
-	mgtClient, err := grpc2.NewClient(&grpc2.GrpcConfig{
+	mgtClient, err := grpclient.NewClient(&grpclient.GrpcConfig{
 		Addr:   fmt.Sprintf("%s:%d", internal.ManagementDomain, internal.DefaultSignalingPort),
 		Logger: log.NewLogger(log.Loglevel, "mgt-client"),
 	})
@@ -70,7 +70,7 @@ func NewServer(cfg *ServerConfig) (*Server, error) {
 		logger:     cfg.Logger,
 		mgtClient:  mgtClient,
 		msgManager: NewMessageManager(),
-		clients:    make(map[string]chan *grpc3.DrpMessage, 1),
+		clients:    make(map[string]chan *internalgrpc.DrpMessage, 1),
 	}, nil
 }
 
@@ -102,15 +102,15 @@ func (s *Server) Start() error {
 		grpc.MaxConcurrentStreams(1000),
 		grpc.KeepaliveParams(kasp),
 		grpc.KeepaliveEnforcementPolicy(kaep))
-	grpc3.RegisterDrpServerServer(grpcServer, s)
+	internalgrpc.RegisterDrpServerServer(grpcServer, s)
 	s.logger.Verbosef("Signaling grpc server listening at %v", listen.Addr())
 	return grpcServer.Serve(listen)
 }
 
-func (s *Server) HandleMessage(stream grpc.BidiStreamingServer[grpc3.DrpMessage, grpc3.DrpMessage]) error {
+func (s *Server) HandleMessage(stream grpc.BidiStreamingServer[internalgrpc.DrpMessage, internalgrpc.DrpMessage]) error {
 
 	var (
-		msgChan chan *grpc3.DrpMessage
+		msgChan chan *internalgrpc.DrpMessage
 		ok      bool
 		err     error
 	)
@@ -130,11 +130,11 @@ func (s *Server) HandleMessage(stream grpc.BidiStreamingServer[grpc3.DrpMessage,
 	s.logger.Verbosef("received drp request from %s, to: %s, msgType: %v,  data: %s", msg.From, msg.To, msg.MsgType, msg.Body)
 
 	switch msg.MsgType {
-	case grpc3.MessageType_MessageRegisterType:
+	case internalgrpc.MessageType_MessageRegisterType:
 		// create channel for client
 		s.ru.Lock()
 		if msgChan, ok = s.clients[msg.From]; !ok {
-			msgChan = make(chan *grpc3.DrpMessage, 10000)
+			msgChan = make(chan *internalgrpc.DrpMessage, 10000)
 			s.clients[msg.From] = msgChan
 			s.logger.Infof("create channel for %v success", msg.From)
 		} else {
@@ -160,7 +160,7 @@ func (s *Server) HandleMessage(stream grpc.BidiStreamingServer[grpc3.DrpMessage,
 	return eg.Wait()
 }
 
-func (s *Server) sendLoop(ctx context.Context, msgChan chan *grpc3.DrpMessage, stream grpc.BidiStreamingServer[grpc3.DrpMessage, grpc3.DrpMessage]) error {
+func (s *Server) sendLoop(ctx context.Context, msgChan chan *internalgrpc.DrpMessage, stream grpc.BidiStreamingServer[internalgrpc.DrpMessage, internalgrpc.DrpMessage]) error {
 	for {
 		select {
 		case forwardMsg := <-msgChan:
@@ -183,7 +183,7 @@ func (s *Server) sendLoop(ctx context.Context, msgChan chan *grpc3.DrpMessage, s
 	}
 }
 
-func (s *Server) receiveLoop(ctx context.Context, stream grpc.BidiStreamingServer[grpc3.DrpMessage, grpc3.DrpMessage]) error {
+func (s *Server) receiveLoop(ctx context.Context, stream grpc.BidiStreamingServer[internalgrpc.DrpMessage, internalgrpc.DrpMessage]) error {
 	for {
 		select {
 		case <-ctx.Done():
@@ -207,7 +207,7 @@ func (s *Server) receiveLoop(ctx context.Context, stream grpc.BidiStreamingServe
 			}
 
 			switch msg.MsgType {
-			case grpc3.MessageType_MessageHeartBeatType:
+			case internalgrpc.MessageType_MessageHeartBeatType:
 				s.msgManager.ReleaseMessage(msg)
 			default:
 				s.mu.RLock()

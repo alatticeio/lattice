@@ -303,7 +303,7 @@ func (n *nodeServiceImpl) GetNetworkMap(ctx context.Context, appId, userId strin
 		Nodes: resultNodes,
 	}, nil
 
-	return nil, nil
+	//return nil, nil
 }
 
 // GroupVo Members

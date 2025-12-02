@@ -17,7 +17,7 @@ package drp
 import (
 	"fmt"
 	"testing"
-	client2 "wireflow/management/grpc"
+	client2 "wireflow/management/grpc/client"
 	"wireflow/pkg/config"
 	"wireflow/pkg/log"
 )

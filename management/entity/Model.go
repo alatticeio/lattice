@@ -1,8 +1,9 @@
 package entity
 
 import (
-	"gorm.io/gorm"
 	"time"
+
+	"gorm.io/gorm"
 )
 
 // Model a basic GoLang struct which includes the following fields: ID, CreatedAt, UpdatedAt, DeletedAt
@@ -12,8 +13,8 @@ import (
 //	  gorm.Model
 //	}
 type Model struct {
-	ID        uint64         `gorm:"primarykey" json:"id,omitempty" :"id"`
-	CreatedAt time.Time      `json:"created_at" json:"created_at" :"created_at"`
-	UpdatedAt time.Time      `json:"updated_at" :"updated_at"`
-	DeletedAt gorm.DeletedAt `gorm:"index" json:"deleted_at" :"deleted_at"`
+	ID        uint64         `gorm:"primary_key" json:"id"`
+	CreatedAt time.Time      `json:"created_at" json:"created_at"`
+	UpdatedAt time.Time      `json:"updated_at" json:"updated_at"`
+	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
 }

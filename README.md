@@ -9,17 +9,25 @@
 
 ## Introduction
 
-Wireflow helps you create a secure private network powered by WireGuard, with a web UI to manage devices, access
+Wireflow is kubernetes-native orchestration for encrypted private networks powered by WireGuard.
+
+Wireflow as a data-plane helps you create a secure private network powered by WireGuard, with a web UI to manage
+devices, access
 policies, and connectivity. Connect multiple devices across platforms and centrally control access to your own
 zero‑config overlay network.
+
+wireflow-controller has control-plane component which watches and reconciles Wireflow Custom Resource Definitions (CRDs)
+and propagates desired state to data-plane nodes to realize virtual network orchestration and access control.
+
+For more information, please visit our website: [wireflowio.com](https://wireflowio.com)
 
 ## Technology
 
 - Control plane / Data plane separation
 - WireGuard for encrypted tunnels (ChaCha20‑Poly1305)
-- Automatic key distribution and rotation via the control plane
+- Automatic key distribution and rotation and zero-touch , all via the control plane
 - NAT traversal: direct P2P first, relay (TURN) fallback when required
-- Peer discovery and connection orchestration engine
+- Peer discovery and connection orchestration via kubernetes native CRDs controller.
 - Private DNS for service/name resolution inside the overlay
 - Metrics and monitoring (Prometheus‑friendly exporters)
 - Management API and Web UI with RBAC‑ready access policies
@@ -28,48 +36,50 @@ zero‑config overlay network.
 
 ## Network Topology (High level)
 
-- Devices form a mesh overlay using WireGuard.
+- Devices form a mesh overlay using WireGuard protocol.
 - Direct P2P is preferred; if not possible, traffic relays via a TURN/relay server.
 - A control plane manages device membership, keys, and policy.
 
 ## Quick Start
 
-1. Register an account on Wireflow and sign in.
-2. Create a network in the web UI and follow the prompts to add devices.
-3. Install and run the Wireflow app/agent on each device, sign in with your account, and join the network.
+Follow the steps on: [wireflow.io](https://wireflow.io)
 
-You should now be able to reach devices over the private network according to the access rules you configured.
+## Building / Deploy
 
-## Installation
+## Requirements
 
-- client side installation ( data plane/wireflow agent or app)
+- go version v1.24.0+
+- docker version 17.03+.
+- kubectl version v1.11.3+.
+- Access to a Kubernetes v1.11.3+ cluster.
 
-Choose the method that best fits your environment.
-
-### Docker
-
-```bash
-docker run -d \
-  --name wireflow \
-  --cap-add NET_ADMIN \
-  --device /dev/net/tun \
-  -p 51820:51820/udp \
-  wireflow/wireflow:latest
-```
-
-### Binary (one‑liner)
-
-```bash
-bash <(curl -fsSL https://wireflow.io/install.sh)
-```
-
-### From source
+### Building Client
 
 ```bash
 git clone https://github.com/wireflowio/wireflow.git
 cd wireflow
-make build
+make build-wireflow
 # then install or run the built binaries as needed
+```
+
+### Building Controller
+
+```bash
+make build-wfctl
+# then install or run the built binaries as needed
+```
+
+### Deploying Wireflow-controller
+
+```bash
+make install && make deploy
+# 
+```
+
+### Uninstall
+
+```bash
+make uninstall
 ```
 
 ## Wireflow signaling server
@@ -77,14 +87,6 @@ make build
 Wireflow signaling server is required for the Wireflow app to work. Which is used to establish peer connections and to
 exchange peer metadata.
 you can use the public one at https://signaling.wireflow.io, or deploy your own.
-
-### Desktop/Mobile App
-
-Download installers from the website: [wireflow.io](https://wireflow.io)
-
-- Server side installation (control plane and wireflow services)
-  Wireflow control plane using CRD and Kubernetes manifests. You can also deploy it on your own Kubernetes cluster.
-  follow the instructions in the [wireflow-controller](https://github.com/wireflowio/wireflow-controller) repo.
 
 ## Relay (TURN) Overview
 

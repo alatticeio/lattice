@@ -94,8 +94,11 @@ func NewAgent(params *AgentConfig) (*Agent, error) {
 	return a, nil
 }
 
-func (agent *Agent) GetStatus() atomic.Bool {
-	return agent.started
+func (agent *Agent) GetStatus() bool {
+	if agent.started.Load() {
+		return true
+	}
+	return false
 }
 
 func (agent *Agent) GetUniversalUDPMuxDefault() *ice.UniversalUDPMuxDefault {
