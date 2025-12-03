@@ -1,4 +1,4 @@
-// Copyright 2025 Wireflow.io, Inc.
+// Copyright 2025 wireflowio.com, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -103,7 +103,7 @@ func (s *Server) Start() error {
 		grpc.KeepaliveParams(kasp),
 		grpc.KeepaliveEnforcementPolicy(kaep))
 	internalgrpc.RegisterDrpServerServer(grpcServer, s)
-	s.logger.Verbosef("Signaling grpc server listening at %v", listen.Addr())
+	s.logger.Infof("Signaling grpc server listening at %v", listen.Addr())
 	return grpcServer.Serve(listen)
 }
 

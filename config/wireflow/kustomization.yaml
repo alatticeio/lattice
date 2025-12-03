@@ -1,0 +1,7 @@
+resources:
+  - ./dev
+namespace: wireflow
+images:
+  - name: controller
+    newName: registry.cn-hangzhou.aliyuncs.com/wireflow-io/wireflow-controller
+    newTag: latest

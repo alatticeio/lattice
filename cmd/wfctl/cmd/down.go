@@ -1,4 +1,4 @@
-// Copyright 2025 Wireflow.io, Inc.
+// Copyright 2025 wireflowio.com, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,13 +16,14 @@ package cmd
 
 import (
 	"wireflow/client"
+	"wireflow/pkg/config"
 	"wireflow/pkg/log"
 
 	"github.com/spf13/cobra"
 )
 
 func stop() *cobra.Command {
-	var flags client.Flags
+	var flags config.Flags
 	cmd := &cobra.Command{
 		Short:        "down",
 		Use:          "down",
@@ -39,7 +40,7 @@ func stop() *cobra.Command {
 	return cmd
 }
 
-func stopWireflowd(flags *client.Flags) error {
+func stopWireflowd(flags *config.Flags) error {
 	if flags.LogLevel == "" {
 		flags.LogLevel = "error"
 	}

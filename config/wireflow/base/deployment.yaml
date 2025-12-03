@@ -1,0 +1,104 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  labels:
+    app.kubernetes.io/name: wireflow-controller
+    app.kubernetes.io/managed-by: kustomize
+  name: wireflow
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: wireflow-control
+  labels:
+    k8s-app: wireflow-control
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      k8s-app: wireflow-control
+  template:
+    metadata:
+      labels:
+        k8s-app: wireflow-control
+    spec:
+      #      imagePullSecrets:
+      #        - name: ali-registry
+      serviceAccountName: wireflow-controller-admin
+      containers:
+        - name: wireflow-control
+          image: controller:latest
+          imagePullPolicy: Always
+          args:
+            - "start"
+            - "manager"
+            - "--log-level=INFO"
+          volumeMounts:
+            - mountPath: /app/control.yaml
+              name: conf
+              subPath: control.yaml
+      volumes:
+        - name: conf
+          configMap:
+            name: wireflow-control-config
+            items:
+              - key: control.yaml
+                path: control.yaml
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: wireflow-signaling
+  labels:
+    k8s-app: wireflow-signaling
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      k8s-app: wireflow-signaling
+  template:
+    metadata:
+      labels:
+        k8s-app: wireflow-signaling
+    spec:
+      hostAliases:
+        - ip: "10.96.98.115"
+          hostnames:
+            - "console.wireflow.io"
+      containers:
+        - name: wireflow-signaling
+          image: controller:latest
+          imagePullPolicy: Always
+          args:
+            - "start"
+            - "signaling"
+            - "--log-level=verbose"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: wireflow-turn
+  labels:
+    k8s-app: wireflow-turn
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      k8s-app: wireflow-turn
+  template:
+    metadata:
+      labels:
+        k8s-app: wireflow-turn
+    spec:
+      hostAliases:
+        - ip: "10.96.80.105"
+          hostnames:
+            - "console.wireflow.io"
+      containers:
+        - name: wireflow-turn
+          image: controller:latest
+          imagePullPolicy: Always
+          args:
+            - "start"
+            - "turn"
+            - "--log-level=verbose"

@@ -1,4 +1,4 @@
-// Copyright 2025 Wireflow.io, Inc.
+// Copyright 2025 wireflowio.com, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -36,7 +36,7 @@ import (
 )
 
 // Start start wireflow
-func Start(flags *Flags) error {
+func Start(flags *config.Flags) error {
 	var (
 		logFile *os.File
 		path    string
@@ -239,7 +239,7 @@ func Start(flags *Flags) error {
 }
 
 // Stop stop wireflow daemon
-func Stop(flags *Flags) error {
+func Stop(flags *config.Flags) error {
 	interfaceName := flags.InterfaceName
 	if flags.InterfaceName == "" {
 		ctr, err := wgctrl.New()
@@ -263,7 +263,7 @@ func Stop(flags *Flags) error {
 
 }
 
-func Status(flags *Flags) error {
+func Status(flags *config.Flags) error {
 	interfaceName := flags.InterfaceName
 	if flags.InterfaceName == "" {
 		ctr, err := wgctrl.New()

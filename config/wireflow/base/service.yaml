@@ -1,0 +1,50 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: wireflow-turn-svc
+  namespace: wireflow
+spec:
+  ports:
+    - protocol: TCP
+      port: 32132
+      targetPort: 32132
+      nodePort: 32132
+  selector:
+    k8s-app: wireflow-turn
+  type: NodePort
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: wireflow-control-svc
+  namespace: wireflow
+spec:
+  ports:
+    - protocol: TCP
+      name: http
+      port: 8080
+      targetPort: 8080
+      nodePort: 32138
+    - protocol: TCP
+      name: grpc
+      port: 32051
+      targetPort: 32051
+      nodePort: 32051
+  selector:
+    k8s-app: wireflow-control
+  type: NodePort
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: wireflow-signaling-svc
+  namespace: wireflow
+spec:
+  ports:
+    - protocol: TCP
+      port: 32133
+      targetPort: 32132
+      nodePort: 32133
+  selector:
+    k8s-app: wireflow-signaling
+  type: NodePort

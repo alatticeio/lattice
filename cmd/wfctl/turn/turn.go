@@ -1,4 +1,4 @@
-// Copyright 2025 Wireflow.io, Inc.
+// Copyright 2025 wireflowio.com, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -26,6 +26,7 @@ import (
 type turnOptions struct {
 	PublicIP string
 	Port     int
+	LogLevel string
 }
 
 func NewTurnCmd() *cobra.Command {
@@ -46,11 +47,16 @@ func NewTurnCmd() *cobra.Command {
 	fs := cmd.Flags()
 	fs.StringVarP(&opts.PublicIP, "public-ip", "u", "", "public ip for turn")
 	fs.IntVarP(&opts.Port, "port", "p", 3478, "port for turn")
-
+	fs.StringVarP(&opts.LogLevel, "log-level", "", "silent", "log level (silent, info, error, warn, verbose)")
 	return cmd
 }
 
 func runTurn(opts turnOptions) error {
+	if opts.LogLevel == "" {
+		opts.LogLevel = "error"
+	}
+
+	log.SetLogLevel(opts.LogLevel)
 	conf, err := config.GetLocalConfig()
 	if err != nil {
 		return err

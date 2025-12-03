@@ -20,7 +20,7 @@ spec:
       serviceAccountName: wireflow-controller-admin
       containers:
         - name: wireflow-control
-          image: registry.cn-hangzhou.aliyuncs.com/wireflow-io/wireflow
+          image: controller:latest
           imagePullPolicy: Always
           command: [ "wireflow", "manager" ]
           args:
@@ -36,27 +36,6 @@ spec:
             items:
               - key: control.yaml
                 path: control.yaml
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: wireflow-control-svc
-  namespace: wireflow
-spec:
-  ports:
-    - protocol: TCP
-      name: http
-      port: 8080
-      targetPort: 8080
-      nodePort: 32138
-    - protocol: TCP
-      name: grpc
-      port: 32051
-      targetPort: 32051
-      nodePort: 32051
-  selector:
-    k8s-app: wireflow-control
-  type: NodePort
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -151,40 +130,3 @@ spec:
           image: registry.cn-hangzhou.aliyuncs.com/wireflow-io/wireflow:latest
           imagePullPolicy: Always
           command: [ "wireflow", "turn" ]
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: wireflow-turn-svc
-  namespace: wireflow
-spec:
-  ports:
-    - protocol: TCP
-      port: 32132
-      targetPort: 32132
-      nodePort: 32132
-  selector:
-    k8s-app: wireflow-turn
-  type: NodePort
----
-# ServiceAccount
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: wireflow-controller-admin
-  namespace: wireflow
-
----
-# ClusterRoleBinding - 直接绑定到 cluster-admin
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  name: wireflow-controller-admin
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: cluster-admin  # 使用 Kubernetes 内置的 cluster-admin 角色
-subjects:
-  - kind: ServiceAccount
-    name: wireflow-controller-admin
-    namespace: wireflow

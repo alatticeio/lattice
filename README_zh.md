@@ -9,7 +9,15 @@
 
 ## 介绍
 
-Wireflow 基于 WireGuard 帮助你快速创建安全的私有网络，并提供 Web UI 管理设备、访问策略与连接性。你可以跨平台连接多台设备，并在中心化控制面板中以零配置方式管理你的叠加网络。
+Wireflow：您的零配置安全私有网络解决方案。
+
+借助 WireGuard 的高性能加密能力，Wireflow 帮助您轻松构建一个跨平台的安全覆盖网络。
+
+Wireflow 的独特之处在于其 Kubernetes 原生的控制平面：wireflow-controller 通过监听 CRD 自动完成网络编排和访问控制。用户可以通过直观的 Web UI 或声明式配置，集中管理设备连接、访问策略和整个网络状态。
+
+核心价值： 告别复杂的 VPN 配置，实现企业级零信任网络自动化。
+
+了解更多详情，请访问官网：[wireflowio.com](https://wireflow.io)
 
 ## 技术架构
 

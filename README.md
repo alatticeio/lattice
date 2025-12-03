@@ -9,40 +9,61 @@
 
 ## Introduction
 
-Wireflow is kubernetes-native orchestration for encrypted private networks powered by WireGuard.
+**Wireflow: Kubernetes-Native Network Orchestration using WireGuard.**
 
-Wireflow as a data-plane helps you create a secure private network powered by WireGuard, with a web UI to manage
-devices, access
-policies, and connectivity. Connect multiple devices across platforms and centrally control access to your own
-zero‑config overlay network.
+Wireflow provides a complete solution for creating and managing a secure, encrypted overlay network powered by
+WireGuard.
 
-wireflow-controller has control-plane component which watches and reconciles Wireflow Custom Resource Definitions (CRDs)
-and propagates desired state to data-plane nodes to realize virtual network orchestration and access control.
+- Control Plane: The wireflow-controller is the Kubernetes-native component. It continuously watches and reconciles
+  Wireflow CRDs (Custom Resource Definitions), serving as the single source of truth for the virtual network state.
+- Data Plane: The Wireflow data plane establishes secure, zero-config P2P tunnels across all devices and platforms. It
+  receives the desired state from the controller, enabling automated orchestration of connectivity and granular access
+  policies.
 
-For more information, please visit our website: [wireflowio.com](https://wireflowio.com)
+For more information, please visit our official website: [wireflowio.com](https://wireflowio.com)
 
-## Technology
+## Wireflow Technical Capabilities
 
-- Control plane / Data plane separation
-- WireGuard for encrypted tunnels (ChaCha20‑Poly1305)
-- Automatic key distribution and rotation and zero-touch , all via the control plane
-- NAT traversal: direct P2P first, relay (TURN) fallback when required
-- Peer discovery and connection orchestration via kubernetes native CRDs controller.
-- Private DNS for service/name resolution inside the overlay
-- Metrics and monitoring (Prometheus‑friendly exporters)
-- Management API and Web UI with RBAC‑ready access policies
-- Deployable via Docker; Kubernetes manifests and examples in `conf/`
-- Cross‑platform agents (Linux, macOS, Windows; mobile in progress)
+**1. Architecture & Core Security**
 
-## Network Topology (High level)
+- Decoupled Architecture: Clear Control Plane / Data Plane separation for enhanced scalability, performance, and
+  security.
+- High-Performance Tunnels: Utilizes WireGuard for secure, high-speed encrypted tunnels (ChaCha20-Poly1305).
+- Zero-Touch Key Management: Automatic key distribution and rotation, with zero-touch provisioning handled entirely by
+  the Control Plane.
 
-- Devices form a mesh overlay using WireGuard protocol.
-- Direct P2P is preferred; if not possible, traffic relays via a TURN/relay server.
-- A control plane manages device membership, keys, and policy.
+**2.Kubernetes & Networking Automation**
+
+- Kubernetes-Native Orchestration: Peer discovery and connection orchestration are managed directly through a
+  Kubernetes-native CRDs controller.
+- Seamless NAT Traversal: Achieves resilient connectivity by prioritizing direct P2P connection attempts, with an
+  automated relay (TURN) fallback when required.
+- Private Service Resolution: Integrated Private DNS service for secure and simplified service/name resolution within
+  the overlay network.
+
+**3.Management & Observability**
+
+- Centralized Management: Features a powerful Management API and Web UI with built-in RBAC-ready (Role-Based Access
+  Control) access policies.
+- Operational Visibility: Provides Prometheus-friendly exporters for robust metrics and monitoring integration.
+- Flexible Deployment: Easily deployable via Docker; ready-to-use Kubernetes manifests and examples are provided in the
+  conf/ directory.
+
+Broad Platform Support: Cross-platform agents supporting Linux, macOS, and Windows (with mobile support currently in
+progress).
+
+## Network Topology (High-Level Overview)
+
+- P2P Mesh Overlay: Devices automatically form a full mesh overlay network utilizing the WireGuard protocol for secure,
+  low-latency communication.
+- Intelligent NAT Traversal: Connectivity prioritizes direct P2P tunnels; if direct connection fails, traffic seamlessly
+  relays via a dedicated TURN/relay server.
+- Centralized Orchestration: A Kubernetes-native control plane manages device lifecycle, cryptographic keys, and access
+  policies, ensuring zero-touch configuration across the entire network.
 
 ## Quick Start
 
-Follow the steps on: [wireflow.io](https://wireflow.io)
+Follow the steps on: [wireflowio.com](https://wireflowio.com)
 
 ## Building / Deploy
 
@@ -53,7 +74,9 @@ Follow the steps on: [wireflow.io](https://wireflow.io)
 - kubectl version v1.11.3+.
 - Access to a Kubernetes v1.11.3+ cluster.
 
-### Building Client
+## Steps
+
+**1. Building Client**
 
 ```bash
 git clone https://github.com/wireflowio/wireflow.git
@@ -62,14 +85,21 @@ make build-wireflow
 # then install or run the built binaries as needed
 ```
 
-### Building Controller
+**2. Building Controller**
 
 ```bash
 make build-wfctl
 # then install or run the built binaries as needed
 ```
 
-### Deploying Wireflow-controller
+**3. Deploying Wireflow-controller & CRDs**
+
+```bash
+make install && make deploy
+# 
+```
+
+**3. Deploying management / DRP / TURN server**
 
 ```bash
 make install && make deploy
@@ -82,13 +112,15 @@ make install && make deploy
 make uninstall
 ```
 
-## Wireflow signaling server
+## Wireflow Components
+
+**1. Wireflow signaling server**
 
 Wireflow signaling server is required for the Wireflow app to work. Which is used to establish peer connections and to
 exchange peer metadata.
 you can use the public one at https://signaling.wireflow.io, or deploy your own.
 
-## Relay (TURN) Overview
+**2. Relay (TURN) Overview**
 
 If direct P2P connectivity fails (e.g., strict NAT), Wireflow can relay traffic. A free public relay is available for
 convenience, and you can also deploy your own. You may use the provided relay image or run a compatible TURN server such
@@ -104,20 +136,25 @@ Basic steps:
 
 Refer to `conf/` and `turn/` directories in this repo for deployment examples and manifests.
 
-## Features
+## Wireflow Features, Roadmap, and Roadmap Progress
 
-- [ ] All platforms: Linux, macOS, Windows, Android, iOS
-- [x] All autoplay: no manual configuration required
-- [x] Zero‑config onboarding: register, sign in, create a network
-- [x] Security: WireGuard encryption and key management in control plane
+**1. Core Features**
+These features represent the foundational, working architecture of Wireflow, focusing on security and automation.
+
+- Zero-Touch Onboarding: Users can register, sign in, and instantly create an encrypted private network without
+  requiring any manual tunnel configuration.
+- Automatic Enrollment & Autoplay: Devices automatically enroll and configure themselves upon joining, ensuring the
+  tunnel is established without manual intervention.
+- Security Foundation: Utilizes WireGuard encryption (ChaCha20-Poly1305) with all cryptographic key management
+  centralized within the Control Plane.
+- Access Control: A robust policy engine is implemented to define granular rules and policies, controlling which devices
+  can reach specific endpoints within the network.
+- Resilient Connectivity: Implements Relay Fallback to ensure seamless connectivity when direct Peer-to-Peer (P2P)
+  connections are blocked by strict NATs or firewalls.
+
+**1. Product Roadmap and Milestones**
+
 - [x] Access control: define rules and policies for who can reach what or where then want
-- [ ] Web UI: manage devices, rules, and visibility
-- [x] Relay fallback: seamless connectivity when direct P2P isn’t possible
-- [ ] Multi‑platform: Windows, Linux, macOS, Android, iOS, NAS
-- [ ] Metrics: traffic, connections, and health insights
-- [ ] Multi‑network: manage multiple isolated overlays
-- [ ] Docker UI: manage networks without a desktop app
-- [ ] DNS: built‑in service and custom domain support
 
 ## License
 
