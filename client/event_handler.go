@@ -24,12 +24,12 @@ import (
 
 // event handler for wireflow to handle event from management
 type EventHandler struct {
-	deviceManager internal.DeviceManager
+	deviceManager internal.IClient
 	logger        *log.Logger
 	client        *mgtclient.Client
 }
 
-func NewEventHandler(e internal.DeviceManager, logger *log.Logger, client *mgtclient.Client) *EventHandler {
+func NewEventHandler(e internal.IClient, logger *log.Logger, client *mgtclient.Client) *EventHandler {
 	return &EventHandler{
 		deviceManager: e,
 		logger:        logger,

@@ -48,14 +48,14 @@ import (
 
 var (
 	once sync.Once
-	_    internal.DeviceManager = (*Engine)(nil)
+	_    internal.IClient = (*Engine)(nil)
 )
 
 const (
 	DefaultMTU = 1420
 )
 
-// Device is the daemon that manages the wireGuard iface
+// Client is the daemon that manages the wireGuard iface
 type Engine struct {
 	logger        *log.Logger
 	keyManager    internal.KeyManager
@@ -63,7 +63,7 @@ type Engine struct {
 	device        *wg.Device
 	mgtClient     *mgtclient.Client
 	drpClient     *drp2.Client
-	bind          *FlowBind
+	bind          *WireFlowBind
 	GetNetworkMap func() (*vo.NetworkMap, error)
 	updated       atomic.Bool
 
@@ -152,7 +152,7 @@ func (e *Engine) IpcHandle(socket net.Conn) {
 
 }
 
-// NewEngine create a new Device instance
+// NewClient create a new Client instance
 func NewEngine(cfg *EngineConfig) (*Engine, error) {
 	var (
 		device       tun.Device
@@ -182,7 +182,7 @@ func NewEngine(cfg *EngineConfig) (*Engine, error) {
 	engine.nodeManager = internal.NewPeerManager()
 	engine.agentManager = drp2.NewAgentManager()
 
-	// control-mgtClient
+	// control-ctrClient
 	if grpcClient, err = grpcclient.NewClient(&grpcclient.GrpcConfig{
 		Addr:          cfg.ManagementUrl,
 		Logger:        log.NewLogger(log.Loglevel, "grpc-mgtclient"),
@@ -191,7 +191,7 @@ func NewEngine(cfg *EngineConfig) (*Engine, error) {
 		return nil, err
 	}
 	engine.mgtClient = mgtclient.NewClient(&mgtclient.ClientConfig{
-		Logger:     log.NewLogger(log.Loglevel, "control-mgtClient"),
+		Logger:     log.NewLogger(log.Loglevel, "control-ctrClient"),
 		GrpcClient: grpcClient,
 		Conf:       cfg.Conf,
 	})
@@ -234,7 +234,7 @@ func NewEngine(cfg *EngineConfig) (*Engine, error) {
 		return nil, err
 	}
 
-	if engine.drpClient, err = drp2.NewClient(&drp2.ClientConfig{Addr: cfg.SignalingUrl, Logger: log.NewLogger(log.Loglevel, "drp-mgtClient")}); err != nil {
+	if engine.drpClient, err = drp2.NewClient(&drp2.ClientConfig{Addr: cfg.SignalingUrl, Logger: log.NewLogger(log.Loglevel, "drp-ctrClient")}); err != nil {
 		return nil, err
 	}
 	engine.drpClient = engine.drpClient.KeyManager(engine.keyManager)
@@ -349,7 +349,7 @@ func (e *Engine) Start() error {
 		if err := e.mgtClient.Keepalive(context.Background()); err != nil {
 			e.logger.Errorf("keepalive failed: %v", err)
 		} else {
-			e.logger.Infof("mgt mgtClient keepliving...")
+			e.logger.Infof("mgt ctrClient keepliving...")
 		}
 	}()
 

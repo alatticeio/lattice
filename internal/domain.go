@@ -16,11 +16,11 @@ package internal
 
 const (
 	// ConsoleDomain domain for service
-	ConsoleDomain         = "http://console.linkany.io"
-	ManagementDomain      = "console.linkany.io"
-	SignalingDomain       = "signaling.linkany.io"
-	TurnServerDomain      = "stun.linkany.io"
-	DefaultManagementPort = 32051
+	ConsoleDomain         = "http://console.wireflowio.com"
+	ManagementDomain      = "console.wireflowio.com"
+	SignalingDomain       = "signaling.wireflowio.com"
+	TurnServerDomain      = "stun.wireflowio.com"
+	DefaultManagementPort = 6060
 	DefaultSignalingPort  = 6066
 	DefaultTurnServerPort = 3478
 )

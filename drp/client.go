@@ -18,7 +18,7 @@ import (
 	"context"
 	"encoding/json"
 	"wireflow/internal"
-	grpc2 "wireflow/internal/grpc"
+	drpgrpc "wireflow/internal/grpc"
 
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
@@ -32,10 +32,11 @@ import (
 	"wireflow/pkg/log"
 )
 
+// Client signaling client
 type Client struct {
 	logger *log.Logger
 	conn   *grpc.ClientConn
-	client grpc2.DrpServerClient
+	client drpgrpc.DrpServerClient
 
 	done   chan struct{}
 	from   string
@@ -48,9 +49,11 @@ type Client struct {
 }
 
 type ClientConfig struct {
-	Logger   *log.Logger
-	Addr     string
-	ClientID string
+	Logger       *log.Logger
+	Addr         string
+	ClientID     string
+	KeyManager   internal.KeyManager
+	SignalingUrl string
 }
 
 type Heart struct {
@@ -83,8 +86,8 @@ func NewClient(cfg *ClientConfig) (*Client, error) {
 		cfg.Logger.Errorf("connect failed: %v", err)
 		return nil, err
 	}
-	c := grpc2.NewDrpServerClient(conn)
-	return &Client{
+	c := drpgrpc.NewDrpServerClient(conn)
+	drpClient := &Client{
 		conn:   conn,
 		client: c,
 		from:   cfg.ClientID,
@@ -96,20 +99,44 @@ func NewClient(cfg *ClientConfig) (*Client, error) {
 			heartbeatInterval: 20 * time.Second,
 			timeout:           60 * time.Second,
 		},
-	}, nil
+	}
+
+	if drpClient.proxy, err = NewProxy(&ProxyConfig{
+		DrpClient: drpClient,
+		DrpAddr:   cfg.SignalingUrl,
+	}); err != nil {
+		return nil, err
+	}
+
+	return drpClient, nil
 }
 
-func (c *Client) Proxy(proxy *Proxy) *Client {
-	c.proxy = proxy
-	return c
+type ClientOption func(*Client) error
+
+func (c *Client) Configure(opts ...ClientOption) error {
+	for _, opt := range opts {
+		if err := opt(c); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
-func (c *Client) KeyManager(manager internal.KeyManager) *Client {
-	c.keyManager = manager
-	return c
+func WithOfferHandler(offerHandler internal.OfferHandler) ClientOption {
+	return func(c *Client) error {
+		c.proxy.offerHandler = offerHandler
+		return nil
+	}
 }
 
-func (c *Client) HandleMessage(ctx context.Context, outBoundQueue chan *grpc2.DrpMessage, receive func(ctx context.Context, msg *grpc2.DrpMessage) error) error {
+func WithProbeManager(probeManager internal.ProbeManager) ClientOption {
+	return func(c *Client) error {
+		c.proxy.probeManager = probeManager
+		return nil
+	}
+}
+
+func (c *Client) HandleMessage(ctx context.Context, outBoundQueue chan *drpgrpc.DrpMessage, receive func(ctx context.Context, msg *drpgrpc.DrpMessage) error) error {
 	stream, err := c.client.HandleMessage(ctx)
 	if err != nil {
 		return err
@@ -117,9 +144,9 @@ func (c *Client) HandleMessage(ctx context.Context, outBoundQueue chan *grpc2.Dr
 
 	g, ctx := errgroup.WithContext(ctx)
 
-	if err := stream.SendMsg(&grpc2.DrpMessage{
+	if err := stream.SendMsg(&drpgrpc.DrpMessage{
 		From:    c.keyManager.GetPublicKey(),
-		MsgType: grpc2.MessageType_MessageRegisterType,
+		MsgType: drpgrpc.MessageType_MessageRegisterType,
 	}); err != nil {
 		return err
 	}
@@ -153,7 +180,7 @@ func (c *Client) Heartbeat(ctx context.Context, proxy *Proxy, clientId string) e
 
 		drpMessage := proxy.GetMessageFromPool()
 		drpMessage.From = clientId
-		drpMessage.MsgType = grpc2.MessageType_MessageHeartBeatType
+		drpMessage.MsgType = drpgrpc.MessageType_MessageHeartBeatType
 		drpMessage.Body = body
 		proxy.outBoundQueue <- drpMessage
 
@@ -173,7 +200,7 @@ func (c *Client) Heartbeat(ctx context.Context, proxy *Proxy, clientId string) e
 	}
 }
 
-func (c *Client) receiveLoop(stream grpc2.DrpServer_HandleMessageClient, callback func(ctx context.Context, message *grpc2.DrpMessage) error) error {
+func (c *Client) receiveLoop(stream drpgrpc.DrpServer_HandleMessageClient, callback func(ctx context.Context, message *drpgrpc.DrpMessage) error) error {
 	for {
 		msg, err := stream.Recv()
 		if err != nil {
@@ -189,14 +216,14 @@ func (c *Client) receiveLoop(stream grpc2.DrpServer_HandleMessageClient, callbac
 
 		c.logger.Infof("received message msgType: %v, from %s, to: %v, data size: %v", msg.MsgType, msg.From, msg.To, len(msg.Body))
 		switch msg.MsgType {
-		case grpc2.MessageType_MessageHeartBeatType:
+		case drpgrpc.MessageType_MessageHeartBeatType:
 		default:
 			callback(context.Background(), msg)
 		}
 	}
 }
 
-func (c *Client) sendLoop(stream grpc2.DrpServer_HandleMessageClient, ch chan *grpc2.DrpMessage) error {
+func (c *Client) sendLoop(stream drpgrpc.DrpServer_HandleMessageClient, ch chan *drpgrpc.DrpMessage) error {
 	for {
 		select {
 		case msg := <-ch:

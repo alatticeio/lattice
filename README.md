@@ -92,14 +92,7 @@ make build-wfctl
 # then install or run the built binaries as needed
 ```
 
-**3. Deploying Wireflow-controller & CRDs**
-
-```bash
-make install && make deploy
-# 
-```
-
-**3. Deploying management / DRP / TURN server**
+**3. Deploying wireflow-controller && CRDs && management / DRP / TURN server**
 
 ```bash
 make install && make deploy
@@ -109,16 +102,15 @@ make install && make deploy
 ### Uninstall
 
 ```bash
-make uninstall
+make uninstall && make undeploy
 ```
 
 ## Wireflow Components
 
 **1. Wireflow signaling server**
 
-Wireflow signaling server is required for the Wireflow app to work. Which is used to establish peer connections and to
-exchange peer metadata.
-you can use the public one at https://signaling.wireflow.io, or deploy your own.
+The Wireflow application requires a Signaling Server to establish peer-to-peer connections and exchange necessary peer metadata.
+You may use the public server at https://signaling.wireflowio.com or deploy your own instance using the provided docker image.
 
 **2. Relay (TURN) Overview**
 
@@ -132,16 +124,15 @@ Basic steps:
 
 1. Provision a server with a public IP/UDP open (default 3478/5349 or your chosen port).
 2. Deploy the Wireflow relay image or configure `coturn`.
-3. In the Wireflow control plane, add your relay endpoint so clients can discover it.
+3. In the Wireflow control plane, using cli add your relay endpoint so clients can discover it.
 
-Refer to `conf/` and `turn/` directories in this repo for deployment examples and manifests.
 
 ## Wireflow Features, Roadmap, and Roadmap Progress
 
 **1. Core Features**
 These features represent the foundational, working architecture of Wireflow, focusing on security and automation.
 
-- Zero-Touch Onboarding: Users can register, sign in, and instantly create an encrypted private network without
+- Zero-Touch Onboarding: Users instantly and easily create an encrypted private network without
   requiring any manual tunnel configuration.
 - Automatic Enrollment & Autoplay: Devices automatically enroll and configure themselves upon joining, ensuring the
   tunnel is established without manual intervention.
@@ -154,7 +145,8 @@ These features represent the foundational, working architecture of Wireflow, foc
 
 **1. Product Roadmap and Milestones**
 
-- [x] Access control: define rules and policies for who can reach what or where then want
+- [] Access control: define rules and policies for who can reach what or where then want
+- [] Private DNS: Provides a secure and simplified service discovery mechanism for internal services.
 
 ## License
 

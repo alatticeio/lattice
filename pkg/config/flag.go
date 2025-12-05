@@ -33,3 +33,11 @@ type Flags struct {
 	SignalingUrl  string
 	TurnServerUrl string
 }
+
+type NetworkOptions struct {
+	AppId      string
+	Identifier string
+	Name       string
+	CIDR       string
+	ServerUrl  string
+}

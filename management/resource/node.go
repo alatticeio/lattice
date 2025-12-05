@@ -108,6 +108,17 @@ func (c *Client) UpdateNodeStatus(ctx context.Context, namespace, name string, u
 	return c.client.Status().Update(ctx, &node)
 }
 
+func (c *Client) UpdateNodeSepc(ctx context.Context, namespace, name string, updateFunc func(node *wireflowv1alpha1.Node)) error {
+	logger := logf.FromContext(ctx)
+	logger.Info("Update node sepc", "namespace", namespace, "name", name)
+	var node wireflowv1alpha1.Node
+	if err := c.client.Get(ctx, types.NamespacedName{Namespace: namespace, Name: name}, &node); err != nil {
+		return err
+	}
+	updateFunc(&node)
+	return c.client.Update(ctx, &node)
+}
+
 // GetNetworkMap get network map when node init
 func (c *Client) GetNetworkMap(ctx context.Context, namespace, name string) (*internal.Message, error) {
 	logger := c.log
@@ -140,4 +151,40 @@ func (c *Client) GetNetworkMap(ctx context.Context, namespace, name string) (*in
 
 func (c *Client) GetByAppId(ctx context.Context, appId string) (*entity.Node, error) {
 	return nil, nil
+}
+
+// CreateNetwork create a network
+func (c *Client) CreateNetwork(ctx context.Context, networkId, cidr string) (*wireflowv1alpha1.Network, error) {
+	var (
+		err     error
+		network wireflowv1alpha1.Network
+	)
+	err = c.client.Get(ctx, types.NamespacedName{
+		Namespace: "default",
+		Name:      networkId,
+	}, &network)
+
+	if err != nil && errors.IsNotFound(err) {
+		// 使用SSA模式
+		manager := client.FieldOwner("wireflow-controller-manager")
+
+		if err = c.client.Patch(ctx, &wireflowv1alpha1.Network{
+			TypeMeta: v1.TypeMeta{
+				Kind:       "Network",
+				APIVersion: "wireflowcontroller.wireflow.io/v1alpha1",
+			},
+			ObjectMeta: v1.ObjectMeta{
+				Namespace: "default",
+				Name:      networkId,
+			},
+			Spec: wireflowv1alpha1.NetworkSpec{
+				Name: networkId,
+				CIDR: cidr,
+			},
+		}, client.Apply, manager); err != nil {
+			return nil, err
+		}
+	}
+
+	return &network, nil
 }

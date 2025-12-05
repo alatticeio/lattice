@@ -228,3 +228,7 @@ func (c *Client) VerifyToken(token string) (*wgrpc.LoginResponse, error) {
 func (c *Client) Registry(ctx context.Context, in *wgrpc.ManagementMessage) (*wgrpc.ManagementMessage, error) {
 	return c.client.Registry(ctx, in)
 }
+
+func (c *Client) Request(ctx context.Context, in *wgrpc.ManagementMessage) (*wgrpc.ManagementMessage, error) {
+	return c.client.Do(ctx, in)
+}

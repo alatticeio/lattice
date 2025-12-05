@@ -44,7 +44,7 @@ func Start(flags *Flags) error {
 	}
 
 	// peers config to wireGuard
-	engineCfg := &DeviceConfig{
+	engineCfg := &ClientConfig{
 		Logger:        logger,
 		Conf:          conf,
 		Port:          51820,
@@ -68,14 +68,14 @@ func Start(flags *Flags) error {
 		engineCfg.TurnServerUrl = fmt.Sprintf("%s:%d", internal.TurnServerDomain, internal.DefaultTurnServerPort)
 	}
 
-	engine, err := NewEngine(engineCfg)
+	engine, err := NewClient(engineCfg)
 	if err != nil {
 		return err
 	}
 
 	engine.GetNetworkMap = func() (*vo.NetworkMap, error) {
 		// get network map from list
-		conf, err := engine.mgtClient.GetNetMap()
+		conf, err := engine.ctrClient.GetNetMap()
 		if err != nil {
 			logger.Errorf("Get network map failed: %v", err)
 			return nil, err

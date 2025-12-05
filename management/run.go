@@ -4,11 +4,10 @@ import (
 	"wireflow/internal"
 	grpcserver "wireflow/management/grpc/server"
 
-	"github.com/spf13/viper"
-	"k8s.io/klog/v2"
-
 	"wireflow/management/http"
 	"wireflow/pkg/log"
+
+	"github.com/spf13/viper"
 )
 
 func Start(listen string) error {
@@ -41,7 +40,7 @@ func Start(listen string) error {
 	gServer := grpcserver.NewServer(&grpcserver.ServerConfig{
 		Ctx:    ctx,
 		Logger: logger,
-		Port:   32051,
+		Port:   internal.DefaultManagementPort,
 	})
 	// go run a grpc server
 	go func() {
@@ -59,7 +58,7 @@ func Start(listen string) error {
 	//s := http.NewServer(&cfg)
 	// Start the server
 	//return s.Start()
-	klog.Info("grpc server start successfully")
+	logger.Infof("grpc server start successfully at: %v", internal.DefaultManagementPort)
 	<-ctx.Done()
 
 	return nil

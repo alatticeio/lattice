@@ -29,6 +29,9 @@ spec:
         - name: wireflow-control
           image: controller:latest
           imagePullPolicy: Always
+          ports:
+            - containerPort: 6060
+              hostPort: 6060
           args:
             - "start"
             - "manager"
@@ -69,6 +72,9 @@ spec:
         - name: wireflow-signaling
           image: controller:latest
           imagePullPolicy: Always
+          ports:
+            - containerPort: 6066
+              hostPort: 6066
           args:
             - "start"
             - "signaling"
@@ -98,7 +104,12 @@ spec:
         - name: wireflow-turn
           image: controller:latest
           imagePullPolicy: Always
+          ports:
+            - containerPort: 3478
+              protocol: UDP
+              hostPort: 3478
           args:
             - "start"
             - "turn"
             - "--log-level=verbose"
+            - "--public-ip=81.68.109.143"

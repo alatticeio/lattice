@@ -16,16 +16,47 @@ package server
 
 import (
 	"context"
+	"wireflow/internal"
+
+	wireflowcontrollerv1alpha1 "github.com/wireflowio/wireflow-controller/api/v1alpha1"
 )
 
 // TODO implement for wireflow-cli
+
+func (s *Server) CreateNetwork(ctx context.Context, networkId, cidr string) (*internal.Network, error) {
+	network, err := s.client.CreateNetwork(ctx, networkId, cidr)
+	if err != nil {
+		return nil, err
+	}
+
+	return &internal.Network{
+		NetworkName: network.Name,
+	}, nil
+
+}
+
 // JoinNetwork
 func (s *Server) JoinNetwork(ctx context.Context, appId, networkId string) error {
 	//更新
-	return nil
+	if networkId == "" {
+		return nil
+	}
+	return s.client.UpdateNodeSepc(ctx, "default", appId, func(node *wireflowcontrollerv1alpha1.Node) {
+		node.Spec.Networks = append(node.Spec.Networks, networkId)
+	})
 }
 
 // LeaveNetwork
 func (s *Server) LeaveNetwork(ctx context.Context, appId, networkId string) error {
-	return nil
+	if networkId == "" {
+		return nil
+	}
+	//更新
+	return s.client.UpdateNodeSepc(ctx, "default", appId, func(node *wireflowcontrollerv1alpha1.Node) {
+		for i, network := range node.Spec.Networks {
+			if network == networkId {
+				node.Spec.Networks = append(node.Spec.Networks[:i], node.Spec.Networks[i+1:]...)
+			}
+		}
+	})
 }

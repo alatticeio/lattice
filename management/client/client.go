@@ -14,6 +14,7 @@ import (
 	"wireflow/internal/grpc"
 	"wireflow/management/dto"
 	grpclient "wireflow/management/grpc/client"
+	"wireflow/pkg/client"
 	"wireflow/pkg/config"
 	"wireflow/pkg/log"
 	turnclient "wireflow/pkg/turn"
@@ -28,6 +29,10 @@ type NodeMap struct {
 	m    map[string]ice.Candidate
 }
 
+var (
+	_ client.IManagementClient = (*Client)(nil)
+)
+
 // Client is control client of wireflow, will fetch config from origin server interval
 type Client struct {
 	as           internal.AgentManagerFactory
@@ -41,7 +46,7 @@ type Client struct {
 	offerHandler internal.OfferHandler
 	probeManager internal.ProbeManager
 	turnManager  *turnclient.TurnManager
-	engine       internal.DeviceManager
+	client       internal.IClient
 
 	//channel for close for keepalive
 	keepaliveChan chan struct{}
@@ -93,30 +98,81 @@ func (c *Client) SetNodeManager(manager *internal.PeerManager) *Client {
 	return c
 }
 
-func (c *Client) SetProbeManager(manager internal.ProbeManager) *Client {
-	c.probeManager = manager
-	return c
+type ClientOption func(*Client) error
+
+func WithAgentManagerFactory(factory internal.AgentManagerFactory) ClientOption {
+	return func(c *Client) error {
+		c.agentManager = factory
+		return nil
+	}
 }
 
-func (c *Client) SetEngine(engine internal.DeviceManager) *Client {
-	c.engine = engine
-	return c
+func WithGrpcClient(client *grpclient.Client) ClientOption {
+	return func(c *Client) error {
+		c.grpcClient = client
+		return nil
+	}
 }
 
-func (c *Client) SetOfferHandler(handler internal.OfferHandler) *Client {
-	c.offerHandler = handler
-	return c
+func NewClientWithOption(cfg *ClientConfig, opts ...ClientOption) (*Client, error) {
+	client := NewClient(cfg)
+	for _, opt := range opts {
+		if err := opt(client); err != nil {
+			return nil, err
+		}
+	}
+	return client, nil
 }
 
-func (c *Client) SetTurnManager(turnManager *turnclient.TurnManager) *Client {
-	c.turnManager = turnManager
-	return c
+func WithNodeManager(manager *internal.PeerManager) ClientOption {
+	return func(c *Client) error {
+		c.nodeManager = manager
+		return nil
+	}
 }
 
-// RegisterToManagement will register device to wireflow center
-func (c *Client) RegisterToManagement() (*internal.DeviceConf, error) {
-	// TODO implement this function
-	return nil, nil
+func WithProbeManager(manager internal.ProbeManager) ClientOption {
+	return func(c *Client) error {
+		c.probeManager = manager
+		return nil
+	}
+}
+
+func WithOfferHandler(handler internal.OfferHandler) ClientOption {
+	return func(c *Client) error {
+		c.offerHandler = handler
+		return nil
+	}
+}
+
+func WithKeyManager(manager internal.KeyManager) ClientOption {
+	return func(c *Client) error {
+		c.keyManager = manager
+		return nil
+	}
+}
+
+func WithTurnManager(manager *turnclient.TurnManager) ClientOption {
+	return func(c *Client) error {
+		c.turnManager = manager
+		return nil
+	}
+}
+
+func WithIClient(iclient internal.IClient) ClientOption {
+	return func(c *Client) error {
+		c.client = iclient
+		return nil
+	}
+}
+
+func (c *Client) Configure(opts ...ClientOption) error {
+	for _, opt := range opts {
+		if err := opt(c); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (c *Client) Login(user *config.User) error {
@@ -275,7 +331,7 @@ func (c *Client) AddPeer(p *internal.Peer) error {
 			Logger:        c.logger,
 			ProberManager: c.probeManager,
 			GatherChan:    make(chan interface{}),
-			WGConfiger:    c.engine.GetDeviceConfiger(),
+			WGConfiger:    c.client.GetDeviceConfiger(),
 			NodeManager:   c.nodeManager,
 			To:            p.PublicKey,
 			OfferHandler:  c.offerHandler,
@@ -456,4 +512,8 @@ func (c *Client) Register(ctx context.Context, appId string) (*internal.Peer, er
 	}
 
 	return &node, nil
+}
+
+func (c *Client) Request(ctx context.Context, message *grpc.ManagementMessage) (*grpc.ManagementMessage, error) {
+	return c.grpcClient.Request(ctx, message)
 }

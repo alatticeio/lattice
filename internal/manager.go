@@ -20,8 +20,8 @@ import (
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 )
 
-// DeviceManager is the interface for managing WireGuard devices.
-type DeviceManager interface {
+// IClient is the interface for managing WireGuard devices.
+type IClient interface {
 	// Start the engine
 	Start() error
 

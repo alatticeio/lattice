@@ -16,6 +16,7 @@ import (
 	"wireflow/management/dto"
 	"wireflow/management/resource"
 	"wireflow/management/vo"
+	network2 "wireflow/pkg/cli/network"
 	"wireflow/pkg/log"
 	"wireflow/pkg/loop"
 	"wireflow/pkg/redis"
@@ -486,16 +487,26 @@ func (s *Server) Do(ctx context.Context, in *wgrpc.ManagementMessage) (*wgrpc.Ma
 	logger := s.logger
 	logger.Infof("Handle cli request,pubKey: %s", in.PubKey)
 
+	var req network2.NetworkParams
+	if err := json.Unmarshal(in.Body, &req); err != nil {
+		return nil, err
+	}
 	switch in.Type {
-	case wgrpc.Type_MessageTypeJoinNetwork:
-		var req struct {
-			AppId     string `json:"appId"`
-			NetworkId string `json:"networkId"`
-		}
-		if err := json.Unmarshal(in.Body, &req); err != nil {
+	case wgrpc.Type_MessageTypeCreateNetwork:
+		network, err := s.CreateNetwork(ctx, req.Name, req.CIDR)
+		if err != nil {
 			return nil, err
 		}
-		if err := s.JoinNetwork(ctx, req.AppId, req.NetworkId); err != nil {
+
+		bs, err := json.Marshal(network)
+		if err != nil {
+			return nil, err
+		}
+		return &wgrpc.ManagementMessage{
+			Body: bs,
+		}, nil
+	case wgrpc.Type_MessageTypeJoinNetwork:
+		if err := s.JoinNetwork(ctx, req.AppId, req.Name); err != nil {
 			logger.Errorf("Join network failed: %v", err)
 			return nil, err
 		}
@@ -505,21 +516,13 @@ func (s *Server) Do(ctx context.Context, in *wgrpc.ManagementMessage) (*wgrpc.Ma
 		}, nil
 
 	case wgrpc.Type_MessageTypeLeaveNetwork:
-		var req struct {
-			AppId     string `json:"appId"`
-			NetworkId string `json:"networkId"`
-		}
-
-		if err := json.Unmarshal(in.Body, &req); err != nil {
-			return nil, err
-		}
-		if err := s.LeaveNetwork(ctx, req.AppId, req.NetworkId); err != nil {
+		if err := s.LeaveNetwork(ctx, req.AppId, req.Name); err != nil {
 			logger.Errorf("Join network failed: %v", err)
 			return nil, err
 		}
 
 		return &wgrpc.ManagementMessage{
-			Body: []byte("Join network success"),
+			Body: []byte("Leave network success"),
 		}, nil
 	}
 	return nil, nil

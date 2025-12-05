@@ -51,7 +51,7 @@ func Start(flags *config.Flags) error {
 		return err
 	}
 
-	engineCfg := &DeviceConfig{
+	engineCfg := &ClientConfig{
 		Logger:        logger,
 		Conf:          conf,
 		Port:          51820,
@@ -187,14 +187,14 @@ func Start(flags *config.Flags) error {
 		}()
 	}
 
-	engine, err := NewEngine(engineCfg)
+	engine, err := NewClient(engineCfg)
 	if err != nil {
 		return err
 	}
 
 	engine.GetNetworkMap = func() (*internal.Message, error) {
 		// get network map from list
-		msg, err := engine.mgtClient.GetNetMap()
+		msg, err := engine.ctrClient.GetNetMap()
 		if err != nil {
 			logger.Errorf("Get network map failed: %v", err)
 			return nil, err

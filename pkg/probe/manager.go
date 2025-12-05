@@ -34,7 +34,7 @@ type manager struct {
 	wgLock       sync.Mutex
 	isForceRelay bool
 	agentManager internal.AgentManagerFactory
-	engine       internal.DeviceManager
+	engine       internal.IClient
 	offerHandler internal.OfferHandler
 	//relayer internal.Relay
 
@@ -45,7 +45,7 @@ type manager struct {
 
 func NewManager(isForceRelay bool, udpMux *ice.UDPMuxDefault,
 	universeUdpMux *ice.UniversalUDPMuxDefault,
-	engineManager internal.DeviceManager,
+	engineManager internal.IClient,
 	stunUrl string) internal.ProbeManager {
 	return &manager{
 		agentManager:    drp.NewAgentManager(),

@@ -44,10 +44,10 @@ func init() {
 func NewControllerCmd() *cobra.Command {
 	flag := new(ControllerFlags)
 	cmd := &cobra.Command{
-		Short:        "client",
-		Use:          "client [command]",
+		Short:        "controller",
+		Use:          "controller [command]",
 		SilenceUsage: true,
-		Long:         `wireflow startup, will create a wireguard interface and join your wireflow network,and also will config the interface automatically`,
+		Long:         `wireflow core controller for CRDs reconcile`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runController(flag)
 		},

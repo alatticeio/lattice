@@ -54,6 +54,7 @@ message Request {
 
 // MessageType defines the type of message
 enum Type {
-  MessageTypeJoinNetwork = 0;
-  MessageTypeLeaveNetwork = 1;
+  MessageTypeCreateNetwork = 0;
+  MessageTypeJoinNetwork = 1;
+  MessageTypeLeaveNetwork = 2;
 }

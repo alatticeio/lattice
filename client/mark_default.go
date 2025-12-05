@@ -14,6 +14,6 @@
 
 package client
 
-func (b *FlowBind) SetMark(mark uint32) error {
+func (b *WireFlowBind) SetMark(mark uint32) error {
 	return nil
 }
