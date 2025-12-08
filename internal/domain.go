@@ -1,4 +1,4 @@
-// Copyright 2025 wireflowio.com, Inc.
+// Copyright 2025 The Wireflow Authors, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,10 +16,10 @@ package internal
 
 const (
 	// ConsoleDomain domain for service
-	ConsoleDomain         = "http://console.wireflowio.com"
-	ManagementDomain      = "console.wireflowio.com"
-	SignalingDomain       = "signaling.wireflowio.com"
-	TurnServerDomain      = "stun.wireflowio.com"
+	ConsoleDomain         = "http://console.The Wireflow Authors"
+	ManagementDomain      = "console.The Wireflow Authors"
+	SignalingDomain       = "signaling.The Wireflow Authors"
+	TurnServerDomain      = "stun.The Wireflow Authors"
 	DefaultManagementPort = 6060
 	DefaultSignalingPort  = 6066
 	DefaultTurnServerPort = 3478

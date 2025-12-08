@@ -17,7 +17,7 @@ steps: # 定义流水线执行步骤，这些步骤将顺序执行
       script:
         - cd /root/docker/maven/build/wireflow && source ~/.bash_profile
         - git pull
-        - make docker-build && make docker-push
+        - make docker-all
   - name: deploy
     image: registry.cn-hangzhou.aliyuncs.com/wireflow-io/drone-ssh:latest # SSH工具镜像
     settings:

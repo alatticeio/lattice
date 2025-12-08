@@ -17,7 +17,7 @@ Wireflow 的独特之处在于其 Kubernetes 原生的控制平面：wireflow-co
 
 核心价值： 告别复杂的 VPN 配置，实现企业级零信任网络自动化。
 
-了解更多详情，请访问官网：[wireflowio.com](https://wireflow.io)
+了解更多详情，请访问官网：[The Wireflow Authors](https://wireflow.io)
 
 ## 技术架构
 

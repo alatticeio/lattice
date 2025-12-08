@@ -1,11 +1,11 @@
-# Wireflow
+## Wireflow - Cloud Native WireGuard Management Platform
 
-[![English](https://img.shields.io/badge/lang-English-informational)](README.md) [![中文](https://img.shields.io/badge/语言-中文-informational)](README_zh.md)
-[![Go Version](https://img.shields.io/badge/go-1.25%2B-00ADD8?logo=go&logoColor=white)](https://go.dev/)
-[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
-[![Docker Pulls](https://img.shields.io/docker/pulls/wireflow/wireflow.svg?logo=docker&logoColor=white)](https://hub.docker.com/r/wireflow/wireflow)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Go Report Card](https://goreportcard.com/badge/github.com/wireflowio/wireflow)](https://goreportcard.com/report/github.com/wireflowio/wireflow)
-![Platforms](https://img.shields.io/badge/platforms-windows%20%7C%20linux%20%7C%20macos%20%7C%20android%20%7C%20ios-informational)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
+
+> ⚠️ **Early Alpha**: This project is under active development.
+> APIs may change. Not production-ready yet.
 
 ## Introduction
 
@@ -20,7 +20,7 @@ WireGuard.
   receives the desired state from the controller, enabling automated orchestration of connectivity and granular access
   policies.
 
-For more information, please visit our official website: [wireflowio.com](https://wireflowio.com)
+For more information, please visit our official website: [The Wireflow Authors](https://The Wireflow Authors)
 
 ## Wireflow Technical Capabilities
 
@@ -61,9 +61,17 @@ progress).
 - Centralized Orchestration: A Kubernetes-native control plane manages device lifecycle, cryptographic keys, and access
   policies, ensuring zero-touch configuration across the entire network.
 
+
+**Key Features:**
+- Kubernetes CRD-based configuration
+- Automatic IP allocation (IPAM)
+- Multi-cloud/hybrid-cloud support
+- Built on WireGuard (fast & secure)
+- GitOps ready
+
 ## Quick Start
 
-Follow the steps on: [wireflowio.com](https://wireflowio.com)
+Follow the steps on: [The Wireflow Authors](https://The Wireflow Authors)
 
 ## Building / Deploy
 
@@ -110,7 +118,7 @@ make uninstall && make undeploy
 **1. Wireflow signaling server**
 
 The Wireflow application requires a Signaling Server to establish peer-to-peer connections and exchange necessary peer metadata.
-You may use the public server at https://signaling.wireflowio.com or deploy your own instance using the provided docker image.
+You may use the public server at https://signaling.The Wireflow Authors or deploy your own instance using the provided docker image.
 
 **2. Relay (TURN) Overview**
 

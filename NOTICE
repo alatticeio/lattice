@@ -1,0 +1,38 @@
+Wireflow
+Copyright 2025 The Wireflow Authors
+
+This product includes software developed by The Wireflow Authors.
+
+Project URL: https://github.com/wireflowio/wireflow
+Website: https://wireflowio.com (if you have one)
+
+================================================================================
+
+TRADEMARKS
+
+"Wireflow" is a trademark of [winstonfly].
+
+You are free to use, modify, and distribute this software under the terms of
+the Apache License 2.0. However, use of the "Wireflow" name, logo, or other
+trademarks requires explicit permission.
+
+Permitted Uses (no permission required):
+  - Referring to the unmodified software: "powered by Wireflow"
+  - Describing compatibility: "works with Wireflow"
+  - Educational or informational purposes: "Wireflow tutorial"
+
+Prohibited Uses (permission required):
+  - Using "Wireflow" in product names, company names, or domain names
+  - Implying official endorsement or affiliation
+  - Modified versions claiming to be "Wireflow"
+
+For trademark usage permission, contact: [lauxinchi@gmail.com]
+
+================================================================================
+
+THIRD-PARTY COMPONENTS
+
+This software includes code from the following open source projects:
+
+1. WireGuard
+   Copyright (C

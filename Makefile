@@ -1,5 +1,11 @@
 # Image URL to use all building/pushing image targets
-IMG ?= registry.cn-hangzhou.aliyuncs.com/wireflow-io/wireflow-controller:latest
+IMG ?= registry.cn-hangzhou.aliyuncs.com/wireflow-io/wireflow-manager:dev
+
+REGISTRY ?= registry.cn-hangzhou.aliyuncs.com/wireflow-io
+SERVICES := manager wfctl wireflow
+TARGETOS ?= linux
+TARGETARCH ?=amd64
+VERSION ?= dev
 
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
 ifeq (,$(shell go env GOBIN))
@@ -19,9 +25,30 @@ CONTAINER_TOOL ?= docker
 SHELL = /usr/bin/env bash -o pipefail
 .SHELLFLAGS = -ec
 
-.PHONY: all
-all: build
+.PHONY: build-all
+build-all: ## 构建所有服务
+	@echo " Building all services..."
+	@for service in $(SERVICES); do \
+		$(MAKE) build SERVICE=$$service; \
+	done
 
+.PHONY: build
+build: fmt vet ## 构建单个服务 (使用: make build SERVICE=wfctl)
+	@if [ -z "$(SERVICE)" ]; then \
+		echo "❌ Error: SERVICE is required. Usage: make build SERVICE=wfctl"; \
+		exit 1; \
+	fi
+	@echo " Building $(SERVICE)..."
+	@mkdir -p bin
+	CGO_ENABLED=0 GOOS=$(TARGETOS) GOARCH=$(TARGETARCH) \
+		go build \
+		-ldflags="-s -w -X main.Version=$(VERSION) -X main.BuildDate=$(BUILD_DATE)" \
+		-o bin/$(SERVICE) \
+		./cmd/$(SERVICE)/main.go
+	@echo "✅ Built: bin/$(SERVICE)"
+	@ls -lh bin/$(SERVICE)
+
+# ============ Docker 构建 ============
 ##@ General
 
 # The help target prints out all targets with their descriptions organized
@@ -103,45 +130,68 @@ lint-config: golangci-lint ## Verify golangci-lint linter configuration
 
 ##@ Build
 
-.PHONY: build
-build-wireflow: fmt vet ## Build manager binary.
-	docker run --rm \
-    		--env CGO_ENABLED=0 \
-    		--env GOPROXY=https://goproxy.cn \
-    		--env GOOS=linux \
-    		--env GOARCH=amd64 \
-    		-v $(shell pwd):/root/wireflow \
-    		-w /root/wireflow \
-    		registry.cn-hangzhou.aliyuncs.com/wireflow-io/golang:1.25.2 \
-    		go build -v -o /root/wireflow/bin/wireflow \
-    		-v /root/wireflow/cmd/wireflow/main.go
-
-build-wfctl: fmt vet ## Build manager binary.
-	docker run --rm \
-    		--env CGO_ENABLED=0 \
-    		--env GOPROXY=https://goproxy.cn \
-    		--env GOOS=linux \
-    		--env GOARCH=amd64 \
-    		-v $(shell pwd):/root/wireflow \
-    		-w /root/wireflow \
-    		registry.cn-hangzhou.aliyuncs.com/wireflow-io/golang:1.25.2 \
-    		go build -v -o /root/wireflow/bin/wfctl \
-    		-v /root/wireflow/cmd/wfctl/main.go
-
 .PHONY: run
 run: manifests generate fmt vet ## Run a controller from your host.
 	go run ./cmd/main.go
 
-# If you wish to build the manager image targeting other platforms you can use the --platform flag.
-# (i.e. docker build --platform linux/arm64). However, you must enable docker buildKit for it.
-# More info: https://docs.docker.com/develop/develop-images/build_enhancements/
+
+
+
+
+# ============ Docker 构建 ============
+.PHONY: docker-build-all
+docker-build-all: ## 构建所有服务的 Docker 镜像
+	@echo " Building all Docker images..."
+	@for service in $(SERVICES); do \
+		$(MAKE) docker-build SERVICE=$$service; \
+	done
+
 .PHONY: docker-build
-docker-build: ## Build docker image with the manager.
-	$(CONTAINER_TOOL) build -t ${IMG} .
+docker-build: ## 构建单个服务的 Docker 镜像 (使用: make docker-build SERVICE=wfctl)
+	@if [ -z "$(SERVICE)" ]; then \
+		echo "❌ Error: SERVICE is required. Usage: make docker-build SERVICE=wfctl"; \
+		exit 1; \
+	fi
+	@echo " Building Docker image for $(SERVICE)..."
+	$(CONTAINER_TOOL) build \
+		--build-arg TARGETSERVICE=$(SERVICE) \
+		--build-arg TARGETOS=$(TARGETOS) \
+		--build-arg TARGETARCH=$(TARGETARCH) \
+		--build-arg VERSION=$(VERSION) \
+		--build-arg BUILD_DATE=$(BUILD_DATE) \
+		-t $(REGISTRY)/$(SERVICE):$(VERSION) \
+		-f Dockerfile \
+		.
+	@echo "✅ Built image: $(REGISTRY)/$(SERVICE):$(VERSION)"
+
+# ============ Docker 推送 ============
+.PHONY: docker-push-all
+docker-push-all: ## 推送所有服务的 Docker 镜像
+	@echo " Pushing all Docker images..."
+	@for service in $(SERVICES); do \
+		$(MAKE) docker-push SERVICE=$$service; \
+	done
 
 .PHONY: docker-push
-docker-push: ## Push docker image with the manager.
-	$(CONTAINER_TOOL) push ${IMG}
+docker-push: ## 推送单个服务的 Docker 镜像
+	@if [ -z "$(SERVICE)" ]; then \
+		echo "❌ Error: SERVICE is required"; \
+		exit 1; \
+	fi
+	@echo " Pushing $(REGISTRY)/$(SERVICE):$(VERSION)..."
+	$(CONTAINER_TOOL) push $(REGISTRY)/$(SERVICE):$(VERSION)
+	$(CONTAINER_TOOL) push $(REGISTRY)/$(SERVICE):latest
+	@echo "✅ Pushed: $(REGISTRY)/$(SERVICE):$(VERSION)"
+
+# ============ Docker 构建并推送 ============
+.PHONY: docker-all
+docker-all: docker-build-all docker-push-all ## 构建并推送所有镜像
+
+.PHONY: docker
+docker: docker-build docker-push ## 构建并推送单个镜像
+
+.PHONY: docker-all
+docker-all: docker-build-all docker-push-all
 
 # PLATFORMS defines the target platforms for the manager image be built to provide support to multiple
 # architectures. (i.e. make docker-buildx IMG=myregistry/mypoperator:0.0.1). To use this option you need to:

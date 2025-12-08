@@ -1,4 +1,4 @@
-// Copyright 2025 wireflowio.com, Inc.
+// Copyright 2025 The Wireflow Authors, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,63 +12,47 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package turn
+package drp
 
 import (
-	"wireflow/management/client"
-	"wireflow/pkg/config"
+	"wireflow/drp"
 	"wireflow/pkg/log"
-	"wireflow/turn"
 
 	"github.com/spf13/cobra"
 )
 
-type turnOptions struct {
-	PublicIP string
-	Port     int
+type signalerOptions struct {
+	Listen   string
 	LogLevel string
 }
 
-func NewTurnCmd() *cobra.Command {
-	var opts turnOptions
+func NewDrpCmd() *cobra.Command {
+	var opts signalerOptions
 	var cmd = &cobra.Command{
-		Use:          "turn",
+		Use:          "signaling [command]",
 		SilenceUsage: true,
-		Short:        "start a turn server",
-		Long:         `start a turn serer will provided stun service for you, you can use it to get public IP and port, also you can deploy you own turn server when direct(P2P) unavailable.`,
+		Short:        "signaling is a signaling server",
+		Long:         `signaling will start a signaling server, signaling server is used to exchange the network information between the clients. which is our core feature.`,
+
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			return nil
 		},
 
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runTurn(opts)
+			return runSignaling(opts)
 		},
 	}
 	fs := cmd.Flags()
-	fs.StringVarP(&opts.PublicIP, "public-ip", "u", "", "public ip for turn")
-	fs.IntVarP(&opts.Port, "port", "p", 3478, "port for turn")
+	fs.StringVarP(&opts.Listen, "", "l", "", "http port for drp over http")
 	fs.StringVarP(&opts.LogLevel, "log-level", "", "silent", "log level (silent, info, error, warn, verbose)")
 	return cmd
 }
 
-func runTurn(opts turnOptions) error {
+// run signaling server
+func runSignaling(opts signalerOptions) error {
 	if opts.LogLevel == "" {
 		opts.LogLevel = "error"
 	}
-
 	log.SetLogLevel(opts.LogLevel)
-	conf, err := config.GetLocalConfig()
-	if err != nil {
-		return err
-	}
-	client := client.NewClient(&client.ClientConfig{
-		Conf: conf,
-	})
-
-	return turn.Start(&turn.TurnServerConfig{
-		Logger:   log.NewLogger(log.Loglevel, "turnserver"),
-		PublicIP: opts.PublicIP,
-		Port:     opts.Port,
-		Client:   client,
-	})
+	return drp.Start(opts.Listen)
 }

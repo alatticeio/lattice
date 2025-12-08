@@ -1,4 +1,4 @@
-// Copyright 2025 wireflowio.com, Inc.
+// Copyright 2025 The Wireflow Authors, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,47 +12,47 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package drp
+package management
 
 import (
-	"wireflow/drp"
+	"wireflow/management"
 	"wireflow/pkg/log"
 
 	"github.com/spf13/cobra"
 )
 
-type signalerOptions struct {
+type managementOptions struct {
 	Listen   string
 	LogLevel string
 }
 
-func NewDrpCmd() *cobra.Command {
-	var opts signalerOptions
+func NewManagementCmd() *cobra.Command {
+	var opts managementOptions
 	var cmd = &cobra.Command{
-		Use:          "signaling [command]",
+		Use:          "manager [command]",
 		SilenceUsage: true,
-		Short:        "signaling is a signaling server",
-		Long:         `signaling will start a signaling server, signaling server is used to exchange the network information between the clients. which is our core feature.`,
+		Short:        "manager is control server",
+		Long:         `manager used for starting management server, management providing our all control plance features.`,
 
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			return nil
 		},
 
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runSignaling(opts)
+			return runManagement(opts)
 		},
 	}
 	fs := cmd.Flags()
-	fs.StringVarP(&opts.Listen, "", "l", "", "http port for drp over http")
+	fs.StringVarP(&opts.Listen, "", "l", "", "management server listen address")
 	fs.StringVarP(&opts.LogLevel, "log-level", "", "silent", "log level (silent, info, error, warn, verbose)")
 	return cmd
 }
 
-// run signaling server
-func runSignaling(opts signalerOptions) error {
+// run drp
+func runManagement(opts managementOptions) error {
 	if opts.LogLevel == "" {
 		opts.LogLevel = "error"
 	}
 	log.SetLogLevel(opts.LogLevel)
-	return drp.Start(opts.Listen)
+	return management.Start(opts.Listen)
 }
