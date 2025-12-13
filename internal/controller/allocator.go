@@ -5,8 +5,8 @@ import (
 	"net"
 	"sync"
 
-	wireflowcontrollerv1alpha1 "github.com/wireflowio/wireflow-controller/api/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"wireflow/api/v1alpha1"
 )
 
 // IPAllocator IP 地址分配器
@@ -28,7 +28,7 @@ type AllocatedIP struct {
 
 // AllocateIP 为节点分配 IP 地址
 // 从 Network 的 CIDR 中分配一个未使用的 IP
-func (a *IPAllocator) AllocateIP(network *wireflowcontrollerv1alpha1.Network, nodeName string) (string, error) {
+func (a *IPAllocator) AllocateIP(network *v1alpha1.Network, nodeName string) (string, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
@@ -67,12 +67,12 @@ func (a *IPAllocator) AllocateIP(network *wireflowcontrollerv1alpha1.Network, no
 }
 
 // ReleaseIP 释放 IP 地址
-func (a *IPAllocator) ReleaseIP(network *wireflowcontrollerv1alpha1.Network, ip string) error {
+func (a *IPAllocator) ReleaseIP(network *v1alpha1.Network, ip string) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
 	// 从已分配列表中移除
-	newAllocatedIPs := []wireflowcontrollerv1alpha1.IPAllocation{}
+	newAllocatedIPs := []v1alpha1.IPAllocation{}
 	for _, allocated := range network.Status.AllocatedIPs {
 		if allocated.IP != ip {
 			newAllocatedIPs = append(newAllocatedIPs, allocated)
@@ -84,7 +84,7 @@ func (a *IPAllocator) ReleaseIP(network *wireflowcontrollerv1alpha1.Network, ip 
 }
 
 // GetNodeIP 获取节点在指定网络中的 IP
-func (a *IPAllocator) GetNodeIP(network *wireflowcontrollerv1alpha1.Network, nodeName string) string {
+func (a *IPAllocator) GetNodeIP(network *v1alpha1.Network, nodeName string) string {
 	for _, allocated := range network.Status.AllocatedIPs {
 		if allocated.Node == nodeName {
 			return allocated.IP
@@ -94,7 +94,7 @@ func (a *IPAllocator) GetNodeIP(network *wireflowcontrollerv1alpha1.Network, nod
 }
 
 // IsIPAllocated 检查 IP 是否已被分配
-func (a *IPAllocator) IsIPAllocated(network *wireflowcontrollerv1alpha1.Network, ip string) bool {
+func (a *IPAllocator) IsIPAllocated(network *v1alpha1.Network, ip string) bool {
 	for _, allocated := range network.Status.AllocatedIPs {
 		if allocated.IP == ip {
 			return true
@@ -104,7 +104,7 @@ func (a *IPAllocator) IsIPAllocated(network *wireflowcontrollerv1alpha1.Network,
 }
 
 // CountAvailableIPs 计算可用 IP 数量
-func (a *IPAllocator) CountAvailableIPs(network *wireflowcontrollerv1alpha1.Network) (int, error) {
+func (a *IPAllocator) CountAvailableIPs(network *v1alpha1.Network) (int, error) {
 	_, ipNet, err := net.ParseCIDR(network.Spec.CIDR)
 	if err != nil {
 		return 0, err

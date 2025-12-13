@@ -18,7 +18,7 @@ import (
 	"context"
 	"wireflow/internal"
 
-	wireflowcontrollerv1alpha1 "github.com/wireflowio/wireflow-controller/api/v1alpha1"
+	wireflowv1alpha1 "wireflow/api/v1alpha1"
 )
 
 // TODO implement for wireflow-cli
@@ -41,7 +41,7 @@ func (s *Server) JoinNetwork(ctx context.Context, appId, networkId string) error
 	if networkId == "" {
 		return nil
 	}
-	return s.client.UpdateNodeSepc(ctx, "default", appId, func(node *wireflowcontrollerv1alpha1.Node) {
+	return s.client.UpdateNodeSepc(ctx, "default", appId, func(node *wireflowv1alpha1.Node) {
 		node.Spec.Networks = append(node.Spec.Networks, networkId)
 	})
 }
@@ -52,7 +52,7 @@ func (s *Server) LeaveNetwork(ctx context.Context, appId, networkId string) erro
 		return nil
 	}
 	//更新
-	return s.client.UpdateNodeSepc(ctx, "default", appId, func(node *wireflowcontrollerv1alpha1.Node) {
+	return s.client.UpdateNodeSepc(ctx, "default", appId, func(node *wireflowv1alpha1.Node) {
 		for i, network := range node.Spec.Networks {
 			if network == networkId {
 				node.Spec.Networks = append(node.Spec.Networks[:i], node.Spec.Networks[i+1:]...)

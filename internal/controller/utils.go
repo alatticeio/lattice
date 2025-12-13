@@ -1,5 +1,11 @@
 package controller
 
+import (
+	"fmt"
+	wireflowv1alpha1 "wireflow/api/v1alpha1"
+	"wireflow/internal"
+)
+
 // 辅助函数
 func stringSet(list []string) map[string]struct{} {
 	set := make(map[string]struct{}, len(list))
@@ -68,4 +74,14 @@ func stringSliceEqual(a, b []string) bool {
 		}
 	}
 	return true
+}
+
+func transferToPeer(peer *wireflowv1alpha1.Node) *internal.Peer {
+	return &internal.Peer{
+		Name:       peer.Name,
+		AppID:      peer.Spec.AppId,
+		Address:    peer.Status.AllocatedAddress,
+		PublicKey:  peer.Spec.PublicKey,
+		AllowedIPs: fmt.Sprintf("%s/32", peer.Status.AllocatedAddress),
+	}
 }

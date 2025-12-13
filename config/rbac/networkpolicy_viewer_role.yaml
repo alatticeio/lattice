@@ -1,7 +1,7 @@
 # This rule is not used by the project wireflow-controller itself.
 # It is provided to allow the cluster admin to help manage permissions for users.
 #
-# Grants read-only access to wireflowcontroller.wireflow.io resources.
+# Grants read-only access to wireflowcontroller.wireflowio.com resources.
 # This role is intended for users who need visibility into these resources
 # without permissions to modify them. It is ideal for monitoring purposes and limited-access viewing.
 
@@ -14,7 +14,7 @@ metadata:
   name: networkpolicy-viewer-role
 rules:
 - apiGroups:
-  - wireflowcontroller.wireflow.io
+  - wireflowcontroller.wireflowio.com
   resources:
   - networkpolicies
   verbs:
@@ -22,7 +22,7 @@ rules:
   - list
   - watch
 - apiGroups:
-  - wireflowcontroller.wireflow.io
+  - wireflowcontroller.wireflowio.com
   resources:
   - networkpolicies/status
   verbs:

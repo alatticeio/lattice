@@ -4,7 +4,7 @@
 
 Thank you for considering contributing to Wireflow!
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Prerequisites
 - Go 1.24+
@@ -19,13 +19,13 @@ git clone https://github.com/wireflowio/wireflow.git
 cd wireflow
 
 # Install dependencies
-make install-deps
+make manifests && make build-all
 
 # Run tests
 make test
 
 # Run locally
-make run
+Follow the README.md to run or tests locally
 ```
 
 ### How to Contribute

@@ -11,7 +11,6 @@ import (
 	"wireflow/internal"
 	"wireflow/pkg/log"
 
-	wireflowv1alpha1 "github.com/wireflowio/wireflow-controller/api/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -25,6 +24,7 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
+	wireflowv1alpha1 "wireflow/api/v1alpha1"
 )
 
 type Client struct {

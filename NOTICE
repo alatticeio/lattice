@@ -1,38 +1,89 @@
+
 Wireflow
 Copyright 2025 The Wireflow Authors
 
-This product includes software developed by The Wireflow Authors.
+This product includes software developed at
+https://github.com/wireflowio/wireflow
 
-Project URL: https://github.com/wireflowio/wireflow
-Website: https://wireflowio.com (if you have one)
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
 
 ================================================================================
 
-TRADEMARKS
+TRADEMARK NOTICE
 
-"Wireflow" is a trademark of [winstonfly].
+"Wireflow" and the Wireflow logo are trademarks of [winstonfly].
 
-You are free to use, modify, and distribute this software under the terms of
-the Apache License 2.0. However, use of the "Wireflow" name, logo, or other
-trademarks requires explicit permission.
+While the source code is licensed under Apache 2.0, the use of the
+"Wireflow" name and logo in derivative works or commercial offerings
+may require permission.
 
-Permitted Uses (no permission required):
-  - Referring to the unmodified software: "powered by Wireflow"
-  - Describing compatibility: "works with Wireflow"
-  - Educational or informational purposes: "Wireflow tutorial"
-
-Prohibited Uses (permission required):
-  - Using "Wireflow" in product names, company names, or domain names
-  - Implying official endorsement or affiliation
-  - Modified versions claiming to be "Wireflow"
-
-For trademark usage permission, contact: [lauxinchi@gmail.com]
+For trademark usage inquiries, please contact:
+  - Email: lauxinchi@gmail.com
+  - GitHub: https://github.com/wireflowio/wireflow/discussions
 
 ================================================================================
 
 THIRD-PARTY COMPONENTS
 
-This software includes code from the following open source projects:
+This project includes or depends on the following open source software:
 
 1. WireGuard
-   Copyright (C
+   - License: GPLv2
+   - Website: https://www.wireguard.com/
+   - Copyright: Jason A. Donenfeld and contributors
+
+2. Kubernetes
+   - License: Apache License 2.0
+   - Website: https://kubernetes.io/
+   - Copyright: The Kubernetes Authors
+
+3. controller-runtime
+   - License: Apache License 2.0
+   - Repository: https://github.com/kubernetes-sigs/controller-runtime
+   - Copyright: The Kubernetes Authors
+
+4. pion/webrtc (for STUN/TURN/ICE)
+   - License: MIT License
+   - Repository: https://github.com/pion/webrtc
+   - Copyright: Pion authors
+
+5. pion/turn
+   - License: MIT License
+   - Repository: https://github.com/pion/turn
+   - Copyright: Pion authors
+
+For a complete list of dependencies and their licenses, see:
+https://github.com/wireflowio/wireflow/blob/main/go.mod
+
+Full license texts for all third-party components can be found in the
+vendor/ directory or by running: go mod vendor
+
+================================================================================
+
+ATTRIBUTION
+
+Wireflow is built by a community of contributors. See the AUTHORS file
+for a list of individuals who have contributed to this project.
+
+To see the full list of contributors, visit:
+https://github.com/wireflowio/wireflow/graphs/contributors
+
+================================================================================
+
+CONTACT
+
+- Website: https://wireflowio.com (if available)
+- GitHub: https://github.com/wireflowio/wireflow
+- Issues: https://github.com/wireflowio/wireflow/issues
+- Discussions: https://github.com/wireflowio/wireflow/discussions
+- Email: info@wireflowio.com

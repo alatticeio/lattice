@@ -21,7 +21,6 @@ require (
 	github.com/spf13/cobra v1.10.1
 	github.com/spf13/viper v1.19.0
 	github.com/wireflowio/ice v0.0.0
-	github.com/wireflowio/wireflow-controller v0.0.0
 	golang.org/x/crypto v0.41.0
 	golang.org/x/net v0.43.0
 	golang.org/x/sync v0.16.0
@@ -170,5 +169,3 @@ require (
 replace github.com/wireflowio/ice v0.0.0 => /Users/francis/ice
 
 replace golang.zx2c4.com/wireguard v0.0.0 => /Users/francis/wireguard-go
-
-replace github.com/wireflowio/wireflow-controller => ../wireflow-controller

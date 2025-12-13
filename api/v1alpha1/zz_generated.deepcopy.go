@@ -239,8 +239,8 @@ func (in *NetworkSpec) DeepCopyInto(out *NetworkSpec) {
 			(*out)[key] = val
 		}
 	}
-	if in.Polices != nil {
-		in, out := &in.Polices, &out.Polices
+	if in.Policies != nil {
+		in, out := &in.Policies, &out.Policies
 		*out = make([]string, len(*in))
 		copy(*out, *in)
 	}

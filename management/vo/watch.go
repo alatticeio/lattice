@@ -11,7 +11,7 @@ import (
 	"code": 200,
 	"msg": "success",
 	"data": {
-		"drpUrl": "http://drp.wireflow.io/drp",
+		"drpUrl": "http://drp.wireflowio.com/drp",
 		"device": {
 			"privateKey": "mBngM2k7qWp9pVFGWMO0q1l7tiWjiIIAgsU/jwj+BHU=",
 			"publicKey": "3Hyx1Sbq0F9SZc6CUnmJ1pCPMgaAi6JRIxwoTrc1wSA=",

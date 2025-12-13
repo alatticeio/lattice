@@ -4,9 +4,9 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.18.0
-  name: nodes.wireflowcontroller.wireflow.io
+  name: nodes.wireflowcontroller.wireflowio.com
 spec:
-  group: wireflowcontroller.wireflow.io
+  group: wireflowcontroller.wireflowio.com
   names:
     kind: Node
     listKind: NodeList

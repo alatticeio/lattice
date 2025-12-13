@@ -33,17 +33,19 @@ type NetworkSpec struct {
 
 	Owner string `json:"owner,omitempty"`
 
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:Pattern=`^([0-9]{1,3}\.){3}[0-9]{1,3}/[0-9]{1,2}$`
 	CIDR string `json:"cidr,omitempty"`
 
 	Mtu int `json:"mtu,omitempty"`
 
-	Dns string `json:"dns,omitempty"`
+	Dns DNSConfig `json:"dns,omitempty"`
 
 	Nodes []string `json:"nodes,omitempty"`
 
 	NodeSelector map[string]string `json:"nodeSelector,omitempty"`
 
-	Polices []string `json:"polices,omitempty"`
+	Policies []string `json:"policies,omitempty"`
 }
 
 // NetworkStatus defines the observed state of Network.
@@ -64,8 +66,6 @@ type NetworkStatus struct {
 	AddedNodes int `json:"addedNodes,omitempty"`
 
 	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
 }
 
 type NetworkPhase string

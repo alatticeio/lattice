@@ -1,4 +1,4 @@
-apiVersion: wireflowcontroller.wireflow.io/v1alpha1
+apiVersion: wireflowcontroller.wireflowio.com/v1alpha1
 kind: NetworkPolicy
 metadata:
   labels:
@@ -6,4 +6,13 @@ metadata:
     app.kubernetes.io/managed-by: kustomize
   name: networkpolicy-sample
 spec:
-  # TODO(user): Add fields here
+  nodeSelector:
+    matchLabels:
+      app: test
+  policyType: "ingress"
+  ingressRule:
+    - from:
+        - peerSelector:
+            matchLabels:
+              app: test
+

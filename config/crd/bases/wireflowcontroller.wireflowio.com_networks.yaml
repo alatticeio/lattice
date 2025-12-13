@@ -4,9 +4,9 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.18.0
-  name: networks.wireflowcontroller.wireflow.io
+  name: networks.wireflowcontroller.wireflowio.com
 spec:
-  group: wireflowcontroller.wireflow.io
+  group: wireflowcontroller.wireflowio.com
   names:
     kind: Network
     listKind: NetworkList
@@ -43,9 +43,19 @@ spec:
             description: NetworkSpec defines the desired state of Network.
             properties:
               cidr:
+                pattern: ^([0-9]{1,3}\.){3}[0-9]{1,3}/[0-9]{1,2}$
                 type: string
               dns:
-                type: string
+                properties:
+                  enabled:
+                    type: boolean
+                  servers:
+                    items:
+                      type: string
+                    type: array
+                required:
+                - enabled
+                type: object
               mtu:
                 type: integer
               name:
@@ -63,10 +73,12 @@ spec:
                 type: array
               owner:
                 type: string
-              polices:
+              policies:
                 items:
                   type: string
                 type: array
+            required:
+            - cidr
             type: object
           status:
             description: NetworkStatus defines the observed state of Network.

@@ -516,12 +516,6 @@ github.com/wireflowio/ice/internal/atomic
 github.com/wireflowio/ice/internal/fakenet
 github.com/wireflowio/ice/internal/stun
 github.com/wireflowio/ice/internal/taskloop
-# github.com/wireflowio/wireflow-controller v0.0.0 => ../wireflow-controller
-## explicit; go 1.24.0
-github.com/wireflowio/wireflow-controller/api/v1alpha1
-github.com/wireflowio/wireflow-controller/internal/controller
-github.com/wireflowio/wireflow-controller/internal/model
-github.com/wireflowio/wireflow-controller/test/utils
 # github.com/wlynxg/anet v0.0.3
 ## explicit; go 1.20
 github.com/wlynxg/anet
@@ -1500,4 +1494,3 @@ sigs.k8s.io/structured-merge-diff/v6/value
 ## explicit; go 1.22
 sigs.k8s.io/yaml
 sigs.k8s.io/yaml/goyaml.v2
-# github.com/wireflowio/wireflow-controller => ../wireflow-controller

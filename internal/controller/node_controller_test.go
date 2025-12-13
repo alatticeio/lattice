@@ -27,7 +27,7 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	wireflowcontrollerv1alpha1 "github.com/wireflowio/wireflow-controller/api/v1alpha1"
+	v1alpha1 "wireflow/api/v1alpha1"
 )
 
 var _ = Describe("Node Controller", func() {
@@ -40,13 +40,13 @@ var _ = Describe("Node Controller", func() {
 			Name:      resourceName,
 			Namespace: "default", // TODO(user):Modify as needed
 		}
-		node := &wireflowcontrollerv1alpha1.Node{}
+		node := &v1alpha1.Node{}
 
 		BeforeEach(func() {
 			By("creating the custom resource for the Kind Node")
 			err := k8sClient.Get(ctx, typeNamespacedName, node)
 			if err != nil && errors.IsNotFound(err) {
-				resource := &wireflowcontrollerv1alpha1.Node{
+				resource := &v1alpha1.Node{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      resourceName,
 						Namespace: "default",
@@ -59,7 +59,7 @@ var _ = Describe("Node Controller", func() {
 
 		AfterEach(func() {
 			// TODO(user): Cleanup logic after each test, like removing the resource instance.
-			resource := &wireflowcontrollerv1alpha1.Node{}
+			resource := &v1alpha1.Node{}
 			err := k8sClient.Get(ctx, typeNamespacedName, resource)
 			Expect(err).NotTo(HaveOccurred())
 

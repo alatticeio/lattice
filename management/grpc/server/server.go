@@ -24,11 +24,11 @@ import (
 	"wireflow/pkg/wferrors"
 
 	"github.com/golang/protobuf/proto"
-	"github.com/wireflowio/wireflow-controller/api/v1alpha1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"gorm.io/gorm"
+	"wireflow/api/v1alpha1"
 )
 
 // Server is grpc server used to list watch resources to nodes.

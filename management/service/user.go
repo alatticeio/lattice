@@ -107,7 +107,7 @@ func (u *userServiceImpl) Login(ctx context.Context, dto *dto.UserDto) (*entity.
 	}
 
 	// Save turn key to redis
-	key := turn.GenerateAuthKey(user.Username, "wireflow.io", dto.Password)
+	key := turn.GenerateAuthKey(user.Username, "wireflowio.com", dto.Password)
 	if err = u.rdb.Set(context.Background(), user.Username, string(key)); err != nil {
 		return nil, err
 	}

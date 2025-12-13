@@ -118,6 +118,7 @@ type Message struct {
 	Changes       *ChangeDetails `json:"changes"`       // 配置变化详情
 	Current       *Peer          `json:"peer"`          //当前节点信息
 	Network       *Network       `json:"network"`       //网络信息
+	Policies      []*Policy      `json:"policies"`
 }
 
 type ChangeDetails struct {
@@ -132,9 +133,9 @@ type ChangeDetails struct {
 	PeersUpdated []string `json:"peersUpdated,omitempty"` // 节点更新列表
 
 	//策略变化
-	PoliciesAdded   []string `json:"policiesAdded,omitempty"`
-	PoliciesRemoved []string `json:"policiesRemoved,omitempty"`
-	PoliciesUpdated []string `json:"policiesUpdated,omitempty"`
+	PoliciesAdded   []*Policy `json:"policiesAdded,omitempty"`
+	PoliciesRemoved []*Policy `json:"policiesRemoved,omitempty"`
+	PoliciesUpdated []*Policy `json:"policiesUpdated,omitempty"`
 
 	//网络配置变化
 	NetworkJoined        []string `json:"networkJoined,omitempty"`
@@ -215,25 +216,24 @@ type Peer struct {
 
 // Network is the network information, contains all peers/policies in the network
 type Network struct {
-	Address     string    `json:"address"`
-	AllowedIps  []string  `json:"allowedIps"`
-	Port        int       `json:"port"`
-	NetworkId   string    `json:"networkId"`
-	NetworkName string    `json:"networkName"`
-	Policies    []*Policy `json:"policies"`
-	Peers       []*Peer   `json:"peers"`
+	Address     string   `json:"address"`
+	AllowedIps  []string `json:"allowedIps"`
+	Port        int      `json:"port"`
+	NetworkId   string   `json:"networkId"`
+	NetworkName string   `json:"networkName"`
+	Peers       []*Peer  `json:"peers"`
 }
 
 type Policy struct {
 	PolicyName string  `json:"policyName"`
-	Rules      []*Rule `json:"rules"`
+	Ingress    []*Rule `json:"ingress"`
+	Egress     []*Rule `json:"egress"`
 }
 
 type Rule struct {
-	SourceType string `json:"sourceType"`
-	TargetType string `json:"targetType"`
-	SourceId   string `json:"sourceId"`
-	TargetId   string `json:"targetId"`
+	Peers    []*Peer `json:"peers"`
+	Protocol string  `json:"protocol"`
+	Port     string  `json:"port"`
 }
 
 func NewMessage() *Message {
@@ -255,6 +255,11 @@ func (m *Message) WithNetwork(network *Network) *Message {
 	return m
 }
 
+func (m *Message) WithPolicies(policies []*Policy) *Message {
+	m.Policies = policies
+	return m
+}
+
 // FullConfig 全量配置
 func (m *Message) FullConfig() string {
 
@@ -266,10 +271,10 @@ func (m *Message) String() string {
 	return string(data)
 }
 
-func (n *Network) WithPolicy(policy *Policy) *Network {
-	n.Policies = append(n.Policies, policy)
-	return n
-}
+//func (n *Network) WithPolicy(policy *Policy) *Network {
+//	n.Policies = append(n.Policies, policy)
+//	return n
+//}
 
 func (w *WatchManager) Send(clientId string, msg *Message) error {
 	channel := w.GetChannel(clientId)

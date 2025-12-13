@@ -18,7 +18,7 @@ type TokenService interface {
 	Parse(token string) (*entity.User, error)
 }
 
-var haSalt = []byte("wireflow.io")
+var haSalt = []byte("wireflowio.com")
 
 type tokenServiceImpl struct {
 	logger   *log.Logger

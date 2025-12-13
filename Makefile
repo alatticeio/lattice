@@ -180,7 +180,6 @@ docker-push: ## 推送单个服务的 Docker 镜像
 	fi
 	@echo " Pushing $(REGISTRY)/$(SERVICE):$(VERSION)..."
 	$(CONTAINER_TOOL) push $(REGISTRY)/$(SERVICE):$(VERSION)
-	$(CONTAINER_TOOL) push $(REGISTRY)/$(SERVICE):latest
 	@echo "✅ Pushed: $(REGISTRY)/$(SERVICE):$(VERSION)"
 
 # ============ Docker 构建并推送 ============

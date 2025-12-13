@@ -67,7 +67,7 @@ spec:
       hostAliases:
         - ip: "10.96.98.115"
           hostnames:
-            - "console.wireflow.io"
+            - "console.wireflowio.com"
       containers:
         - name: wireflow-signaling
           image: controller:latest
@@ -99,7 +99,7 @@ spec:
       hostAliases:
         - ip: "10.96.80.105"
           hostnames:
-            - "console.wireflow.io"
+            - "console.wireflowio.com"
       containers:
         - name: wireflow-turn
           image: controller:latest

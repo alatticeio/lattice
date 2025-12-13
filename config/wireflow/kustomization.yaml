@@ -3,5 +3,5 @@ resources:
 namespace: wireflow
 images:
   - name: controller
-    newName: registry.cn-hangzhou.aliyuncs.com/wireflow-io/wireflow-controller
+    newName: registry.cn-hangzhou.aliyuncs.com/wireflowio.com/wireflow-controller
     newTag: latest

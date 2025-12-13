@@ -21,13 +21,47 @@ import (
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
-// NetworkPolicySpec defines the desired state of NetworkPolicy.
-type NetworkPolicySpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+type PolicyType string
 
-	// Foo is an example field of NetworkPolicy. Edit networkpolicy_types.go to remove/update
-	Foo string `json:"foo,omitempty"`
+const (
+	PolicyTypeIngress PolicyType = "ingress"
+	PolicyTypeEgress  PolicyType = "egress"
+)
+
+// NetworkPolicySpec defines the desired state of NetworkPolicy. which used to control the wireflow's traffic flow.
+type NetworkPolicySpec struct {
+	// NodeSelector is a label query over node that should be applied to the wireflow policy.
+	NodeSelector metav1.LabelSelector `json:"nodeSelector,omitempty"`
+
+	PolicyType PolicyType `json:"policyType,omitempty"`
+
+	IngressRule []IngressRule `json:"ingressRule,omitempty"`
+	EgressRule  []EgressRule  `json:"egressRule,omitempty"`
+}
+
+// IngressRule and EgressRule are used to control the wireflow's traffic flow.
+type IngressRule struct {
+	From  []PeerSelection     `json:"from,omitempty"` // from what peers connect to the wireflow which selected by this policy
+	Ports []NetworkPolicyPort `json:"ports,omitempty"`
+}
+
+type EgressRule struct {
+	To    []PeerSelection     `json:"to,omitempty"` // to what peers connect to the wireflow which selected by this policy
+	Ports []NetworkPolicyPort `json:"ports,omitempty"`
+}
+
+type PeerSelection struct {
+	PeerSelector *metav1.LabelSelector `json:"peerSelector,omitempty"`
+	IPBlock      *IPBlock              `json:"ipBlock,omitempty"`
+}
+
+type IPBlock struct {
+	CIDR string `json:"cidr,omitempty"`
+}
+
+type NetworkPolicyPort struct {
+	Port     int32  `json:"port,omitempty"`
+	Protocol string `json:"protocol,omitempty"`
 }
 
 // NetworkPolicyStatus defines the observed state of NetworkPolicy.
@@ -40,6 +74,7 @@ type NetworkPolicyStatus struct {
 // +kubebuilder:subresource:status
 
 // NetworkPolicy is the Schema for the networkpolicies API.
+// +kubebuilder:resource:shortName=wfpolicy;wfp
 type NetworkPolicy struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`

@@ -128,7 +128,7 @@ func runLogin(opts loginOptions) error {
 			return fmt.Errorf("failed to connect redis: %v", err)
 		}
 
-		key := turn.GenerateAuthKey(opts.Username, "wireflow.io", opts.Password)
+		key := turn.GenerateAuthKey(opts.Username, "wireflowio.com", opts.Password)
 		if err = rdbClient.Set(context.Background(), opts.Username, string(key)); err != nil {
 			return fmt.Errorf("failed to set user turnKey to redis: %v", err)
 		}
