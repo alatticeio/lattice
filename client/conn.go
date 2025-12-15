@@ -25,8 +25,8 @@ import (
 	"sync"
 	"syscall"
 	"time"
-	drpclient "wireflow/drp"
-	"wireflow/internal"
+	"wireflow/drp"
+	"wireflow/internal/core/domain"
 	"wireflow/pkg/log"
 
 	"github.com/wireflowio/ice"
@@ -37,27 +37,27 @@ import (
 )
 
 var (
-	_ conn.Bind = (*WireFlowBind)(nil)
+	_ conn.Bind = (*DefaultBind)(nil)
 )
 
-// WireFlowBind implements Bind for all platforms. While Windows has its own Bind
-// (see bind_windows.go), it may fall back to WireFlowBind.
+// DefaultBind implements Bind for all platforms. While Windows has its own Bind
+// (see bind_windows.go), it may fall back to DefaultBind.
 // TODO: RemoveProbe usage of ipv{4,6}.PacketConn when net.UDPConn has comparable
 // methods for sending and receiving multiple datagrams per-syscall. See the
 // proposal in https://github.com/golang/go/issues/45886#issuecomment-1218301564.
-type WireFlowBind struct {
+type DefaultBind struct {
 	logger          *log.Logger
 	agent           *ice.Agent
 	universalUdpMux *ice.UniversalUDPMuxDefault
-	conn            net.Conn // drp client conn
-	node            *drpclient.Node
+	conn            net.Conn // drp clients conn
+	node            *drp.Node
 	PublicKey       wgtypes.Key
-	keyManager      internal.KeyManager
+	keyManager      domain.IKeyManager
 
 	// used for turn relay
 	relayConn net.PacketConn
 
-	proxy *drpclient.Proxy
+	proxy *drp.Proxy
 
 	drpAddr net.TCPAddr // drp addr，drp created from console
 
@@ -85,12 +85,12 @@ type BindConfig struct {
 	V6Conn          *net.UDPConn
 	UniversalUDPMux *ice.UniversalUDPMuxDefault
 	RelayConn       net.PacketConn // relay conn, used for relay endpoint
-	Proxy           *drpclient.Proxy
-	KeyManager      internal.KeyManager
+	Proxy           *drp.Proxy
+	KeyManager      domain.IKeyManager
 }
 
-func NewBind(cfg *BindConfig) *WireFlowBind {
-	return &WireFlowBind{
+func NewBind(cfg *BindConfig) *DefaultBind {
+	return &DefaultBind{
 		logger:          cfg.Logger,
 		proxy:           cfg.Proxy,
 		v4conn:          cfg.V4Conn,
@@ -131,11 +131,11 @@ func NewBind(cfg *BindConfig) *WireFlowBind {
 
 }
 
-func (b *WireFlowBind) GetPackectConn4() net.PacketConn {
+func (b *DefaultBind) GetPackectConn4() net.PacketConn {
 	return b.ipv4
 }
 
-func (b *WireFlowBind) GetPackectConn6() net.PacketConn {
+func (b *DefaultBind) GetPackectConn6() net.PacketConn {
 	return b.ipv6
 }
 
@@ -143,7 +143,7 @@ func (b *WireFlowBind) GetPackectConn6() net.PacketConn {
 // when it is direct, s can be parse to netip.AddrPort like 'xx.xx.xx.xx:port'
 // when it is drp, s like 'drp:to=xxx//xx.xx.xx.xx:port'
 // when it is relay, like 'relay://xx.xx.xx.xx:port'
-func (b *WireFlowBind) ParseEndpoint(s string) (conn.Endpoint, error) {
+func (b *DefaultBind) ParseEndpoint(s string) (conn.Endpoint, error) {
 	if strings.HasPrefix(s, "drp:") {
 		prefix, after, isExists := strings.Cut(s, "//")
 		if !isExists {
@@ -160,14 +160,14 @@ func (b *WireFlowBind) ParseEndpoint(s string) (conn.Endpoint, error) {
 		if !isExists {
 			return nil, errors.New("invalid drp endpoint format, missing 'to='")
 		}
-		return &internal.WireflowEndpoint{
+		return &domain.MagicEndpoint{
 			Relay: &struct {
-				FromType internal.EndpointType
+				FromType domain.EndpointType
 				Status   bool
 				From     string
 				To       string
 				Endpoint netip.AddrPort
-			}{FromType: internal.DRP, Status: true, From: b.keyManager.GetPublicKey(), To: to, Endpoint: e},
+			}{FromType: domain.DRP, Status: true, From: b.keyManager.GetPublicKey(), To: to, Endpoint: e},
 		}, nil
 	} else if strings.HasPrefix(s, "relay:") {
 		// relay endpoint
@@ -196,14 +196,14 @@ func (b *WireFlowBind) ParseEndpoint(s string) (conn.Endpoint, error) {
 		if !isExists {
 			return nil, errors.New("invalid drp endpoint format, missing 'to='")
 		}
-		return &internal.WireflowEndpoint{
+		return &domain.MagicEndpoint{
 			Relay: &struct {
-				FromType internal.EndpointType
+				FromType domain.EndpointType
 				Status   bool
 				From     string
 				To       string
 				Endpoint netip.AddrPort
-			}{FromType: internal.Relay, Status: true, From: b.keyManager.GetPublicKey(), To: to, Endpoint: e},
+			}{FromType: domain.Relay, Status: true, From: b.keyManager.GetPublicKey(), To: to, Endpoint: e},
 		}, nil
 	}
 	e, err := netip.ParseAddrPort(s)
@@ -211,7 +211,7 @@ func (b *WireFlowBind) ParseEndpoint(s string) (conn.Endpoint, error) {
 		return nil, err
 	}
 
-	return &internal.WireflowEndpoint{
+	return &domain.MagicEndpoint{
 		Direct: struct{ AddrPort netip.AddrPort }{AddrPort: e},
 	}, nil
 
@@ -247,7 +247,7 @@ func ListenUDP(net string, uport uint16) (*net.UDPConn, int, error) {
 }
 
 // Open copy from wiregaurd, add a drp ReceiveFunc
-func (b *WireFlowBind) Open(uport uint16) ([]conn.ReceiveFunc, uint16, error) {
+func (b *DefaultBind) Open(uport uint16) ([]conn.ReceiveFunc, uint16, error) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
@@ -303,11 +303,11 @@ func (b *WireFlowBind) Open(uport uint16) ([]conn.ReceiveFunc, uint16, error) {
 
 // makeReceiveDrp will receive data from drp server, using grpc transport.
 // It will return a conn.ReceiveFunc that can be used to receive data from the drp server.
-func (b *WireFlowBind) makeReceiveDrp() conn.ReceiveFunc {
+func (b *DefaultBind) makeReceiveDrp() conn.ReceiveFunc {
 	return b.proxy.MakeReceiveFromDrp()
 }
 
-func (b *WireFlowBind) makeReceiveRelay() conn.ReceiveFunc {
+func (b *DefaultBind) makeReceiveRelay() conn.ReceiveFunc {
 	return func(bufs [][]byte, sizes []int, eps []conn.Endpoint) (n int, err error) {
 		n, addr, err := b.relayConn.ReadFrom(bufs[0])
 		if err != nil {
@@ -326,21 +326,21 @@ func (b *WireFlowBind) makeReceiveRelay() conn.ReceiveFunc {
 			return 0, err
 		}
 
-		eps[0] = &internal.WireflowEndpoint{
+		eps[0] = &domain.MagicEndpoint{
 			Relay: &struct {
-				FromType internal.EndpointType
+				FromType domain.EndpointType
 				Status   bool
 				From     string
 				To       string
 				Endpoint netip.AddrPort
-			}{FromType: internal.Relay, Status: true, From: "", To: b.keyManager.GetPublicKey(), Endpoint: addrPort},
+			}{FromType: domain.Relay, Status: true, From: "", To: b.keyManager.GetPublicKey(), Endpoint: addrPort},
 		}
 
 		return 1, nil
 	}
 }
 
-func (b *WireFlowBind) makeReceiveIPv4(pc *ipv4.PacketConn, udpConn *net.UDPConn) conn.ReceiveFunc {
+func (b *DefaultBind) makeReceiveIPv4(pc *ipv4.PacketConn, udpConn *net.UDPConn) conn.ReceiveFunc {
 	return func(bufs [][]byte, sizes []int, eps []conn.Endpoint) (n int, err error) {
 		msgs := b.ipv4MsgsPool.Get().(*[]ipv4.Message)
 		defer b.ipv4MsgsPool.Put(msgs)
@@ -378,7 +378,7 @@ func (b *WireFlowBind) makeReceiveIPv4(pc *ipv4.PacketConn, udpConn *net.UDPConn
 
 			sizes[i] = msg.N
 			addrPort := msg.Addr.(*net.UDPAddr).AddrPort()
-			ep := &internal.WireflowEndpoint{
+			ep := &domain.MagicEndpoint{
 				Direct: struct{ AddrPort netip.AddrPort }{AddrPort: addrPort},
 			} // TODO: remove allocation
 			getSrcFromControl(msg.OOB[:msg.NN], ep)
@@ -388,7 +388,7 @@ func (b *WireFlowBind) makeReceiveIPv4(pc *ipv4.PacketConn, udpConn *net.UDPConn
 	}
 }
 
-func (b *WireFlowBind) makeReceiveIPv6(pc *ipv6.PacketConn, udpConn *net.UDPConn) conn.ReceiveFunc {
+func (b *DefaultBind) makeReceiveIPv6(pc *ipv6.PacketConn, udpConn *net.UDPConn) conn.ReceiveFunc {
 	return func(bufs [][]byte, sizes []int, eps []conn.Endpoint) (n int, err error) {
 		msgs := b.ipv6MsgsPool.Get().(*[]ipv6.Message)
 		defer b.ipv6MsgsPool.Put(msgs)
@@ -423,7 +423,7 @@ func (b *WireFlowBind) makeReceiveIPv6(pc *ipv6.PacketConn, udpConn *net.UDPConn
 			}
 			sizes[i] = msg.N
 			addrPort := msg.Addr.(*net.UDPAddr).AddrPort()
-			ep := &internal.WireflowEndpoint{Direct: struct{ AddrPort netip.AddrPort }{AddrPort: addrPort}} // TODO: remove allocation
+			ep := &domain.MagicEndpoint{Direct: struct{ AddrPort netip.AddrPort }{AddrPort: addrPort}} // TODO: remove allocation
 			getSrcFromControl(msg.OOB[:msg.NN], ep)
 			eps[i] = ep
 		}
@@ -433,14 +433,14 @@ func (b *WireFlowBind) makeReceiveIPv6(pc *ipv6.PacketConn, udpConn *net.UDPConn
 
 // TODO: When all Binds handle IdealBatchSize, remove this dynamic function and
 // rename the IdealBatchSize constant to BatchSize.
-func (b *WireFlowBind) BatchSize() int {
+func (b *DefaultBind) BatchSize() int {
 	if runtime.GOOS == "linux" {
 		return conn.IdealBatchSize
 	}
 	return 1
 }
 
-func (b *WireFlowBind) Close() error {
+func (b *DefaultBind) Close() error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
@@ -468,11 +468,11 @@ func (b *WireFlowBind) Close() error {
 	return err3
 }
 
-func (b *WireFlowBind) Send(bufs [][]byte, endpoint conn.Endpoint) error {
+func (b *DefaultBind) Send(bufs [][]byte, endpoint conn.Endpoint) error {
 	// add drp write
-	if v, ok := endpoint.(internal.RelayEndpoint); ok {
+	if v, ok := endpoint.(domain.RelayEndpoint); ok {
 		switch v.FromType() {
-		case internal.DRP:
+		case domain.DRP:
 			if b.proxy == nil {
 				return errors.New("proxy is nil, please set proxy first")
 			}
@@ -480,7 +480,7 @@ func (b *WireFlowBind) Send(bufs [][]byte, endpoint conn.Endpoint) error {
 				return err
 			}
 			return nil
-		case internal.Relay:
+		case domain.Relay:
 			if b.relayConn == nil {
 				return errors.New("relayConn is nil, please set relayConn first")
 			}
@@ -535,17 +535,17 @@ func (b *WireFlowBind) Send(bufs [][]byte, endpoint conn.Endpoint) error {
 	return b.send4(b.v4conn, pc4, endpoint, bufs)
 }
 
-func (b *WireFlowBind) send4(conn *net.UDPConn, pc *ipv4.PacketConn, ep conn.Endpoint, bufs [][]byte) error {
+func (b *DefaultBind) send4(conn *net.UDPConn, pc *ipv4.PacketConn, ep conn.Endpoint, bufs [][]byte) error {
 	ua := b.udpAddrPool.Get().(*net.UDPAddr)
 	as4 := ep.DstIP().As4()
 	copy(ua.IP, as4[:])
 	ua.IP = ua.IP[:4]
-	ua.Port = int(ep.(*internal.WireflowEndpoint).Direct.AddrPort.Port())
+	ua.Port = int(ep.(*domain.MagicEndpoint).Direct.AddrPort.Port())
 	msgs := b.ipv4MsgsPool.Get().(*[]ipv4.Message)
 	for i, buf := range bufs {
 		(*msgs)[i].Buffers[0] = buf
 		(*msgs)[i].Addr = ua
-		setSrcControl(&(*msgs)[i].OOB, ep.(*internal.WireflowEndpoint))
+		setSrcControl(&(*msgs)[i].OOB, ep.(*domain.MagicEndpoint))
 	}
 	var (
 		n     int
@@ -573,17 +573,17 @@ func (b *WireFlowBind) send4(conn *net.UDPConn, pc *ipv4.PacketConn, ep conn.End
 	return err
 }
 
-func (b *WireFlowBind) send6(conn *net.UDPConn, pc *ipv6.PacketConn, ep conn.Endpoint, bufs [][]byte) error {
+func (b *DefaultBind) send6(conn *net.UDPConn, pc *ipv6.PacketConn, ep conn.Endpoint, bufs [][]byte) error {
 	ua := b.udpAddrPool.Get().(*net.UDPAddr)
 	as16 := ep.DstIP().As16()
 	copy(ua.IP, as16[:])
 	//ua.IP = ua.IP[:16]
-	//ua.Port = int(ep.(*internal.WireflowEndpoint).Port())
+	//ua.Port = int(ep.(*internal.MagicEndpoint).Port())
 	msgs := b.ipv6MsgsPool.Get().(*[]ipv6.Message)
 	for i, buf := range bufs {
 		(*msgs)[i].Buffers[0] = buf
 		(*msgs)[i].Addr = ua
-		setSrcControl(&(*msgs)[i].OOB, ep.(*internal.WireflowEndpoint))
+		setSrcControl(&(*msgs)[i].OOB, ep.(*domain.MagicEndpoint))
 	}
 	var (
 		n     int

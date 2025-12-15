@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package internal
+package domain
 
 import (
 	"encoding/hex"
@@ -20,7 +20,6 @@ import (
 	"strconv"
 	"strings"
 
-	wg "golang.zx2c4.com/wireguard/device"
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 )
 
@@ -41,66 +40,7 @@ type Configurer interface {
 
 	GetIfaceName() string
 
-	GetPeersManager() *PeerManager
-}
-
-var (
-	_ Configurer = (*defaultConfigure)(nil)
-)
-
-type defaultConfigure struct {
-	device       *wg.Device
-	address      string
-	ifaceName    string
-	peersManager *PeerManager
-}
-
-func (c *defaultConfigure) GetAddress() string {
-	return c.address
-}
-
-func (c *defaultConfigure) GetIfaceName() string {
-	return c.ifaceName
-}
-
-func (c *defaultConfigure) GetPeersManager() *PeerManager {
-	return c.peersManager
-}
-
-type Params struct {
-	Device       *wg.Device
-	IfaceName    string
-	Address      string
-	PeersManager *PeerManager
-}
-
-func (c *defaultConfigure) Configure() error {
-	return nil
-}
-
-func (c *defaultConfigure) ConfigSet(conf *DeviceConfig) error {
-	return nil
-}
-
-func (c *defaultConfigure) AddPeer(peer *SetPeer) error {
-	return c.device.IpcSet(peer.String())
-}
-
-func (c *defaultConfigure) RemovePeer(peer *SetPeer) error {
-	return c.device.IpcSet(peer.String())
-}
-
-func (c *defaultConfigure) RemoveAllPeers() {
-	c.device.RemoveAllPeers()
-}
-
-func NewConfigurer(config *Params) Configurer {
-	return &defaultConfigure{
-		device:       config.Device,
-		address:      config.Address,
-		ifaceName:    config.IfaceName,
-		peersManager: config.PeersManager,
-	}
+	GetPeersManager() IPeerManager
 }
 
 type SetPeer struct {

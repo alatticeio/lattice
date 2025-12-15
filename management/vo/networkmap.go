@@ -1,11 +1,11 @@
 package vo
 
 import (
-	"wireflow/internal"
+	"wireflow/internal/core/domain"
 )
 
 type NetworkMap struct {
 	UserId  string
 	Current *NodeVo
-	Nodes   []*internal.Peer
+	Nodes   []*domain.Peer
 }

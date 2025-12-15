@@ -12,16 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package internal
+package infra
 
-import (
-	"fmt"
-	"net/netip"
-	"testing"
-)
-
-func TestPrefix(t *testing.T) {
-	s := "10.0.0.2/32"
-	prefix, err := netip.ParsePrefix(s)
-	fmt.Println(prefix, err)
-}
+// RouterFunc will add route for device
+type RouterPrintf func(action, address, name string)

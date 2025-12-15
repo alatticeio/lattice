@@ -12,31 +12,27 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package internal
+package wferrors
 
-type ConnectionState int
+import "fmt"
 
-const (
-	ConnectionStateNew ConnectionState = iota
-	ConnectionStateChecking
-	ConnectionStateFailed
-	ConnectionStateConnected
-	ConnectionStateDisconnected
-)
+type IPCError struct {
+	code int64 // error code
+	err  error // underlying/wrapped error
+}
 
-func (c ConnectionState) String() string {
-	switch c {
-	case ConnectionStateNew:
-		return "New"
-	case ConnectionStateChecking:
-		return "Checking"
-	case ConnectionStateConnected:
-		return "Connected"
-	case ConnectionStateFailed:
-		return "Failed"
-	case ConnectionStateDisconnected:
-		return "Disconnected"
-	default:
-		return "Invalid"
-	}
+func (s IPCError) Error() string {
+	return fmt.Sprintf("IPC error %d: %v", s.code, s.err)
+}
+
+func (s IPCError) Unwrap() error {
+	return s.err
+}
+
+func (s IPCError) ErrorCode() int64 {
+	return s.code
+}
+
+func IpcErrorf(code int64, msg string, args ...any) *IPCError {
+	return &IPCError{code: code, err: fmt.Errorf(msg, args...)}
 }

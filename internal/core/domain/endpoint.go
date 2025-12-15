@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package internal
+package domain
 
 import (
 	"net/netip"
@@ -40,17 +40,17 @@ type Endpoint interface {
 	To() string
 }
 
-// WireflowEndpoint is a connection endpoint that represents a link layer endpoint
+// MagicEndpoint is a connection endpoint that represents a link layer endpoint
 // with a DRP (Direct Routing Protocol) status, a direct address and port,
 // and a sticky source address and interface index if supported.
 // It implements the conn.Endpoint interface.
 // It is used to represent a connection endpoint in the WireGuard context.
 var (
-	_ conn.Endpoint = (*WireflowEndpoint)(nil)
-	_ Endpoint      = (*WireflowEndpoint)(nil)
+	_ conn.Endpoint = (*MagicEndpoint)(nil)
+	_ Endpoint      = (*MagicEndpoint)(nil)
 )
 
-type WireflowEndpoint struct {
+type MagicEndpoint struct {
 	Relay *struct {
 		// FromType indicates the type of the endpoint.
 		FromType EndpointType
@@ -75,15 +75,15 @@ type WireflowEndpoint struct {
 	}
 }
 
-func (e *WireflowEndpoint) From() string {
+func (e *MagicEndpoint) From() string {
 	return e.Relay.From
 }
 
-func (e *WireflowEndpoint) To() string {
+func (e *MagicEndpoint) To() string {
 	return e.Relay.To
 }
 
-func (e *WireflowEndpoint) FromType() EndpointType {
+func (e *MagicEndpoint) FromType() EndpointType {
 	if e.Relay != nil {
 		return e.Relay.FromType
 	}
@@ -91,15 +91,15 @@ func (e *WireflowEndpoint) FromType() EndpointType {
 }
 
 var (
-	_ conn.Endpoint = &WireflowEndpoint{}
+	_ conn.Endpoint = &MagicEndpoint{}
 )
 
-func (e *WireflowEndpoint) ClearSrc() {
+func (e *MagicEndpoint) ClearSrc() {
 	e.src.ifidx = 0
 	e.src.Addr = netip.Addr{}
 }
 
-func (e *WireflowEndpoint) DstIP() netip.Addr {
+func (e *MagicEndpoint) DstIP() netip.Addr {
 	switch e.FromType() {
 	case Direct:
 		return e.Direct.AddrPort.Addr()
@@ -108,15 +108,15 @@ func (e *WireflowEndpoint) DstIP() netip.Addr {
 	}
 }
 
-func (e *WireflowEndpoint) SrcIP() netip.Addr {
+func (e *MagicEndpoint) SrcIP() netip.Addr {
 	return e.src.Addr
 }
 
-func (e *WireflowEndpoint) SrcIfidx() int32 {
+func (e *MagicEndpoint) SrcIfidx() int32 {
 	return e.src.ifidx
 }
 
-func (e *WireflowEndpoint) DstToBytes() []byte {
+func (e *MagicEndpoint) DstToBytes() []byte {
 	var (
 		b []byte
 	)
@@ -131,7 +131,7 @@ func (e *WireflowEndpoint) DstToBytes() []byte {
 	return b
 }
 
-func (e *WireflowEndpoint) DstToString() string {
+func (e *MagicEndpoint) DstToString() string {
 	switch e.FromType() {
 	case Direct:
 		return e.Direct.AddrPort.String()
@@ -140,6 +140,6 @@ func (e *WireflowEndpoint) DstToString() string {
 	}
 }
 
-func (e *WireflowEndpoint) SrcToString() string {
+func (e *MagicEndpoint) SrcToString() string {
 	return e.src.Addr.String()
 }

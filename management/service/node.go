@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
-	"wireflow/internal"
+	"wireflow/internal/core/domain"
 	"wireflow/management/dto"
 	"wireflow/management/entity"
 	"wireflow/management/repository"
@@ -251,10 +251,10 @@ func (n *nodeServiceImpl) GetNetworkMap(ctx context.Context, appId, userId strin
 	// find nodes in group
 	nodes, err = n.nodeRepo.FindIn(ctx, nodeIds)
 
-	var resultNodes []*internal.Peer
+	var resultNodes []*domain.Peer
 	for _, node := range nodes {
 		if node.Status == utils2.Online {
-			resultNodes = append(resultNodes, &internal.Peer{
+			resultNodes = append(resultNodes, &domain.Peer{
 				Name:                node.Name,
 				Description:         node.Description,
 				NetworkId:           node.Group.NetworkId,

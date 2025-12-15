@@ -19,7 +19,7 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"wireflow/internal"
+	"wireflow/internal/core/domain"
 	"wireflow/management/client"
 	mgtclient "wireflow/management/grpc/client"
 	"wireflow/pkg/config"
@@ -97,7 +97,7 @@ func runLogin(opts loginOptions) error {
 		}
 	}
 
-	grpcClient, err := mgtclient.NewClient(&mgtclient.GrpcConfig{Addr: fmt.Sprintf("%s:%d", internal.ManagementDomain, internal.DefaultManagementPort), Logger: log.NewLogger(log.Loglevel, "mgtclient")})
+	grpcClient, err := mgtclient.NewClient(&mgtclient.GrpcConfig{Addr: fmt.Sprintf("%s:%d", domain.ManagementDomain, domain.DefaultManagementPort), Logger: log.NewLogger(log.Loglevel, "mgtclient")})
 	if err != nil {
 		return err
 	}

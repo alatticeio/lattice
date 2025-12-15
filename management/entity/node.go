@@ -1,7 +1,7 @@
 package entity
 
 import (
-	"wireflow/internal"
+	"wireflow/internal/core/domain"
 	"wireflow/management/vo"
 	"wireflow/pkg/utils"
 )
@@ -47,7 +47,7 @@ type Node struct {
 	Port                int              `gorm:"column:port" json:"port"`
 	Status              utils.NodeStatus `gorm:"type:int;column:status" json:"status"`
 	ActiveStatus        utils.ActiveStatus
-	ConnectType         internal.ConnType // direct, relay, drp
+	ConnectType         domain.ConnType // direct, relay, drp
 
 	Group      GroupNode   `gorm:"foreignKey:NodeId;"`
 	NodeLabels []NodeLabel `gorm:"foreignKey:NodeId;"`

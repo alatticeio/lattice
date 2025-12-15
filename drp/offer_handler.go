@@ -20,7 +20,7 @@ import (
 	"net"
 	"sync"
 	"time"
-	"wireflow/internal"
+	"wireflow/internal/core/domain"
 	drpgrpc "wireflow/internal/grpc"
 	"wireflow/pkg/log"
 	turnclient "wireflow/pkg/turn"
@@ -30,7 +30,7 @@ import (
 )
 
 var (
-	_ internal.OfferHandler = (*offerHandler)(nil)
+	_ domain.OfferHandler = (*offerHandler)(nil)
 )
 
 type offerHandler struct {
@@ -38,12 +38,12 @@ type offerHandler struct {
 	client *Client
 	node   *Node
 
-	keyManager   internal.KeyManager
+	keyManager   domain.IKeyManager
 	stunUri      string
 	fn           func(key string, addr *net.UDPAddr) error
-	agentManager internal.AgentManagerFactory
-	probeManager internal.ProbeManager
-	nodeManager  *internal.PeerManager
+	agentManager domain.AgentManagerFactory
+	probeManager domain.ProbeManager
+	nodeManager  domain.IPeerManager
 
 	proxy       *Proxy
 	relay       bool
@@ -55,19 +55,19 @@ type OfferHandlerConfig struct {
 	Node    *Node
 	StunUri string
 
-	KeyManager      internal.KeyManager
+	KeyManager      domain.IKeyManager
 	UdpMux          *ice.UDPMuxDefault
 	UniversalUdpMux *ice.UniversalUDPMuxDefault
-	AgentManager    internal.AgentManagerFactory
-	OfferManager    internal.OfferHandler
-	ProbeManager    internal.ProbeManager
+	AgentManager    domain.AgentManagerFactory
+	OfferManager    domain.OfferHandler
+	ProbeManager    domain.ProbeManager
 	Proxy           *Proxy
-	NodeManager     *internal.PeerManager
+	NodeManager     domain.IPeerManager
 	TurnManager     *turnclient.TurnManager
 }
 
 // NewOfferHandler create a new client
-func NewOfferHandler(cfg *OfferHandlerConfig) internal.OfferHandler {
+func NewOfferHandler(cfg *OfferHandlerConfig) domain.OfferHandler {
 	return &offerHandler{
 		nodeManager:  cfg.NodeManager,
 		logger:       cfg.Logger,
@@ -81,7 +81,7 @@ func NewOfferHandler(cfg *OfferHandlerConfig) internal.OfferHandler {
 	}
 }
 
-func (h *offerHandler) SendOffer(ctx context.Context, messageType drpgrpc.MessageType, from, to string, offer internal.Offer) error {
+func (h *offerHandler) SendOffer(ctx context.Context, messageType drpgrpc.MessageType, from, to string, offer domain.Offer) error {
 	_, bytes, err := offer.Marshal()
 	if err != nil {
 		return err
@@ -117,21 +117,21 @@ type IndexTable struct {
 
 func (h *offerHandler) handleOffer(ctx context.Context, msg *drpgrpc.DrpMessage) error {
 	var (
-		offer internal.Offer
+		offer domain.Offer
 		err   error
 	)
 
-	var connectType internal.ConnType
+	var connectType domain.ConnType
 	switch msg.MsgType {
 	case drpgrpc.MessageType_MessageDirectOfferType, drpgrpc.MessageType_MessageDirectOfferAnswerType:
-		offer, err = internal.UnmarshalOffer(msg.Body, &internal.DirectOffer{})
-		connectType = internal.DirectType
+		offer, err = domain.UnmarshalOffer(msg.Body, &domain.DirectOffer{})
+		connectType = domain.DirectType
 	case drpgrpc.MessageType_MessageDrpOfferType, drpgrpc.MessageType_MessageDrpOfferAnswerType:
-		offer, err = internal.UnmarshalOffer(msg.Body, &DrpOffer{})
-		connectType = internal.DrpType
+		offer, err = domain.UnmarshalOffer(msg.Body, &DrpOffer{})
+		connectType = domain.DrpType
 	case drpgrpc.MessageType_MessageRelayOfferType, drpgrpc.MessageType_MessageRelayAnswerType:
-		offer, err = internal.UnmarshalOffer(msg.Body, &internal.RelayOffer{})
-		connectType = internal.RelayType
+		offer, err = domain.UnmarshalOffer(msg.Body, &domain.RelayOffer{})
+		connectType = domain.RelayType
 	}
 
 	// add peer if not exist in node manager
@@ -140,7 +140,7 @@ func (h *offerHandler) handleOffer(ctx context.Context, msg *drpgrpc.DrpMessage)
 	}
 	probe := h.probeManager.GetProbe(msg.From)
 	if probe == nil {
-		cfg := &internal.ProbeConfig{
+		cfg := &domain.ProbeConfig{
 			Logger:        log.NewLogger(log.Loglevel, "probe"),
 			StunUri:       h.stunUri,
 			To:            msg.From,
@@ -155,12 +155,12 @@ func (h *offerHandler) handleOffer(ctx context.Context, msg *drpgrpc.DrpMessage)
 		}
 
 		switch offer.GetOfferType() {
-		case internal.OfferTypeDirectOffer, internal.OfferTypeDirectOfferAnswer:
-			cfg.ConnType = internal.DirectType
-		case internal.OfferTypeRelayOffer, internal.OfferTypeRelayAnswer:
-			cfg.ConnType = internal.RelayType
-		case internal.OfferTypeDrpOffer, internal.OfferTypeDrpOfferAnswer:
-			cfg.ConnType = internal.DrpType
+		case domain.OfferTypeDirectOffer, domain.OfferTypeDirectOfferAnswer:
+			cfg.ConnType = domain.DirectType
+		case domain.OfferTypeRelayOffer, domain.OfferTypeRelayAnswer:
+			cfg.ConnType = domain.RelayType
+		case domain.OfferTypeDrpOffer, domain.OfferTypeDrpOfferAnswer:
+			cfg.ConnType = domain.DrpType
 		}
 
 		if probe, err = h.probeManager.NewProbe(cfg); err != nil {
@@ -180,7 +180,7 @@ func (h *offerHandler) handleOffer(ctx context.Context, msg *drpgrpc.DrpMessage)
 	return probe.HandleOffer(ctx, offer)
 }
 
-func (h *offerHandler) Proxy(proxy *Proxy) internal.OfferHandler {
+func (h *offerHandler) Proxy(proxy *Proxy) domain.OfferHandler {
 	h.proxy = proxy
 	return h
 }

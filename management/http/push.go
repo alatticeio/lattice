@@ -5,8 +5,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"path/filepath"
+	"runtime"
 	"time"
-	"wireflow/internal"
+	"wireflow/internal/core/domain"
+	"wireflow/internal/core/manager"
 
 	"github.com/gin-gonic/gin"
 	"k8s.io/klog/v2"
@@ -26,7 +29,7 @@ type PushResponse struct {
 }
 
 type HttpServer struct {
-	wt *internal.WatchManager
+	wt domain.IWatchManager
 }
 
 func NewPush() {
@@ -38,10 +41,10 @@ func NewPush() {
 	router := gin.Default()
 
 	// 加载模板文件
-	router.LoadHTMLGlob("templates/*")
+	router.LoadHTMLGlob("./management/templates/*")
 
 	// 静态文件服务
-	router.Static("/static", "./static")
+	router.Static("/static", "./management/static")
 
 	// 首页 - 推送页面
 	router.GET("/", func(c *gin.Context) {
@@ -51,7 +54,7 @@ func NewPush() {
 	})
 
 	s := &HttpServer{
-		wt: internal.NewWatchManager(),
+		wt: manager.NewWatchManager(),
 	}
 
 	// 推送 API 接口
@@ -72,12 +75,19 @@ func NewPush() {
 		})
 	})
 
-	logger.Info("推送服务启动在 http://localhost:8080")
-	logger.Info("访问 http://localhost:8080 使用推送功能")
+	logger.Info("推送服务启动在 http://localhost:8081")
+	logger.Info("访问 http://localhost:8081 使用推送功能")
 
-	if err := router.Run(":32052"); err != nil {
+	if err := router.Run(":8082"); err != nil {
 		panic(fmt.Sprintf("服务启动失败: %v", err))
 	}
+}
+
+func getCurrentDir() string {
+	// 获取当前文件的完整路径
+	_, file, _, _ := runtime.Caller(1)
+	// 返回当前文件所在的目录
+	return filepath.Dir(file)
 }
 
 // 推送处理函数
@@ -185,7 +195,7 @@ func pushHistoryHandler(c *gin.Context) {
 
 // 实际发送推送的函数
 func (s *HttpServer) sendPush(clientId, content string) (string, error) {
-	var msg internal.Message
+	var msg domain.Message
 	// 创建请求数据
 	if err := json.Unmarshal([]byte(content), &msg); err != nil {
 		return "", fmt.Errorf("json unmarshal failed: %v", err)

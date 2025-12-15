@@ -2,7 +2,7 @@ package vo
 
 import (
 	"time"
-	"wireflow/internal"
+	"wireflow/internal/core/domain"
 	"wireflow/pkg/utils"
 
 	"gorm.io/gorm"
@@ -80,6 +80,6 @@ type NodeVo struct {
 	GroupName           string             `json:"groupName"`
 	Version             uint64             `json:"version"`
 	LastUpdatedAt       time.Time          `json:"lastUpdatedAt"`
-	ConnectType         internal.ConnType  `json:"connectType"` // direct, relay, drp
+	ConnectType         domain.ConnType    `json:"connectType"` // direct, relay, drp
 	*LabelResourceVo
 }

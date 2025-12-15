@@ -63,7 +63,7 @@ type Engine struct {
 	device        *wg.Device
 	mgtClient     *mgtclient.Client
 	drpClient     *drp2.Client
-	bind          *WireFlowBind
+	bind          *DefaultBind
 	GetNetworkMap func() (*vo.NetworkMap, error)
 	updated       atomic.Bool
 

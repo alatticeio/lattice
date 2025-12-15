@@ -63,10 +63,10 @@ func (m *MessageManager) resetMessage(msg *grpc.DrpMessage) {
 
 // GetMessageFromPool 获取消息的新方法
 func (p *Proxy) GetMessageFromPool() *grpc.DrpMessage {
-	return p.msgManager.GetMessage()
+	return p.manager.msgManager.GetMessage()
 }
 
 // PutMessageToPool 释放消息的新方法
 func (p *Proxy) PutMessageToPool(msg *grpc.DrpMessage) {
-	p.msgManager.ReleaseMessage(msg)
+	p.manager.msgManager.ReleaseMessage(msg)
 }

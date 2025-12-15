@@ -9,7 +9,8 @@ import (
 	"net"
 	"sync"
 	"time"
-	"wireflow/internal"
+	"wireflow/internal/core/domain"
+	"wireflow/internal/core/manager"
 	wgrpc "wireflow/internal/grpc"
 	"wireflow/management/controller"
 	"wireflow/management/db"
@@ -23,12 +24,13 @@ import (
 	"wireflow/pkg/utils"
 	"wireflow/pkg/wferrors"
 
+	"wireflow/api/v1alpha1"
+
 	"github.com/golang/protobuf/proto"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"gorm.io/gorm"
-	"wireflow/api/v1alpha1"
 )
 
 // Server is grpc server used to list watch resources to nodes.
@@ -37,7 +39,7 @@ type Server struct {
 	stopCh       chan struct{}
 	logger       *log.Logger
 	mu           sync.Mutex
-	watchManager *internal.WatchManager
+	watchManager domain.IWatchManager
 	wgrpc.UnimplementedManagementServiceServer
 	userController  *controller.UserController
 	nodeController  *controller.NodeController
@@ -85,9 +87,8 @@ type RegRequest struct {
 }
 
 func NewServer(cfg *ServerConfig) *Server {
-
 	stopCh := make(chan struct{})
-	wt := internal.NewWatchManager()
+	wt := manager.NewWatchManager()
 	client, err := resource.NewClient(wt)
 	if err != nil {
 		panic(err)
@@ -177,11 +178,11 @@ func (s *Server) Get(ctx context.Context, in *wgrpc.ManagementMessage) (*wgrpc.M
 	}
 
 	type result struct {
-		Peer  *internal.Peer
+		Peer  *domain.Peer
 		Count int64
 	}
 	body := &result{
-		Peer: &internal.Peer{
+		Peer: &domain.Peer{
 			UserId:              node.UserId,
 			Name:                node.Name,
 			Description:         node.Description,
@@ -442,7 +443,7 @@ func (s *Server) UpdateStatus(current *vo.NodeVo, status utils.NodeStatus) error
 }
 
 func (s *Server) Start() error {
-	listen, err := net.Listen("tcp", fmt.Sprintf(":%d", internal.DefaultManagementPort))
+	listen, err := net.Listen("tcp", fmt.Sprintf(":%d", domain.DefaultManagementPort))
 	if err != nil {
 		return err
 	}

@@ -1,7 +1,8 @@
 package management
 
 import (
-	"wireflow/internal"
+	"wireflow/internal/core/domain"
+	"wireflow/internal/core/infra"
 	grpcserver "wireflow/management/grpc/server"
 
 	"wireflow/management/http"
@@ -36,11 +37,11 @@ func Start(listen string) error {
 
 	//cfg.Rdb = redisClient
 	//dbService := db.GetDB(&cfg.Database)
-	ctx := internal.SetupSignalHandler()
+	ctx := infra.SetupSignalHandler()
 	gServer := grpcserver.NewServer(&grpcserver.ServerConfig{
 		Ctx:    ctx,
 		Logger: logger,
-		Port:   internal.DefaultManagementPort,
+		Port:   domain.DefaultManagementPort,
 	})
 	// go run a grpc server
 	go func() {
@@ -58,7 +59,7 @@ func Start(listen string) error {
 	//s := http.NewServer(&cfg)
 	// Start the server
 	//return s.Start()
-	logger.Infof("grpc server start successfully at: %v", internal.DefaultManagementPort)
+	logger.Infof("grpc server start successfully at: %v", domain.DefaultManagementPort)
 	<-ctx.Done()
 
 	return nil

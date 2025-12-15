@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package internal
+package domain
 
 import (
 	"encoding/hex"
@@ -20,95 +20,10 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
-	"sync"
-	"wireflow/pkg/log"
 	"wireflow/pkg/utils"
 
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 )
-
-var lock sync.Mutex
-var once sync.Once
-var manager *WatchManager
-
-// WatchManager is a singleton that manages the watch channels for connected peers
-// It is used to send messages to all connected peers
-// watcher is a map of networkId to watcher, a watcher is a struct that contains the networkId
-// and the channel to send messages to
-// m is a map of groupId_nodeId to channel, a channel is used to send messages to the connected peer
-// The key is a combination of networkId and publicKey, which is used to identify the connected peer
-type WatchManager struct {
-	mu sync.Mutex
-	// push channel
-	channels     map[string]*NodeChannel // key: clientId, value: channel
-	recvChannels map[string]*NodeChannel
-	logger       *log.Logger
-}
-
-type NodeChannel struct {
-	nu        sync.Mutex
-	networkId []string
-	channel   chan *Message // key: clientId, value: channel
-}
-
-func (n *NodeChannel) GetChannel() chan *Message {
-	n.nu.Lock()
-	defer n.nu.Unlock()
-	if n.channel == nil {
-		n.channel = make(chan *Message, 1000) // buffered channel
-	}
-	return n.channel
-}
-
-// GetChannel get channel by clientID`
-func (w *WatchManager) GetChannel(clientId string) *NodeChannel {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	if w.channels == nil {
-		return nil
-	}
-	channel := w.channels[clientId]
-
-	if channel == nil {
-		channel = &NodeChannel{
-			channel: make(chan *Message, 1000), // buffered channel
-		}
-	}
-	w.channels[clientId] = channel
-	return channel
-}
-
-func (w *WatchManager) Remove(clientID string) {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	channel := w.channels[clientID]
-	if channel == nil {
-		w.logger.Errorf("channel not found for clientID: %s", clientID)
-		return
-	}
-
-	channel.nu.Lock()
-	defer channel.nu.Unlock()
-	close(channel.channel)
-	delete(w.channels, clientID)
-}
-
-// NewWatchManager create a whole manager for connected peers
-func NewWatchManager() *WatchManager {
-	lock.Lock()
-	defer lock.Unlock()
-	if manager != nil {
-		return manager
-	}
-	once.Do(func() {
-		manager = &WatchManager{
-			channels: make(map[string]*NodeChannel),
-			logger:   log.NewLogger(log.Loglevel, "watchmanager"),
-		}
-	})
-
-	return manager
-}
 
 // Message is the message which is sent to connected peers
 type Message struct {
@@ -189,7 +104,7 @@ func (c *ChangeDetails) Summary() string {
 type Peer struct {
 	Name                string           `json:"name,omitempty"`
 	Description         string           `json:"description,omitempty"`
-	NetworkId           string           `json:"networkId,omitempty"` // belong to which group
+	NetworkId           string           `json:"NetworkId,omitempty"` // belong to which group
 	CreatedBy           string           `json:"createdBy,omitempty"` // ownerID
 	UserId              uint64           `json:"userId,omitempty"`
 	Hostname            string           `json:"hostname,omitempty"`
@@ -219,7 +134,7 @@ type Network struct {
 	Address     string   `json:"address"`
 	AllowedIps  []string `json:"allowedIps"`
 	Port        int      `json:"port"`
-	NetworkId   string   `json:"networkId"`
+	NetworkId   string   `json:"NetworkId"`
 	NetworkName string   `json:"networkName"`
 	Peers       []*Peer  `json:"peers"`
 }
@@ -275,12 +190,6 @@ func (m *Message) String() string {
 //	n.Policies = append(n.Policies, policy)
 //	return n
 //}
-
-func (w *WatchManager) Send(clientId string, msg *Message) error {
-	channel := w.GetChannel(clientId)
-	channel.channel <- msg
-	return nil
-}
 
 type EventType int
 

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package internal
+package domain
 
 import (
 	"context"
@@ -45,7 +45,7 @@ type Probe interface {
 	ProbeDone() chan interface{}
 
 	//GetProbeAgent once agent closed, should recreate a new one
-	GetProbeAgent() *Agent
+	GetProbeAgent() IAgent
 
 	//Restart when disconnected, restart the probe
 	Restart() error
@@ -62,7 +62,7 @@ type Probe interface {
 }
 
 type ProbeManager interface {
-	NewAgent(gatherCh chan interface{}, fn func(state ConnectionState) error) (*Agent, error)
+	NewAgent(gatherCh chan interface{}, fn func(state ConnectionState) error) (IAgent, error)
 	NewProbe(cfg *ProbeConfig) (Probe, error)
 	AddProbe(key string, probe Probe)
 	GetProbe(key string) Probe
@@ -81,7 +81,7 @@ type ProbeConfig struct {
 	WGConfiger              Configurer
 	OfferHandler            OfferHandler
 	ProberManager           ProbeManager
-	NodeManager             *PeerManager
+	NodeManager             IPeerManager
 	From                    string
 	To                      string
 	TurnManager             *turn.TurnManager
@@ -92,4 +92,18 @@ type ProbeConfig struct {
 	OnConnectionStateChange func(state ConnectionState) error
 
 	ConnectType ConnType
+}
+
+// Checker is the interface for checking the connection.
+// DirectChecker and RelayChecker are the two implementations.
+type Checker interface {
+
+	// ProbeConnect probes the connection
+	ProbeConnect(ctx context.Context, isControlling bool, remoteOffer Offer) error
+
+	// ProbeSuccess will be called when the connection is successful, will add peer to wireguard
+	ProbeSuccess(ctx context.Context, addr string) error
+
+	// ProbeFailure will be called when the connection failed, will remove peer from wireguard
+	ProbeFailure(ctx context.Context, offer Offer) error
 }

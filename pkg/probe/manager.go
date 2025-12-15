@@ -16,27 +16,26 @@ package probe
 
 import (
 	"sync"
-	"wireflow/drp"
-	"wireflow/internal"
+	"wireflow/internal/core/domain"
+	"wireflow/internal/core/manager"
 	"wireflow/pkg/log"
 
 	"github.com/wireflowio/ice"
 )
 
 var (
-	_ internal.ProbeManager = (*manager)(nil)
+	_ domain.ProbeManager = (*probeInstance)(nil)
 )
 
-type manager struct {
+type probeInstance struct {
 	logger       *log.Logger
 	lock         sync.Mutex
-	probers      map[string]internal.Probe
+	probers      map[string]domain.Probe
 	wgLock       sync.Mutex
 	isForceRelay bool
-	agentManager internal.AgentManagerFactory
-	engine       internal.IClient
-	offerHandler internal.OfferHandler
-	//relayer internal.Relay
+	agentManager domain.AgentManagerFactory
+	engine       domain.IClient
+	offerHandler domain.OfferHandler
 
 	stunUrl         string
 	udpMux          *ice.UDPMuxDefault
@@ -45,11 +44,11 @@ type manager struct {
 
 func NewManager(isForceRelay bool, udpMux *ice.UDPMuxDefault,
 	universeUdpMux *ice.UniversalUDPMuxDefault,
-	engineManager internal.IClient,
-	stunUrl string) internal.ProbeManager {
-	return &manager{
-		agentManager:    drp.NewAgentManager(),
-		probers:         make(map[string]internal.Probe),
+	engineManager domain.IClient,
+	stunUrl string) domain.ProbeManager {
+	return &probeInstance{
+		agentManager:    manager.NewAgentManagerFactory(),
+		probers:         make(map[string]domain.Probe),
 		isForceRelay:    isForceRelay,
 		udpMux:          udpMux,
 		universalUdpMux: universeUdpMux,
@@ -59,12 +58,12 @@ func NewManager(isForceRelay bool, udpMux *ice.UDPMuxDefault,
 	}
 }
 
-func (m *manager) NewAgent(gatherCh chan interface{}, fn func(state internal.ConnectionState) error) (*internal.Agent, error) {
+func (m *probeInstance) NewAgent(gatherCh chan interface{}, fn func(state domain.ConnectionState) error) (domain.IAgent, error) {
 	var (
 		err   error
-		agent *internal.Agent
+		agent domain.IAgent
 	)
-	if agent, err = internal.NewAgent(&internal.AgentConfig{
+	if agent, err = manager.NewAgent(&manager.AgentConfig{
 		StunUrl:         m.stunUrl,
 		UniversalUdpMux: m.universalUdpMux,
 	}); err != nil {
@@ -86,15 +85,15 @@ func (m *manager) NewAgent(gatherCh chan interface{}, fn func(state internal.Con
 	if err = agent.OnConnectionStateChange(func(state ice.ConnectionState) {
 		switch state {
 		case ice.ConnectionStateFailed:
-			fn(internal.ConnectionStateFailed)
+			fn(domain.ConnectionStateFailed)
 		case ice.ConnectionStateConnected:
-			fn(internal.ConnectionStateConnected)
+			fn(domain.ConnectionStateConnected)
 		case ice.ConnectionStateChecking:
-			fn(internal.ConnectionStateChecking)
+			fn(domain.ConnectionStateChecking)
 		case ice.ConnectionStateDisconnected:
-			fn(internal.ConnectionStateDisconnected)
+			fn(domain.ConnectionStateDisconnected)
 		case ice.ConnectionStateNew:
-			fn(internal.ConnectionStateNew)
+			fn(domain.ConnectionStateNew)
 		}
 	}); err != nil {
 		return nil, err
@@ -104,7 +103,7 @@ func (m *manager) NewAgent(gatherCh chan interface{}, fn func(state internal.Con
 }
 
 // NewProbe creates a new Probe, is a probe manager
-func (m *manager) NewProbe(cfg *internal.ProbeConfig) (internal.Probe, error) {
+func (m *probeInstance) NewProbe(cfg *domain.ProbeConfig) (domain.Probe, error) {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 	p := m.probers[cfg.To] // check if probe already exists
@@ -118,7 +117,7 @@ func (m *manager) NewProbe(cfg *internal.ProbeConfig) (internal.Probe, error) {
 
 	newProbe := &probe{
 		logger:          log.NewLogger(log.Loglevel, "probe"),
-		connectionState: internal.ConnectionStateNew,
+		connectionState: domain.ConnectionStateNew,
 		gatherCh:        cfg.GatherChan,
 		directChecker:   cfg.DirectChecker,
 		relayChecker:    cfg.RelayChecker,
@@ -135,7 +134,7 @@ func (m *manager) NewProbe(cfg *internal.ProbeConfig) (internal.Probe, error) {
 	}
 
 	switch newProbe.connectType {
-	case internal.DirectType:
+	case domain.DirectType:
 		if newProbe.agent, err = m.NewAgent(newProbe.gatherCh, newProbe.OnConnectionStateChange); err != nil {
 			return nil, err
 		}
@@ -150,19 +149,19 @@ func (m *manager) NewProbe(cfg *internal.ProbeConfig) (internal.Probe, error) {
 	return newProbe, nil
 }
 
-func (m *manager) AddProbe(key string, prober internal.Probe) {
+func (m *probeInstance) AddProbe(key string, prober domain.Probe) {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 	m.probers[key] = prober
 }
 
-func (m *manager) GetProbe(key string) internal.Probe {
+func (m *probeInstance) GetProbe(key string) domain.Probe {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 	return m.probers[key]
 }
 
-func (m *manager) RemoveProbe(key string) {
+func (m *probeInstance) RemoveProbe(key string) {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 	delete(m.probers, key)

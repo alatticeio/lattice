@@ -12,20 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package internal
+package infra
 
 import (
-	"fmt"
-	"os/exec"
+	"os"
+	"syscall"
 )
 
-func ExecCommand(name string, commands ...string) error {
-	cmd := exec.Command(name, commands...)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		fmt.Println(err)
-		return err
-	}
-	fmt.Print(string(output))
-	return nil
-}
+var shutdownSignals = []os.Signal{os.Interrupt, syscall.SIGTERM}

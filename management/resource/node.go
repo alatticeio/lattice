@@ -18,9 +18,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"wireflow/internal"
+	"wireflow/internal/core/domain"
 	"wireflow/management/dto"
 	"wireflow/management/entity"
+
+	wireflowv1alpha1 "wireflow/api/v1alpha1"
 
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 	corev1 "k8s.io/api/core/v1"
@@ -29,10 +31,9 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
-	wireflowv1alpha1 "wireflow/api/v1alpha1"
 )
 
-func (c *Client) Register(ctx context.Context, e *dto.NodeDto) (*internal.Peer, error) {
+func (c *Client) Register(ctx context.Context, e *dto.NodeDto) (*domain.Peer, error) {
 	log := logf.FromContext(ctx)
 	log.Info("Register node", "node", e)
 	var (
@@ -85,7 +86,7 @@ func (c *Client) Register(ctx context.Context, e *dto.NodeDto) (*internal.Peer, 
 		return nil, err
 	}
 
-	return &internal.Peer{
+	return &domain.Peer{
 		AppID:      node.Spec.AppId,
 		Address:    node.Status.AllocatedAddress,
 		PrivateKey: node.Spec.PrivateKey,
@@ -120,7 +121,7 @@ func (c *Client) UpdateNodeSepc(ctx context.Context, namespace, name string, upd
 }
 
 // GetNetworkMap get network map when node init
-func (c *Client) GetNetworkMap(ctx context.Context, namespace, name string) (*internal.Message, error) {
+func (c *Client) GetNetworkMap(ctx context.Context, namespace, name string) (*domain.Message, error) {
 	logger := c.log
 	logger.Infof("Get node, namespace: %s, name: %s", namespace, name)
 
@@ -139,7 +140,7 @@ func (c *Client) GetNetworkMap(ctx context.Context, namespace, name string) (*in
 	}
 
 	data := nodeConfig.Data["config.json"]
-	var message *internal.Message
+	var message *domain.Message
 	err := json.Unmarshal([]byte(data), &message)
 	if err != nil {
 		return nil, err

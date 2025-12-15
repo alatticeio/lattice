@@ -18,13 +18,13 @@ import (
 	"context"
 	"net"
 	"time"
-	"wireflow/internal"
+	"wireflow/internal/core/domain"
 	drpgrpc "wireflow/internal/grpc"
 	turnclient "wireflow/pkg/turn"
 )
 
 var (
-	_ internal.Checker = (*relayChecker)(nil)
+	_ domain.Checker = (*relayChecker)(nil)
 )
 
 // relayChecker is a wrapper of net.PacketConn
@@ -38,18 +38,18 @@ type relayChecker struct {
 	outBound        chan RelayMessage
 	inBound         chan RelayMessage
 	permissionAddrs []net.Addr // Addr will be added to the permission list
-	wgConfiger      internal.Configurer
-	probe           internal.Probe
-	agentManager    internal.AgentManagerFactory
+	wgConfiger      domain.Configurer
+	probe           domain.Probe
+	agentManager    domain.AgentManagerFactory
 }
 
 type RelayCheckerConfig struct {
 	TurnManager  *turnclient.TurnManager
-	WgConfiger   internal.Configurer
-	AgentManager internal.AgentManagerFactory
+	WgConfiger   domain.Configurer
+	AgentManager domain.AgentManagerFactory
 	DstKey       string
 	SrcKey       string
-	Probe        internal.Probe
+	Probe        domain.Probe
 }
 
 func NewRelayChecker(cfg *RelayCheckerConfig) *relayChecker {
@@ -65,7 +65,7 @@ func (c *relayChecker) ProbeSuccess(ctx context.Context, addr string) error {
 	return c.probe.ProbeSuccess(ctx, c.dstKey, addr)
 }
 
-func (c *relayChecker) ProbeFailure(ctx context.Context, offer internal.Offer) error {
+func (c *relayChecker) ProbeFailure(ctx context.Context, offer domain.Offer) error {
 	return c.probe.ProbeFailed(ctx, c, offer)
 }
 
@@ -74,33 +74,33 @@ type RelayMessage struct {
 	relayAddr net.Addr
 }
 
-func (c *relayChecker) ProbeConnect(ctx context.Context, isControlling bool, relayOffer internal.Offer) error {
+func (c *relayChecker) ProbeConnect(ctx context.Context, isControlling bool, relayOffer domain.Offer) error {
 	c.startCh = make(chan struct{})
 	c.startTime = time.Now()
 
-	offer := relayOffer.(*internal.RelayOffer)
+	offer := relayOffer.(*domain.RelayOffer)
 	switch relayOffer.GetOfferType() {
-	case internal.OfferTypeRelayOffer:
+	case domain.OfferTypeRelayOffer:
 		return c.ProbeSuccess(ctx, offer.RelayConn.String())
-	case internal.OfferTypeRelayAnswer:
+	case domain.OfferTypeRelayAnswer:
 		return c.ProbeSuccess(ctx, offer.MappedAddr.String())
 	}
 
 	return c.ProbeFailure(ctx, offer)
 }
 
-func (c *relayChecker) HandleOffer(ctx context.Context, offer internal.Offer) error {
+func (c *relayChecker) HandleOffer(ctx context.Context, offer domain.Offer) error {
 	// set the destination permission
-	relayOffer := offer.(*internal.RelayOffer)
+	relayOffer := offer.(*domain.RelayOffer)
 
 	switch offer.GetOfferType() {
-	case internal.OfferTypeRelayOffer:
+	case domain.OfferTypeRelayOffer:
 
 		if err := c.probe.SendOffer(ctx, drpgrpc.MessageType_MessageRelayAnswerType, c.key, c.dstKey); err != nil {
 			return err
 		}
 		return c.ProbeSuccess(ctx, relayOffer.RelayConn.String())
-	case internal.OfferTypeRelayAnswer:
+	case domain.OfferTypeRelayAnswer:
 		return c.ProbeSuccess(ctx, relayOffer.MappedAddr.String())
 	}
 

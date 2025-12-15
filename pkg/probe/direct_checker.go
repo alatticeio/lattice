@@ -19,7 +19,7 @@ import (
 	"net"
 	"strings"
 	"sync/atomic"
-	"wireflow/internal"
+	"wireflow/internal/core/domain"
 	"wireflow/pkg/log"
 
 	"github.com/wireflowio/ice"
@@ -31,8 +31,8 @@ const (
 )
 
 var (
-	Generator_string                  = []byte("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/")
-	_                internal.Checker = (*directChecker)(nil)
+	Generator_string                = []byte("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/")
+	_                domain.Checker = (*directChecker)(nil)
 )
 
 // directChecker represents present node's connection to remote peer which fetch from control server
@@ -42,11 +42,11 @@ type directChecker struct {
 	to           string
 	addr         *net.UDPAddr
 	addPeer      func(key string, addr *net.UDPAddr) error
-	offerManager internal.OfferHandler
-	km           internal.KeyManager
+	offerManager domain.OfferHandler
+	km           domain.IKeyManager
 	localKey     uint64
-	wgConfiger   internal.Configurer
-	prober       internal.Probe
+	wgConfiger   domain.Configurer
+	prober       domain.Probe
 }
 
 type DirectCheckerConfig struct {
@@ -54,11 +54,11 @@ type DirectCheckerConfig struct {
 	Ufrag         string // local
 	Pwd           string
 	IsControlling bool
-	Agent         *internal.Agent
+	Agent         domain.IAgent
 	Key           string
-	WgConfiger    internal.Configurer
+	WgConfiger    domain.Configurer
 	LocalKey      uint64
-	Prober        internal.Probe
+	Prober        domain.Probe
 }
 
 func NewDirectChecker(config *DirectCheckerConfig) *directChecker {
@@ -77,15 +77,15 @@ func NewDirectChecker(config *DirectCheckerConfig) *directChecker {
 	return pc
 }
 
-func (dt *directChecker) HandleOffer(offer internal.Offer) error {
-	o := offer.(*internal.DirectOffer)
+func (dt *directChecker) HandleOffer(offer domain.Offer) error {
+	o := offer.(*domain.DirectOffer)
 	if dt.prober == nil {
 
 	}
 	return dt.handleDirectOffer(o)
 }
 
-func (dt *directChecker) handleDirectOffer(offer *internal.DirectOffer) error {
+func (dt *directChecker) handleDirectOffer(offer *domain.DirectOffer) error {
 	// add remote candidate
 	candidates := strings.Split(offer.Candidate, ";")
 	for _, candString := range candidates {
@@ -113,7 +113,7 @@ func (dt *directChecker) handleDirectOffer(offer *internal.DirectOffer) error {
 }
 
 // ProbeConnect probes the connection
-func (dt *directChecker) ProbeConnect(ctx context.Context, isControlling bool, remoteOffer internal.Offer) error {
+func (dt *directChecker) ProbeConnect(ctx context.Context, isControlling bool, remoteOffer domain.Offer) error {
 	logger := dt.logger
 	logger.Infof("starting direct checker, isControlling: %v, remoteOffer: %v, to: %v, addr: %v", isControlling, remoteOffer, dt.to, dt.addr)
 	var conn *ice.Conn
@@ -128,7 +128,7 @@ func (dt *directChecker) ProbeConnect(ctx context.Context, isControlling bool, r
 
 	candidates, _ := agent.GetRemoteCandidates()
 
-	offer := remoteOffer.(*internal.DirectOffer)
+	offer := remoteOffer.(*domain.DirectOffer)
 
 	ufrag, pwd, err := agent.GetLocalUserCredentials()
 	if err != nil {
@@ -154,7 +154,7 @@ func (dt *directChecker) ProbeSuccess(ctx context.Context, conn string) error {
 	return dt.prober.ProbeSuccess(ctx, dt.to, conn)
 }
 
-func (dt *directChecker) ProbeFailure(ctx context.Context, offer internal.Offer) error {
+func (dt *directChecker) ProbeFailure(ctx context.Context, offer domain.Offer) error {
 	return dt.prober.ProbeFailed(ctx, dt, offer)
 }
 
@@ -162,6 +162,6 @@ func (dt *directChecker) Close() error {
 	return dt.prober.GetProbeAgent().Close()
 }
 
-func (dt *directChecker) SetProbe(prober internal.Probe) {
+func (dt *directChecker) SetProbe(prober domain.Probe) {
 	dt.prober = prober
 }

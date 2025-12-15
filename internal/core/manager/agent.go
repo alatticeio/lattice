@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package internal
+package manager
 
 import (
 	"context"
@@ -21,26 +21,81 @@ import (
 	"net"
 	"sync"
 	"sync/atomic"
+	"wireflow/internal/core/domain"
 	"wireflow/pkg/log"
+	"wireflow/pkg/wferrors"
 
 	"github.com/pion/logging"
+	"github.com/pion/randutil"
 	"github.com/pion/stun/v3"
 	"github.com/wireflowio/ice"
 )
 
-// AgentManagerFactory is an interface for managing ICE agents.
-type AgentManagerFactory interface {
-	Get(pubKey string) (*Agent, error)
-	Remove(pubKey string) error
-	NewUdpMux(conn net.PacketConn) *ice.UniversalUDPMuxDefault
+var (
+	_ domain.IAgent              = (*agent)(nil)
+	_ domain.AgentManagerFactory = (*agentFactory)(nil)
+)
+
+const (
+	runesAlpha                 = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+	runesDigit                 = "0123456789"
+	runesCandidateIDFoundation = runesAlpha + runesDigit + "+/"
+
+	lenUFrag = 16
+	lenPwd   = 32
+)
+
+var (
+	globalMathRandomGenerator = randutil.NewMathRandomGenerator()
+)
+
+type agentFactory struct {
+	lock   sync.Locker
+	agents map[string]domain.IAgent
 }
 
-//type AgentManager interface {
-//	Get(pubKey string) *ice.Agent
-//}
+func NewAgentManagerFactory() domain.AgentManagerFactory {
+	return &agentFactory{
+		agents: make(map[string]domain.IAgent, 1),
+	}
+}
 
-// Agent represents an ICE agent with its associated local key.
-type Agent struct {
+func (i *agentFactory) Get(pubKey string) (domain.IAgent, error) {
+	if agent, ok := i.agents[pubKey]; ok {
+		return agent, nil
+	}
+
+	return nil, wferrors.ErrAgentNotFound
+}
+
+func (i *agentFactory) Remove(pubKey string) error {
+	i.lock.Lock()
+	defer i.lock.Unlock()
+
+	if agent, ok := i.agents[pubKey]; ok {
+		_ = agent.Close()
+		delete(i.agents, pubKey)
+		return nil
+	}
+
+	return wferrors.ErrAgentNotFound
+}
+
+func (i *agentFactory) NewUdpMux(conn net.PacketConn) *ice.UniversalUDPMuxDefault {
+	loggerFactory := logging.NewDefaultLoggerFactory()
+	loggerFactory.DefaultLogLevel = logging.LogLevelDebug
+
+	universalUdpMux := ice.NewUniversalUDPMuxDefault(ice.UniversalUDPMuxParams{
+		Logger:  loggerFactory.NewLogger("wrapper"),
+		UDPConn: conn,
+		Net:     nil,
+	})
+
+	return universalUdpMux
+}
+
+// agent represents an ICE agent with its associated local key.
+type agent struct {
 	lock            sync.Mutex
 	started         atomic.Bool
 	logger          *log.Logger
@@ -52,12 +107,12 @@ type Agent struct {
 
 // NewAgent creates a new ICE agent, will use to gather candidates
 // each peer will create an agent for connection establishment
-func NewAgent(params *AgentConfig) (*Agent, error) {
+func NewAgent(params *AgentConfig) (*agent, error) {
 	var (
-		err     error
-		agent   *ice.Agent
-		stunUri []*stun.URI
-		uri     *stun.URI
+		err      error
+		iceAgent *ice.Agent
+		stunUri  []*stun.URI
+		uri      *stun.URI
 	)
 
 	l := logging.NewDefaultLoggerFactory()
@@ -71,7 +126,7 @@ func NewAgent(params *AgentConfig) (*Agent, error) {
 	stunUri = append(stunUri, uri)
 	f := logging.NewDefaultLoggerFactory()
 	f.DefaultLogLevel = logging.LogLevelDebug
-	if agent, err = ice.NewAgent(&ice.AgentConfig{
+	if iceAgent, err = ice.NewAgent(&ice.AgentConfig{
 		NetworkTypes:   []ice.NetworkType{ice.NetworkTypeUDP4},
 		UDPMux:         params.UniversalUdpMux.UDPMuxDefault,
 		UDPMuxSrflx:    params.UniversalUdpMux,
@@ -83,8 +138,8 @@ func NewAgent(params *AgentConfig) (*Agent, error) {
 		return nil, err
 	}
 
-	a := &Agent{
-		iceAgent:        agent,
+	a := &agent{
+		iceAgent:        iceAgent,
 		LocalKey:        ice.NewTieBreaker(),
 		universalUdpMux: params.UniversalUdpMux,
 		logger:          log.NewLogger(log.Loglevel, "agent"),
@@ -94,57 +149,57 @@ func NewAgent(params *AgentConfig) (*Agent, error) {
 	return a, nil
 }
 
-func (agent *Agent) GetStatus() bool {
+func (agent *agent) GetStatus() bool {
 	if agent.started.Load() {
 		return true
 	}
 	return false
 }
 
-func (agent *Agent) GetUniversalUDPMuxDefault() *ice.UniversalUDPMuxDefault {
+func (agent *agent) GetUniversalUDPMuxDefault() *ice.UniversalUDPMuxDefault {
 	return agent.universalUdpMux
 }
 
-func (agent *Agent) OnCandidate(fn func(ice.Candidate)) error {
+func (agent *agent) OnCandidate(fn func(ice.Candidate)) error {
 	return agent.iceAgent.OnCandidate(fn)
 }
 
-func (agent *Agent) OnConnectionStateChange(fn func(ice.ConnectionState)) error {
+func (agent *agent) OnConnectionStateChange(fn func(ice.ConnectionState)) error {
 	if fn != nil {
 		return agent.iceAgent.OnConnectionStateChange(fn)
 	}
 	return nil
 }
 
-func (agent *Agent) AddRemoteCandidate(candidate ice.Candidate) error {
+func (agent *agent) AddRemoteCandidate(candidate ice.Candidate) error {
 	if agent.iceAgent == nil {
 		return nil
 	}
 	return agent.iceAgent.AddRemoteCandidate(candidate)
 }
 
-func (agent *Agent) GatherCandidates() error {
+func (agent *agent) GatherCandidates() error {
 	if agent.iceAgent == nil {
 		return nil
 	}
 	return agent.iceAgent.GatherCandidates()
 }
 
-func (agent *Agent) GetLocalCandidates() ([]ice.Candidate, error) {
+func (agent *agent) GetLocalCandidates() ([]ice.Candidate, error) {
 	if agent.iceAgent == nil {
 		return nil, errors.New("ICE agent is not initialized")
 	}
 	return agent.iceAgent.GetLocalCandidates()
 }
 
-func (agent *Agent) GetTieBreaker() uint64 {
+func (agent *agent) GetTieBreaker() uint64 {
 	if agent.iceAgent == nil {
 		return 0
 	}
 	return agent.iceAgent.GetTieBreaker()
 }
 
-func (agent *Agent) Dial(ctx context.Context, remoteUfrag, remotePwd string) (*ice.Conn, error) {
+func (agent *agent) Dial(ctx context.Context, remoteUfrag, remotePwd string) (*ice.Conn, error) {
 	if agent.iceAgent == nil {
 		return nil, errors.New("ICE agent is not initialized")
 	}
@@ -157,7 +212,7 @@ func (agent *Agent) Dial(ctx context.Context, remoteUfrag, remotePwd string) (*i
 	return conn, nil
 }
 
-func (agent *Agent) Accept(ctx context.Context, remoteUfrag, remotePwd string) (*ice.Conn, error) {
+func (agent *agent) Accept(ctx context.Context, remoteUfrag, remotePwd string) (*ice.Conn, error) {
 	if agent.iceAgent == nil {
 		return nil, errors.New("ICE agent is not initialized")
 	}
@@ -170,7 +225,7 @@ func (agent *Agent) Accept(ctx context.Context, remoteUfrag, remotePwd string) (
 	return conn, nil
 }
 
-func (agent *Agent) Close() error {
+func (agent *agent) Close() error {
 	if agent.iceAgent == nil {
 		return nil
 	}
@@ -181,14 +236,14 @@ func (agent *Agent) Close() error {
 	return nil
 }
 
-func (agent *Agent) GetLocalUserCredentials() (string, string, error) {
+func (agent *agent) GetLocalUserCredentials() (string, string, error) {
 	if agent.iceAgent == nil {
 		return "", "", errors.New("ICE agent is not initialized")
 	}
 	return agent.iceAgent.GetLocalUserCredentials()
 }
 
-func (agent *Agent) GetRemoteCandidates() ([]ice.Candidate, error) {
+func (agent *agent) GetRemoteCandidates() ([]ice.Candidate, error) {
 	if agent.iceAgent == nil {
 		return nil, errors.New("ICE agent is not initialized")
 	}

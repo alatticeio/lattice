@@ -16,16 +16,16 @@ package probe
 
 import (
 	"context"
-	"wireflow/internal"
+	"wireflow/internal/core/domain"
 	"wireflow/pkg/log"
 )
 
 var (
-	_ internal.Checker = (*drpChecker)(nil)
+	_ domain.Checker = (*drpChecker)(nil)
 )
 
 type drpChecker struct {
-	probe   internal.Probe
+	probe   domain.Probe
 	from    string
 	to      string
 	drpAddr string
@@ -33,7 +33,7 @@ type drpChecker struct {
 }
 
 type DrpCheckerConfig struct {
-	Probe   internal.Probe
+	Probe   domain.Probe
 	From    string
 	To      string
 	DrpAddr string // DRP address to connect to
@@ -49,7 +49,7 @@ func NewDrpChecker(cfg *DrpCheckerConfig) *drpChecker {
 	}
 }
 
-func (d *drpChecker) ProbeConnect(ctx context.Context, isControlling bool, remoteOffer internal.Offer) error {
+func (d *drpChecker) ProbeConnect(ctx context.Context, isControlling bool, remoteOffer domain.Offer) error {
 	return d.ProbeSuccess(ctx, d.drpAddr)
 }
 
@@ -57,6 +57,6 @@ func (d *drpChecker) ProbeSuccess(ctx context.Context, addr string) error {
 	return d.probe.ProbeSuccess(ctx, d.to, addr)
 }
 
-func (d *drpChecker) ProbeFailure(ctx context.Context, offer internal.Offer) error {
+func (d *drpChecker) ProbeFailure(ctx context.Context, offer domain.Offer) error {
 	return d.probe.ProbeFailed(ctx, d, offer)
 }

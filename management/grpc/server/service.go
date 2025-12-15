@@ -16,20 +16,20 @@ package server
 
 import (
 	"context"
-	"wireflow/internal"
+	"wireflow/internal/core/domain"
 
 	wireflowv1alpha1 "wireflow/api/v1alpha1"
 )
 
 // TODO implement for wireflow-cli
 
-func (s *Server) CreateNetwork(ctx context.Context, networkId, cidr string) (*internal.Network, error) {
+func (s *Server) CreateNetwork(ctx context.Context, networkId, cidr string) (*domain.Network, error) {
 	network, err := s.client.CreateNetwork(ctx, networkId, cidr)
 	if err != nil {
 		return nil, err
 	}
 
-	return &internal.Network{
+	return &domain.Network{
 		NetworkName: network.Name,
 	}, nil
 

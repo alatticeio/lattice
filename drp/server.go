@@ -17,7 +17,7 @@ package drp
 import (
 	"context"
 	"fmt"
-	"wireflow/internal"
+	"wireflow/internal/core/domain"
 	internalgrpc "wireflow/internal/grpc"
 	grpclient "wireflow/management/grpc/client"
 	"wireflow/pkg/wferrors"
@@ -59,7 +59,7 @@ type ServerConfig struct {
 func NewServer(cfg *ServerConfig) (*Server, error) {
 
 	mgtClient, err := grpclient.NewClient(&grpclient.GrpcConfig{
-		Addr:   fmt.Sprintf("%s:%d", internal.ManagementDomain, internal.DefaultSignalingPort),
+		Addr:   fmt.Sprintf("%s:%d", domain.ManagementDomain, domain.DefaultSignalingPort),
 		Logger: log.NewLogger(log.Loglevel, "mgt-client"),
 	})
 	if err != nil {
@@ -75,7 +75,7 @@ func NewServer(cfg *ServerConfig) (*Server, error) {
 }
 
 func (s *Server) Start() error {
-	listen, err := net.Listen("tcp", fmt.Sprintf(":%d", internal.DefaultSignalingPort))
+	listen, err := net.Listen("tcp", fmt.Sprintf(":%d", domain.DefaultSignalingPort))
 	if err != nil {
 		return err
 	}

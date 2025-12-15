@@ -12,12 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package internal
+package domain
 
 import (
-	"sync"
-
-	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
+	"context"
+	"wireflow/internal/grpc"
 )
 
 // IClient is the interface for managing WireGuard devices.
@@ -42,8 +41,8 @@ type IClient interface {
 	RemoveAllPeers()
 }
 
-// KeyManager manage the device keys
-type KeyManager interface {
+// IKeyManager manage the device keys
+type IKeyManager interface {
 	// UpdateKey updates the private key used for encryption.
 	UpdateKey(privateKey string)
 	// GetKey retrieves the current private key.
@@ -52,67 +51,21 @@ type KeyManager interface {
 	GetPublicKey() string
 }
 
-var (
-	_ KeyManager = (*keyManager)(nil)
-)
-
-type keyManager struct {
-	lock       sync.Mutex
-	privateKey string
+type IPeerManager interface {
+	AddPeer(key string, peer *Peer)
+	GetPeer(key string) *Peer
+	RemovePeer(key string)
 }
 
-func NewKeyManager(privateKey string) KeyManager {
-	return &keyManager{privateKey: privateKey}
+type IManagementClient interface {
+	GetNetMap() (*Message, error)
+	Register(ctx context.Context, appId string) (*Peer, error)
+	AddPeer(p *Peer) error
+	Watch(ctx context.Context, fn func(message *Message) error) error
+	Keepalive(ctx context.Context) error
 }
 
-func (km *keyManager) UpdateKey(privateKey string) {
-	km.lock.Lock()
-	defer km.lock.Unlock()
-	km.privateKey = privateKey
-}
-
-func (km *keyManager) GetKey() string {
-	km.lock.Lock()
-	defer km.lock.Unlock()
-	return km.privateKey
-}
-
-func (km *keyManager) GetPublicKey() string {
-	km.lock.Lock()
-	defer km.lock.Unlock()
-	key, err := wgtypes.ParseKey(km.privateKey)
-	if err != nil {
-		return ""
-	}
-	return key.PublicKey().String()
-}
-
-// PeerManager manager all peers connected or connecte to
-type PeerManager struct {
-	lock  sync.Mutex
-	peers map[string]*Peer
-}
-
-func NewPeerManager() *PeerManager {
-	return &PeerManager{
-		peers: make(map[string]*Peer),
-	}
-}
-
-func (pm *PeerManager) AddPeer(key string, peer *Peer) {
-	pm.lock.Lock()
-	defer pm.lock.Unlock()
-	pm.peers[key] = peer
-}
-
-func (pm *PeerManager) GetPeer(key string) *Peer {
-	pm.lock.Lock()
-	defer pm.lock.Unlock()
-	return pm.peers[key]
-}
-
-func (pm *PeerManager) Remove(key string) {
-	pm.lock.Lock()
-	defer pm.lock.Unlock()
-	delete(pm.peers, key)
+type IDRPClient interface {
+	HandleMessage(ctx context.Context, outBoundQueue chan *grpc.DrpMessage, receive func(ctx context.Context, msg *grpc.DrpMessage) error) error
+	Close() error
 }

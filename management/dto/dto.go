@@ -2,7 +2,7 @@ package dto
 
 import (
 	"time"
-	"wireflow/internal"
+	"wireflow/internal/core/domain"
 	"wireflow/management/entity"
 	"wireflow/pkg/utils"
 
@@ -40,7 +40,7 @@ type NodeDto struct {
 	Status              utils.NodeStatus   `gorm:"column:status" json:"status"`
 	ActiveStatus        utils.ActiveStatus `gorm:"column:active_status;type:int" json:"activeStatus"`
 	GroupName           string             `gorm:"column:group_name;size:50" json:"groupName"`
-	ConnectType         internal.ConnType  `gorm:"column:connect_type;type:int" json:"connectType"`
+	ConnectType         domain.ConnType    `gorm:"column:connect_type;type:int" json:"connectType"`
 	LabelIds            string             `gorm:"column:label_ids;size:50" json:"labelIds"`
 }
 

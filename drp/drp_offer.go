@@ -16,19 +16,19 @@ package drp
 
 import (
 	"encoding/json"
-	"wireflow/internal"
+	"wireflow/internal/core/domain"
 )
 
 var (
-	_ internal.Offer = (*DrpOffer)(nil)
+	_ domain.Offer = (*DrpOffer)(nil)
 )
 
 type DrpOffer struct {
-	Node *internal.Peer `json:"node,omitempty"` // Node information, if needed
+	Node *domain.Peer `json:"node,omitempty"` // Node information, if needed
 }
 
 type DrpOfferConfig struct {
-	Node *internal.Peer `json:"node,omitempty"` // Node information, if needed
+	Node *domain.Peer `json:"node,omitempty"` // Node information, if needed
 }
 
 func NewDrpOffer(cfg *DrpOfferConfig) *DrpOffer {
@@ -44,14 +44,14 @@ func (d *DrpOffer) Marshal() (int, []byte, error) {
 	}
 	return len(b), b, nil
 }
-func (d *DrpOffer) GetOfferType() internal.OfferType {
-	return internal.OfferTypeDrpOffer
+func (d *DrpOffer) GetOfferType() domain.OfferType {
+	return domain.OfferTypeDrpOffer
 }
 
 func (d *DrpOffer) TieBreaker() uint64 {
 	return 0
 }
 
-func (d *DrpOffer) GetNode() *internal.Peer {
+func (d *DrpOffer) GetNode() *domain.Peer {
 	return d.Node
 }

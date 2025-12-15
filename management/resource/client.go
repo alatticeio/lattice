@@ -8,8 +8,10 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
-	"wireflow/internal"
+	"wireflow/internal/core/domain"
 	"wireflow/pkg/log"
+
+	wireflowv1alpha1 "wireflow/api/v1alpha1"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -24,7 +26,6 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
-	wireflowv1alpha1 "wireflow/api/v1alpha1"
 )
 
 type Client struct {
@@ -35,7 +36,7 @@ type Client struct {
 
 	hashMu         sync.RWMutex
 	lastPushedHash map[string]string
-	wt             *internal.WatchManager
+	wt             domain.IWatchManager
 }
 
 var scheme = runtime.NewScheme()
@@ -51,7 +52,7 @@ func init() {
 	// 如果有其他自定义资源，也需在此注册
 }
 
-func NewClient(wt *internal.WatchManager) (*Client, error) {
+func NewClient(wt domain.IWatchManager) (*Client, error) {
 	ctx := context.Background()
 	logger := log.NewLogger(log.Loglevel, "crdclient")
 
@@ -173,7 +174,7 @@ func (c *Client) handleConfigMapEvent(ctx context.Context, obj interface{}, even
 
 	// 可以在这里添加您的自定义业务逻辑，例如触发配置推送
 
-	var message internal.Message
+	var message domain.Message
 	if err := json.Unmarshal([]byte(cm.Data["config.json"]), &message); err != nil {
 		c.log.Errorf("Failed to unmarshal message: %v", err)
 	}
@@ -182,7 +183,7 @@ func (c *Client) handleConfigMapEvent(ctx context.Context, obj interface{}, even
 	c.log.Infof(">>> Message pushed to node success <<< Name: %s/%s, RV: %s", cm.Namespace, message.Current.AppID, cm.ResourceVersion)
 }
 
-func (c *Client) pushToNode(ctx context.Context, appId string, msg *internal.Message) error {
+func (c *Client) pushToNode(ctx context.Context, appId string, msg *domain.Message) error {
 	// 1. 计算消息哈希
 	msgHash := c.computeMessageHash(msg)
 
@@ -212,7 +213,7 @@ func (c *Client) pushToNode(ctx context.Context, appId string, msg *internal.Mes
 	return nil
 }
 
-func (c *Client) computeMessageHash(msg *internal.Message) string {
+func (c *Client) computeMessageHash(msg *domain.Message) string {
 	data, _ := json.Marshal(msg)
 	return fmt.Sprintf("%x", sha256.Sum256(data))
 }

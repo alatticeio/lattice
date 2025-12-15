@@ -10,11 +10,10 @@ import (
 	"path/filepath"
 	"sync"
 	"time"
-	"wireflow/internal"
+	"wireflow/internal/core/domain"
 	"wireflow/internal/grpc"
 	"wireflow/management/dto"
 	grpclient "wireflow/management/grpc/client"
-	"wireflow/pkg/client"
 	"wireflow/pkg/config"
 	"wireflow/pkg/log"
 	turnclient "wireflow/pkg/turn"
@@ -30,23 +29,23 @@ type NodeMap struct {
 }
 
 var (
-	_ client.IManagementClient = (*Client)(nil)
+	_ domain.IManagementClient = (*Client)(nil)
 )
 
 // Client is control client of wireflow, will fetch config from origin server interval
 type Client struct {
-	as           internal.AgentManagerFactory
+	as           domain.AgentManagerFactory
 	logger       *log.Logger
-	keyManager   internal.KeyManager
-	nodeManager  *internal.PeerManager
+	keyManager   domain.IKeyManager
+	nodeManager  domain.IPeerManager
 	conf         *config.LocalConfig
 	grpcClient   *grpclient.Client
 	conn4        net.PacketConn
-	agentManager internal.AgentManagerFactory
-	offerHandler internal.OfferHandler
-	probeManager internal.ProbeManager
+	agentManager domain.AgentManagerFactory
+	offerHandler domain.OfferHandler
+	probeManager domain.ProbeManager
 	turnManager  *turnclient.TurnManager
-	client       internal.IClient
+	client       domain.IClient
 
 	//channel for close for keepalive
 	keepaliveChan chan struct{}
@@ -88,19 +87,19 @@ func NewClient(cfg *ClientConfig) *Client {
 	return client
 }
 
-func (c *Client) SetKeyManager(manager internal.KeyManager) *Client {
+func (c *Client) SetKeyManager(manager domain.IKeyManager) *Client {
 	c.keyManager = manager
 	return c
 }
 
-func (c *Client) SetNodeManager(manager *internal.PeerManager) *Client {
+func (c *Client) SetNodeManager(manager domain.IPeerManager) *Client {
 	c.nodeManager = manager
 	return c
 }
 
 type ClientOption func(*Client) error
 
-func WithAgentManagerFactory(factory internal.AgentManagerFactory) ClientOption {
+func WithAgentManagerFactory(factory domain.AgentManagerFactory) ClientOption {
 	return func(c *Client) error {
 		c.agentManager = factory
 		return nil
@@ -124,28 +123,28 @@ func NewClientWithOption(cfg *ClientConfig, opts ...ClientOption) (*Client, erro
 	return client, nil
 }
 
-func WithNodeManager(manager *internal.PeerManager) ClientOption {
+func WithNodeManager(manager domain.IPeerManager) ClientOption {
 	return func(c *Client) error {
 		c.nodeManager = manager
 		return nil
 	}
 }
 
-func WithProbeManager(manager internal.ProbeManager) ClientOption {
+func WithProbeManager(manager domain.ProbeManager) ClientOption {
 	return func(c *Client) error {
 		c.probeManager = manager
 		return nil
 	}
 }
 
-func WithOfferHandler(handler internal.OfferHandler) ClientOption {
+func WithOfferHandler(handler domain.OfferHandler) ClientOption {
 	return func(c *Client) error {
 		c.offerHandler = handler
 		return nil
 	}
 }
 
-func WithKeyManager(manager internal.KeyManager) ClientOption {
+func WithKeyManager(manager domain.IKeyManager) ClientOption {
 	return func(c *Client) error {
 		c.keyManager = manager
 		return nil
@@ -159,7 +158,7 @@ func WithTurnManager(manager *turnclient.TurnManager) ClientOption {
 	}
 }
 
-func WithIClient(iclient internal.IClient) ClientOption {
+func WithIClient(iclient domain.IClient) ClientOption {
 	return func(c *Client) error {
 		c.client = iclient
 		return nil
@@ -241,7 +240,7 @@ func (c *Client) Login(user *config.User) error {
 }
 
 // GetNetMap get current node network map
-func (c *Client) GetNetMap() (*internal.Message, error) {
+func (c *Client) GetNetMap() (*domain.Message, error) {
 	ctx := context.Background()
 	var err error
 
@@ -269,7 +268,7 @@ func (c *Client) GetNetMap() (*internal.Message, error) {
 		return nil, err
 	}
 
-	var msg internal.Message
+	var msg domain.Message
 	if err = json.Unmarshal(resp.Body, &msg); err != nil {
 		return nil, err
 	}
@@ -284,9 +283,9 @@ func (c *Client) GetUsers() []*config.User {
 	return users
 }
 
-func (c *Client) ToConfigPeer(peer *internal.Peer) *internal.Peer {
+func (c *Client) ToConfigPeer(peer *domain.Peer) *domain.Peer {
 
-	return &internal.Peer{
+	return &domain.Peer{
 		PublicKey:           peer.PublicKey,
 		Endpoint:            peer.Endpoint,
 		Address:             peer.Address,
@@ -296,10 +295,10 @@ func (c *Client) ToConfigPeer(peer *internal.Peer) *internal.Peer {
 	}
 }
 
-func (c *Client) AddPeer(p *internal.Peer) error {
+func (c *Client) AddPeer(p *domain.Peer) error {
 	var (
 		err   error
-		probe internal.Probe
+		probe domain.Probe
 	)
 	if p.PublicKey == c.keyManager.GetPublicKey() {
 		c.logger.Verbosef("current node, skipping...")
@@ -308,26 +307,26 @@ func (c *Client) AddPeer(p *internal.Peer) error {
 
 	node := c.ToConfigPeer(p)
 	// start probe when gather candidates finished
-	var connectType internal.ConnType
+	var connectType domain.ConnType
 	current := c.nodeManager.GetPeer(c.keyManager.GetPublicKey())
-	if current.ConnectType == internal.DrpType || node.ConnectType == internal.DrpType {
-		connectType = internal.DrpType
-	} else if current.ConnectType == internal.RelayType || node.ConnectType == internal.RelayType {
-		connectType = internal.RelayType
+	if current.ConnectType == domain.DrpType || node.ConnectType == domain.DrpType {
+		connectType = domain.DrpType
+	} else if current.ConnectType == domain.RelayType || node.ConnectType == domain.RelayType {
+		connectType = domain.RelayType
 	} else {
-		connectType = internal.DirectType
+		connectType = domain.DirectType
 	}
 
 	probe = c.probeManager.GetProbe(p.PublicKey)
 	if probe != nil {
 		switch probe.GetConnState() {
-		case internal.ConnectionStateConnected:
+		case domain.ConnectionStateConnected:
 			return nil
-		case internal.ConnectionStateChecking:
+		case domain.ConnectionStateChecking:
 			return nil
 		}
 	} else {
-		if probe, err = c.probeManager.NewProbe(&internal.ProbeConfig{
+		if probe, err = c.probeManager.NewProbe(&domain.ProbeConfig{
 			Logger:        c.logger,
 			ProberManager: c.probeManager,
 			GatherChan:    make(chan interface{}),
@@ -354,7 +353,7 @@ func (c *Client) AddPeer(p *internal.Peer) error {
 }
 
 // doProbe will start a direct check to the node, if the peer is not connected, it will send drp offer to remote
-func (c *Client) doProbe(probe internal.Probe, node *internal.Peer) {
+func (c *Client) doProbe(probe domain.Probe, node *domain.Peer) {
 	errChan := make(chan error, 10)
 	limitRetries := 7
 	retries := 0
@@ -371,27 +370,27 @@ func (c *Client) doProbe(probe internal.Probe, node *internal.Peer) {
 			select {
 			case <-ticker.C:
 				switch probe.GetConnState() {
-				case internal.ConnectionStateConnected, internal.ConnectionStateFailed:
+				case domain.ConnectionStateConnected, domain.ConnectionStateFailed:
 					return
 				default:
 					switch probe.GetConnState() {
-					case internal.ConnectionStateChecking:
+					case domain.ConnectionStateChecking:
 						c.logger.Verbosef("node %s is checking, skip direct check", node.PublicKey)
-					case internal.ConnectionStateNew:
+					case domain.ConnectionStateNew:
 						if err := probe.Start(context.Background(), c.keyManager.GetPublicKey(), node.PublicKey); err != nil {
 							c.logger.Errorf("send directOffer failed: %v", err)
 							err = wferrors.ErrProbeFailed
 							return
-						} else if probe.GetConnState() != internal.ConnectionStateConnected {
+						} else if probe.GetConnState() != domain.ConnectionStateConnected {
 							retries++
 							ticker.Reset(30 * time.Second)
 						}
 
-					case internal.ConnectionStateDisconnected:
+					case domain.ConnectionStateDisconnected:
 						c.logger.Verbosef("node %s is disconnected, retry direct check", node.PublicKey)
 						retries++
 						ticker.Reset(30 * time.Second)
-					case internal.ConnectionStateConnected:
+					case domain.ConnectionStateConnected:
 						c.logger.Verbosef("node %s is already connected, skip direct check", node.PublicKey)
 					}
 				}
@@ -407,7 +406,7 @@ func (c *Client) doProbe(probe internal.Probe, node *internal.Peer) {
 
 	if err := <-errChan; err != nil {
 		c.logger.Errorf("probe direct failed: %v", err)
-		probe.SetConnectType(internal.DrpType)
+		probe.SetConnectType(domain.DrpType)
 		check()
 
 		if err := <-errChan; err != nil {
@@ -417,7 +416,7 @@ func (c *Client) doProbe(probe internal.Probe, node *internal.Peer) {
 	}
 }
 
-func (c *Client) Get(ctx context.Context) (*internal.Peer, int64, error) {
+func (c *Client) Get(ctx context.Context) (*domain.Peer, int64, error) {
 	req := &grpc.Request{
 		AppId: c.conf.AppId,
 		Token: c.conf.Token,
@@ -434,7 +433,7 @@ func (c *Client) Get(ctx context.Context) (*internal.Peer, int64, error) {
 	}
 
 	type Result struct {
-		Peer  internal.Peer
+		Peer  domain.Peer
 		Count int64
 	}
 	var result Result
@@ -444,7 +443,7 @@ func (c *Client) Get(ctx context.Context) (*internal.Peer, int64, error) {
 	return &result.Peer, result.Count, nil
 }
 
-func (c *Client) Watch(ctx context.Context, fn func(message *internal.Message) error) error {
+func (c *Client) Watch(ctx context.Context, fn func(message *domain.Message) error) error {
 	req := &grpc.Request{
 		PubKey: c.keyManager.GetPublicKey(),
 		AppId:  c.conf.AppId,
@@ -474,7 +473,7 @@ func (c *Client) Keepalive(ctx context.Context) error {
 }
 
 // Register will register device to wireflow center
-func (c *Client) Register(ctx context.Context, appId string) (*internal.Peer, error) {
+func (c *Client) Register(ctx context.Context, appId string) (*domain.Peer, error) {
 	var err error
 
 	hostname, err := os.Hostname()
@@ -506,7 +505,7 @@ func (c *Client) Register(ctx context.Context, appId string) (*internal.Peer, er
 		return nil, fmt.Errorf("register failed. %v", err)
 	}
 
-	var node internal.Peer
+	var node domain.Peer
 	if err = json.Unmarshal(resp.Body, &node); err != nil {
 		return nil, err
 	}

@@ -24,7 +24,8 @@ import (
 	"runtime"
 	"time"
 	"wireflow/dns"
-	"wireflow/internal"
+	"wireflow/internal/core/domain"
+	"wireflow/internal/core/infra"
 	"wireflow/monitor"
 	"wireflow/monitor/collector"
 	"wireflow/pkg/config"
@@ -42,7 +43,7 @@ func Start(flags *config.Flags) error {
 		path    string
 		err     error
 	)
-	ctx := internal.SetupSignalHandler()
+	ctx := infra.SetupSignalHandler()
 
 	logger := log.NewLogger(log.Loglevel, "wireflow")
 
@@ -67,15 +68,15 @@ func Start(flags *config.Flags) error {
 	}
 
 	if flags.ManagementUrl == "" {
-		engineCfg.ManagementUrl = fmt.Sprintf("%s:%d", internal.ManagementDomain, internal.DefaultManagementPort)
+		engineCfg.ManagementUrl = fmt.Sprintf("%s:%d", domain.ManagementDomain, domain.DefaultManagementPort)
 	}
 
 	if flags.SignalingUrl == "" {
-		engineCfg.SignalingUrl = fmt.Sprintf("%s:%d", internal.SignalingDomain, internal.DefaultSignalingPort)
+		engineCfg.SignalingUrl = fmt.Sprintf("%s:%d", domain.SignalingDomain, domain.DefaultSignalingPort)
 	}
 
 	if flags.TurnServerUrl == "" {
-		engineCfg.TurnServerUrl = fmt.Sprintf("%s:%d", internal.TurnServerDomain, internal.DefaultTurnServerPort)
+		engineCfg.TurnServerUrl = fmt.Sprintf("%s:%d", domain.TurnServerDomain, domain.DefaultTurnServerPort)
 	}
 
 	if flags.DaemonGround {
@@ -187,14 +188,14 @@ func Start(flags *config.Flags) error {
 		}()
 	}
 
-	engine, err := NewClient(engineCfg)
+	c, err := NewClient(engineCfg)
 	if err != nil {
 		return err
 	}
 
-	engine.GetNetworkMap = func() (*internal.Message, error) {
+	c.GetNetworkMap = func() (*domain.Message, error) {
 		// get network map from list
-		msg, err := engine.ctrClient.GetNetMap()
+		msg, err := c.clients.ctrClient.GetNetMap()
 		if err != nil {
 			logger.Errorf("Get network map failed: %v", err)
 			return nil, err
@@ -205,15 +206,15 @@ func Start(flags *config.Flags) error {
 		return msg, err
 	}
 
-	err = engine.Start()
+	err = c.Start()
 
 	// open UAPI file
-	logger.Infof("Interface name is: [%s]", engine.Name)
+	logger.Infof("Interface name is: [%s]", c.Name)
 	fileUAPI, err := func() (*os.File, error) {
-		return ipc.UAPIOpen(engine.Name)
+		return ipc.UAPIOpen(c.Name)
 	}()
 
-	uapi, err := ipc.UAPIListen(engine.Name, fileUAPI)
+	uapi, err := ipc.UAPIListen(c.Name, fileUAPI)
 	if err != nil {
 		logger.Errorf("Failed to listen on uapi socket: %v", err)
 		os.Exit(-1)
@@ -225,7 +226,7 @@ func Start(flags *config.Flags) error {
 			if err != nil {
 				return
 			}
-			go engine.IpcHandle(conn)
+			go c.IpcHandle(conn)
 		}
 	}()
 	logger.Infof("wireflow started")
@@ -233,7 +234,7 @@ func Start(flags *config.Flags) error {
 	<-ctx.Done()
 	uapi.Close()
 
-	engine.close()
+	c.close()
 	logger.Infof("wireflow shutting down")
 	return err
 }

@@ -2,7 +2,8 @@ package http
 
 import (
 	"context"
-	"wireflow/internal"
+	"wireflow/internal/core/domain"
+	"wireflow/internal/core/manager"
 	"wireflow/management/client"
 	"wireflow/management/controller"
 	"wireflow/management/db"
@@ -37,7 +38,7 @@ type Server struct {
 
 	settingsController *controller.SettingsController
 
-	manager *internal.WatchManager
+	manager domain.IWatchManager
 }
 
 // ServerConfig is the server configuration
@@ -51,7 +52,7 @@ type ServerConfig struct {
 // NewServer creates a new server
 func NewServer(cfg *ServerConfig) *Server {
 	e := gin.Default()
-	wt := internal.NewWatchManager()
+	wt := manager.NewWatchManager()
 	s := &Server{
 		logger:             log.NewLogger(log.Loglevel, "mgt-server"),
 		Engine:             e,

@@ -12,35 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package internal
+package infra
 
 import (
 	"fmt"
-	"net"
-	"strings"
+	"net/netip"
+	"testing"
 )
 
-func GetCidrFromIP(address string) string {
-
-	_, ipNet, err := net.ParseCIDR(fmt.Sprint(address, "/24"))
-	if err != nil {
-		return ""
-	}
-	return ipNet.String()
-
-}
-
-func GetGatewayFromIP(str string) string {
-	_, ipNet, err := net.ParseCIDR(str + "/24")
-	if err != nil {
-		return ""
-	}
-	return ipNet.IP.String()
-}
-
-func TrimCIDR(addr string) string {
-	if idx := strings.Index(addr, "/"); idx > 0 {
-		return addr[:idx]
-	}
-	return addr
+func TestPrefix(t *testing.T) {
+	s := "10.0.0.2/32"
+	prefix, err := netip.ParsePrefix(s)
+	fmt.Println(prefix, err)
 }

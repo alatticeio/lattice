@@ -1,7 +1,7 @@
 package vo
 
 import (
-	"wireflow/internal"
+	"wireflow/internal/core/domain"
 )
 
 // Message used to wrapper the message for watch
@@ -42,8 +42,8 @@ import (
 }
 */
 
-func (vo *NodeVo) TransferToNode() *internal.Peer {
-	return &internal.Peer{
+func (vo *NodeVo) TransferToNode() *domain.Peer {
+	return &domain.Peer{
 		Name:                vo.Name,
 		Description:         vo.Description,
 		NetworkId:           vo.NetworkID,

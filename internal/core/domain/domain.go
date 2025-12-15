@@ -12,7 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package internal
+package domain
 
-// RouterFunc will add route for device
-type RouterPrintf func(action, address, name string)
+const (
+	DefaultMTU = 1420
+	// ConsoleDomain domain for service
+	ConsoleDomain         = "http://console.The Wireflow Authors"
+	ManagementDomain      = "console.The Wireflow Authors"
+	SignalingDomain       = "signaling.The Wireflow Authors"
+	TurnServerDomain      = "stun.The Wireflow Authors"
+	DefaultManagementPort = 6060
+	DefaultSignalingPort  = 6066
+	DefaultTurnServerPort = 3478
+)

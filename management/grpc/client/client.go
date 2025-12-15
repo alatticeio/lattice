@@ -7,7 +7,7 @@ import (
 	"flag"
 	"io"
 	"time"
-	"wireflow/internal"
+	"wireflow/internal/core/domain"
 	wgrpc "wireflow/internal/grpc"
 	"wireflow/pkg/log"
 
@@ -69,7 +69,7 @@ func (c *Client) Login(ctx context.Context, in *wgrpc.ManagementMessage) (*wgrpc
 	return c.client.Login(ctx, in)
 }
 
-func (c *Client) Watch(ctx context.Context, in *wgrpc.ManagementMessage, fn func(message *internal.Message) error) error {
+func (c *Client) Watch(ctx context.Context, in *wgrpc.ManagementMessage, fn func(message *domain.Message) error) error {
 	logger := c.logger
 	stream, err := c.client.Watch(ctx)
 	if err != nil {
@@ -109,7 +109,7 @@ func (c *Client) Watch(ctx context.Context, in *wgrpc.ManagementMessage, fn func
 					return
 				}
 
-				var message internal.Message
+				var message domain.Message
 				if err := json.Unmarshal(in.Body, &message); err != nil {
 					logger.Errorf("Failed to parse network map: %v", err)
 					errChan <- err

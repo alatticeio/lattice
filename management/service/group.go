@@ -5,7 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
-	"wireflow/internal"
+	"wireflow/internal/core/domain"
+	"wireflow/internal/core/manager"
 	"wireflow/management/dto"
 	"wireflow/management/entity"
 	"wireflow/management/repository"
@@ -43,7 +44,7 @@ var (
 type groupServiceImpl struct {
 	db              *gorm.DB
 	logger          *log.Logger
-	manager         *internal.WatchManager
+	manager         domain.IWatchManager
 	nodeRepo        repository.NodeRepository
 	groupRepo       repository.GroupRepository
 	groupNodeRepo   repository.GroupNodeRepository
@@ -61,7 +62,7 @@ func NewGroupService(db *gorm.DB) GroupService {
 		groupNodeRepo:   repository.NewGroupNodeRepository(db),
 		groupPolicyRepo: repository.NewGroupPolicyRepository(db),
 		policyRepo:      repository.NewPolicyRepository(db),
-		manager:         internal.NewWatchManager(),
+		manager:         manager.NewWatchManager(),
 	}
 }
 
