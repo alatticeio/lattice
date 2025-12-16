@@ -404,3 +404,7 @@ func (c *Client) RemovePeer(peer *domain.Peer) error {
 func (c *Client) RemoveAllPeers() {
 	c.wgConfigure.RemoveAllPeers()
 }
+
+func (c *Client) GetDeviceName() string {
+	return c.Name
+}

@@ -27,13 +27,15 @@ import (
 
 // Message is the message which is sent to connected peers
 type Message struct {
-	EventType     EventType      `json:"eventType"`     //主事件类型
-	ConfigVersion string         `json:"configVersion"` //版本号
-	Timestamp     int64          `json:"timestamp"`     //时间戳
-	Changes       *ChangeDetails `json:"changes"`       // 配置变化详情
-	Current       *Peer          `json:"peer"`          //当前节点信息
-	Network       *Network       `json:"network"`       //网络信息
-	Policies      []*Policy      `json:"policies"`
+	EventType     EventType      `json:"eventType"`               //主事件类型
+	ConfigVersion string         `json:"configVersion"`           //版本号
+	Timestamp     int64          `json:"timestamp"`               //时间戳
+	Changes       *ChangeDetails `json:"changes"`                 // 配置变化详情
+	Current       *Peer          `json:"peer"`                    //当前节点信息
+	Network       *Network       `json:"network"`                 //当前节点网络信息
+	Policies      []*Policy      `json:"policies,omitempty"`      //当前节点的策略
+	ComputedPeers []*Peer        `json:"computedpeers,omitempty"` //当前要连接的节点, 由controller计算完成返回给wireflow
+	ComputedRules *FirewallRule  `json:"computedrules,omitempty"`
 }
 
 type ChangeDetails struct {
@@ -103,6 +105,8 @@ func (c *ChangeDetails) Summary() string {
 // Peer is the information of a wireflow peer, contains all the information of a peer
 type Peer struct {
 	Name                string           `json:"name,omitempty"`
+	InterfaceName       string           `json:"interfaceName,omitempty"`
+	Platform            string           `json:"platform,omitempty"`
 	Description         string           `json:"description,omitempty"`
 	NetworkId           string           `json:"NetworkId,omitempty"` // belong to which group
 	CreatedBy           string           `json:"createdBy,omitempty"` // ownerID
@@ -143,6 +147,12 @@ type Policy struct {
 	PolicyName string  `json:"policyName"`
 	Ingress    []*Rule `json:"ingress"`
 	Egress     []*Rule `json:"egress"`
+}
+
+type FirewallRule struct {
+	Platform     string   `json:"platform"`
+	IngressRules []string `json:"ingressRules"`
+	EgressRules  []string `json:"egressRules"`
 }
 
 type Rule struct {

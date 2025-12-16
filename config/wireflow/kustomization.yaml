@@ -1,7 +1,9 @@
 resources:
-  - ./dev
+- ./dev
 namespace: wireflow
 images:
-  - name: controller
-    newName: registry.cn-hangzhou.aliyuncs.com/wireflowio.com/wireflow-controller
-    newTag: latest
+- name: controller
+  newName: registry.cn-hangzhou.aliyuncs.com/wireflow-io/manager
+  newTag: dev
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization

@@ -24,6 +24,8 @@ type IClient interface {
 	// Start the engine
 	Start() error
 
+	GetDeviceName() string
+
 	// Stop the engine
 	Stop() error
 

@@ -66,9 +66,11 @@ func (c *Client) Register(ctx context.Context, e *dto.NodeDto) (*domain.Peer, er
 				Name:      e.AppID,
 			},
 			Spec: wireflowv1alpha1.NodeSpec{
-				AppId:      e.AppID,
-				PrivateKey: key.String(),
-				PublicKey:  key.PublicKey().String(),
+				AppId:         e.AppID,
+				Platform:      e.Platform,
+				InterfaceName: e.InterfaceName,
+				PrivateKey:    key.String(),
+				PublicKey:     key.PublicKey().String(),
 			},
 
 			Status: wireflowv1alpha1.NodeStatus{

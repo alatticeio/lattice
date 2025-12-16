@@ -21,6 +21,9 @@ import (
 	"wireflow/internal/core/infra"
 	mgtclient "wireflow/management/client"
 	"wireflow/pkg/log"
+	"wireflow/pkg/utils"
+
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 // event handler for wireflow to handle event from management
@@ -79,7 +82,7 @@ func (handler *EventHandler) HandleEvent() HandlerFunc {
 					return err
 				}
 
-				// TODO 重新连接所有的节点
+				// TODO 重新连接所有的节点，基本不会发生，这要remove掉所有已连接的Peer, 然后重新连接
 			}
 
 			//
@@ -104,8 +107,9 @@ func (handler *EventHandler) HandleEvent() HandlerFunc {
 				}
 			}
 
-			if len(msg.Changes.PoliciesAdded) > 0 || len(msg.Changes.PoliciesRemoved) > 0 || len(msg.Changes.PoliciesUpdated) > 0 {
-				peers := handler.handlePeerFromPolicy(msg.Network, msg.Changes.PoliciesAdded)
+			peers := msg.Network.Peers
+			if len(msg.Changes.PoliciesAdded) > 0 {
+				peers = handler.filterPeersFromPolicy(context.Background(), msg.Network.Peers, msg.Changes.PoliciesAdded)
 				for _, peer := range peers {
 					handler.deviceManager.GetDeviceConfiger().GetPeersManager().AddPeer(peer.PublicKey, peer)
 					if err := handler.deviceManager.AddPeer(peer); err != nil {
@@ -114,18 +118,82 @@ func (handler *EventHandler) HandleEvent() HandlerFunc {
 				}
 			}
 
+			if len(msg.Changes.PoliciesUpdated) > 0 {
+				peers = handler.filterPeersFromPolicy(context.Background(), msg.Network.Peers, msg.Changes.PoliciesUpdated)
+				for _, peer := range peers {
+					handler.deviceManager.AddPeer(peer)
+				}
+			}
 		}
 
 		return nil
 	}
 }
 
+func (handler *EventHandler) filterPeersFromPolicy(ctx context.Context, peers []*domain.Peer, policies []*domain.Policy) []*domain.Peer {
+	var ingressPeers []*domain.Peer
+	for _, policy := range policies {
+		ingreses := policy.Ingress
+		for _, ingress := range ingreses {
+			ingressPeers = append(ingressPeers, ingress.Peers...)
+		}
+	}
+
+	peerSet := peerToSet(peers)
+	return utils.Filter(peers, func(peer *domain.Peer) bool {
+		if _, ok := peerSet[peer.PublicKey]; ok {
+			return true
+		}
+		return false
+	})
+}
+
+// handleFullNetworkWithPolicy handle full network with policy
+func (handler *EventHandler) handleFullNetworkWithPolicy(ctx context.Context, network *domain.Network, policies []*domain.Policy) []*domain.Peer {
+	log := logf.FromContext(ctx)
+	log.Info("handleFullNetworkWithPolicy", "network", network, "policies", policies, "peers", network.Peers, "separator", "")
+	peers := network.Peers
+
+	if len(policies) > 0 {
+		var ingressPeers []*domain.Peer
+		for _, policy := range policies {
+			ingreses := policy.Ingress
+			for _, ingress := range ingreses {
+				ingressPeers = append(ingressPeers, ingress.Peers...)
+			}
+		}
+
+		// filter peers
+		ingressPeerSet := peerToSet(ingressPeers)
+		peers = utils.Filter(peers, func(peer *domain.Peer) bool {
+			_, ok := ingressPeerSet[peer.PublicKey]
+			return ok
+		})
+
+		var egressPeers []*domain.Peer
+		for _, policy := range policies {
+			egresses := policy.Egress
+			for _, egress := range egresses {
+				egressPeers = append(egressPeers, egress.Peers...)
+			}
+		}
+
+		egressPeerSet := peerToSet(egressPeers)
+		peers = utils.Filter(peers, func(peer *domain.Peer) bool {
+			_, ok := egressPeerSet[peer.PublicKey]
+			return ok
+		})
+	}
+
+	return peers
+
+}
+
 // ApplyFullConfig when wireflow start, apply full config
 func (handler *EventHandler) ApplyFullConfig(ctx context.Context, msg *domain.Message) error {
 	handler.logger.Verbosef("ApplyFullConfig start: %v", msg)
 
-	peers := handler.handlePeerFromPolicy(msg.Network, msg.Policies)
-	//apply peers, add peer to peers deviceManager
+	peers := handler.handleFullNetworkWithPolicy(ctx, msg.Network, msg.Policies)
 	for _, peer := range peers {
 		handler.deviceManager.GetDeviceConfiger().GetPeersManager().AddPeer(peer.PublicKey, peer)
 		if err := handler.deviceManager.AddPeer(peer); err != nil {
@@ -135,46 +203,6 @@ func (handler *EventHandler) ApplyFullConfig(ctx context.Context, msg *domain.Me
 
 	handler.logger.Verbosef("ApplyFullConfig done, message version: %v", msg.ConfigVersion)
 	return nil
-}
-
-// handlePeerFromPolicy when Network peers is not nil and also policy's peers  is not nil, should filter peers
-// return filtered peers added, removed
-func (handler *EventHandler) handlePeerFromPolicy(network *domain.Network, policies []*domain.Policy) []*domain.Peer {
-	networkPeers := network.Peers
-	if networkPeers == nil {
-		return nil
-	}
-
-	netPeerSet := peerToSet(networkPeers)
-	for _, policy := range policies {
-		ingresses := policy.Ingress
-		egresses := policy.Egress
-
-		for _, egress := range egresses {
-			for _, peer := range egress.Peers {
-				if _, ok := netPeerSet[peer.PublicKey]; !ok {
-					delete(netPeerSet, peer.PublicKey)
-				}
-			}
-		}
-
-		for _, ingress := range ingresses {
-			for _, peer := range ingress.Peers {
-				if _, ok := netPeerSet[peer.PublicKey]; !ok {
-					delete(netPeerSet, peer.PublicKey)
-				}
-			}
-		}
-
-	}
-
-	for _, peer := range networkPeers {
-		if _, ok := netPeerSet[peer.PublicKey]; !ok {
-			delete(netPeerSet, peer.PublicKey)
-		}
-	}
-
-	return networkPeers
 }
 
 func peerToSet(peers []*domain.Peer) map[string]struct{} {

@@ -19,9 +19,8 @@ import (
 	"fmt"
 	"sync"
 	"time"
-	"wireflow/internal/core/domain"
-
 	wireflowv1alpha1 "wireflow/api/v1alpha1"
+	"wireflow/internal/core/domain"
 
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -33,9 +32,11 @@ import (
 )
 
 type ChangeDetector struct {
-	client         client.Client
-	versionMu      sync.Mutex
-	versionCounter int64
+	client           client.Client
+	versionMu        sync.Mutex
+	versionCounter   int64
+	peerResolver     PeerResolver
+	firewallResolver FirewallRuleResolver
 }
 
 // NodeContext
@@ -48,7 +49,9 @@ type NodeContext struct {
 
 func NewChangeDetector(client client.Client) *ChangeDetector {
 	return &ChangeDetector{
-		client: client,
+		client:           client,
+		peerResolver:     NewPeerResolver(),
+		firewallResolver: NewFirewallResolver(),
 	}
 }
 
@@ -404,6 +407,7 @@ func setDifference(a, b map[string]struct{}) []string {
 }
 
 func (d *ChangeDetector) buildFullConfig(ctx context.Context, node *wireflowv1alpha1.Node, context *NodeContext, changes *domain.ChangeDetails, version string) (*domain.Message, error) {
+	var err error
 	// 生成配置版本号
 	msg := &domain.Message{
 		EventType:     domain.EventTypeNodeUpdate, // 统一使用 ConfigUpdate
@@ -427,19 +431,38 @@ func (d *ChangeDetector) buildFullConfig(ctx context.Context, node *wireflowv1al
 				continue
 			}
 
-			msg.Network.Peers = append(msg.Network.Peers, transferToPeer(peer))
+			//msg.Network.ComputedPeers = append(msg.Network.ComputedPeers, transferToPeer(peer))
+			msg.ComputedPeers = append(msg.Network.Peers, transferToPeer(peer))
 		}
 	}
 
-	//if len(context.Policies) > 0 {
-	//	// 填充策略
-	//	for _, policy := range context.Policies {
-	//		msg.Policies = append(msg.Policies, d.transferToPolicy(ctx, policy))
-	//	}
-	//
-	//}
+	if len(context.Policies) > 0 {
+		// 填充策略
+		for _, policy := range context.Policies {
+			msg.Policies = append(msg.Policies, d.transferToPolicy(ctx, policy))
+		}
+	}
+
+	msg.ComputedPeers, err = d.peerResolver.ResolvePeers(ctx, msg.Network, msg.Policies)
+	if err != nil {
+		return nil, err
+	}
+
+	msg.ComputedRules, err = d.firewallResolver.ResolveRules(ctx, msg.Current, msg.Network, msg.Policies)
+	if err != nil {
+		return nil, err
+	}
 
 	return msg, nil
+}
+
+func peerToSet(peers []*domain.Peer) map[string]*domain.Peer {
+	m := make(map[string]*domain.Peer)
+	for _, peer := range peers {
+		m[peer.Name] = peer
+	}
+
+	return m
 }
 
 // generateConfigVersion 生成配置版本号
@@ -533,7 +556,7 @@ func (d *ChangeDetector) getNodeFromLabels(ctx context.Context, rules []wireflow
 	// 4. 将 map 中的节点转换为切片作为最终结果返回
 	result := make([]*domain.Peer, 0, len(foundNodes))
 	for _, node := range foundNodes {
-		result = append(result, transferToPeer((&node)))
+		result = append(result, transferToPeer(&node))
 	}
 
 	return result, nil

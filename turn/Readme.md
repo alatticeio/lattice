@@ -5,10 +5,10 @@ As turn server needs add authHandler, default use mem to cache users, you can us
 
 ## Docker Install
 ```bash
-docker run -d --net=host registry.cn-hangzhou.aliyuncs.com/wireflowio.com/wireflow:latest wireflow turn --public-ip 81.68.109.143
+docker run -d --net=host registry.cn-hangzhou.aliyuncs.com/wireflow-io/wireflow:latest wireflow turn --public-ip 81.68.109.143
 ```
 
 ## Using redis
 ```bash
-docker run -d --net=host registry.cn-hangzhou.aliyuncs.com/wireflowio.com/wireflow:latest wireflow turn --redis-host xx.x.xx.xx --redis-port 6379 --redis-password xxx
+docker run -d --net=host registry.cn-hangzhou.aliyuncs.com/wireflow-io/wireflow:latest wireflow turn --redis-host xx.x.xx.xx --redis-port 6379 --redis-password xxx
 ```

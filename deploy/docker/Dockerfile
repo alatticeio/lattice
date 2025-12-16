@@ -1,4 +1,4 @@
-FROM registry.cn-hangzhou.aliyuncs.com/wireflowio.com/alpine:3.15
+FROM registry.cn-hangzhou.aliyuncs.com/wireflow-io/alpine:3.15
 LABEL authors="winston"
 
 # base deps, timezone, and dynamic linker compat in a single layer

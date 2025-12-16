@@ -1,5 +1,5 @@
 # Image URL to use all building/pushing image targets
-IMG ?= registry.cn-hangzhou.aliyuncs.com/wireflow-io/wireflow-manager:dev
+IMG ?= registry.cn-hangzhou.aliyuncs.com/wireflow-io/manager:dev
 
 REGISTRY ?= registry.cn-hangzhou.aliyuncs.com/wireflow-io
 SERVICES := manager wfctl wireflow
@@ -233,6 +233,7 @@ uninstall: manifests kustomize ## Uninstall CRDs from the K8s cluster specified 
 deploy: manifests kustomize ## Deploy controller to the K8s cluster specified in ~/.kube/config.
 	cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG}
 	$(KUSTOMIZE) build config/default | $(KUBECTL) apply -f -
+	cd config/wireflow && $(KUSTOMIZE) edit set image controller=${IMG}
 	$(KUSTOMIZE) build config/wireflow | $(KUBECTL) apply -f -
 
 .PHONY: undeploy

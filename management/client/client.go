@@ -8,6 +8,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sync"
 	"time"
 	"wireflow/internal/core/domain"
@@ -488,6 +489,8 @@ func (c *Client) Register(ctx context.Context, appId string) (*domain.Peer, erro
 	}
 	registryRequest := &dto.NodeDto{
 		Hostname:            hostname,
+		InterfaceName:       c.client.GetDeviceName(),
+		Platform:            runtime.GOOS,
 		AppID:               local.AppId,
 		PersistentKeepalive: 25,
 		Port:                51820,

@@ -52,6 +52,9 @@ spec:
                 items:
                   type: string
                 type: array
+              interfaceName:
+                description: Interface for the node
+                type: string
               mtu:
                 type: integer
               networkPolicies:
@@ -62,6 +65,9 @@ spec:
                 items:
                   type: string
                 type: array
+              platform:
+                description: platform which node runs on
+                type: string
               privateKey:
                 type: string
               publicKey:

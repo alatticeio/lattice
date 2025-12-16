@@ -17,10 +17,10 @@ package domain
 const (
 	DefaultMTU = 1420
 	// ConsoleDomain domain for service
-	ConsoleDomain         = "http://console.The Wireflow Authors"
-	ManagementDomain      = "console.The Wireflow Authors"
-	SignalingDomain       = "signaling.The Wireflow Authors"
-	TurnServerDomain      = "stun.The Wireflow Authors"
+	ConsoleDomain         = "http://console.wireflowio.com"
+	ManagementDomain      = "console.wireflowio.com"
+	SignalingDomain       = "signaling.wireflowio.com"
+	TurnServerDomain      = "stun.wireflowio.com"
 	DefaultManagementPort = 6060
 	DefaultSignalingPort  = 6066
 	DefaultTurnServerPort = 3478

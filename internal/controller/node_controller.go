@@ -1,18 +1,16 @@
-/*
-Copyright 2025.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+// Copyright 2025 The Wireflow Authors, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 package controller
 
@@ -284,7 +282,6 @@ func (r *NodeReconciler) reconcileConfigMap(ctx context.Context, node *v1alpha1.
 		return ctrl.Result{}, nil
 	}
 
-	//return ctrl.Result{}, nil
 }
 
 func (r *NodeReconciler) buildConfigMap(namespace, configMapName, message string) *corev1.ConfigMap {
@@ -773,14 +770,37 @@ func (r *NodeReconciler) getNodeContext(ctx context.Context, node *v1alpha1.Node
 	}
 
 	//获取网络策略
-	var policyList v1alpha1.NetworkPolicyList
-	if err = r.List(ctx, &policyList); err != nil {
-		return nil
+	policyList, err := r.filterPoliciesForNode(ctx, nodeCtx.Node)
+	if err != nil {
+		return nodeCtx
 	}
 
-	for _, policy := range policyList.Items {
-		nodeCtx.Policies = append(nodeCtx.Policies, &policy)
-	}
+	nodeCtx.Policies = policyList
 
 	return nodeCtx
+}
+
+func (r *NodeReconciler) filterPoliciesForNode(ctx context.Context, node *v1alpha1.Node) ([]*v1alpha1.NetworkPolicy, error) {
+	var policyList v1alpha1.NetworkPolicyList
+	if err := r.List(ctx, &policyList, client.InNamespace(node.Namespace)); err != nil {
+		return nil, err
+	}
+
+	matched := make([]*v1alpha1.NetworkPolicy, 0)
+	nodeLabelSet := labels.Set(node.Labels)
+
+	for _, policy := range policyList.Items {
+		selector, err := metav1.LabelSelectorAsSelector(&policy.Spec.NodeSelector)
+		if err != nil {
+			// selector 写错时：你可以选择忽略该 policy 或直接返回错误
+			return nil, fmt.Errorf("invalid nodeSelector in policy %s/%s: %w", policy.Namespace, policy.Name, err)
+		}
+
+		// 空 selector {} 会匹配所有对象（这点要注意）
+		if selector.Matches(nodeLabelSet) {
+			matched = append(matched, &policy)
+		}
+	}
+
+	return matched, nil
 }

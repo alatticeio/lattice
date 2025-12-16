@@ -28,6 +28,12 @@ type NodeSpec struct {
 
 	AppId string `json:"appId,omitempty"`
 
+	// Interface for the node
+	InterfaceName string `json:"interfaceName,omitempty"`
+
+	// platform which node runs on
+	Platform string `json:"platform,omitempty"`
+
 	PrivateKey string `json:"privateKey,omitempty"`
 
 	PublicKey string `json:"publicKey,omitempty"`
