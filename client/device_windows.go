@@ -178,7 +178,7 @@ func NewEngine(cfg *EngineConfig) (*Engine, error) {
 		return nil, err
 	}
 
-	// init managers
+	// init manager
 	engine.nodeManager = internal.NewPeerManager()
 	engine.agentManager = drp2.NewAgentManager()
 
@@ -277,12 +277,11 @@ func NewEngine(cfg *EngineConfig) (*Engine, error) {
 		RelayConn:       info.RelayConn,
 	})
 
-	probeManager = probe.NewManager(cfg.ForceRelay, universalUdpMuxDefault.UDPMuxDefault, universalUdpMuxDefault, engine, cfg.TurnServerUrl)
+	probeManager = probe.NewProberManager(cfg.ForceRelay, universalUdpMuxDefault.UDPMuxDefault, universalUdpMuxDefault, engine, cfg.TurnServerUrl)
 
 	offerHandler := drp2.NewOfferHandler(&drp2.OfferHandlerConfig{
 		Logger:       log.NewLogger(log.Loglevel, "offer-handler"),
 		ProbeManager: probeManager,
-		AgentManager: engine.agentManager,
 		StunUri:      cfg.TurnServerUrl,
 		KeyManager:   engine.keyManager,
 		NodeManager:  engine.nodeManager,

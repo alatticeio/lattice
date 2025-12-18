@@ -25,7 +25,7 @@ var (
 )
 
 type drpChecker struct {
-	probe   domain.Probe
+	probe   domain.Prober
 	from    string
 	to      string
 	drpAddr string
@@ -33,7 +33,7 @@ type drpChecker struct {
 }
 
 type DrpCheckerConfig struct {
-	Probe   domain.Probe
+	Probe   domain.Prober
 	From    string
 	To      string
 	DrpAddr string // DRP address to connect to

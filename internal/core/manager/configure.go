@@ -24,7 +24,7 @@ type defaultConfiger struct {
 	device       *wg.Device
 	address      string
 	ifaceName    string
-	peersManager domain.IPeerManager
+	peersManager domain.PeerManager
 }
 
 func (c *defaultConfiger) GetAddress() string {
@@ -35,7 +35,7 @@ func (c *defaultConfiger) GetIfaceName() string {
 	return c.ifaceName
 }
 
-func (c *defaultConfiger) GetPeersManager() domain.IPeerManager {
+func (c *defaultConfiger) GetPeersManager() domain.PeerManager {
 	return c.peersManager
 }
 
@@ -43,7 +43,7 @@ type Params struct {
 	Device       *wg.Device
 	IfaceName    string
 	Address      string
-	PeersManager domain.IPeerManager
+	PeersManager domain.PeerManager
 }
 
 func (c *defaultConfiger) Configure() error {

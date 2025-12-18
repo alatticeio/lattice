@@ -26,6 +26,7 @@ import (
 	"wireflow/drp"
 	"wireflow/internal/core/domain"
 	"wireflow/internal/core/infra"
+	"wireflow/internal/core/manager"
 	drpgrpc "wireflow/internal/grpc"
 	"wireflow/pkg/log"
 	"wireflow/pkg/turn"
@@ -35,21 +36,21 @@ import (
 )
 
 var (
-	_ domain.Probe = (*probe)(nil)
+	_ domain.Prober = (*probe)(nil)
 )
 
 // probe is a wrapper directchecker & relaychecker
 type probe struct {
 	logger          *log.Logger
 	closeMux        sync.Mutex
-	agent           domain.IAgent
+	agent           *manager.Agent
+	iceAgent        *ice.Agent
 	done            chan interface{}
 	connectionState domain.ConnectionState
 	isStarted       atomic.Bool
 	isForceRelay    bool
-	probeManager    domain.ProbeManager
-	nodeManager     domain.IPeerManager
-	agentManager    domain.AgentManagerFactory
+	probeManager    domain.ProberManager
+	nodeManager     domain.PeerManager
 
 	lastCheck time.Time
 
@@ -85,23 +86,22 @@ func (p *probe) Restart() error {
 		err error
 	)
 
-	originalAgent := p.agent
 	defer func() {
-		if err = originalAgent.Close(); err != nil {
-			p.logger.Errorf("failed to close original agent: %v", err)
+		if err = p.iceAgent.Close(); err != nil {
+			p.logger.Errorf("failed to close original agentManager: %v", err)
 		} else {
-			p.logger.Infof("original agent closed successfully")
+			p.logger.Infof("original agentManager closed successfully")
 		}
 	}()
 
 	p.UpdateConnectionState(domain.ConnectionStateNew)
-	// create a new agent
+	// create a new agentManager
 	p.gatherCh = make(chan interface{})
-	if p.agent, err = p.probeManager.NewAgent(p.gatherCh, p.OnConnectionStateChange); err != nil {
+	if p.iceAgent, err = p.agent.NewIceAgent(); err != nil {
 		return err
 	}
 
-	p.agent.OnCandidate(func(candidate ice.Candidate) {
+	p.iceAgent.OnCandidate(func(candidate ice.Candidate) {
 		if candidate == nil {
 			p.logger.Verbosef("gathered all candidates")
 			close(p.gatherCh)
@@ -112,17 +112,13 @@ func (p *probe) Restart() error {
 	})
 
 	// when restart should regather candidates
-	if err = p.agent.GatherCandidates(); err != nil {
+	if err = p.iceAgent.GatherCandidates(); err != nil {
 		return err
 	}
 
 	// update probe manager
 	p.probeManager.AddProbe(p.to, p)
 	return nil
-}
-
-func (p *probe) GetProbeAgent() domain.IAgent {
-	return p.agent
 }
 
 func (p *probe) GetConnState() domain.ConnectionState {
@@ -140,6 +136,10 @@ func (p *probe) GetGatherChan() chan interface{} {
 func (p *probe) UpdateConnectionState(state domain.ConnectionState) {
 	p.connectionState = state
 	p.logger.Verbosef("probe connection state updated to: %v", state)
+}
+
+func (p *probe) GetIceAgent() *ice.Agent {
+	return p.iceAgent
 }
 
 func (p *probe) OnConnectionStateChange(state domain.ConnectionState) error {
@@ -162,10 +162,9 @@ func (p *probe) HandleOffer(ctx context.Context, offer domain.Offer) error {
 		if p.directChecker == nil {
 			p.directChecker = NewDirectChecker(&DirectCheckerConfig{
 				Logger:     p.logger,
-				Agent:      p.agent,
 				Key:        p.to,
 				WgConfiger: p.wgConfiger,
-				LocalKey:   p.TieBreaker(),
+				LocalKey:   p.iceAgent.GetTieBreaker(),
 				Prober:     p,
 			})
 
@@ -178,12 +177,11 @@ func (p *probe) HandleOffer(ctx context.Context, offer domain.Offer) error {
 	case domain.OfferTypeRelayOffer, domain.OfferTypeRelayAnswer:
 		if p.relayChecker == nil {
 			p.relayChecker = NewRelayChecker(&RelayCheckerConfig{
-				TurnManager:  p.turnManager,
-				WgConfiger:   p.wgConfiger,
-				AgentManager: p.agentManager,
-				DstKey:       p.to,
-				SrcKey:       p.from,
-				Probe:        p,
+				TurnManager: p.turnManager,
+				WgConfiger:  p.wgConfiger,
+				DstKey:      p.to,
+				SrcKey:      p.from,
+				Probe:       p,
 			})
 		}
 
@@ -214,12 +212,12 @@ func (p *probe) handleDirectOffer(ctx context.Context, offer *domain.DirectOffer
 			continue
 		}
 
-		if err = p.agent.AddRemoteCandidate(candidate); err != nil {
+		if err = p.iceAgent.AddRemoteCandidate(candidate); err != nil {
 			p.logger.Errorf("add remote candidate failed: %v", err)
 			continue
 		}
 
-		p.logger.Infof("add remote candidate success:%v, agent: %v", candidate.Marshal(), p.agent)
+		p.logger.Infof("add remote candidate success:%v: %v", candidate.Marshal())
 	}
 
 	return nil
@@ -236,7 +234,7 @@ func (p *probe) ProbeConnect(ctx context.Context, offer domain.Offer) error {
 
 	switch offer.GetOfferType() {
 	case domain.OfferTypeDirectOffer, domain.OfferTypeDirectOfferAnswer:
-		return p.directChecker.ProbeConnect(ctx, p.TieBreaker() > offer.TieBreaker(), offer)
+		return p.directChecker.ProbeConnect(ctx, p.iceAgent.GetTieBreaker() > offer.TieBreaker(), offer)
 	case domain.OfferTypeRelayOffer, domain.OfferTypeRelayAnswer:
 		return p.relayChecker.ProbeConnect(ctx, false, offer)
 	case domain.OfferTypeDrpOffer, domain.OfferTypeDrpOfferAnswer:
@@ -280,7 +278,9 @@ func (p *probe) ProbeSuccess(ctx context.Context, publicKey, addr string) error 
 		return err
 	}
 
-	infra.SetRoute(p.logger)("add", peer.Address, p.wgConfiger.GetIfaceName())
+	if err = infra.NewRouteApplier().ApplyRoute("add", peer.Address, p.wgConfiger.GetIfaceName()); err != nil {
+		return err
+	}
 	p.logger.Infof("peer connect to %s success", addr)
 
 	return nil
@@ -343,12 +343,12 @@ func (p *probe) SendOffer(ctx context.Context, msgType drpgrpc.MessageType, from
 			p.UpdateConnectionState(domain.ConnectionStateFailed)
 			return err
 		}
-		candidates := p.GetCandidates(p.agent)
+		candidates := p.GetCandidates()
 		offer = domain.NewDirectOffer(&domain.DirectOfferConfig{
 			WgPort:     51820,
 			Ufrag:      ufrag,
 			Pwd:        pwd,
-			LocalKey:   p.TieBreaker(),
+			LocalKey:   p.iceAgent.GetTieBreaker(),
 			Candidates: candidates,
 			Node:       p.nodeManager.GetPeer(from),
 		})
@@ -374,22 +374,22 @@ func (p *probe) SendOffer(ctx context.Context, msgType drpgrpc.MessageType, from
 	return err
 }
 
-func (p *probe) TieBreaker() uint64 {
-	return p.GetProbeAgent().GetTieBreaker()
-}
+//func (p *probe) TieBreaker() uint64 {
+//	return p.GetProbeAgent().GetTieBreaker()
+//}
 
 func (p *probe) Clear(pubKey string) {
 	p.closeMux.Lock()
 	defer func() {
-		p.logger.Infof("probe clearing: %v, remove agent and probe success", pubKey)
+		p.logger.Infof("probe clearing: %v, remove agentManager and probe success", pubKey)
 		p.closeMux.Unlock()
 	}()
-	p.agent.Close()
+	p.iceAgent.Close()
 	p.probeManager.RemoveProbe(pubKey)
 }
 
 func (p *probe) GetCredentials() (string, string, error) {
-	return p.GetProbeAgent().GetLocalUserCredentials()
+	return p.iceAgent.GetLocalUserCredentials()
 }
 
 func (p *probe) GetLastCheck() time.Time {
@@ -400,7 +400,7 @@ func (p *probe) UpdateLastCheck() {
 	p.lastCheck = time.Now()
 }
 
-func (p *probe) GetCandidates(agent domain.IAgent) string {
+func (p *probe) GetCandidates() string {
 	var (
 		err        error
 		candidates []ice.Candidate
@@ -408,7 +408,7 @@ func (p *probe) GetCandidates(agent domain.IAgent) string {
 	)
 	select {
 	case <-p.gatherCh:
-		candidates, err = agent.GetLocalCandidates()
+		candidates, err = p.iceAgent.GetLocalCandidates()
 		if err != nil {
 			return ""
 		}

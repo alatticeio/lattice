@@ -19,8 +19,8 @@ import (
 	"wireflow/internal/grpc"
 )
 
-// IClient is the interface for managing WireGuard devices.
-type IClient interface {
+// Client is the interface for managing WireGuard devices.
+type Client interface {
 	// Start the engine
 	Start() error
 
@@ -43,8 +43,8 @@ type IClient interface {
 	RemoveAllPeers()
 }
 
-// IKeyManager manage the device keys
-type IKeyManager interface {
+// KeyManager manage the device keys
+type KeyManager interface {
 	// UpdateKey updates the private key used for encryption.
 	UpdateKey(privateKey string)
 	// GetKey retrieves the current private key.
@@ -53,13 +53,13 @@ type IKeyManager interface {
 	GetPublicKey() string
 }
 
-type IPeerManager interface {
+type PeerManager interface {
 	AddPeer(key string, peer *Peer)
 	GetPeer(key string) *Peer
 	RemovePeer(key string)
 }
 
-type IManagementClient interface {
+type ManagementClient interface {
 	GetNetMap() (*Message, error)
 	Register(ctx context.Context, appId string) (*Peer, error)
 	AddPeer(p *Peer) error
@@ -67,7 +67,7 @@ type IManagementClient interface {
 	Keepalive(ctx context.Context) error
 }
 
-type IDRPClient interface {
+type DRPClient interface {
 	HandleMessage(ctx context.Context, outBoundQueue chan *grpc.DrpMessage, receive func(ctx context.Context, msg *grpc.DrpMessage) error) error
 	Close() error
 }

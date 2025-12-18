@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"strings"
 	"wireflow/internal/core/domain"
+	"wireflow/internal/core/infra"
 )
 
 // RuleGenerator for mutiple platform generate firewall rules
@@ -38,31 +39,23 @@ type RuleGenerator interface {
 	GenerateDefaultDeny(iface string, chain string) string
 }
 
-// Platform 类型常量，用于避免字符串错误
-const (
-	PlatformLinux   = "linux"
-	PlatformWindows = "windows"
-	PlatformMacOS   = "macos"
-	// 可以在此添加更多平台，如 FreeBSD, Android等
-)
-
 // NewRuleGenerator 是工厂函数，根据平台名称返回相应的 RuleGenerator 实例。
 func NewRuleGenerator(platform string) (RuleGenerator, error) {
 	// 将输入转换为小写，确保健壮性
 	p := strings.ToLower(platform)
 
 	switch p {
-	case PlatformLinux:
+	case infra.PlatformLinux:
 		// 返回 Linux/iptables 的生成器实例
 		return &IptablesGenerator{}, nil
 
-	case PlatformWindows:
+	case infra.PlatformWindows:
 		// 返回 Windows/PowerShell 的生成器实例
 		return &WindowsGenerator{}, nil
 
-	case PlatformMacOS:
+	case infra.PlatformMacOS:
 		// 如果您决定实现 macOS 的 pf/ipfw 生成器，可以在这里返回
-		return nil, fmt.Errorf("platform '%s' is currently not supported (MacOSGenerator not implemented)", platform)
+		return nil, nil
 
 	default:
 		return nil, fmt.Errorf("unsupported platform type: %s", platform)

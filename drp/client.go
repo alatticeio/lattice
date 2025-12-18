@@ -45,14 +45,14 @@ type Client struct {
 		timeout           time.Duration
 	}
 	proxy      *Proxy
-	keyManager domain.IKeyManager
+	keyManager domain.KeyManager
 }
 
 type ClientConfig struct {
 	Logger       *log.Logger
 	Addr         string
 	ClientID     string
-	KeyManager   domain.IKeyManager
+	KeyManager   domain.KeyManager
 	SignalingUrl string
 }
 
@@ -129,7 +129,7 @@ func WithOfferHandler(offerHandler domain.OfferHandler) ClientOption {
 	}
 }
 
-func WithProbeManager(probeManager domain.ProbeManager) ClientOption {
+func WithProbeManager(probeManager domain.ProberManager) ClientOption {
 	return func(c *Client) error {
 		c.proxy.manager.probeManager = probeManager
 		return nil

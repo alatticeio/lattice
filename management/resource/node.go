@@ -52,33 +52,35 @@ func (c *Client) Register(ctx context.Context, e *dto.NodeDto) (*domain.Peer, er
 		if err != nil {
 			return nil, err
 		}
+	} else {
+		key, err = wgtypes.ParseKey(node.Spec.PrivateKey)
+	}
 
-		// 使用SSA模式
-		manager := client.FieldOwner("wireflow-controller-manager")
+	// 使用SSA模式
+	manager := client.FieldOwner("wireflow-controller-manager")
 
-		if err = c.client.Patch(ctx, &wireflowv1alpha1.Node{
-			TypeMeta: v1.TypeMeta{
-				Kind:       "Node",
-				APIVersion: "wireflowcontroller.wireflowio.com/v1alpha1",
-			},
-			ObjectMeta: v1.ObjectMeta{
-				Namespace: "default",
-				Name:      e.AppID,
-			},
-			Spec: wireflowv1alpha1.NodeSpec{
-				AppId:         e.AppID,
-				Platform:      e.Platform,
-				InterfaceName: e.InterfaceName,
-				PrivateKey:    key.String(),
-				PublicKey:     key.PublicKey().String(),
-			},
+	if err = c.client.Patch(ctx, &wireflowv1alpha1.Node{
+		TypeMeta: v1.TypeMeta{
+			Kind:       "Node",
+			APIVersion: "wireflowcontroller.wireflowio.com/v1alpha1",
+		},
+		ObjectMeta: v1.ObjectMeta{
+			Namespace: "default",
+			Name:      e.AppID,
+		},
+		Spec: wireflowv1alpha1.NodeSpec{
+			AppId:         e.AppID,
+			Platform:      e.Platform,
+			InterfaceName: e.InterfaceName,
+			PrivateKey:    key.String(),
+			PublicKey:     key.PublicKey().String(),
+		},
 
-			Status: wireflowv1alpha1.NodeStatus{
-				Status: "Active",
-			},
-		}, client.Apply, manager); err != nil {
-			return nil, err
-		}
+		Status: wireflowv1alpha1.NodeStatus{
+			Status: "Inactive",
+		},
+	}, client.Apply, manager); err != nil {
+		return nil, err
 	}
 
 	if err = c.client.Get(ctx, types.NamespacedName{

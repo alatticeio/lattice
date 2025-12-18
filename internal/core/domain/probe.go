@@ -20,9 +20,21 @@ import (
 	drpgrpc "wireflow/internal/grpc"
 	"wireflow/pkg/log"
 	"wireflow/pkg/turn"
+
+	"github.com/wireflowio/ice"
 )
 
-type Probe interface {
+// ProberManager for managing all Probers
+type ProberManager interface {
+	NewIceAgent(gatherCh chan interface{}, fn func(state ConnectionState) error) (*ice.Agent, error)
+	NewProbe(cfg *ProbeConfig) (Prober, error)
+	AddProbe(key string, probe Prober)
+	GetProbe(key string) Prober
+	RemoveProbe(key string)
+}
+
+// Prober 探测接口
+type Prober interface {
 	// Start the check process
 	Start(ctx context.Context, srcKey, dstKey string) error
 
@@ -44,13 +56,11 @@ type Probe interface {
 
 	ProbeDone() chan interface{}
 
-	//GetProbeAgent once agent closed, should recreate a new one
-	GetProbeAgent() IAgent
+	//GetAgent once agent closed, should recreate a new one
+	GetIceAgent() *ice.Agent
 
 	//Restart when disconnected, restart the probe
 	Restart() error
-
-	TieBreaker() uint64
 
 	GetCredentials() (string, string, error)
 
@@ -59,14 +69,6 @@ type Probe interface {
 	UpdateLastCheck()
 
 	SetConnectType(connType ConnType)
-}
-
-type ProbeManager interface {
-	NewAgent(gatherCh chan interface{}, fn func(state ConnectionState) error) (IAgent, error)
-	NewProbe(cfg *ProbeConfig) (Probe, error)
-	AddProbe(key string, probe Probe)
-	GetProbe(key string) Probe
-	RemoveProbe(key string)
 }
 
 type ProbeConfig struct {
@@ -80,8 +82,8 @@ type ProbeConfig struct {
 	LocalKey                uint32
 	WGConfiger              Configurer
 	OfferHandler            OfferHandler
-	ProberManager           ProbeManager
-	NodeManager             IPeerManager
+	ProberManager           ProberManager
+	NodeManager             PeerManager
 	From                    string
 	To                      string
 	TurnManager             *turn.TurnManager

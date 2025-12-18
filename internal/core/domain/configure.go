@@ -40,7 +40,7 @@ type Configurer interface {
 
 	GetIfaceName() string
 
-	GetPeersManager() IPeerManager
+	GetPeersManager() PeerManager
 }
 
 type SetPeer struct {

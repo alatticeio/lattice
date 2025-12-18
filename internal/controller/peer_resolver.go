@@ -39,21 +39,20 @@ func (p *peerResolver) ResolvePeers(ctx context.Context, network *domain.Network
 	peerSet := peerToSet(network.Peers)
 
 	var (
-		peers  []string
+		peers  []*domain.Peer
 		result []*domain.Peer
 	)
 	//过滤出站
 	for _, policy := range policies {
 		egresses := policy.Egress
-		peers = make([]string, 0)
 		for _, egress := range egresses {
 			peers = append(peers, egress.Peers...)
 		}
 
 		peerSetTmp := peerStringSet(peers)
 		if len(peers) > 0 {
-			peers = utils.Filter(peers, func(peer string) bool {
-				if _, ok := peerSetTmp[peer]; !ok {
+			peers = utils.Filter(peers, func(peer *domain.Peer) bool {
+				if _, ok := peerSetTmp[peer.Name]; !ok {
 					return false
 				}
 				return true
@@ -63,8 +62,8 @@ func (p *peerResolver) ResolvePeers(ctx context.Context, network *domain.Network
 
 	//build computed peers
 	for _, peer := range peers {
-		if _, ok := peerSet[peer]; ok {
-			result = append(result, peerSet[peer])
+		if _, ok := peerSet[peer.Name]; ok {
+			result = append(result, peerSet[peer.Name])
 		}
 	}
 
@@ -81,10 +80,10 @@ func (p *peerResolver) ResolvePeers(ctx context.Context, network *domain.Network
 	return result, nil
 }
 
-func peerStringSet(peers []string) map[string]struct{} {
+func peerStringSet(peers []*domain.Peer) map[string]struct{} {
 	m := make(map[string]struct{})
 	for _, peer := range peers {
-		m[peer] = struct{}{}
+		m[peer.Name] = struct{}{}
 	}
 	return m
 }

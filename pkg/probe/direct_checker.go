@@ -43,10 +43,10 @@ type directChecker struct {
 	addr         *net.UDPAddr
 	addPeer      func(key string, addr *net.UDPAddr) error
 	offerManager domain.OfferHandler
-	km           domain.IKeyManager
+	km           domain.KeyManager
 	localKey     uint64
 	wgConfiger   domain.Configurer
-	prober       domain.Probe
+	prober       domain.Prober
 }
 
 type DirectCheckerConfig struct {
@@ -54,11 +54,10 @@ type DirectCheckerConfig struct {
 	Ufrag         string // local
 	Pwd           string
 	IsControlling bool
-	Agent         domain.IAgent
 	Key           string
 	WgConfiger    domain.Configurer
 	LocalKey      uint64
-	Prober        domain.Probe
+	Prober        domain.Prober
 }
 
 func NewDirectChecker(config *DirectCheckerConfig) *directChecker {
@@ -67,7 +66,7 @@ func NewDirectChecker(config *DirectCheckerConfig) *directChecker {
 	}
 	pc := &directChecker{
 		logger: config.Logger,
-		//agent:      config.Agent,
+		//agentManager:      config.Agent,
 		prober:     config.Prober,
 		to:         config.Key,
 		wgConfiger: config.WgConfiger,
@@ -99,14 +98,14 @@ func (dt *directChecker) handleDirectOffer(offer *domain.DirectOffer) error {
 			continue
 		}
 
-		agent := dt.prober.GetProbeAgent()
+		agent := dt.prober.GetIceAgent()
 
 		if err = agent.AddRemoteCandidate(candidate); err != nil {
 			dt.logger.Errorf("add remote candidate failed: %v", err)
 			continue
 		}
 
-		dt.logger.Infof("add remote candidate success:%v, agent: %v", candidate.Marshal(), agent)
+		dt.logger.Infof("add remote candidate success:%v, agentManager: %v", candidate.Marshal(), agent)
 	}
 
 	return nil
@@ -119,12 +118,7 @@ func (dt *directChecker) ProbeConnect(ctx context.Context, isControlling bool, r
 	var conn *ice.Conn
 	var err error
 
-	agent := dt.prober.GetProbeAgent()
-	status := agent.GetStatus()
-	if status {
-		logger.Infof("agent has started")
-		return nil
-	}
+	agent := dt.prober.GetIceAgent()
 
 	candidates, _ := agent.GetRemoteCandidates()
 
@@ -159,9 +153,9 @@ func (dt *directChecker) ProbeFailure(ctx context.Context, offer domain.Offer) e
 }
 
 func (dt *directChecker) Close() error {
-	return dt.prober.GetProbeAgent().Close()
+	return dt.prober.GetIceAgent().Close()
 }
 
-func (dt *directChecker) SetProbe(prober domain.Probe) {
+func (dt *directChecker) SetProbe(prober domain.Prober) {
 	dt.prober = prober
 }

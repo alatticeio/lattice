@@ -46,16 +46,16 @@ import (
 )
 
 var (
-	_ domain.IClient = (*Client)(nil)
+	_ domain.Client = (*Client)(nil)
 )
 
 // Client act as wireflow data plane, wrappers around wireguard device
 type Client struct {
-	ctx    context.Context
-	logger *log.Logger
-	Name   string
-	iface  *wg.Device
-	bind   *DefaultBind
+	logger       *log.Logger
+	Name         string
+	iface        *wg.Device
+	bind         *DefaultBind
+	routeApplier infra.RouteApplier
 
 	GetNetworkMap func() (*domain.Message, error)
 
@@ -66,11 +66,11 @@ type Client struct {
 		watchChan     chan struct{} // channel for watch
 	}
 
-	managers struct {
-		agentManager domain.AgentManagerFactory
-		keyManager   domain.IKeyManager
-		turnManager  *turnclient.TurnManager
-		peerManager  domain.IPeerManager
+	manager struct {
+		agent       *manager.Agent
+		keyManager  domain.KeyManager
+		turnManager *turnclient.TurnManager
+		peerManager domain.PeerManager
 	}
 
 	wgConfigure domain.Configurer
@@ -157,25 +157,25 @@ func NewClient(cfg *ClientConfig) (*Client, error) {
 		iface        tun.Device
 		err          error
 		client       *Client
-		probeManager domain.ProbeManager
+		probeManager domain.ProberManager
 		proxy        *drp.Proxy
 		turnClient   turnclient.Client
 		v4conn       *net.UDPConn
 		v6conn       *net.UDPConn
 	)
-	client = &Client{
-		ctx:    context.Background(),
-		logger: cfg.Logger,
-	}
+	client = new(Client)
+	client.logger = cfg.Logger
 	client.clients.keepaliveChan = make(chan struct{}, 1)
 	client.clients.watchChan = make(chan struct{}, 1)
-	client.managers.turnManager = new(turnclient.TurnManager)
-	client.managers.peerManager = manager.NewPeerManager()
-	client.managers.agentManager = manager.NewAgentManagerFactory()
+	client.manager.turnManager = new(turnclient.TurnManager)
+	client.manager.peerManager = manager.NewPeerManager()
+	//client.manager.agentManager = manager.NewAgent()
 	client.Name, iface, err = CreateTUN(domain.DefaultMTU, cfg.Logger)
 	if err != nil {
 		return nil, err
 	}
+
+	client.routeApplier = infra.NewRouteApplier()
 
 	client.clients.ctrClient = ctrclient.NewClient(&ctrclient.ClientConfig{
 		Logger:        log.NewLogger(log.Loglevel, "control-ctrClient"),
@@ -183,12 +183,8 @@ func NewClient(cfg *ClientConfig) (*Client, error) {
 		Conf:          cfg.Conf,
 	})
 
-	appId, err := config.GetAppId()
-	if err != nil {
-		return nil, err
-	}
 	var privateKey string
-	client.current, err = client.clients.ctrClient.Register(context.Background(), appId)
+	client.current, err = client.clients.ctrClient.Register(context.Background(), client.Name)
 	if err != nil {
 		return nil, err
 	}
@@ -196,8 +192,8 @@ func NewClient(cfg *ClientConfig) (*Client, error) {
 	privateKey = client.current.PrivateKey
 
 	//update key
-	client.managers.keyManager = manager.NewKeyManager(privateKey)
-	client.managers.peerManager.AddPeer(client.managers.keyManager.GetPublicKey(), client.current)
+	client.manager.keyManager = manager.NewKeyManager(privateKey)
+	client.manager.peerManager.AddPeer(client.manager.keyManager.GetPublicKey(), client.current)
 
 	if v4conn, _, err = ListenUDP("udp4", uint16(cfg.Port)); err != nil {
 		return nil, err
@@ -211,7 +207,7 @@ func NewClient(cfg *ClientConfig) (*Client, error) {
 	if client.clients.drpClient, err = drp.NewClient(&drp.ClientConfig{
 		Addr:       cfg.SignalingUrl,
 		Logger:     log.NewLogger(log.Loglevel, "drp-ctrClient"),
-		KeyManager: client.managers.keyManager,
+		KeyManager: client.manager.keyManager,
 	}); err != nil {
 		return nil, err
 	}
@@ -232,9 +228,9 @@ func NewClient(cfg *ClientConfig) (*Client, error) {
 
 	client.logger.Verbosef("get relay info, mapped addr: %v, conn addr: %v", info.MappedAddr, info.RelayConn.LocalAddr())
 
-	client.managers.turnManager.SetInfo(info)
+	client.manager.turnManager.SetInfo(info)
 
-	universalUdpMuxDefault := client.managers.agentManager.NewUdpMux(v4conn)
+	universalUdpMuxDefault := infra.NewUdpMux(v4conn)
 
 	client.bind = NewBind(&BindConfig{
 		Logger:          log.NewLogger(log.Loglevel, "wireflow-bind"),
@@ -242,21 +238,21 @@ func NewClient(cfg *ClientConfig) (*Client, error) {
 		V4Conn:          v4conn,
 		V6Conn:          v6conn,
 		Proxy:           proxy,
-		KeyManager:      client.managers.keyManager,
+		KeyManager:      client.manager.keyManager,
 		RelayConn:       info.RelayConn,
 	})
 
-	probeManager = probe.NewManager(cfg.ForceRelay, universalUdpMuxDefault.UDPMuxDefault, universalUdpMuxDefault, client, cfg.TurnServerUrl)
+	client.manager.agent = manager.NewAgent("", universalUdpMuxDefault)
+	probeManager = probe.NewProberManager(cfg.ForceRelay, client, client.manager.agent)
 
 	offerHandler := drp.NewOfferHandler(&drp.OfferHandlerConfig{
 		Logger:       log.NewLogger(log.Loglevel, "offer-handler"),
 		ProbeManager: probeManager,
-		AgentManager: client.managers.agentManager,
 		StunUri:      cfg.TurnServerUrl,
-		KeyManager:   client.managers.keyManager,
-		NodeManager:  client.managers.peerManager,
+		KeyManager:   client.manager.keyManager,
+		NodeManager:  client.manager.peerManager,
 		Proxy:        proxy,
-		TurnManager:  client.managers.turnManager,
+		TurnManager:  client.manager.turnManager,
 	})
 
 	// init proxy in drp clients
@@ -269,18 +265,18 @@ func NewClient(cfg *ClientConfig) (*Client, error) {
 	wgConfigure := manager.NewConfigurer(&manager.Params{
 		Device:       client.iface,
 		IfaceName:    client.Name,
-		PeersManager: client.managers.peerManager,
+		PeersManager: client.manager.peerManager,
 	})
 	client.wgConfigure = wgConfigure
 
 	// init control clients
 	client.clients.ctrClient.Configure(
-		ctrclient.WithNodeManager(client.managers.peerManager),
+		ctrclient.WithNodeManager(client.manager.peerManager),
 		ctrclient.WithProbeManager(probeManager),
-		ctrclient.WithTurnManager(client.managers.turnManager),
+		ctrclient.WithTurnManager(client.manager.turnManager),
 		ctrclient.WithIClient(client),
 		ctrclient.WithOfferHandler(offerHandler),
-		ctrclient.WithKeyManager(client.managers.keyManager))
+		ctrclient.WithKeyManager(client.manager.keyManager))
 	return client, err
 }
 
@@ -296,10 +292,12 @@ func (c *Client) Start() error {
 
 	if c.current.Address != "" {
 		// 设置Device
-		infra.SetDeviceIP()("add", c.current.Address, c.wgConfigure.GetIfaceName())
+		if err := c.routeApplier.ApplyIP("add", c.current.Address, c.wgConfigure.GetIfaceName()); err != nil {
+			return err
+		}
 	}
 
-	if c.managers.keyManager.GetKey() != "" {
+	if c.manager.keyManager.GetKey() != "" {
 		if err := c.Configure(&domain.DeviceConfig{
 			PrivateKey: c.current.PrivateKey,
 		}); err != nil {
@@ -321,12 +319,12 @@ func (c *Client) Start() error {
 		for {
 			select {
 			case <-c.clients.watchChan:
-				if err = c.clients.ctrClient.Watch(c.ctx, c.eventHandler.HandleEvent()); err != nil {
+				if err = c.clients.ctrClient.Watch(ctx, c.eventHandler.HandleEvent()); err != nil {
 					c.logger.Errorf("watch failed: %v", err)
 					time.Sleep(10 * time.Second) // retry after 10 seconds
 					c.clients.watchChan <- struct{}{}
 				}
-			case <-c.ctx.Done():
+			case <-ctx.Done():
 				c.logger.Infof("watching chan closed")
 				return
 			}
@@ -338,12 +336,12 @@ func (c *Client) Start() error {
 		for {
 			select {
 			case <-c.clients.keepaliveChan:
-				if err = c.clients.ctrClient.Keepalive(c.ctx); err != nil {
+				if err = c.clients.ctrClient.Keepalive(ctx); err != nil {
 					c.logger.Errorf("keepalive failed: %v", err)
 					time.Sleep(10 * time.Second)
 					c.clients.keepaliveChan <- struct{}{}
 				}
-			case <-c.ctx.Done():
+			case <-ctx.Done():
 				return
 			}
 		}

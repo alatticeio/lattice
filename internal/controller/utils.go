@@ -91,11 +91,18 @@ func stringSliceEqual(a, b []string) bool {
 }
 
 func transferToPeer(peer *wireflowv1alpha1.Node) *domain.Peer {
-	return &domain.Peer{
-		Name:       peer.Name,
-		AppID:      peer.Spec.AppId,
-		Address:    peer.Status.AllocatedAddress,
-		PublicKey:  peer.Spec.PublicKey,
-		AllowedIPs: fmt.Sprintf("%s/32", peer.Status.AllocatedAddress),
+	p := &domain.Peer{
+		Name:          peer.Name,
+		AppID:         peer.Spec.AppId,
+		Platform:      peer.Spec.Platform,
+		InterfaceName: peer.Spec.InterfaceName,
+		Address:       peer.Status.AllocatedAddress,
+		PublicKey:     peer.Spec.PublicKey,
 	}
+
+	if peer.Status.AllocatedAddress != "" {
+		p.AllowedIPs = fmt.Sprintf("%s/32", peer.Status.AllocatedAddress)
+	}
+
+	return p
 }

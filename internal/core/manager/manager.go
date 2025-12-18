@@ -22,8 +22,8 @@ import (
 )
 
 var (
-	_ domain.IKeyManager  = (*keyManager)(nil)
-	_ domain.IPeerManager = (*PeerManager)(nil)
+	_ domain.KeyManager  = (*keyManager)(nil)
+	_ domain.PeerManager = (*PeerManager)(nil)
 )
 
 type keyManager struct {
@@ -31,7 +31,7 @@ type keyManager struct {
 	privateKey string
 }
 
-func NewKeyManager(privateKey string) domain.IKeyManager {
+func NewKeyManager(privateKey string) domain.KeyManager {
 	return &keyManager{privateKey: privateKey}
 }
 

@@ -14,5 +14,21 @@
 
 package infra
 
-// RouterFunc will add route for device
-type RouterPrintf func(action, address, name string)
+import (
+	"wireflow/pkg/log"
+)
+
+type RouteApplier interface {
+	ApplyRoute(action, address, name string) error
+	ApplyIP(action, address, name string) error
+}
+
+type applier struct {
+	logger *log.Logger
+}
+
+func NewRouteApplier() RouteApplier {
+	return &applier{
+		logger: log.NewLogger(log.Loglevel, "route-applier"),
+	}
+}

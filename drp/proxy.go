@@ -34,7 +34,7 @@ type Proxy struct {
 	// Address is the address of the proxy server
 	Addr  netip.AddrPort
 	queue struct {
-		drpClient     domain.IDRPClient
+		drpClient     domain.DRPClient
 		outBoundQueue chan *drpgrpc.DrpMessage
 		inBoundQueue  chan *drpgrpc.DrpMessage
 	}
@@ -43,7 +43,7 @@ type Proxy struct {
 	offerHandler domain.OfferHandler
 	manager      struct {
 		msgManager   *MessageManager
-		probeManager domain.ProbeManager
+		probeManager domain.ProberManager
 	}
 
 	proxyDo func(ctx context.Context, msg *drpgrpc.DrpMessage) error
@@ -51,7 +51,7 @@ type Proxy struct {
 
 type ProxyConfig struct {
 	OfferHandler domain.OfferHandler
-	DrpClient    domain.IDRPClient
+	DrpClient    domain.DRPClient
 	DrpAddr      string
 }
 

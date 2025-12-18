@@ -19,6 +19,8 @@ import (
 	"fmt"
 	"strings"
 	"wireflow/internal/core/domain"
+
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 // 关注L3/L4的策略，根据Policy中的ingress来实现
@@ -36,6 +38,8 @@ func NewFirewallResolver() FirewallRuleResolver {
 }
 
 func (r *firewallRuleResolver) ResolveRules(ctx context.Context, currentPeer *domain.Peer, network *domain.Network, allPolicies []*domain.Policy) (*domain.FirewallRule, error) {
+	log := logf.FromContext(ctx)
+	log.Info("Resolving firewall rules")
 	if currentPeer == nil || network == nil {
 		return nil, fmt.Errorf("currentPeer or network cannot be nil")
 	}
@@ -48,6 +52,7 @@ func (r *firewallRuleResolver) ResolveRules(ctx context.Context, currentPeer *do
 
 	generator, err := NewRuleGenerator(currentPeer.Platform)
 	if err != nil {
+		log.Error(err, "Error generating firewall rule generator")
 		return nil, err
 	}
 

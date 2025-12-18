@@ -52,7 +52,7 @@ type DefaultBind struct {
 	conn            net.Conn // drp clients conn
 	node            *drp.Node
 	PublicKey       wgtypes.Key
-	keyManager      domain.IKeyManager
+	keyManager      domain.KeyManager
 
 	// used for turn relay
 	relayConn net.PacketConn
@@ -86,7 +86,7 @@ type BindConfig struct {
 	UniversalUDPMux *ice.UniversalUDPMuxDefault
 	RelayConn       net.PacketConn // relay conn, used for relay endpoint
 	Proxy           *drp.Proxy
-	KeyManager      domain.IKeyManager
+	KeyManager      domain.KeyManager
 }
 
 func NewBind(cfg *BindConfig) *DefaultBind {

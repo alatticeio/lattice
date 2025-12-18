@@ -24,53 +24,47 @@ import (
 )
 
 var (
-	_ domain.ProbeManager = (*probeInstance)(nil)
+	_ domain.ProberManager = (*proberManager)(nil)
 )
 
-type probeInstance struct {
-	logger       *log.Logger
-	lock         sync.Mutex
-	probers      map[string]domain.Probe
-	wgLock       sync.Mutex
-	isForceRelay bool
-	agentManager domain.AgentManagerFactory
-	engine       domain.IClient
-	offerHandler domain.OfferHandler
-
+type proberManager struct {
+	logger          *log.Logger
+	lock            sync.Mutex
+	probers         map[string]domain.Prober
+	agent           *manager.Agent
+	wgLock          sync.Mutex
+	isForceRelay    bool
+	engine          domain.Client
+	offerHandler    domain.OfferHandler
 	stunUrl         string
 	udpMux          *ice.UDPMuxDefault
 	universalUdpMux *ice.UniversalUDPMuxDefault
 }
 
-func NewManager(isForceRelay bool, udpMux *ice.UDPMuxDefault,
-	universeUdpMux *ice.UniversalUDPMuxDefault,
-	engineManager domain.IClient,
-	stunUrl string) domain.ProbeManager {
-	return &probeInstance{
-		agentManager:    manager.NewAgentManagerFactory(),
-		probers:         make(map[string]domain.Probe),
-		isForceRelay:    isForceRelay,
-		udpMux:          udpMux,
-		universalUdpMux: universeUdpMux,
-		stunUrl:         stunUrl,
-		engine:          engineManager,
-		logger:          log.NewLogger(log.Loglevel, "probe-manager"),
+func NewProberManager(isForceRelay bool,
+	engineManager domain.Client,
+	agent *manager.Agent,
+) domain.ProberManager {
+	return &proberManager{
+		probers:      make(map[string]domain.Prober),
+		isForceRelay: isForceRelay,
+		agent:        agent,
+		engine:       engineManager,
+		logger:       log.NewLogger(log.Loglevel, "probe-manager"),
 	}
 }
 
-func (m *probeInstance) NewAgent(gatherCh chan interface{}, fn func(state domain.ConnectionState) error) (domain.IAgent, error) {
+func (m *proberManager) NewIceAgent(gatherCh chan interface{}, fn func(state domain.ConnectionState) error) (*ice.Agent, error) {
 	var (
-		err   error
-		agent domain.IAgent
+		err      error
+		iceAgent *ice.Agent
 	)
-	if agent, err = manager.NewAgent(&manager.AgentConfig{
-		StunUrl:         m.stunUrl,
-		UniversalUdpMux: m.universalUdpMux,
-	}); err != nil {
+
+	iceAgent, err = m.agent.NewIceAgent()
+	if err != nil {
 		return nil, err
 	}
-
-	if err = agent.OnCandidate(func(candidate ice.Candidate) {
+	if err = iceAgent.OnCandidate(func(candidate ice.Candidate) {
 		if candidate == nil {
 			m.logger.Verbosef("gathered all candidates")
 			close(gatherCh)
@@ -82,7 +76,7 @@ func (m *probeInstance) NewAgent(gatherCh chan interface{}, fn func(state domain
 		return nil, err
 	}
 
-	if err = agent.OnConnectionStateChange(func(state ice.ConnectionState) {
+	if err = iceAgent.OnConnectionStateChange(func(state ice.ConnectionState) {
 		switch state {
 		case ice.ConnectionStateFailed:
 			fn(domain.ConnectionStateFailed)
@@ -99,11 +93,11 @@ func (m *probeInstance) NewAgent(gatherCh chan interface{}, fn func(state domain
 		return nil, err
 	}
 
-	return agent, nil
+	return iceAgent, nil
 }
 
-// NewProbe creates a new Probe, is a probe manager
-func (m *probeInstance) NewProbe(cfg *domain.ProbeConfig) (domain.Probe, error) {
+// NewProbe creates a new Prober, is a probe manager
+func (m *proberManager) NewProbe(cfg *domain.ProbeConfig) (domain.Prober, error) {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 	p := m.probers[cfg.To] // check if probe already exists
@@ -115,9 +109,16 @@ func (m *probeInstance) NewProbe(cfg *domain.ProbeConfig) (domain.Probe, error) 
 		err error
 	)
 
+	iceAgent, err := m.agent.NewIceAgent()
+	if err != nil {
+		return nil, err
+	}
+
 	newProbe := &probe{
 		logger:          log.NewLogger(log.Loglevel, "probe"),
 		connectionState: domain.ConnectionStateNew,
+		agent:           m.agent,
+		iceAgent:        iceAgent,
 		gatherCh:        cfg.GatherChan,
 		directChecker:   cfg.DirectChecker,
 		relayChecker:    cfg.RelayChecker,
@@ -135,11 +136,7 @@ func (m *probeInstance) NewProbe(cfg *domain.ProbeConfig) (domain.Probe, error) 
 
 	switch newProbe.connectType {
 	case domain.DirectType:
-		if newProbe.agent, err = m.NewAgent(newProbe.gatherCh, newProbe.OnConnectionStateChange); err != nil {
-			return nil, err
-		}
-
-		if err = newProbe.agent.GatherCandidates(); err != nil {
+		if err = newProbe.iceAgent.GatherCandidates(); err != nil {
 			return nil, err
 		}
 	}
@@ -149,19 +146,19 @@ func (m *probeInstance) NewProbe(cfg *domain.ProbeConfig) (domain.Probe, error) 
 	return newProbe, nil
 }
 
-func (m *probeInstance) AddProbe(key string, prober domain.Probe) {
+func (m *proberManager) AddProbe(key string, prober domain.Prober) {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 	m.probers[key] = prober
 }
 
-func (m *probeInstance) GetProbe(key string) domain.Probe {
+func (m *proberManager) GetProbe(key string) domain.Prober {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 	return m.probers[key]
 }
 
-func (m *probeInstance) RemoveProbe(key string) {
+func (m *proberManager) RemoveProbe(key string) {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 	delete(m.probers, key)

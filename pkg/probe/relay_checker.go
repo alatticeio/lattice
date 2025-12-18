@@ -39,25 +39,22 @@ type relayChecker struct {
 	inBound         chan RelayMessage
 	permissionAddrs []net.Addr // Addr will be added to the permission list
 	wgConfiger      domain.Configurer
-	probe           domain.Probe
-	agentManager    domain.AgentManagerFactory
+	probe           domain.Prober
 }
 
 type RelayCheckerConfig struct {
-	TurnManager  *turnclient.TurnManager
-	WgConfiger   domain.Configurer
-	AgentManager domain.AgentManagerFactory
-	DstKey       string
-	SrcKey       string
-	Probe        domain.Probe
+	TurnManager *turnclient.TurnManager
+	WgConfiger  domain.Configurer
+	DstKey      string
+	SrcKey      string
+	Probe       domain.Prober
 }
 
 func NewRelayChecker(cfg *RelayCheckerConfig) *relayChecker {
 	return &relayChecker{
-		agentManager: cfg.AgentManager,
-		dstKey:       cfg.DstKey,
-		key:          cfg.SrcKey,
-		probe:        cfg.Probe,
+		dstKey: cfg.DstKey,
+		key:    cfg.SrcKey,
+		probe:  cfg.Probe,
 	}
 }
 

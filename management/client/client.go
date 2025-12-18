@@ -30,23 +30,22 @@ type NodeMap struct {
 }
 
 var (
-	_ domain.IManagementClient = (*Client)(nil)
+	_ domain.ManagementClient = (*Client)(nil)
 )
 
 // Client is control client of wireflow, will fetch config from origin server interval
 type Client struct {
-	as           domain.AgentManagerFactory
+	//as           domain.AgentManagerFactory
 	logger       *log.Logger
-	keyManager   domain.IKeyManager
-	nodeManager  domain.IPeerManager
+	keyManager   domain.KeyManager
+	nodeManager  domain.PeerManager
 	conf         *config.LocalConfig
 	grpcClient   *grpclient.Client
 	conn4        net.PacketConn
-	agentManager domain.AgentManagerFactory
 	offerHandler domain.OfferHandler
-	probeManager domain.ProbeManager
+	probeManager domain.ProberManager
 	turnManager  *turnclient.TurnManager
-	client       domain.IClient
+	client       domain.Client
 
 	//channel for close for keepalive
 	keepaliveChan chan struct{}
@@ -88,24 +87,24 @@ func NewClient(cfg *ClientConfig) *Client {
 	return client
 }
 
-func (c *Client) SetKeyManager(manager domain.IKeyManager) *Client {
+func (c *Client) SetKeyManager(manager domain.KeyManager) *Client {
 	c.keyManager = manager
 	return c
 }
 
-func (c *Client) SetNodeManager(manager domain.IPeerManager) *Client {
+func (c *Client) SetNodeManager(manager domain.PeerManager) *Client {
 	c.nodeManager = manager
 	return c
 }
 
 type ClientOption func(*Client) error
 
-func WithAgentManagerFactory(factory domain.AgentManagerFactory) ClientOption {
-	return func(c *Client) error {
-		c.agentManager = factory
-		return nil
-	}
-}
+//func WithAgentManagerFactory(factory domain.AgentManagerFactory) ClientOption {
+//	return func(c *Client) error {
+//		c.agentManager = factory
+//		return nil
+//	}
+//}
 
 func WithGrpcClient(client *grpclient.Client) ClientOption {
 	return func(c *Client) error {
@@ -124,14 +123,14 @@ func NewClientWithOption(cfg *ClientConfig, opts ...ClientOption) (*Client, erro
 	return client, nil
 }
 
-func WithNodeManager(manager domain.IPeerManager) ClientOption {
+func WithNodeManager(manager domain.PeerManager) ClientOption {
 	return func(c *Client) error {
 		c.nodeManager = manager
 		return nil
 	}
 }
 
-func WithProbeManager(manager domain.ProbeManager) ClientOption {
+func WithProbeManager(manager domain.ProberManager) ClientOption {
 	return func(c *Client) error {
 		c.probeManager = manager
 		return nil
@@ -145,7 +144,7 @@ func WithOfferHandler(handler domain.OfferHandler) ClientOption {
 	}
 }
 
-func WithKeyManager(manager domain.IKeyManager) ClientOption {
+func WithKeyManager(manager domain.KeyManager) ClientOption {
 	return func(c *Client) error {
 		c.keyManager = manager
 		return nil
@@ -159,7 +158,7 @@ func WithTurnManager(manager *turnclient.TurnManager) ClientOption {
 	}
 }
 
-func WithIClient(iclient domain.IClient) ClientOption {
+func WithIClient(iclient domain.Client) ClientOption {
 	return func(c *Client) error {
 		c.client = iclient
 		return nil
@@ -299,7 +298,7 @@ func (c *Client) ToConfigPeer(peer *domain.Peer) *domain.Peer {
 func (c *Client) AddPeer(p *domain.Peer) error {
 	var (
 		err   error
-		probe domain.Probe
+		probe domain.Prober
 	)
 	if p.PublicKey == c.keyManager.GetPublicKey() {
 		c.logger.Verbosef("current node, skipping...")
@@ -354,7 +353,7 @@ func (c *Client) AddPeer(p *domain.Peer) error {
 }
 
 // doProbe will start a direct check to the node, if the peer is not connected, it will send drp offer to remote
-func (c *Client) doProbe(probe domain.Probe, node *domain.Peer) {
+func (c *Client) doProbe(probe domain.Prober, node *domain.Peer) {
 	errChan := make(chan error, 10)
 	limitRetries := 7
 	retries := 0
@@ -474,7 +473,7 @@ func (c *Client) Keepalive(ctx context.Context) error {
 }
 
 // Register will register device to wireflow center
-func (c *Client) Register(ctx context.Context, appId string) (*domain.Peer, error) {
+func (c *Client) Register(ctx context.Context, interfaceName string) (*domain.Peer, error) {
 	var err error
 
 	hostname, err := os.Hostname()
@@ -489,7 +488,7 @@ func (c *Client) Register(ctx context.Context, appId string) (*domain.Peer, erro
 	}
 	registryRequest := &dto.NodeDto{
 		Hostname:            hostname,
-		InterfaceName:       c.client.GetDeviceName(),
+		InterfaceName:       interfaceName,
 		Platform:            runtime.GOOS,
 		AppID:               local.AppId,
 		PersistentKeepalive: 25,
