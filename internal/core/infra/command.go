@@ -100,7 +100,7 @@ func NewExecutor(platform string) (CommandExecutor, error) {
 
 	case PlatformMacOS:
 		// 如果您决定实现 macOS 的 pf/ipfw 生成器，可以在这里返回
-		return nil, fmt.Errorf("platform '%s' is currently not supported (MacOSGenerator not implemented)", platform)
+		return &macExecutor{}, nil
 
 	default:
 		return nil, fmt.Errorf("unsupported platform type: %s", platform)

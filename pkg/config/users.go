@@ -14,6 +14,12 @@
 
 package config
 
+const (
+	APP_ID   string = "app-id"
+	AUTH_KEY string = "auth"
+	TOKEN    string = "token"
+)
+
 // User is a linkany user, will be used to login and store token in local
 // user use token to fetch config from linkany center
 type User struct {

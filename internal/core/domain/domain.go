@@ -14,6 +14,9 @@
 
 package domain
 
+// used for cli flags
+var ServerUrl string
+
 const (
 	DefaultMTU = 1420
 	// ConsoleDomain domain for service

@@ -44,7 +44,8 @@ type NodeSpec struct {
 
 	MTU int `json:"mtu,omitempty"`
 
-	Networks []string `json:"networks,omitempty"`
+	// +optional
+	Network *string `json:"network,omitempty"`
 
 	NetworkPolicies []string `json:"networkPolicies,omitempty"`
 }
@@ -65,12 +66,12 @@ type NodeStatus struct {
 	ActiveKey string `json:"activeKey,omitempty"`
 
 	// Active networks, record the network the node joined
-	ActiveNetworks []string `json:"activeNetworks,omitempty"`
+	ActiveNetwork *string `json:"activeNetwork,omitempty"`
 
 	ActiveNetworkPolicies []string `json:"activeNetworkPolicies,omitempty"`
 
 	// Allocated IP address, auto allocated by controller
-	AllocatedAddress string `json:"allocatedAddress,omitempty"`
+	AllocatedAddress *string `json:"allocatedAddress,omitempty"`
 
 	// Connection summary
 	ConnectionSummary ConnectionSummary `json:"connectionSummary,omitempty"`

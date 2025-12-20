@@ -18,6 +18,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"strconv"
 	"strings"
 	"wireflow/pkg/utils"
@@ -36,6 +37,34 @@ type Message struct {
 	Policies      []*Policy      `json:"policies,omitempty"`      //当前节点的策略
 	ComputedPeers []*Peer        `json:"computedpeers,omitempty"` //当前要连接的节点, 由controller计算完成返回给wireflow
 	ComputedRules *FirewallRule  `json:"computedrules,omitempty"`
+}
+
+func (m *Message) Equal(b *Message) bool {
+	if m.EventType != b.EventType {
+		return false
+	}
+
+	if !reflect.DeepEqual(m.Network, b.Network) {
+		return false
+	}
+
+	if !reflect.DeepEqual(m.Policies, b.Policies) {
+		return false
+	}
+
+	if !reflect.DeepEqual(m.ComputedPeers, b.ComputedPeers) {
+		return false
+	}
+
+	if !reflect.DeepEqual(m.ComputedRules, b.ComputedRules) {
+		return false
+	}
+
+	if !reflect.DeepEqual(m.Current.Name, b.Current.Name) {
+		return false
+	}
+
+	return true
 }
 
 type ChangeDetails struct {
@@ -113,7 +142,7 @@ type Peer struct {
 	UserId              uint64           `json:"userId,omitempty"`
 	Hostname            string           `json:"hostname,omitempty"`
 	AppID               string           `json:"appId,omitempty"`
-	Address             string           `json:"address,omitempty"`
+	Address             *string          `json:"address,omitempty"`
 	Endpoint            string           `json:"endpoint,omitempty"`
 	Remove              bool             `json:"remove,omitempty"` // whether to remove node
 	PresharedKey        string           `json:"presharedKey,omitempty"`

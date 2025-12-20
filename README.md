@@ -20,7 +20,7 @@ WireGuard.
   receives the desired state from the controller, enabling automated orchestration of connectivity and granular access
   policies.
 
-For more information, please visit our official website: [The Wireflow Authors](https://The Wireflow Authors)
+For more information, please visit our official website: [wireflowio.com](https://wireflowio.com)
 
 ## Wireflow Technical Capabilities
 

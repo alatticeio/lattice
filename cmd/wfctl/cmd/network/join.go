@@ -16,7 +16,6 @@ package network
 
 import (
 	"context"
-	"fmt"
 	"wireflow/pkg/cli/network"
 	"wireflow/pkg/config"
 
@@ -26,7 +25,7 @@ import (
 func newJoinCmd() *cobra.Command {
 	var opts config.NetworkOptions
 	var cmd = &cobra.Command{
-		Use:          "join [network name]",
+		Use:          "join <network-name>",
 		SilenceUsage: true,
 		Short:        "join into a network",
 		Long:         `join into a network you created`,
@@ -34,17 +33,12 @@ func newJoinCmd() *cobra.Command {
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			return nil
 		},
-
+		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if len(args) == 0 {
-				return fmt.Errorf("must specify network name")
-			}
 			opts.Name = args[0]
 			return runJoin(&opts)
 		},
 	}
-	fs := cmd.Flags()
-	fs.StringVarP(&opts.ServerUrl, "server-url", "", "", "management server url")
 	return cmd
 }
 

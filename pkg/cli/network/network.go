@@ -21,9 +21,12 @@ import (
 	"math/rand"
 	"os"
 	"time"
+	"wireflow/internal/core/domain"
 	"wireflow/internal/grpc"
 	grpcclient "wireflow/management/grpc/client"
 	"wireflow/pkg/config"
+
+	"github.com/spf13/viper"
 )
 
 // NetworkManager operations for network
@@ -31,6 +34,7 @@ type NetworkManager interface {
 	CreateNetwork(ctx context.Context, opts *config.NetworkOptions) error
 	JoinNetwork(ctx context.Context, opts *config.NetworkOptions) error
 	LeaveNetwork(ctx context.Context, opts *config.NetworkOptions) error
+	AddOrRmNode(ctx context.Context, networkId, action string, nodeIds []string) error
 }
 
 var (
@@ -42,6 +46,9 @@ type networkManager struct {
 }
 
 func NewNetworkManager(managementUrl string) (NetworkManager, error) {
+	if managementUrl == "" {
+		managementUrl = fmt.Sprintf("%s:%d", domain.ManagementDomain, domain.DefaultManagementPort)
+	}
 	grpcClient, err := grpcclient.NewClient(&grpcclient.GrpcConfig{
 		Addr: managementUrl,
 	})
@@ -68,26 +75,22 @@ func (n *networkManager) CreateNetwork(ctx context.Context, opts *config.Network
 		Body: bs,
 		Type: grpc.Type_MessageTypeCreateNetwork,
 	}
-	resp, err := n.client.Request(ctx, message)
+	_, err = n.client.Request(ctx, message)
 	if err != nil {
 		return err
 	}
 
-	fmt.Fprintln(os.Stdout, string(resp.Body))
+	//fmt.Fprintln(os.Stdout, string(resp.Body))
 	return nil
 }
 
 func (n *networkManager) JoinNetwork(ctx context.Context, opts *config.NetworkOptions) error {
-	cfg, err := config.GetLocalConfig()
-	if err != nil {
-		return err
+	params := &NetworkParams{
+		Name: opts.Name,
+		CIDR: opts.CIDR,
 	}
 
-	params := &NetworkParams{
-		Name:  opts.Name,
-		CIDR:  opts.CIDR,
-		AppId: cfg.AppId,
-	}
+	params.AppIds = append(params.AppIds, viper.GetString(config.APP_ID))
 
 	bs, err := json.Marshal(params)
 	if err != nil {
@@ -108,16 +111,11 @@ func (n *networkManager) JoinNetwork(ctx context.Context, opts *config.NetworkOp
 }
 
 func (n *networkManager) LeaveNetwork(ctx context.Context, opts *config.NetworkOptions) error {
-	cfg, err := config.GetLocalConfig()
-	if err != nil {
-		return err
-	}
-
 	params := &NetworkParams{
-		Name:  opts.Name,
-		CIDR:  opts.CIDR,
-		AppId: cfg.AppId,
+		Name: opts.Name,
+		CIDR: opts.CIDR,
 	}
+	params.AppIds = append(params.AppIds, viper.GetString(config.APP_ID))
 
 	bs, err := json.Marshal(params)
 	if err != nil {
@@ -138,9 +136,9 @@ func (n *networkManager) LeaveNetwork(ctx context.Context, opts *config.NetworkO
 }
 
 type NetworkParams struct {
-	Name  string
-	CIDR  string
-	AppId string
+	Name   string
+	CIDR   string
+	AppIds []string
 }
 
 // 定义 ID 的字符集：大写字母 (A-Z) 和数字 (0-9)

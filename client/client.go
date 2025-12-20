@@ -33,7 +33,6 @@ import (
 	"wireflow/internal/core/manager"
 	ctrclient "wireflow/management/client"
 	mgtclient "wireflow/management/grpc/client"
-	"wireflow/pkg/config"
 	"wireflow/pkg/log"
 	"wireflow/pkg/probe"
 	turnclient "wireflow/pkg/turn"
@@ -82,7 +81,6 @@ type Client struct {
 
 type ClientConfig struct {
 	Logger        *log.Logger
-	Conf          *config.LocalConfig
 	Port          int
 	UdpConn       *net.UDPConn
 	InterfaceName string
@@ -180,7 +178,6 @@ func NewClient(cfg *ClientConfig) (*Client, error) {
 	client.clients.ctrClient = ctrclient.NewClient(&ctrclient.ClientConfig{
 		Logger:        log.NewLogger(log.Loglevel, "control-ctrClient"),
 		ManagementUrl: cfg.ManagementUrl,
-		Conf:          cfg.Conf,
 	})
 
 	var privateKey string
@@ -215,7 +212,6 @@ func NewClient(cfg *ClientConfig) (*Client, error) {
 	// init stun
 	if turnClient, err = turn.NewClient(&turn.ClientConfig{
 		ServerUrl: cfg.TurnServerUrl,
-		Conf:      cfg.Conf,
 		Logger:    log.NewLogger(log.Loglevel, "turnclient"),
 	}); err != nil {
 		return nil, err
@@ -290,9 +286,9 @@ func (c *Client) Start() error {
 		return err
 	}
 
-	if c.current.Address != "" {
+	if c.current.Address != nil {
 		// 设置Device
-		if err := c.routeApplier.ApplyIP("add", c.current.Address, c.wgConfigure.GetIfaceName()); err != nil {
+		if err := c.routeApplier.ApplyIP("add", *c.current.Address, c.wgConfigure.GetIfaceName()); err != nil {
 			return err
 		}
 	}

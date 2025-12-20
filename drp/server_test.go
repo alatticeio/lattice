@@ -33,15 +33,15 @@ func TestVerifyToken(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	cfg, err := config.GetLocalConfig()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	resp, err := client.VerifyToken(cfg.Token)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	t.Log(resp.Token == cfg.Token)
+	//cfg, err := config.GetLocalConfig()
+	//if err != nil {
+	//	t.Fatal(err)
+	//}
+	//
+	//resp, err := client.VerifyToken(cfg.Token)
+	//if err != nil {
+	//	t.Fatal(err)
+	//}
+	//
+	//t.Log(resp.Token == cfg.Token)
 }

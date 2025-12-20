@@ -16,10 +16,7 @@ func TestClient_Login(t *testing.T) {
 		Password: "123456",
 		Token:    "",
 	}
-	conf, _ := config.GetLocalConfig()
-	client := NewClient(&ClientConfig{
-		Conf: conf,
-	})
+	client := NewClient(&ClientConfig{})
 	err := client.Login(&user)
 	if err != nil {
 		t.Fatal(err)

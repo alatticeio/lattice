@@ -23,7 +23,6 @@ import (
 	"os"
 	"wireflow/internal"
 	"wireflow/management/vo"
-	"wireflow/pkg/config"
 	"wireflow/pkg/log"
 
 	wg "golang.zx2c4.com/wireguard/device"
@@ -37,11 +36,6 @@ func Start(flags *Flags) error {
 	ctx := internal.SetupSignalHandler()
 
 	logger := log.NewLogger(log.Loglevel, "linkany")
-
-	conf, err := config.GetLocalConfig()
-	if err != nil {
-		return err
-	}
 
 	// peers config to wireGuard
 	engineCfg := &ClientConfig{

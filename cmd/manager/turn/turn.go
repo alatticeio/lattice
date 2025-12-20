@@ -16,7 +16,6 @@ package turn
 
 import (
 	"wireflow/management/client"
-	"wireflow/pkg/config"
 	"wireflow/pkg/log"
 	"wireflow/turn"
 
@@ -57,13 +56,7 @@ func runTurn(opts turnOptions) error {
 	}
 
 	log.SetLogLevel(opts.LogLevel)
-	conf, err := config.GetLocalConfig()
-	if err != nil {
-		return err
-	}
-	client := client.NewClient(&client.ClientConfig{
-		Conf: conf,
-	})
+	client := client.NewClient(&client.ClientConfig{})
 
 	return turn.Start(&turn.TurnServerConfig{
 		Logger:   log.NewLogger(log.Loglevel, "turnserver"),

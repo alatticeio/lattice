@@ -58,18 +58,18 @@ func (h *EventHandler) HandleEvent() HandlerFunc {
 
 			// 地址变化
 			if msg.Changes.AddressChanged {
-				if msg.Current.Address == "" {
+				if msg.Current.Address == nil {
 					if len(msg.Changes.NetworkLeft) > 0 {
 						//删除IP
-						if err := h.applier.ApplyIP("remove", msg.Current.Address, h.deviceManager.GetDeviceConfiger().GetIfaceName()); err != nil {
+						if err := h.applier.ApplyIP("remove", *msg.Current.Address, h.deviceManager.GetDeviceConfiger().GetIfaceName()); err != nil {
 							return err
 						}
 						//移除所有peers
 						h.deviceManager.RemoveAllPeers()
 					}
 
-				} else if msg.Current.Address != "" {
-					if err := h.applier.ApplyIP("add", msg.Current.Address, h.deviceManager.GetDeviceConfiger().GetIfaceName()); err != nil {
+				} else if msg.Current.Address != nil {
+					if err := h.applier.ApplyIP("add", *msg.Current.Address, h.deviceManager.GetDeviceConfiger().GetIfaceName()); err != nil {
 						return err
 					}
 				}

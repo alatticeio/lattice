@@ -36,7 +36,7 @@ type SharedNodeVo struct {
 	InviteId    uint64    `json:"inviteId"`
 	NodeId      uint64    `json:"nodeId"`
 	AppId       string    `json:"appId"`
-	Address     string    `json:"address"`
+	Address     *string   `json:"address"`
 	Name        string    `json:"name"`
 	OwnerId     uint64    `json:"ownerId"`
 	Description string    `json:"description"`

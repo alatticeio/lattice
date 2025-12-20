@@ -17,7 +17,7 @@ package turn
 import (
 	"net"
 	"sync"
-	configlocal "wireflow/pkg/config"
+	"wireflow/pkg/config"
 	"wireflow/pkg/log"
 	turnclient "wireflow/pkg/turn"
 
@@ -33,7 +33,7 @@ type Client struct {
 	logger     *log.Logger
 	lock       sync.Mutex
 	realm      string
-	conf       *configlocal.LocalConfig
+	conf       *config.Config
 	turnClient *turn.Client
 	relayConn  net.PacketConn
 	mappedAddr net.Addr
@@ -44,7 +44,6 @@ type ClientConfig struct {
 	Logger    *log.Logger
 	ServerUrl string // stun.wireflowio.com:3478
 	Realm     string
-	Conf      *configlocal.LocalConfig
 }
 
 func NewClient(cfg *ClientConfig) (turnclient.Client, error) {
@@ -53,12 +52,13 @@ func NewClient(cfg *ClientConfig) (turnclient.Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	var username, password string
-	username, password, err = configlocal.DecodeAuth(cfg.Conf.Auth)
-	if err != nil {
-		return nil, err
-	}
-
+	//var username, password string
+	//username, password, err = config.DecodeAuth(config.GlobalConfig.Auth)
+	//if err != nil {
+	//	return nil, err
+	//}
+	// TODO should replace real user
+	username, password := "wireflow", "123456"
 	turnCfg := &turn.ClientConfig{
 		STUNServerAddr: cfg.ServerUrl,
 		TURNServerAddr: cfg.ServerUrl,
@@ -74,7 +74,7 @@ func NewClient(cfg *ClientConfig) (turnclient.Client, error) {
 		return nil, err
 	}
 
-	c := &Client{realm: turnCfg.Realm, conf: cfg.Conf, turnClient: client, logger: cfg.Logger}
+	c := &Client{realm: turnCfg.Realm, turnClient: client, logger: cfg.Logger}
 	return c, nil
 }
 

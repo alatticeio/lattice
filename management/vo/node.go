@@ -65,7 +65,7 @@ type NodeVo struct {
 	UserId              uint64             `json:"userId,omitempty"`
 	Hostname            string             `json:"hostname,omitempty"`
 	AppID               string             `json:"appId,omitempty"`
-	Address             string             `json:"address,omitempty"`
+	Address             *string            `json:"address,omitempty"`
 	Endpoint            string             `json:"endpoint,omitempty"`
 	PersistentKeepalive int                `json:"persistentKeepalive,omitempty"`
 	PublicKey           string             `json:"publicKey,omitempty"`

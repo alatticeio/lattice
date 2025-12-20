@@ -278,7 +278,7 @@ func (p *probe) ProbeSuccess(ctx context.Context, publicKey, addr string) error 
 		return err
 	}
 
-	if err = infra.NewRouteApplier().ApplyRoute("add", peer.Address, p.wgConfiger.GetIfaceName()); err != nil {
+	if err = infra.NewRouteApplier().ApplyRoute("add", *peer.Address, p.wgConfiger.GetIfaceName()); err != nil {
 		return err
 	}
 	p.logger.Infof("peer connect to %s success", addr)

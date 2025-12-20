@@ -110,14 +110,17 @@ func (d *ChangeDetector) detectNodeConfigChanges(ctx context.Context, changes *d
 		}
 
 		// 网络归属变化
-		oldNetworks := stringSet(oldNode.Spec.Networks)
-		newNetworks := stringSet(newNode.Spec.Networks)
+		oldNet, newNet := oldNode.Spec.Network, newNode.Spec.Network
+		if newNet != nil {
+			if oldNet == nil {
+				changes.NetworkJoined = append(changes.NetworkJoined, *newNet)
+				changes.TotalChanges++
+			}
 
-		changes.NetworkJoined = setDifference(newNetworks, oldNetworks)
-		changes.NetworkLeft = setDifference(oldNetworks, newNetworks)
-
-		if len(changes.NetworkJoined) > 0 || len(changes.NetworkLeft) > 0 {
-			changes.TotalChanges++
+			if oldNet != nil && *newNet != *oldNet {
+				changes.NetworkLeft = append(changes.NetworkLeft, *oldNet)
+				changes.TotalChanges++
+			}
 		}
 
 		return changes
@@ -336,13 +339,7 @@ func (d *ChangeDetector) findChangedNodes(ctx context.Context, oldNodeCtx *NodeC
 	for _, remove := range removed {
 		for _, node := range oldNodeCtx.Nodes {
 			if remove == node.Name {
-				removedPeers = append(removedPeers, &domain.Peer{
-					Name:       node.Name,
-					AppID:      node.Spec.AppId,
-					Address:    node.Status.AllocatedAddress,
-					PublicKey:  node.Spec.PublicKey,
-					AllowedIPs: fmt.Sprintf("%s/32", node.Status.AllocatedAddress),
-				})
+				removedPeers = append(removedPeers, transferToPeer(node))
 			}
 		}
 	}
@@ -358,13 +355,7 @@ func (d *ChangeDetector) findChangedNodes(ctx context.Context, oldNodeCtx *NodeC
 			}
 		}
 
-		addedPeers = append(addedPeers, &domain.Peer{
-			Name:       node.Name,
-			AppID:      node.Spec.AppId,
-			Address:    node.Status.AllocatedAddress,
-			PublicKey:  node.Spec.PublicKey,
-			AllowedIPs: fmt.Sprintf("%s/32", node.Status.AllocatedAddress),
-		})
+		addedPeers = append(addedPeers, transferToPeer(&node))
 	}
 
 	return addedPeers, removedPeers
@@ -386,13 +377,7 @@ func (d *ChangeDetector) findNodes(ctx context.Context, names []string, req ctrl
 			return nil, err
 		}
 
-		addedPeers = append(addedPeers, &domain.Peer{
-			Name:       node.Name,
-			AppID:      node.Spec.AppId,
-			Address:    node.Status.AllocatedAddress,
-			PublicKey:  node.Spec.PublicKey,
-			AllowedIPs: fmt.Sprintf("%s/32", node.Status.AllocatedAddress),
-		})
+		addedPeers = append(addedPeers, transferToPeer(&node))
 	}
 
 	return addedPeers, nil
@@ -430,7 +415,7 @@ func (d *ChangeDetector) buildFullConfig(ctx context.Context, node *wireflowv1al
 
 		// 填充 peers
 		for _, peer := range context.Nodes {
-			if peer.Status.AllocatedAddress == "" {
+			if peer.Status.AllocatedAddress == nil {
 				continue
 			}
 		}

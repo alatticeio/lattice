@@ -36,7 +36,7 @@ import (
 	"wireflow/api/v1alpha1"
 )
 
-// NetworkReconciler reconciles a Networks object
+// NetworkReconciler reconciles a Network object
 type NetworkReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
@@ -51,7 +51,7 @@ type NetworkReconciler struct {
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
 // TODO(user): Modify the Reconcile function to compare the state specified by
-// the Networks object against the actual cluster state, and then
+// the Network object against the actual cluster state, and then
 // perform operations to make the cluster state reflect the state specified by
 // the user.
 //
@@ -61,6 +61,7 @@ func (r *NetworkReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	var (
 		network v1alpha1.Network
 		err     error
+		updated bool
 	)
 
 	log := logf.FromContext(ctx)
@@ -76,8 +77,9 @@ func (r *NetworkReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 	// 更新Phase为Creating
 	if network.Status.Phase == "" {
-		if _, err = r.updateStatus(ctx, &network, func(network *v1alpha1.Network) {
+		if _, err = r.updateStatus(ctx, &network, func(network *v1alpha1.Network) error {
 			network.Status.Phase = v1alpha1.NetworkPhaseCreating
+			return nil
 		}); err != nil {
 			return ctrl.Result{}, err
 		}
@@ -85,26 +87,8 @@ func (r *NetworkReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, nil
 	}
 
-	cidr := network.Spec.CIDR
-	statusCidr := network.Status.ActiveCIDR
-
-	if cidr == "" {
-		if statusCidr == "" {
-			log.Info("CIDR not set, waiting for CIDR to be set")
-			return ctrl.Result{}, nil
-		}
-
-		if statusCidr != cidr {
-			log.Info("CIDR clear, reconfigure network")
-			return ctrl.Result{}, nil
-		}
-	}
-
-	if statusCidr != cidr {
-		// cidr changes
-		if err = r.reconcileCIDRChanged(ctx, req, network); err != nil {
-			return ctrl.Result{}, err
-		}
+	if network.Spec.CIDR == "" {
+		return ctrl.Result{}, fmt.Errorf("cidr must not be empty!")
 	}
 
 	//获取node的变化，更新network spec
@@ -116,11 +100,11 @@ func (r *NetworkReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 	currentNodes := r.generateNodesMap(ctx, &nodeList)
 	//update nodes to current Nodes
-	ok, err := r.updateSpec(ctx, &network, func(network *v1alpha1.Network) {
+	updated, err = r.updateSpec(ctx, &network, func(network *v1alpha1.Network) {
 		network.Spec.Nodes = setsToSlice(currentNodes)
 	})
 
-	if ok {
+	if updated {
 		return ctrl.Result{}, nil
 	}
 
@@ -135,49 +119,49 @@ func (r *NetworkReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, err
 	}
 
-	currentNodes = r.generateNodesMap(ctx, &nodeList)
+	updated, err = r.updateStatus(ctx, &network, func(network *v1alpha1.Network) error {
+		log := logf.FromContext(ctx)
+		log.Info("Updating Network", "namespace", network.Namespace, "name", network.Name)
 
-	// 配置好CIDR
-	activeNodeAllocations := network.Status.AllocatedIPs
-	activeNodes := make(map[string]struct{})
-	for _, allocation := range activeNodeAllocations {
-		activeNodes[allocation.Node] = struct{}{}
-	}
+		activeNodeAllocations := network.Status.AllocatedIPs
+		statusNodes := make(map[string]v1alpha1.IPAllocation)
+		for _, allocation := range activeNodeAllocations {
+			statusNodes[allocation.Node] = allocation
+		}
 
-	diff := setsDifference(currentNodes, activeNodes)
-	if len(diff) == 0 {
-		// no change
-		return ctrl.Result{}, nil
-	}
+		statusCopy := network.Status.DeepCopy()
 
-	for nodeName, _ := range diff {
-		if _, ok = activeNodes[nodeName]; !ok {
-			// 不存在， 则是添加node逻辑
-			var node v1alpha1.Node
-			if err = r.Get(ctx, types.NamespacedName{Namespace: network.Namespace, Name: nodeName}, &node); err != nil {
-				return ctrl.Result{}, err
+		//删除一些Node
+		for k, _ := range statusNodes {
+			//不存在 则删除
+			if _, ok := currentNodes[k]; !ok {
+				delete(statusNodes, k)
+				//删除node逻辑
+				r.Allocator.ReleaseIP(statusCopy, k)
 			}
+		}
+
+		network.Status = *statusCopy
+		network.Status.Phase = v1alpha1.NetworkPhaseReady
+
+		for _, node := range nodeList.Items {
+			// check ip valid
 			var allocatedIP string
 			if allocatedIP, err = r.allocateIPsForNode(ctx, &node); err != nil {
-				return ctrl.Result{}, err
+				return err
 			}
 
 			// 更新 Network 资源,记录 IP 分配
-			if err = r.updateNetworkIPAllocation(ctx, &network, allocatedIP, node.Name); err != nil {
-				return ctrl.Result{}, fmt.Errorf("failed to update network IP allocation: %v", err)
-			}
-		} else {
-			//删除node逻辑
-			if err = r.Allocator.ReleaseIP(&network, nodeName); err != nil {
-				return ctrl.Result{}, fmt.Errorf("failed to release IP: %v", err)
+			if err = r.updateNetworkIPAllocation(ctx, network, allocatedIP, node.Name); err != nil {
+				return err
 			}
 		}
-	}
 
-	if _, err = r.updateStatus(ctx, &network, func(network *v1alpha1.Network) {
-		network.Status.Phase = v1alpha1.NetworkPhaseReady
-	}); err != nil {
-		return ctrl.Result{}, nil
+		return nil
+	})
+
+	if err != nil {
+		return ctrl.Result{}, err
 	}
 
 	return ctrl.Result{}, nil
@@ -228,10 +212,12 @@ func (r *NetworkReconciler) updateSpec(ctx context.Context, network *v1alpha1.Ne
 	return false, nil
 }
 
-func (r *NetworkReconciler) updateStatus(ctx context.Context, network *v1alpha1.Network, updateFunc func(network *v1alpha1.Network)) (bool, error) {
+func (r *NetworkReconciler) updateStatus(ctx context.Context, network *v1alpha1.Network, updateFunc func(network *v1alpha1.Network) error) (bool, error) {
 	log := logf.FromContext(ctx)
 	networkCopy := network.DeepCopy()
-	updateFunc(networkCopy)
+	if err := updateFunc(networkCopy); err != nil {
+		return false, err
+	}
 
 	// 使用 Patch 发送差异。client.MergeFrom 会自动检查 nodeCopy 和 node 之间的差异。
 	if err := r.Status().Patch(ctx, networkCopy, client.MergeFrom(network)); err != nil {
@@ -266,42 +252,6 @@ func (r *NetworkReconciler) findNodesByLabels(ctx context.Context, network *v1al
 	return nodes, nil
 }
 
-func (r *NetworkReconciler) reconcileCIDRChanged(ctx context.Context, req ctrl.Request, network v1alpha1.Network) error {
-	var err error
-	log := logf.FromContext(ctx)
-	log.Info("CIDR changed", "oldCIDR", network.Status.ActiveCIDR, "newCIDR", network.Spec.CIDR, "reallocateIPs", true)
-	network.Status.ActiveCIDR = network.Spec.CIDR
-
-	//为所有节点重新分配ip
-	var nodeList v1alpha1.NodeList
-	if err = r.List(ctx, &nodeList, client.InNamespace(req.Namespace)); err != nil {
-		// TODO add label selector
-		return err
-	}
-
-	//先删除原来的status中的数据
-	network.Status.AllocatedIPs = []v1alpha1.IPAllocation{}
-	network.Status.AvailableIPs = 0
-
-	for _, node := range nodeList.Items {
-		var allocatedIP string
-		if allocatedIP, err = r.allocateIPsForNode(ctx, &node); err != nil {
-			return err
-		}
-
-		// 更新 Network 资源,记录 IP 分配
-		if err = r.updateNetworkIPAllocation(ctx, &network, allocatedIP, node.Name); err != nil {
-			return fmt.Errorf("failed to update network IP allocation: %v", err)
-		}
-	}
-
-	//统一更新
-	if err = r.Status().Update(ctx, &network); err != nil {
-		return err
-	}
-	return nil
-}
-
 // SetupWithManager sets up the controller with the Manager.
 func (r *NetworkReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
@@ -316,9 +266,11 @@ func (r *NetworkReconciler) SetupWithManager(mgr ctrl.Manager) error {
 func (r *NetworkReconciler) mapNodeForNetworks(ctx context.Context, obj client.Object) []reconcile.Request {
 	node := obj.(*v1alpha1.Node)
 
-	networkToUpdate := make([]string, 0)
-	// 1. 获取node的spec包含network
-	networkToUpdate = append(networkToUpdate, node.Spec.Networks...)
+	var networkToUpdate []string
+	//// 1. 获取node的spec包含network
+	if node.Spec.Network != nil {
+		networkToUpdate = append(networkToUpdate, *node.Spec.Network)
+	}
 	//通过node的label获取
 	labels := node.GetLabels()
 	for key, value := range labels {
@@ -348,25 +300,23 @@ func (r *NetworkReconciler) mapNodeForNetworks(ctx context.Context, obj client.O
 func (r *NetworkReconciler) allocateIPsForNode(ctx context.Context, node *v1alpha1.Node) (string, error) {
 	log := logf.FromContext(ctx)
 	var err error
-	if len(node.Spec.Networks) == 0 {
-		//clear node's address
-		return "", nil
-	}
-	primaryNetwork := node.Spec.Networks[0]
+	primaryNetwork := node.Spec.Network
 
-	// 获取 Network 资源
 	var network v1alpha1.Network
-	if err = r.Get(ctx, types.NamespacedName{Name: fmt.Sprintf("%s/%s", node.Namespace, primaryNetwork)}, &network); err != nil {
-		return "", err
+	if primaryNetwork != nil {
+		// 获取 Network 资源
+		if err = r.Get(ctx, types.NamespacedName{Name: fmt.Sprintf("%s/%s", node.Namespace, *primaryNetwork)}, &network); err != nil {
+			return "", err
+		}
 	}
 
 	// 如果节点已经有 IP 地址,跳过
 	currentAddress := node.Status.AllocatedAddress
-	if currentAddress != "" {
+	if currentAddress != nil {
 		//校验ip是否是network合法ip
-		if err = r.Allocator.ValidateIP(network.Spec.CIDR, currentAddress); err == nil {
+		if err = r.Allocator.ValidateIP(network.Spec.CIDR, *currentAddress); err == nil {
 			log.Info("Node already has IP address", "address", currentAddress)
-			return currentAddress, nil
+			return *currentAddress, nil
 		}
 	}
 

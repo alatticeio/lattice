@@ -30,6 +30,7 @@ import (
 	"wireflow/monitor/collector"
 	"wireflow/pkg/config"
 	"wireflow/pkg/log"
+	"wireflow/pkg/utils"
 
 	wg "golang.zx2c4.com/wireguard/device"
 	"golang.zx2c4.com/wireguard/ipc"
@@ -47,14 +48,9 @@ func Start(flags *config.Flags) error {
 
 	logger := log.NewLogger(log.Loglevel, "wireflow")
 
-	conf, err := config.GetLocalConfig()
-	if err != nil {
-		return err
-	}
-
 	engineCfg := &ClientConfig{
-		Logger:        logger,
-		Conf:          conf,
+		Logger: logger,
+		//Conf:          conf,
 		Port:          51820,
 		InterfaceName: flags.InterfaceName,
 		ManagementUrl: flags.ManagementUrl,
@@ -67,8 +63,24 @@ func Start(flags *config.Flags) error {
 		ForceRelay: flags.ForceRelay,
 	}
 
+	// set appId
+	if config.GlobalConfig.AppId == "" {
+		hostName, err := os.Hostname()
+		if err != nil {
+			return err
+		}
+		config.GlobalConfig.AppId = utils.StringFormatter(hostName)
+		//更新到.wireflow.yaml
+		config.WriteConfig("app-id", config.GlobalConfig.AppId)
+	}
+
 	if flags.ManagementUrl == "" {
-		engineCfg.ManagementUrl = fmt.Sprintf("%s:%d", domain.ManagementDomain, domain.DefaultManagementPort)
+		//first get from config file
+		engineCfg.ManagementUrl = config.GlobalConfig.ServerUrl
+		// second using default one
+		if engineCfg.ManagementUrl == "" {
+			engineCfg.ManagementUrl = fmt.Sprintf("%s:%d", domain.ManagementDomain, domain.DefaultManagementPort)
+		}
 	}
 
 	if flags.SignalingUrl == "" {

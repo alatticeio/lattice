@@ -520,8 +520,8 @@ func (s *Server) Do(ctx context.Context, in *wgrpc.ManagementMessage) (*wgrpc.Ma
 		return &wgrpc.ManagementMessage{
 			Body: bs,
 		}, nil
-	case wgrpc.Type_MessageTypeJoinNetwork:
-		if err := s.JoinNetwork(ctx, req.AppId, req.Name); err != nil {
+	case wgrpc.Type_MessageTypeJoinNetwork, wgrpc.Type_MessageTypeNetworkAddNode:
+		if err := s.JoinNetwork(ctx, req.AppIds, req.Name); err != nil {
 			logger.Errorf("Join network failed: %v", err)
 			return nil, err
 		}
@@ -530,8 +530,8 @@ func (s *Server) Do(ctx context.Context, in *wgrpc.ManagementMessage) (*wgrpc.Ma
 			Body: []byte("Join network success"),
 		}, nil
 
-	case wgrpc.Type_MessageTypeLeaveNetwork:
-		if err := s.LeaveNetwork(ctx, req.AppId, req.Name); err != nil {
+	case wgrpc.Type_MessageTypeLeaveNetwork, wgrpc.Type_MessageTypeNetworkRemoveNode:
+		if err := s.LeaveNetwork(ctx, req.AppIds, req.Name); err != nil {
 			logger.Errorf("Join network failed: %v", err)
 			return nil, err
 		}

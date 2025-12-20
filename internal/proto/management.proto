@@ -71,4 +71,6 @@ enum Type {
   MessageTypeCreateNetwork = 0;
   MessageTypeJoinNetwork = 1;
   MessageTypeLeaveNetwork = 2;
+  MessageTypeNetworkAddNode = 3;
+  MessageTypeNetworkRemoveNode = 4;
 }

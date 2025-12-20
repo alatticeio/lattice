@@ -78,7 +78,7 @@ func (r *firewallRuleResolver) ResolveRules(ctx context.Context, currentPeer *do
 	for _, policy := range appliedPolicies {
 		for _, rule := range policy.Ingress {
 			for _, sourcePeer := range rule.Peers {
-				if sourcePeer.Address == "" || sourcePeer.Name == currentPeer.Name {
+				if sourcePeer.Address == nil || sourcePeer.Name == currentPeer.Name {
 					continue
 				}
 
@@ -102,7 +102,7 @@ func (r *firewallRuleResolver) ResolveRules(ctx context.Context, currentPeer *do
 	for _, policy := range appliedPolicies {
 		for _, rule := range policy.Egress {
 			for _, destPeer := range rule.Peers {
-				if destPeer.Address == "" || destPeer.Name == currentPeer.Name {
+				if destPeer.Address == nil || destPeer.Name == currentPeer.Name {
 					continue
 				}
 
@@ -130,9 +130,11 @@ func (r *firewallRuleResolver) ResolveRules(ctx context.Context, currentPeer *do
 }
 
 // cleanIP 辅助函数：去除 CIDR 后缀 (例如 "10.0.0.1/32" -> "10.0.0.1")
-func cleanIP(ip string) string {
-	if strings.Contains(ip, "/") {
-		return strings.Split(ip, "/")[0]
+func cleanIP(ip *string) string {
+	if ip != nil {
+		if strings.Contains(*ip, "/") {
+			return strings.Split(*ip, "/")[0]
+		}
 	}
-	return ip
+	return ""
 }

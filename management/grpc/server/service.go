@@ -36,27 +36,37 @@ func (s *Server) CreateNetwork(ctx context.Context, networkId, cidr string) (*do
 }
 
 // JoinNetwork
-func (s *Server) JoinNetwork(ctx context.Context, appId, networkId string) error {
+func (s *Server) JoinNetwork(ctx context.Context, appIds []string, networkId string) error {
 	//更新
+	var err error
 	if networkId == "" {
 		return nil
 	}
-	return s.client.UpdateNodeSepc(ctx, "default", appId, func(node *wireflowv1alpha1.Node) {
-		node.Spec.Networks = append(node.Spec.Networks, networkId)
-	})
+	for _, appId := range appIds {
+		if err = s.client.UpdateNodeSepc(ctx, "default", appId, func(node *wireflowv1alpha1.Node) {
+			node.Spec.Network = &networkId
+		}); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // LeaveNetwork
-func (s *Server) LeaveNetwork(ctx context.Context, appId, networkId string) error {
+func (s *Server) LeaveNetwork(ctx context.Context, appIds []string, networkId string) error {
 	if networkId == "" {
 		return nil
 	}
 	//更新
-	return s.client.UpdateNodeSepc(ctx, "default", appId, func(node *wireflowv1alpha1.Node) {
-		for i, network := range node.Spec.Networks {
-			if network == networkId {
-				node.Spec.Networks = append(node.Spec.Networks[:i], node.Spec.Networks[i+1:]...)
-			}
+	var err error
+	for _, appId := range appIds {
+		if err = s.client.UpdateNodeSepc(ctx, "default", appId, func(node *wireflowv1alpha1.Node) {
+			node.Spec.Network = nil
+		}); err != nil {
+			return err
 		}
-	})
+	}
+	return nil
+
 }

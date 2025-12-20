@@ -100,8 +100,8 @@ func transferToPeer(peer *wireflowv1alpha1.Node) *domain.Peer {
 		PublicKey:     peer.Spec.PublicKey,
 	}
 
-	if peer.Status.AllocatedAddress != "" {
-		p.AllowedIPs = fmt.Sprintf("%s/32", peer.Status.AllocatedAddress)
+	if peer.Status.AllocatedAddress != nil {
+		p.AllowedIPs = fmt.Sprintf("%s/32", *peer.Status.AllocatedAddress)
 	}
 
 	return p

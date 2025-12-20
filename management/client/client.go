@@ -39,7 +39,7 @@ type Client struct {
 	logger       *log.Logger
 	keyManager   domain.KeyManager
 	nodeManager  domain.PeerManager
-	conf         *config.LocalConfig
+	conf         *config.Config
 	grpcClient   *grpclient.Client
 	conn4        net.PacketConn
 	offerHandler domain.OfferHandler
@@ -54,7 +54,6 @@ type Client struct {
 
 type ClientConfig struct {
 	Logger        *log.Logger
-	Conf          *config.LocalConfig
 	ManagementUrl string
 	KeepaliveChan chan struct{}
 	WatchChan     chan struct{}
@@ -65,7 +64,6 @@ type ClientConfig struct {
 func NewClient(cfg *ClientConfig) *Client {
 	client := &Client{
 		logger:        cfg.Logger,
-		conf:          cfg.Conf,
 		keepaliveChan: make(chan struct{}),
 		watchChan:     make(chan struct{}),
 	}
@@ -216,26 +214,22 @@ func (c *Client) Login(user *config.User) error {
 		file, err = os.OpenFile(path, os.O_RDWR|os.O_CREATE, 0755)
 	}
 	defer file.Close()
-	var local config.LocalConfig
+	var local config.Config
 	decoder := json.NewDecoder(file)
 	err = decoder.Decode(&local)
 	if err != nil && err != io.EOF {
 		return err
 	}
 
-	appId, err := config.GetAppId()
+	appId := config.GlobalConfig.AppId
 
-	b := &config.LocalConfig{
-		Auth:  fmt.Sprintf("%s:%s", user.Username, config.StringToBase64(user.Password)),
-		AppId: appId,
-		Token: loginResponse.Token,
-	}
+	//b := &config.Config{
+	//	Auth:  fmt.Sprintf("%s:%s", user.Username, config.StringToBase64(user.Password)),
+	//	AppId: appId,
+	//	Token: loginResponse.Token,
+	//}
 
-	err = config.UpdateLocalConfig(b)
-	if err != nil {
-		return err
-	}
-
+	fmt.Printf("appId: %s\n", appId)
 	return nil
 }
 
@@ -244,14 +238,8 @@ func (c *Client) GetNetMap() (*domain.Message, error) {
 	ctx := context.Background()
 	var err error
 
-	info, err := config.GetLocalConfig()
-	if err != nil {
-		return nil, err
-	}
-
 	request := &grpc.Request{
 		AppId:  c.conf.AppId,
-		Token:  info.Token,
 		PubKey: c.keyManager.GetPublicKey(),
 	}
 
@@ -482,15 +470,11 @@ func (c *Client) Register(ctx context.Context, interfaceName string) (*domain.Pe
 		return nil, err
 	}
 
-	local, err := config.GetLocalConfig()
-	if err != nil && err != io.EOF {
-		return nil, err
-	}
 	registryRequest := &dto.NodeDto{
 		Hostname:            hostname,
 		InterfaceName:       interfaceName,
 		Platform:            runtime.GOOS,
-		AppID:               local.AppId,
+		AppID:               config.GlobalConfig.AppId,
 		PersistentKeepalive: 25,
 		Port:                51820,
 		Status:              1,

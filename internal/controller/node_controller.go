@@ -16,6 +16,7 @@ package controller
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"reflect"
 	"strings"
@@ -130,10 +131,10 @@ func (r *NodeReconciler) reconcileJoinNetwork(ctx context.Context, node *v1alpha
 	}
 
 	// 2.修改Spec
-	ok, err = r.updateSpec(ctx, node, func(node *v1alpha1.Node) {
+	ok, err = r.updateSpec(ctx, node, func(node *v1alpha1.Node) error {
 		associatedNetworks, err := r.getAssociatedNetworks(ctx, node)
 		if err != nil {
-			return
+			return err
 		}
 		labels := node.GetLabels()
 		if labels == nil {
@@ -147,12 +148,13 @@ func (r *NodeReconciler) reconcileJoinNetwork(ctx context.Context, node *v1alpha
 		if node.Spec.PrivateKey == "" {
 			key, err := wgtypes.GeneratePrivateKey()
 			if err != nil {
-				return
+				return err
 			}
 
 			node.Spec.PrivateKey = key.String()
 			node.Spec.PublicKey = key.PublicKey().String()
 		}
+		return nil
 	})
 
 	if err != nil {
@@ -176,7 +178,11 @@ func (r *NodeReconciler) reconcileJoinNetwork(ctx context.Context, node *v1alpha
 	}
 
 	//查询primary network 分配的ip
-	primaryNetwork := node.Spec.Networks[0]
+	if node.Spec.Network == nil {
+		return ctrl.Result{}, fmt.Errorf("Network field is missing")
+
+	}
+	primaryNetwork := *node.Spec.Network
 	var network v1alpha1.Network
 	if err = r.Get(ctx, types.NamespacedName{Name: fmt.Sprintf("%s/%s", node.Namespace, primaryNetwork)}, &network); err != nil {
 		return ctrl.Result{}, err
@@ -197,9 +203,8 @@ func (r *NodeReconciler) reconcileJoinNetwork(ctx context.Context, node *v1alpha
 
 	if ok, err = r.updateStatus(ctx, node, func(node *v1alpha1.Node) {
 		node.Status.Phase = v1alpha1.NodePhaseReady
-		node.Status.ActiveNetworkPolicies = node.Spec.Networks
-		node.Status.AllocatedAddress = allocatedIP
-		node.Status.ActiveNetworks = node.Spec.Networks
+		node.Status.AllocatedAddress = &allocatedIP
+		node.Status.ActiveNetwork = node.Spec.Network
 	}); err != nil {
 		return ctrl.Result{}, err
 	}
@@ -243,15 +248,15 @@ func (r *NodeReconciler) reconcileConfigMap(ctx context.Context, node *v1alpha1.
 		// 关键步骤：设置 OwnerReference
 		// 这确保了当主资源 (node) 被删除时，这个 reconcileConfigMap 也会被 K8s 垃圾回收器自动删除。
 		if err := controllerutil.SetControllerReference(node, desiredConfigMap, r.Scheme); err != nil {
-			logger.Error(err, "Failed to set owner reference on reconcileConfigMap")
+			logger.Error(err, "Failed to set owner reference on configmap")
 			return ctrl.Result{}, err
 		}
 
 		// --- A. 不存在：执行创建操作 ---
-		logger.Info("Creating reconcileConfigMap", "reconcileConfigMap.Name", configMapName)
+		logger.Info("Creating configmap", "name", configMapName)
 		r.NodeCtxCache[request.NamespacedName] = newNodeCtx
 		if err = r.Create(ctx, desiredConfigMap); err != nil {
-			logger.Error(err, "Failed to create reconcileConfigMap")
+			logger.Error(err, "Failed to create configmap")
 			return ctrl.Result{}, err
 		}
 		// 写入成功：立即返回，等待新的事件触发下一次 Reconcile
@@ -260,18 +265,23 @@ func (r *NodeReconciler) reconcileConfigMap(ctx context.Context, node *v1alpha1.
 		r.NodeCtxCache[request.NamespacedName] = newNodeCtx
 		changes = r.Detector.DetectNodeChanges(ctx, oldNodeCtx, oldNodeCtx.Node, newNodeCtx.Node, oldNodeCtx.Network, newNodeCtx.Network, oldNodeCtx.Policies, newNodeCtx.Policies, request)
 		if changes.HasChanges() {
+			var currentMessage domain.Message
+			err = json.Unmarshal([]byte(foundConfigMap.Data["config.json"]), &currentMessage)
+			if err != nil {
+				return ctrl.Result{}, err
+			}
 			message, err = r.Detector.buildFullConfig(ctx, node, newNodeCtx, changes, r.Detector.generateConfigVersion())
 			desiredConfigMap = r.buildConfigMap(node.Namespace, configMapName, message.String())
 
 			// --- B. 已存在：执行更新操作 (保证幂等性) ---
-			if !reflect.DeepEqual(foundConfigMap.Data, desiredConfigMap.Data) {
-				logger.Info("Updating reconcileConfigMap data", "reconcileConfigMap.Name", configMapName)
+			if !currentMessage.Equal(message) {
+				logger.Info("Updating configmap data", "name", configMapName)
 
 				// 复制最新的 Data 到已存在的对象上 (保持 ResourceVersion 和其他字段)
 				foundConfigMap.Data = desiredConfigMap.Data
 
 				if err := r.Update(ctx, foundConfigMap); err != nil {
-					logger.Error(err, "Failed to update reconcileConfigMap")
+					logger.Error(err, "Failed to update configmap")
 					return ctrl.Result{}, err
 				}
 				// 写入成功：立即返回
@@ -324,28 +334,24 @@ func (r *NodeReconciler) reconcileLeaveNetwork(ctx context.Context, node *v1alph
 	}
 
 	//2. 查询要更新的network
-	leavingNetworks := r.getLeavingNetwork(ctx, node)
-	specNetworks := stringSet(node.Spec.Networks)
+	//leavingNetworks := r.getLeavingNetwork(ctx, node)
+	//specNetworks := stringSet(node.Spec.Network)
 
 	// 2.修改Spec
-	ok, err = r.updateSpec(ctx, node, func(node *v1alpha1.Node) {
+	ok, err = r.updateSpec(ctx, node, func(node *v1alpha1.Node) error {
 
 		labels := node.GetLabels()
-		for _, network := range leavingNetworks {
-			delete(labels, fmt.Sprintf("wireflowio.com/network-%s", network))
+		for label, _ := range labels {
+			if strings.HasPrefix(label, "wireflowio.com/network-") {
+				delete(labels, label)
+			}
 			// 删除network in spec
 		}
 		node.SetLabels(labels)
 
-		//删除leavingNetworks
-		for _, network := range leavingNetworks {
-			if _, ok := specNetworks[network]; ok {
-				delete(specNetworks, network)
-			}
-		}
-
 		// update spec networks
-		node.Spec.Networks = setsToSlice(specNetworks)
+		node.Spec.Network = nil
+		return nil
 	})
 
 	if err != nil {
@@ -370,10 +376,10 @@ func (r *NodeReconciler) reconcileLeaveNetwork(ctx context.Context, node *v1alph
 
 	//查询primary network 分配的ip
 	var allocatedIP string
-	if len(node.Spec.Networks) == 0 {
+	if node.Spec.Network == nil {
 		ok, err = r.updateStatus(ctx, node, func(node *v1alpha1.Node) {
-			node.Status.AllocatedAddress = allocatedIP
-			node.Status.ActiveNetworks = node.Spec.Networks
+			node.Status.AllocatedAddress = &allocatedIP
+			node.Status.ActiveNetwork = node.Spec.Network
 		})
 		if err != nil {
 			return ctrl.Result{}, err
@@ -384,7 +390,7 @@ func (r *NodeReconciler) reconcileLeaveNetwork(ctx context.Context, node *v1alph
 		}
 
 	} else {
-		primaryNetwork := node.Spec.Networks[0]
+		primaryNetwork := node.Spec.Network
 		var network v1alpha1.Network
 		if err = r.Get(ctx, types.NamespacedName{Name: fmt.Sprintf("%s/%s", node.Namespace, primaryNetwork)}, &network); err != nil {
 			return ctrl.Result{}, err
@@ -398,8 +404,8 @@ func (r *NodeReconciler) reconcileLeaveNetwork(ctx context.Context, node *v1alph
 		}
 
 		ok, err = r.updateStatus(ctx, node, func(node *v1alpha1.Node) {
-			node.Status.AllocatedAddress = allocatedIP
-			node.Status.ActiveNetworks = node.Spec.Networks
+			node.Status.AllocatedAddress = &allocatedIP
+			node.Status.ActiveNetwork = node.Spec.Network
 		})
 		if err != nil {
 			return ctrl.Result{}, err
@@ -416,44 +422,10 @@ func (r *NodeReconciler) reconcileLeaveNetwork(ctx context.Context, node *v1alph
 	return r.reconcileConfigMap(ctx, node, req)
 }
 
-// reconcileNodePolicy handle node policy change
-//func (r *NodeReconciler) buildNodePolicy(ctx context.Context, node *v1alpha1.Node, req ctrl.Request) (ctrl.Result, error) {
-//	log := logf.FromContext(ctx)
-//	log.Info("Reconcile node policy", "namespace", req.Namespace, "name", req.Name)
-//	// find all policy
-//	var policyList v1alpha1.NetworkPolicyList
-//	if err := r.List(context.Background(), &policyList); err != nil {
-//		log.Error(err, "Failed to list NetworkPolicies")
-//		return ctrl.Result{}, err
-//	}
-//
-//	currentLables := node.GetLabels()
-//	for _, policyItem := range policyList.Items {
-//		policyItem.Spec.NodeSelector.MatchLabels
-//	}
-//
-//}
-
-func (r *NodeReconciler) getLeavingNetwork(ctx context.Context, node *v1alpha1.Node) []string {
-	specNetworks := stringSet(node.Spec.Networks)
-	activeNetworks := stringSet(node.Status.ActiveNetworks)
-
-	sets := setsDifference(specNetworks, activeNetworks)
-
-	//转slices
-	slice := make([]string, len(sets))
-	i := 0
-	for k := range sets {
-		slice[i] = k
-		i++
-	}
-	return slice
-}
-
 // reconcileSpec 检查并修正 Node.Spec 字段。
 // 如果 Spec 被修改并成功写入，返回 (true, nil)，调用者应立即退出 Reconcile。
 // 否则返回 (false, nil) 或 (false, error)。
-func (r *NodeReconciler) updateSpec(ctx context.Context, node *v1alpha1.Node, updateFunc func(node *v1alpha1.Node)) (bool, error) {
+func (r *NodeReconciler) updateSpec(ctx context.Context, node *v1alpha1.Node, updateFunc func(node *v1alpha1.Node) error) (bool, error) {
 	log := logf.FromContext(ctx)
 
 	// 深拷贝原始资源，用于 Patch 的对比基准。
@@ -536,7 +508,7 @@ func (r *NodeReconciler) reconcileNetworkChanged(ctx context.Context, node *v1al
 	// 查询监控的所有Networks
 	if err = r.List(ctx, &networkList, client.InNamespace(req.Namespace)); err != nil {
 		if !errors.IsNotFound(err) {
-			log.Error(err, "Failed to list Networks")
+			log.Error(err, "Failed to list Network")
 			return ctrl.Result{}, err
 		}
 	}
@@ -544,14 +516,14 @@ func (r *NodeReconciler) reconcileNetworkChanged(ctx context.Context, node *v1al
 	//处理当前node的network
 	for _, network := range networkList.Items {
 		//primary network
-		if network.Name == node.Spec.Networks[0] {
+		if network.Name == *node.Spec.Network {
 			if network.Status.AllocatedIPs == nil {
 				return ctrl.Result{}, nil
 			}
 
 			for _, ipAllcations := range network.Status.AllocatedIPs {
 				if ipAllcations.Node == node.Name {
-					node.Status.AllocatedAddress = ipAllcations.IP
+					node.Status.AllocatedAddress = &ipAllcations.IP
 					//更新node
 					node.Status.Phase = v1alpha1.NodePhaseReady
 					if err = r.Status().Update(ctx, node); err != nil {
@@ -570,15 +542,23 @@ func (r *NodeReconciler) reconcileNetworkChanged(ctx context.Context, node *v1al
 func (r *NodeReconciler) determineAction(ctx context.Context, node *v1alpha1.Node) (Action, error) {
 	log := logf.FromContext(ctx)
 	log.Info("Determine action for node", "namespace", node.Namespace, "name", node.Name)
-	activeNets := node.Status.ActiveNetworks
+	specNet, activeNet := node.Spec.Network, node.Status.ActiveNetwork
 
-	specNets := stringSet(node.Spec.Networks)
+	if specNet == nil {
+		if activeNet == nil {
+			return ActionNone, nil
+		} else {
+			return NodeLeaveNetwork, nil
+		}
+	} else {
+		if activeNet == nil {
+			return NodeJoinNetwork, nil
+		}
 
-	if len(specNets) == 0 && len(activeNets) > 0 {
-		return NodeLeaveNetwork, nil
-	}
+		if *specNet == *activeNet {
+			return ActionNone, nil
+		}
 
-	if len(specNets) > 0 && len(activeNets) == 0 {
 		return NodeJoinNetwork, nil
 	}
 
@@ -686,13 +666,11 @@ func (r *NodeReconciler) getAssociatedNetworks(ctx context.Context, node *v1alph
 	associatedNetworks := make(map[string]v1alpha1.Network) // 用 map 避免重复
 
 	// 检查 Node 自己 Spec 中声明加入的 Network
-	if node.Spec.Networks != nil { // 假设您扩展了 Node.Spec
-		for _, netName := range node.Spec.Networks {
-			for _, net := range allNetworks.Items {
-				if net.Name == netName {
-					associatedNetworks[netName] = net
-					break
-				}
+	if node.Spec.Network != nil { // 假设您扩展了 Node.Spec
+		for _, net := range allNetworks.Items {
+			if net.Name == *node.Spec.Network {
+				associatedNetworks[*node.Spec.Network] = net
+				break
 			}
 		}
 	}
@@ -740,32 +718,30 @@ func (r *NodeReconciler) getNodeContext(ctx context.Context, node *v1alpha1.Node
 	}
 
 	// 获取网络信息
-	if len(node.Spec.Networks) > 0 {
-		networkName := node.Spec.Networks[0]
+	if node.Spec.Network != nil {
+		networkName := *node.Spec.Network
 		var network v1alpha1.Network
 		if err = r.Get(ctx, types.NamespacedName{
 			Namespace: req.Namespace, Name: networkName,
 		}, &network); err != nil {
 			return nodeCtx
 		}
-		if err == nil {
-			nodeCtx.Network = &network
+		nodeCtx.Network = &network
 
-			// 获取 peers
-			for _, nodeName := range network.Spec.Nodes {
-				if nodeName == node.Name {
-					continue
-				}
-				var tmpNode v1alpha1.Node
-				if err = r.Get(ctx, types.NamespacedName{
-					Namespace: req.Namespace, Name: nodeName,
-				}, &tmpNode); err != nil {
-					return nodeCtx
-				}
-
-				nodeCtx.Nodes = append(nodeCtx.Nodes, &tmpNode)
-
+		// 获取 peers
+		for _, nodeName := range network.Spec.Nodes {
+			if nodeName == node.Name {
+				continue
 			}
+			var tmpNode v1alpha1.Node
+			if err = r.Get(ctx, types.NamespacedName{
+				Namespace: req.Namespace, Name: nodeName,
+			}, &tmpNode); err != nil {
+				return nodeCtx
+			}
+
+			nodeCtx.Nodes = append(nodeCtx.Nodes, &tmpNode)
+
 		}
 	}
 

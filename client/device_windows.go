@@ -83,7 +83,7 @@ type Engine struct {
 
 type EngineConfig struct {
 	Logger        *log.Logger
-	Conf          *config.LocalConfig
+	Conf          *config.Config
 	Port          int
 	UdpConn       *net.UDPConn
 	InterfaceName string

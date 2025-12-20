@@ -60,3 +60,7 @@ func GetUserIdFromCtx(ctx context.Context) uint64 {
 
 	return userId.(uint64)
 }
+
+func StringFormatter(a string) string {
+	return strings.ToLower(a)
+}

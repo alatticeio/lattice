@@ -15,135 +15,140 @@
 package config
 
 import (
-	"encoding/json"
 	"errors"
-	"io"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/spf13/viper"
 )
 
 type Local struct {
 	file *os.File
 }
 
-type LocalConfig struct {
-	Auth   string `json:"auth,omitempty"`
-	AppId  string `json:"GetAppId,omitempty"`
-	UserId string `json:"userId,omitempty"`
-	Debug  bool   `json:"debug,omitempty"`
-	Token  string `json:"token,omitempty"`
-	//Ufrag      string `json:"ufrag,omitempty"`
-	//Pwd        string `json:"pwd,omitempty"`
-	PrivateKey string `json:"privateKey,omitempty"`
+func GetConfigFilePath() string {
+	home, _ := os.UserHomeDir()
+	configPath := filepath.Join(home, ".wireflow.yaml") // 拼接完整路径
+	return configPath
 }
 
-type LocalInfo struct {
-	Username string `json:"username"`
-	Password string `json:"password"`
-	UserId   string `json:"userId"`
+type Config struct {
+	Auth       string `mapstructure:"auth,omitempty"`
+	AppId      string `mapstructure:"app-id,omitempty"`
+	Debug      bool   `mapstructure:"debug,omitempty"`
+	Token      string `mapstructure:"token,omitempty"`
+	ServerUrl  string `mapstructure:"server-url,omitempty"`
+	PrivateKey string `mapstructure:"private-key,omitempty"`
 }
 
-func getLocal(mode int) (*Local, error) {
-	homeDir, err := os.UserHomeDir()
-	path := filepath.Join(homeDir, ".linkany/config.json")
-	_, err = os.Stat(path)
-	var file *os.File
-	if os.IsNotExist(err) {
-		parentDir := filepath.Dir(path)
-		if err := os.MkdirAll(parentDir, 0755); err != nil {
-			return nil, err
+var GlobalConfig *Config
+
+func init() {
+	var err error
+	viper.SetConfigName(".wireflow") // 文件名（不含后缀）
+	viper.SetConfigType("yaml")      // 预期的后缀
+
+	viper.AddConfigPath("$HOME")                // 优先级 1
+	viper.AddConfigPath(".")                    // 优先级 2
+	if err = viper.ReadInConfig(); err != nil { // Handle errors reading the config file
+		var configFileNotFoundError viper.ConfigFileNotFoundError
+		if errors.As(err, &configFileNotFoundError) {
+			// using default configuration
 		}
-		file, err = os.Create(path)
-	} else {
-		file, err = os.OpenFile(path, mode, 0755)
 	}
-	return &Local{file: file}, nil
-}
 
-func (l *Local) ReadFile() (config *LocalConfig, err error) {
-	decoder := json.NewDecoder(l.file)
-	err = decoder.Decode(&config)
-
-	if errors.Is(err, io.EOF) {
-		return &LocalConfig{}, nil
+	if err = viper.UnmarshalExact(&GlobalConfig); err != nil {
+		panic(err)
 	}
-	return
+
 }
 
-func (l *Local) WriteFile(config *LocalConfig) error {
-	encoder := json.NewEncoder(l.file)
-	encoder.SetIndent("", "    ")
-	return encoder.Encode(config)
-}
-
-func (l *Local) Close() error {
-	return l.file.Close()
-}
-
-func GetLocalConfig() (*LocalConfig, error) {
-	local, err := getLocal(os.O_RDWR)
-	defer local.Close()
+func WriteConfig(key, value string) error {
+	if viper.ConfigFileUsed() == "" {
+		viper.SetConfigFile(GetConfigFilePath())
+	}
+	// 将配置写入 viper 内存并持久化到文件
+	viper.Set(key, value)
+	err := viper.WriteConfig()
 	if err != nil {
-		return nil, err
+		// 如果文件不存在，则创建新文件
+		err = viper.SafeWriteConfig()
 	}
-	return local.ReadFile()
-}
 
-// UpdateLocalConfig update json file
-func UpdateLocalConfig(newCfg *LocalConfig) error {
-	local, err := getLocal(os.O_RDWR | os.O_CREATE)
-	defer local.Close()
 	if err != nil {
+		fmt.Printf(" >> 保存配置失败: %v\n", err)
 		return err
 	}
-	defer local.Close()
-
-	err = local.WriteFile(newCfg)
-	if err != nil {
-		return err
-	}
-
+	fmt.Printf(" >> 配置已更新: %s = %s\n", key, value)
 	return nil
 }
 
-// ReplaceLocalConfig update json file
-func ReplaceLocalConfig(newCfg *LocalConfig) error {
-	local, err := getLocal(os.O_RDWR | os.O_TRUNC)
-	defer local.Close()
-	if err != nil {
-		return err
-	}
-	defer local.Close()
-
-	err = local.WriteFile(newCfg)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func GetLocalUserInfo() (info *LocalInfo, err error) {
-	localCfg, err := GetLocalConfig()
-	if err != nil {
-		return nil, err
-	}
-
-	if localCfg.Auth == "" {
-		return nil, errors.New("please login first")
-	}
-	info = new(LocalInfo)
-	values := strings.Split(localCfg.Auth, ":")
-	info.Username = values[0]
-	info.Password, err = Base64Decode(values[1])
-	info.UserId = localCfg.UserId
-	if err != nil {
-		return nil, err
-	}
-
-	return info, nil
-}
+//
+//func GetLocalConfig() (*Config, error) {
+//	local, err := getLocal(os.O_RDWR)
+//	defer local.Close()
+//	if err != nil {
+//		return nil, err
+//	}
+//	return local.ReadFile()
+//}
+//
+//// UpdateLocalConfig update json file
+//func UpdateLocalConfig(newCfg *Config) error {
+//	local, err := getLocal(os.O_RDWR | os.O_CREATE)
+//	defer local.Close()
+//	if err != nil {
+//		return err
+//	}
+//	defer local.Close()
+//
+//	err = local.WriteFile(newCfg)
+//	if err != nil {
+//		return err
+//	}
+//
+//	return nil
+//}
+//
+//// ReplaceLocalConfig update json file
+//func ReplaceLocalConfig(newCfg *Config) error {
+//	local, err := getLocal(os.O_RDWR | os.O_TRUNC)
+//	defer local.Close()
+//	if err != nil {
+//		return err
+//	}
+//	defer local.Close()
+//
+//	err = local.WriteFile(newCfg)
+//	if err != nil {
+//		return err
+//	}
+//
+//	return nil
+//}
+//
+//func GetLocalUserInfo() (info *LocalInfo, err error) {
+//	localCfg, err := GetLocalConfig()
+//	if err != nil {
+//		return nil, err
+//	}
+//
+//	if localCfg.Auth == "" {
+//		return nil, errors.New("please login first")
+//	}
+//	info = new(LocalInfo)
+//	values := strings.Split(localCfg.Auth, ":")
+//	info.Username = values[0]
+//	info.Password, err = Base64Decode(values[1])
+//	info.UserId = localCfg.UserId
+//	if err != nil {
+//		return nil, err
+//	}
+//
+//	return info, nil
+//}
 
 func DecodeAuth(auth string) (string, string, error) {
 	if auth == "" {

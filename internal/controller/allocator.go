@@ -82,20 +82,19 @@ func (a *IPAllocator) AllocateIP(network *v1alpha1.Network, nodeName string) (st
 }
 
 // ReleaseIP 释放 IP 地址
-func (a *IPAllocator) ReleaseIP(network *v1alpha1.Network, ip string) error {
+func (a *IPAllocator) ReleaseIP(status *v1alpha1.NetworkStatus, ip string) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
 	// 从已分配列表中移除
 	newAllocatedIPs := []v1alpha1.IPAllocation{}
-	for _, allocated := range network.Status.AllocatedIPs {
+	for _, allocated := range status.AllocatedIPs {
 		if allocated.IP != ip {
 			newAllocatedIPs = append(newAllocatedIPs, allocated)
 		}
 	}
 
-	network.Status.AllocatedIPs = newAllocatedIPs
-	return nil
+	status.AllocatedIPs = newAllocatedIPs
 }
 
 // GetNodeIP 获取节点在指定网络中的 IP

@@ -57,11 +57,9 @@ spec:
                 type: string
               mtu:
                 type: integer
+              network:
+                type: string
               networkPolicies:
-                items:
-                  type: string
-                type: array
-              networks:
                 items:
                   type: string
                 type: array
@@ -79,12 +77,10 @@ spec:
               activeKey:
                 description: Active key
                 type: string
-              activeNetworkPolicies:
-                items:
-                  type: string
-                type: array
-              activeNetworks:
+              activeNetwork:
                 description: Active networks, record the network the node joined
+                type: string
+              activeNetworkPolicies:
                 items:
                   type: string
                 type: array

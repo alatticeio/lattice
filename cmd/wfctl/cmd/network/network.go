@@ -15,6 +15,8 @@
 package network
 
 import (
+	"wireflow/cmd/wfctl/cmd/network/node"
+
 	"github.com/spf13/cobra"
 )
 
@@ -31,6 +33,7 @@ func NewNetworkCommand() *cobra.Command {
 	cmd.AddCommand(newJoinCmd())
 	cmd.AddCommand(newLeaveCmd())
 	cmd.AddCommand(newUpdateCmd())
+	cmd.AddCommand(node.NewNodeCommand())
 
 	return cmd
 }

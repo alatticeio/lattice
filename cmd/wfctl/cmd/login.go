@@ -73,10 +73,6 @@ func runLogin(opts loginOptions) error {
 			logger.Infof("login success")
 		}
 	}()
-	conf, err := config.InitConfig()
-	if err != nil {
-		return err
-	}
 	if opts.Password == "" {
 		if opts.Username == "" {
 			opts.Username, _ = readLine("username: ", false)
@@ -104,7 +100,6 @@ func runLogin(opts loginOptions) error {
 
 	mgtClient := client.NewClient(&client.ClientConfig{
 		GrpcClient: grpcClient,
-		Conf:       conf,
 	})
 	user := &config.User{
 		Username: opts.Username,
