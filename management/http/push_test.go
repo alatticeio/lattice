@@ -4,23 +4,25 @@ import (
 	"encoding/json"
 	"fmt"
 	"testing"
-	"wireflow/internal"
+	"wireflow/internal/core/domain"
 )
 
 func TestJson(t *testing.T) {
-	msg := &internal.Message{
-		EventType: internal.EventTypeNodeAdd,
-		Current: &internal.Peer{
+	address := "192.168.1.101"
+	address1 := "192.168.1.102"
+	msg := &domain.Message{
+		EventType: domain.EventTypeNodeAdd,
+		Current: &domain.Peer{
 			AppID:      "30a589e950",
 			PrivateKey: "cOC8HdfGQsghJFPqjhEPEPNPHnoKKwyaip9ba7n/AXc=",
-			Address:    "192.168.1.101",
+			Address:    &address,
 		},
-		Network: &internal.Network{
-			Peers: []*internal.Peer{
+		Network: &domain.Network{
+			Peers: []*domain.Peer{
 				{
 					AppID:     "30a589e950",
 					PublicKey: "aaaaaaaaaaaaaaaa/AXc=",
-					Address:   "192.168.1.102",
+					Address:   &address1,
 				},
 			},
 		},

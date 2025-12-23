@@ -60,19 +60,8 @@ func (m *proberManager) NewIceAgent(gatherCh chan interface{}, fn func(state dom
 		iceAgent *ice.Agent
 	)
 
-	iceAgent, err = m.agent.NewIceAgent()
+	iceAgent, err = m.agent.NewIceAgent(gatherCh)
 	if err != nil {
-		return nil, err
-	}
-	if err = iceAgent.OnCandidate(func(candidate ice.Candidate) {
-		if candidate == nil {
-			m.logger.Verbosef("gathered all candidates")
-			close(gatherCh)
-			return
-		}
-
-		m.logger.Verbosef("gathered candidate: %s", candidate.String())
-	}); err != nil {
 		return nil, err
 	}
 
@@ -109,7 +98,7 @@ func (m *proberManager) NewProbe(cfg *domain.ProbeConfig) (domain.Prober, error)
 		err error
 	)
 
-	iceAgent, err := m.agent.NewIceAgent()
+	iceAgent, err := m.agent.NewIceAgent(cfg.GatherChan)
 	if err != nil {
 		return nil, err
 	}

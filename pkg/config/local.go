@@ -41,6 +41,7 @@ type Config struct {
 	Token      string `mapstructure:"token,omitempty"`
 	ServerUrl  string `mapstructure:"server-url,omitempty"`
 	PrivateKey string `mapstructure:"private-key,omitempty"`
+	StunUrl    string `mapstructure:"stun-url,omitempty"`
 }
 
 var GlobalConfig *Config

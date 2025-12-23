@@ -19,14 +19,14 @@ import (
 	"wireflow/internal/grpc"
 )
 
-// MessageManager 处理DrpMessage对象池的管理
-type MessageManager struct {
+// MessagePool 处理DrpMessage对象池的管理
+type MessagePool struct {
 	pool sync.Pool
 }
 
-// NewMessageManager 创建新的消息管理器实例
-func NewMessageManager() *MessageManager {
-	return &MessageManager{
+// NewMessagePool 创建新的消息管理器实例
+func NewMessagePool() *MessagePool {
+	return &MessagePool{
 		pool: sync.Pool{
 			New: func() interface{} {
 				return &grpc.DrpMessage{
@@ -38,12 +38,12 @@ func NewMessageManager() *MessageManager {
 }
 
 // GetMessage 从对象池获取消息
-func (m *MessageManager) GetMessage() *grpc.DrpMessage {
+func (m *MessagePool) GetMessage() *grpc.DrpMessage {
 	return m.pool.Get().(*grpc.DrpMessage)
 }
 
 // ReleaseMessage 重置消息并返回到对象池
-func (m *MessageManager) ReleaseMessage(msg *grpc.DrpMessage) {
+func (m *MessagePool) ReleaseMessage(msg *grpc.DrpMessage) {
 	if msg == nil {
 		return
 	}
@@ -52,21 +52,11 @@ func (m *MessageManager) ReleaseMessage(msg *grpc.DrpMessage) {
 }
 
 // resetMessage 重置消息的所有字段
-func (m *MessageManager) resetMessage(msg *grpc.DrpMessage) {
+func (m *MessagePool) resetMessage(msg *grpc.DrpMessage) {
 	msg.Body = nil
 	msg.From = ""
 	msg.To = ""
 	msg.Encrypt = 0
 	msg.Version = 0
 	msg.MsgType = grpc.MessageType_MessageDirectOfferType
-}
-
-// GetMessageFromPool 获取消息的新方法
-func (p *Proxy) GetMessageFromPool() *grpc.DrpMessage {
-	return p.manager.msgManager.GetMessage()
-}
-
-// PutMessageToPool 释放消息的新方法
-func (p *Proxy) PutMessageToPool(msg *grpc.DrpMessage) {
-	p.manager.msgManager.ReleaseMessage(msg)
 }

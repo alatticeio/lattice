@@ -54,12 +54,13 @@ func NewAgent(stunUri string, universalUdpMux *ice.UniversalUDPMuxDefault) *Agen
 	agent := &Agent{
 		stunUrl:         stunUri,
 		universalUdpMux: universalUdpMux,
+		logger:          log.NewLogger(log.Loglevel, "agent"),
 	}
 	return agent
 }
 
 // NewIceAgent create an new ice agent.
-func (a *Agent) NewIceAgent() (*ice.Agent, error) {
+func (a *Agent) NewIceAgent(gatherCh chan interface{}) (*ice.Agent, error) {
 	var (
 		err      error
 		iceAgent *ice.Agent
@@ -88,5 +89,16 @@ func (a *Agent) NewIceAgent() (*ice.Agent, error) {
 	}); err != nil {
 		return nil, err
 	}
+
+	iceAgent.OnCandidate(func(candidate ice.Candidate) {
+		if candidate == nil {
+			a.logger.Verbosef("gathered all candidates")
+			close(gatherCh)
+			return
+		}
+
+		a.logger.Verbosef("gathered candidate: %s", candidate.String())
+	})
+
 	return iceAgent, nil
 }

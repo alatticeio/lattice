@@ -39,7 +39,6 @@ type Client struct {
 	logger       *log.Logger
 	keyManager   domain.KeyManager
 	nodeManager  domain.PeerManager
-	conf         *config.Config
 	grpcClient   *grpclient.Client
 	conn4        net.PacketConn
 	offerHandler domain.OfferHandler
@@ -239,7 +238,7 @@ func (c *Client) GetNetMap() (*domain.Message, error) {
 	var err error
 
 	request := &grpc.Request{
-		AppId:  c.conf.AppId,
+		AppId:  config.GlobalConfig.AppId,
 		PubKey: c.keyManager.GetPublicKey(),
 	}
 
@@ -406,8 +405,8 @@ func (c *Client) doProbe(probe domain.Prober, node *domain.Peer) {
 
 func (c *Client) Get(ctx context.Context) (*domain.Peer, int64, error) {
 	req := &grpc.Request{
-		AppId: c.conf.AppId,
-		Token: c.conf.Token,
+		AppId: config.GlobalConfig.AppId,
+		Token: config.GlobalConfig.Token,
 	}
 
 	body, err := proto.Marshal(req)
@@ -434,7 +433,7 @@ func (c *Client) Get(ctx context.Context) (*domain.Peer, int64, error) {
 func (c *Client) Watch(ctx context.Context, fn func(message *domain.Message) error) error {
 	req := &grpc.Request{
 		PubKey: c.keyManager.GetPublicKey(),
-		AppId:  c.conf.AppId,
+		AppId:  config.GlobalConfig.AppId,
 	}
 
 	body, err := proto.Marshal(req)
@@ -448,8 +447,8 @@ func (c *Client) Watch(ctx context.Context, fn func(message *domain.Message) err
 func (c *Client) Keepalive(ctx context.Context) error {
 	req := &grpc.Request{
 		PubKey: c.keyManager.GetPublicKey(),
-		AppId:  c.conf.AppId,
-		Token:  c.conf.Token,
+		AppId:  config.GlobalConfig.AppId,
+		Token:  config.GlobalConfig.Token,
 	}
 
 	body, err := proto.Marshal(req)

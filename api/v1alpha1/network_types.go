@@ -93,6 +93,11 @@ type DNSConfig struct {
 
 // Network is the Schema for the networks API.
 // +kubebuilder:resource:shortName=wfnet;wfnetwork
+// +kubebuilder:printcolumn:name="PHASE",type="string",JSONPath=".status.phase",description="The current phase of the network"
+// +kubebuilder:printcolumn:name="CIDR",type="string",JSONPath=".spec.cidr",description="The CIDR block of the network"
+// +kubebuilder:printcolumn:name="NODES",type="integer",JSONPath=".status.addedNodes",description="Number of nodes in the network"
+// +kubebuilder:printcolumn:name="IPS-AVAIL",type="integer",JSONPath=".status.availableIPs",description="Number of available IP addresses"
+// +kubebuilder:printcolumn:name="AGE",type="date",JSONPath=".metadata.creationTimestamp"
 type Network struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`

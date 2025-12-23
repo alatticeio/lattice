@@ -45,7 +45,7 @@ type Server struct {
 	userService service.UserService
 	mgtClient   *grpclient.Client
 	clients     map[string]chan *internalgrpc.DrpMessage
-	msgManager  *MessageManager
+	msgManager  *MessagePool
 }
 
 type ServerConfig struct {
@@ -69,7 +69,7 @@ func NewServer(cfg *ServerConfig) (*Server, error) {
 	return &Server{
 		logger:     cfg.Logger,
 		mgtClient:  mgtClient,
-		msgManager: NewMessageManager(),
+		msgManager: NewMessagePool(),
 		clients:    make(map[string]chan *internalgrpc.DrpMessage, 1),
 	}, nil
 }

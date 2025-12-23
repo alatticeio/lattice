@@ -418,6 +418,8 @@ func (d *ChangeDetector) buildFullConfig(ctx context.Context, node *wireflowv1al
 			if peer.Status.AllocatedAddress == nil {
 				continue
 			}
+
+			msg.Network.Peers = append(msg.Network.Peers, transferToPeer(peer))
 		}
 	}
 

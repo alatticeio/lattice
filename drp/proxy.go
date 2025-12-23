@@ -32,17 +32,17 @@ import (
 type Proxy struct {
 	logger *log.Logger
 	// Address is the address of the proxy server
-	Addr  netip.AddrPort
-	queue struct {
-		drpClient     domain.DRPClient
+	Addr      netip.AddrPort
+	drpClient domain.DRPClient
+	queue     struct {
 		outBoundQueue chan *drpgrpc.DrpMessage
 		inBoundQueue  chan *drpgrpc.DrpMessage
 	}
 
 	drpAddr      string
 	offerHandler domain.OfferHandler
+	messagePool  *MessagePool
 	manager      struct {
-		msgManager   *MessageManager
 		probeManager domain.ProberManager
 	}
 
@@ -51,8 +51,9 @@ type Proxy struct {
 
 type ProxyConfig struct {
 	OfferHandler domain.OfferHandler
-	DrpClient    domain.DRPClient
 	DrpAddr      string
+	MessagePool  *MessagePool
+	DrpClient    domain.DRPClient
 }
 
 type ProxyOptions func(p *Proxy) error
@@ -67,17 +68,34 @@ func NewProxy(cfg *ProxyConfig) (*Proxy, error) {
 		logger:       log.NewLogger(log.Loglevel, "proxy"),
 		offerHandler: cfg.OfferHandler,
 		Addr:         addrPort, // Default address, can be set later
+		messagePool:  cfg.MessagePool,
 	}
 
 	proxy.queue.outBoundQueue = make(chan *drpgrpc.DrpMessage, 10000)
 	proxy.queue.inBoundQueue = make(chan *drpgrpc.DrpMessage, 10000)
-	proxy.manager.msgManager = NewMessageManager()
-	proxy.queue.drpClient = cfg.DrpClient
+	proxy.drpClient = cfg.DrpClient
 	return proxy, nil
 }
 
+func (p *Proxy) Configure(opts ...ProxyOptions) error {
+	for _, opt := range opts {
+		if err := opt(p); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func WithDrpClient(drpClient domain.DRPClient) ProxyOptions {
+	return func(p *Proxy) error {
+		p.drpClient = drpClient
+		return nil
+	}
+}
+
 func (p *Proxy) Start() error {
-	return p.queue.drpClient.HandleMessage(context.Background(), p.queue.outBoundQueue, p.ReceiveMessage)
+	return p.drpClient.HandleMessage(context.Background(), p.queue.outBoundQueue, p.ReceiveMessage)
 }
 
 // ReceiveMessage receive message from drp server
@@ -153,7 +171,7 @@ func (p *Proxy) Send(ep conn.Endpoint, bufs [][]byte) (err error) {
 		if bufs[i] == nil || len(bufs[i]) == 0 {
 			return errors.New("buffer is nil or empty")
 		}
-		drpMesssage := p.GetMessageFromPool()
+		drpMesssage := p.messagePool.GetMessage()
 		drpMesssage.From = from
 		drpMesssage.To = to
 		drpMesssage.MsgType = drpgrpc.MessageType_MessageDrpDataType

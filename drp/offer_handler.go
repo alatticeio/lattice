@@ -41,6 +41,7 @@ type offerHandler struct {
 	keyManager   domain.KeyManager
 	stunUri      string
 	fn           func(key string, addr *net.UDPAddr) error
+	messagePoll  *MessagePool
 	probeManager domain.ProberManager
 	nodeManager  domain.PeerManager
 
@@ -62,6 +63,7 @@ type OfferHandlerConfig struct {
 	Proxy           *Proxy
 	NodeManager     domain.PeerManager
 	TurnManager     *turnclient.TurnManager
+	MessagePool     *MessagePool
 }
 
 // NewOfferHandler create a new client
@@ -75,6 +77,7 @@ func NewOfferHandler(cfg *OfferHandlerConfig) domain.OfferHandler {
 		probeManager: cfg.ProbeManager,
 		proxy:        cfg.Proxy,
 		turnManager:  cfg.TurnManager,
+		messagePoll:  cfg.MessagePool,
 	}
 }
 
@@ -84,7 +87,7 @@ func (h *offerHandler) SendOffer(ctx context.Context, messageType drpgrpc.Messag
 		return err
 	}
 	// write offer to signaling channel
-	drpMessage := h.proxy.GetMessageFromPool()
+	drpMessage := h.messagePoll.GetMessage()
 	drpMessage.From = from
 	drpMessage.To = to
 	drpMessage.Body = bytes

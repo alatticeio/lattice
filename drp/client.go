@@ -44,8 +44,9 @@ type Client struct {
 		heartbeatInterval time.Duration
 		timeout           time.Duration
 	}
-	proxy      *Proxy
-	keyManager domain.KeyManager
+	proxy       *Proxy
+	keyManager  domain.KeyManager
+	messagePool *MessagePool
 }
 
 type ClientConfig struct {
@@ -54,6 +55,7 @@ type ClientConfig struct {
 	ClientID     string
 	KeyManager   domain.KeyManager
 	SignalingUrl string
+	MessagePool  *MessagePool
 }
 
 type Heart struct {
@@ -99,13 +101,7 @@ func NewClient(cfg *ClientConfig) (*Client, error) {
 			heartbeatInterval: 20 * time.Second,
 			timeout:           60 * time.Second,
 		},
-	}
-
-	if drpClient.proxy, err = NewProxy(&ProxyConfig{
-		DrpClient: drpClient,
-		DrpAddr:   cfg.SignalingUrl,
-	}); err != nil {
-		return nil, err
+		messagePool: cfg.MessagePool,
 	}
 
 	return drpClient, nil
@@ -132,6 +128,20 @@ func WithOfferHandler(offerHandler domain.OfferHandler) ClientOption {
 func WithProbeManager(probeManager domain.ProberManager) ClientOption {
 	return func(c *Client) error {
 		c.proxy.manager.probeManager = probeManager
+		return nil
+	}
+}
+
+func WithKeyManager(keyManager domain.KeyManager) ClientOption {
+	return func(c *Client) error {
+		c.keyManager = keyManager
+		return nil
+	}
+}
+
+func WithProxy(proxy *Proxy) ClientOption {
+	return func(c *Client) error {
+		c.proxy = proxy
 		return nil
 	}
 }
@@ -178,7 +188,7 @@ func (c *Client) Heartbeat(ctx context.Context, proxy *Proxy, clientId string) e
 			return err
 		}
 
-		drpMessage := proxy.GetMessageFromPool()
+		drpMessage := c.messagePool.GetMessage()
 		drpMessage.From = clientId
 		drpMessage.MsgType = drpgrpc.MessageType_MessageHeartBeatType
 		drpMessage.Body = body
@@ -238,12 +248,12 @@ func (c *Client) sendLoop(stream drpgrpc.DrpServer_HandleMessageClient, ch chan 
 				}
 
 				c.logger.Errorf("send message failed: %v", err)
-				c.proxy.PutMessageToPool(msg)
+				c.messagePool.ReleaseMessage(msg)
 				return err
 			}
 
 			c.logger.Verbosef("send data to drp server msgType: %v, from: %v, to: %v,", msg.MsgType, msg.From, msg.To)
-			c.proxy.PutMessageToPool(msg)
+			c.messagePool.ReleaseMessage(msg)
 		}
 	}
 }

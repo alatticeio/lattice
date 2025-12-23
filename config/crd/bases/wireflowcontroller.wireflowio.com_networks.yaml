@@ -17,7 +17,27 @@ spec:
     singular: network
   scope: Namespaced
   versions:
-  - name: v1alpha1
+  - additionalPrinterColumns:
+    - description: The current phase of the network
+      jsonPath: .status.phase
+      name: PHASE
+      type: string
+    - description: The CIDR block of the network
+      jsonPath: .spec.cidr
+      name: CIDR
+      type: string
+    - description: Number of nodes in the network
+      jsonPath: .status.addedNodes
+      name: NODES
+      type: integer
+    - description: Number of available IP addresses
+      jsonPath: .status.availableIPs
+      name: IPS-AVAIL
+      type: integer
+    - jsonPath: .metadata.creationTimestamp
+      name: AGE
+      type: date
+    name: v1alpha1
     schema:
       openAPIV3Schema:
         description: Network is the Schema for the networks API.

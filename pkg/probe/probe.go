@@ -97,19 +97,9 @@ func (p *probe) Restart() error {
 	p.UpdateConnectionState(domain.ConnectionStateNew)
 	// create a new agentManager
 	p.gatherCh = make(chan interface{})
-	if p.iceAgent, err = p.agent.NewIceAgent(); err != nil {
+	if p.iceAgent, err = p.agent.NewIceAgent(p.gatherCh); err != nil {
 		return err
 	}
-
-	p.iceAgent.OnCandidate(func(candidate ice.Candidate) {
-		if candidate == nil {
-			p.logger.Verbosef("gathered all candidates")
-			close(p.gatherCh)
-			return
-		}
-
-		p.logger.Verbosef("gathered candidate: %s", candidate.String())
-	})
 
 	// when restart should regather candidates
 	if err = p.iceAgent.GatherCandidates(); err != nil {
@@ -129,9 +119,9 @@ func (p *probe) ProbeDone() chan interface{} {
 	return p.done
 }
 
-func (p *probe) GetGatherChan() chan interface{} {
-	return p.gatherCh
-}
+//func (p *probe) GetGatherChan() chan interface{} {
+//	return p.gatherCh
+//}
 
 func (p *probe) UpdateConnectionState(state domain.ConnectionState) {
 	p.connectionState = state
@@ -265,7 +255,7 @@ func (p *probe) ProbeSuccess(ctx context.Context, publicKey, addr string) error 
 	}
 
 	if peer.AllowedIPs == "" {
-		peer.AllowedIPs = fmt.Sprintf("%s/32", peer.Address)
+		peer.AllowedIPs = fmt.Sprintf("%s/32", *peer.Address)
 		p.nodeManager.AddPeer(publicKey, peer)
 	}
 

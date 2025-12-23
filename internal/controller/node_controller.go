@@ -254,8 +254,11 @@ func (r *NodeReconciler) reconcileConfigMap(ctx context.Context, node *v1alpha1.
 
 		// --- A. 不存在：执行创建操作 ---
 		logger.Info("Creating configmap", "name", configMapName)
+
 		r.NodeCtxCache[request.NamespacedName] = newNodeCtx
-		if err = r.Create(ctx, desiredConfigMap); err != nil {
+		// 使用SSA模式
+		manager := client.FieldOwner("wireflow-controller-manager")
+		if err = r.Patch(ctx, desiredConfigMap, client.Apply, manager); err != nil {
 			logger.Error(err, "Failed to create configmap")
 			return ctrl.Result{}, err
 		}
@@ -277,10 +280,11 @@ func (r *NodeReconciler) reconcileConfigMap(ctx context.Context, node *v1alpha1.
 			if !currentMessage.Equal(message) {
 				logger.Info("Updating configmap data", "name", configMapName)
 
+				foundConfigMapCopy := foundConfigMap.DeepCopy()
 				// 复制最新的 Data 到已存在的对象上 (保持 ResourceVersion 和其他字段)
-				foundConfigMap.Data = desiredConfigMap.Data
+				foundConfigMapCopy.Data = desiredConfigMap.Data
 
-				if err := r.Update(ctx, foundConfigMap); err != nil {
+				if err = r.Patch(ctx, foundConfigMapCopy, client.MergeFrom(foundConfigMap)); err != nil {
 					logger.Error(err, "Failed to update configmap")
 					return ctrl.Result{}, err
 				}
@@ -297,6 +301,10 @@ func (r *NodeReconciler) reconcileConfigMap(ctx context.Context, node *v1alpha1.
 func (r *NodeReconciler) buildConfigMap(namespace, configMapName, message string) *corev1.ConfigMap {
 	// 根据 CRD 的 Spec 构建 reconcileConfigMap 的内容
 	return &corev1.ConfigMap{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "v1",
+			Kind:       "ConfigMap",
+		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      configMapName,
 			Namespace: namespace,
@@ -392,7 +400,7 @@ func (r *NodeReconciler) reconcileLeaveNetwork(ctx context.Context, node *v1alph
 	} else {
 		primaryNetwork := node.Spec.Network
 		var network v1alpha1.Network
-		if err = r.Get(ctx, types.NamespacedName{Name: fmt.Sprintf("%s/%s", node.Namespace, primaryNetwork)}, &network); err != nil {
+		if err = r.Get(ctx, types.NamespacedName{Name: fmt.Sprintf("%s/%s", node.Namespace, *primaryNetwork)}, &network); err != nil {
 			return ctrl.Result{}, err
 		}
 
@@ -562,7 +570,6 @@ func (r *NodeReconciler) determineAction(ctx context.Context, node *v1alpha1.Nod
 		return NodeJoinNetwork, nil
 	}
 
-	return ActionNone, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
@@ -637,7 +644,7 @@ func (r *NodeReconciler) mapPolicyForNodes(ctx context.Context, obj client.Objec
 	}
 	//TODO 是不是不可用？
 	if err = r.List(ctx, &nodeList, client.MatchingLabelsSelector{
-		selector,
+		Selector: selector,
 	}); err != nil {
 		return nil
 	}

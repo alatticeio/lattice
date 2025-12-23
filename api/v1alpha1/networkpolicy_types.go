@@ -66,8 +66,10 @@ type NetworkPolicyPort struct {
 
 // NetworkPolicyStatus defines the observed state of NetworkPolicy.
 type NetworkPolicyStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	// 策略当前匹配到的节点数量
+	TargetNodes int `json:"targetNodes"`
+	// 规则条数（Ingress + Egress）
+	RuleCount int `json:"ruleCount"`
 }
 
 // +kubebuilder:object:root=true
@@ -75,6 +77,11 @@ type NetworkPolicyStatus struct {
 
 // NetworkPolicy is the Schema for the networkpolicies API.
 // +kubebuilder:resource:shortName=wfpolicy;wfp
+// +kubebuilder:printcolumn:name="TYPE",type="string",JSONPath=".spec.policyType",description="The type of the network policy (ingress or egress)"
+// +kubebuilder:printcolumn:name="NODE-SELECTOR",type="string",JSONPath=".spec.nodeSelector",description="The selector to identify nodes this policy applies to"
+// +kubebuilder:printcolumn:name="AGE",type="date",JSONPath=".metadata.creationTimestamp"
+// +kubebuilder:printcolumn:name="TARGETS",type="integer",JSONPath=".status.targetNodes",description="Number of nodes targeted by this policy"
+// +kubebuilder:printcolumn:name="RULES",type="integer",JSONPath=".status.ruleCount",description="Number of rules defined in this policy"
 type NetworkPolicy struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`

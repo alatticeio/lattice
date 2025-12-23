@@ -42,6 +42,8 @@ func (p *peerResolver) ResolvePeers(ctx context.Context, network *domain.Network
 		peers  []*domain.Peer
 		result []*domain.Peer
 	)
+
+	peers = network.Peers
 	//过滤出站
 	for _, policy := range policies {
 		egresses := policy.Egress

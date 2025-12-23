@@ -61,7 +61,7 @@ func newNodeAddCommand() *cobra.Command {
   
   # 批量添加多个节点
   wfctl network node add prod-net node-01 node-02 node-03`,
-		Args: cobra.ExactArgs(2),
+		Args: cobra.MinimumNArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// 参数获取
 			networkID := args[0]
@@ -110,7 +110,7 @@ func newNodeRemoveCommand() *cobra.Command {
   
   # 批量移除多个节点
   wfctl network node rm prod-net node-01 node-02 node-03`,
-		Args: cobra.ExactArgs(2),
+		Args: cobra.MinimumNArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// 参数获取
 			networkID := args[0]

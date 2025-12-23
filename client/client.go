@@ -33,6 +33,7 @@ import (
 	"wireflow/internal/core/manager"
 	ctrclient "wireflow/management/client"
 	mgtclient "wireflow/management/grpc/client"
+	"wireflow/pkg/config"
 	"wireflow/pkg/log"
 	"wireflow/pkg/probe"
 	turnclient "wireflow/pkg/turn"
@@ -167,7 +168,6 @@ func NewClient(cfg *ClientConfig) (*Client, error) {
 	client.clients.watchChan = make(chan struct{}, 1)
 	client.manager.turnManager = new(turnclient.TurnManager)
 	client.manager.peerManager = manager.NewPeerManager()
-	//client.manager.agentManager = manager.NewAgent()
 	client.Name, iface, err = CreateTUN(domain.DefaultMTU, cfg.Logger)
 	if err != nil {
 		return nil, err
@@ -200,14 +200,29 @@ func NewClient(cfg *ClientConfig) (*Client, error) {
 		return nil, err
 	}
 
+	messagePool := drp.NewMessagePool()
 	// init drp clients
 	if client.clients.drpClient, err = drp.NewClient(&drp.ClientConfig{
-		Addr:       cfg.SignalingUrl,
-		Logger:     log.NewLogger(log.Loglevel, "drp-ctrClient"),
-		KeyManager: client.manager.keyManager,
+		Addr:        cfg.SignalingUrl,
+		Logger:      log.NewLogger(log.Loglevel, "drp-ctrClient"),
+		KeyManager:  client.manager.keyManager,
+		MessagePool: messagePool,
 	}); err != nil {
 		return nil, err
 	}
+
+	proxy, err = drp.NewProxy(&drp.ProxyConfig{
+		DrpClient:   client.clients.drpClient,
+		DrpAddr:     cfg.SignalingUrl,
+		MessagePool: messagePool,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	client.clients.drpClient.Configure(drp.WithProxy(proxy), drp.WithKeyManager(client.manager.keyManager))
+	proxy.Configure(drp.WithDrpClient(client.clients.drpClient))
 
 	// init stun
 	if turnClient, err = turn.NewClient(&turn.ClientConfig{
@@ -238,7 +253,13 @@ func NewClient(cfg *ClientConfig) (*Client, error) {
 		RelayConn:       info.RelayConn,
 	})
 
-	client.manager.agent = manager.NewAgent("", universalUdpMuxDefault)
+	stunUrl := config.GlobalConfig.StunUrl
+	if stunUrl == "" {
+		stunUrl = "stun.wireflowio.com"
+		config.WriteConfig("stun-url", stunUrl)
+	}
+
+	client.manager.agent = manager.NewAgent(stunUrl, universalUdpMuxDefault)
 	probeManager = probe.NewProberManager(cfg.ForceRelay, client, client.manager.agent)
 
 	offerHandler := drp.NewOfferHandler(&drp.OfferHandlerConfig{
@@ -248,6 +269,7 @@ func NewClient(cfg *ClientConfig) (*Client, error) {
 		KeyManager:   client.manager.keyManager,
 		NodeManager:  client.manager.peerManager,
 		Proxy:        proxy,
+		MessagePool:  messagePool,
 		TurnManager:  client.manager.turnManager,
 	})
 

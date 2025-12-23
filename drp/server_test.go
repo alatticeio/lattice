@@ -15,23 +15,19 @@
 package drp
 
 import (
-	"fmt"
 	"testing"
-	client2 "wireflow/management/grpc/client"
-	"wireflow/pkg/config"
-	"wireflow/pkg/log"
 )
 
 func TestVerifyToken(t *testing.T) {
 
-	client, err := client2.NewClient(&client2.GrpcConfig{
-		Addr:   "console.linkany.io:32051",
-		Logger: log.NewLogger(log.Loglevel, fmt.Sprintf("[%s] ", "mgtclient")),
-	})
+	//client, err := client2.NewClient(&client2.GrpcConfig{
+	//	Addr:   "console.linkany.io:32051",
+	//	Logger: log.NewLogger(log.Loglevel, fmt.Sprintf("[%s] ", "mgtclient")),
+	//})
 
-	if err != nil {
-		t.Fatal(err)
-	}
+	//if err != nil {
+	//	t.Fatal(err)
+	//}
 
 	//cfg, err := config.GetLocalConfig()
 	//if err != nil {

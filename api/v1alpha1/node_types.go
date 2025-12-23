@@ -138,6 +138,12 @@ const (
 
 // Node is the Schema for the nodes API.
 // +kubebuilder:resource:shortName=wfnode;wfn
+// +kubebuilder:printcolumn:name="STATUS",type="string",JSONPath=".status.status",description="The current status of the node"
+// +kubebuilder:printcolumn:name="PHASE",type="string",JSONPath=".status.phase",description="The current phase of the node"
+// +kubebuilder:printcolumn:name="IP",type="string",JSONPath=".status.allocatedAddress",description="The IP address allocated to the node"
+// +kubebuilder:printcolumn:name="NETWORK",type="string",JSONPath=".spec.network",description="The network the node belongs to"
+// +kubebuilder:printcolumn:name="CONNECTED",type="integer",JSONPath=".status.connectionSummary.connected",description="Number of active connections"
+// +kubebuilder:printcolumn:name="AGE",type="date",JSONPath=".metadata.creationTimestamp"
 type Node struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`

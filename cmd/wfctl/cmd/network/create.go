@@ -55,6 +55,9 @@ func newCreateCmd() *cobra.Command {
 }
 
 func runCreate(opts *config.NetworkOptions) error {
+	if domain.ServerUrl == "" {
+		domain.ServerUrl = config.GlobalConfig.ServerUrl
+	}
 	manager, err := network.NewNetworkManager(domain.ServerUrl)
 	if err != nil {
 		return err
@@ -62,6 +65,6 @@ func runCreate(opts *config.NetworkOptions) error {
 	if err = manager.CreateNetwork(context.Background(), opts); err != nil {
 		return err
 	}
-	fmt.Printf("Created network %s successfully!\n", opts.Name)
+	fmt.Printf(" >> Create network '%s' successfully!\n", opts.Name)
 	return nil
 }

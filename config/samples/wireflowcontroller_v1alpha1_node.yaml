@@ -5,8 +5,8 @@ metadata:
     app.kubernetes.io/name: wireflow-controller
     app.kubernetes.io/managed-by: kustomize
     app: test
-  name: 30a589e950
+  name: vm-test
 spec:
-  appId: 30a589e950
-  networks:
-    - network-sample
+  appId: vm-test
+  interfaceName: wireflow-test
+  platform: linux

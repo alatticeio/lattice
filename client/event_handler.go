@@ -53,6 +53,7 @@ func (h *EventHandler) HandleEvent() HandlerFunc {
 		}
 		h.logger.Infof("Received config update %s: %s", msg.ConfigVersion, msg.Changes.Summary())
 
+		ctx := context.Background()
 		if msg.Changes.HasChanges() {
 			h.logger.Infof("Received remote changes: %v", msg)
 
@@ -73,7 +74,7 @@ func (h *EventHandler) HandleEvent() HandlerFunc {
 						return err
 					}
 				}
-				msg.Current.AllowedIPs = fmt.Sprintf("%s/%d", msg.Current.Address, 32)
+				msg.Current.AllowedIPs = fmt.Sprintf("%s/%d", *msg.Current.Address, 32)
 				h.deviceManager.GetDeviceConfiger().GetPeersManager().AddPeer(msg.Current.PublicKey, msg.Current)
 			}
 
@@ -112,7 +113,7 @@ func (h *EventHandler) HandleEvent() HandlerFunc {
 
 		}
 
-		return nil
+		return h.ApplyFullConfig(ctx, msg)
 	}
 }
 
