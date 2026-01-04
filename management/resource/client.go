@@ -23,7 +23,7 @@ import (
 	"path/filepath"
 	"sync"
 	"wireflow/internal/core/domain"
-	"wireflow/pkg/log"
+	"wireflow/internal/log"
 
 	wireflowv1alpha1 "wireflow/api/v1alpha1"
 
@@ -50,7 +50,7 @@ type Client struct {
 
 	hashMu         sync.RWMutex
 	lastPushedHash map[string]string
-	wt             domain.IWatchManager
+	sender         domain.SignalService
 }
 
 var scheme = runtime.NewScheme()
@@ -66,7 +66,7 @@ func init() {
 	// 如果有其他自定义资源，也需在此注册
 }
 
-func NewClient(wt domain.IWatchManager) (*Client, error) {
+func NewClient() (*Client, error) {
 	ctx := context.Background()
 	logger := log.NewLogger(log.Loglevel, "crdclient")
 
@@ -99,7 +99,6 @@ func NewClient(wt domain.IWatchManager) (*Client, error) {
 	client := &Client{
 		client:         crdClient,
 		lastPushedHash: make(map[string]string),
-		wt:             wt,
 		log:            logger,
 	}
 	// 1. 初始化 Manager (它是 Informer 和 Cache 的核心)
@@ -123,6 +122,7 @@ func NewClient(wt domain.IWatchManager) (*Client, error) {
 	informer, err := mgr.GetCache().GetInformer(ctx, &corev1.ConfigMap{})
 	if err != nil {
 		client.log.Errorf("failed to get informer for configMap: %v", err)
+		return nil, err
 	}
 
 	// 3. 注册事件回调函数
@@ -212,7 +212,11 @@ func (c *Client) pushToNode(ctx context.Context, appId string, msg *domain.Messa
 	}
 
 	// 3. 推送消息
-	if err := c.wt.Send(appId, msg); err != nil {
+	data, err := json.Marshal(msg)
+	if err != nil {
+		return err
+	}
+	if err := c.sender.Send(ctx, appId, data); err != nil {
 		return fmt.Errorf("failed to send message to node %s: %v", appId, err)
 	}
 

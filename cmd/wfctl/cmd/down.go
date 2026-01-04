@@ -16,8 +16,8 @@ package cmd
 
 import (
 	"wireflow/client"
-	"wireflow/pkg/config"
-	"wireflow/pkg/log"
+	"wireflow/internal/config"
+	"wireflow/internal/log"
 
 	"github.com/spf13/cobra"
 )

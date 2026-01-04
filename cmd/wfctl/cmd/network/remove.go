@@ -15,7 +15,7 @@
 package network
 
 import (
-	"wireflow/pkg/config"
+	"wireflow/internal/config"
 
 	"github.com/spf13/cobra"
 )

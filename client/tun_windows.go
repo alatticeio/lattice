@@ -15,10 +15,6 @@
 package client
 
 import (
-	"math/rand"
-	"time"
-	"wireflow/pkg/log"
-
 	"golang.zx2c4.com/wireguard/tun"
 )
 
@@ -28,13 +24,14 @@ func CreateTUN(mtu int, logger *log.Logger) (string, tun.Device, error) {
 	return name, device, err
 }
 
-func getInterfaceName() string {
-	rand.Seed(time.Now().UnixNano())
-	const letters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-	bytes := make([]byte, 3)
-	for i := 0; i < 3; i++ {
-		bytes[i] = letters[rand.Intn(len(letters))]
-	}
-
-	return "linkany-" + string(bytes)
-}
+//
+//func getInterfaceName() string {
+//	rand.Seed(time.Now().UnixNano())
+//	const letters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+//	bytes := make([]byte, 3)
+//	for i := 0; i < 3; i++ {
+//		bytes[i] = letters[rand.Intn(len(letters))]
+//	}
+//
+//	return "wf0" + string(bytes)
+//}

@@ -1,10 +1,5 @@
 package vo
 
-import (
-	"time"
-	"wireflow/pkg/utils"
-)
-
 type UserVo struct {
 	ID          uint64 `json:"id,string"`
 	Username    string `json:"name,omitempty"`
@@ -16,31 +11,28 @@ type UserVo struct {
 
 type InviteVo struct {
 	*UserResourceVo
-	ID           uint64         `json:"id"`
-	InviteeName  string         `json:"inviteeName,omitempty"`
-	InviterName  string         `json:"inviterName,omitempty"`
-	MobilePhone  string         `json:"mobilePhone,omitempty"`
-	Email        string         `json:"email,omitempty"`
-	Role         string         `json:"role,omitempty"`
-	Avatar       string         `json:"avatar,omitempty"`
-	GroupId      uint64         `json:"groupId,omitempty"`
-	GroupName    string         `json:"groupName,omitempty"`
-	Permissions  string         `json:"permissions,omitempty"`
-	AcceptStatus string         `json:"acceptStatus,omitempty"`
-	InvitedAt    time.Time      `json:"invitedAt,omitempty"`
-	CanceledAt   utils.NullTime `json:"canceledAt,omitempty"`
+	ID           uint64 `json:"id"`
+	InviteeName  string `json:"inviteeName,omitempty"`
+	InviterName  string `json:"inviterName,omitempty"`
+	MobilePhone  string `json:"mobilePhone,omitempty"`
+	Email        string `json:"email,omitempty"`
+	Role         string `json:"role,omitempty"`
+	Avatar       string `json:"avatar,omitempty"`
+	GroupId      uint64 `json:"groupId,omitempty"`
+	GroupName    string `json:"groupName,omitempty"`
+	Permissions  string `json:"permissions,omitempty"`
+	AcceptStatus string `json:"acceptStatus,omitempty"`
 }
 
 type InvitationVo struct {
-	ID            uint64         `json:"id,string"`
-	Group         string         `json:"group,omitempty"`
-	InviterName   string         `json:"inviterName,omitempty"`
-	InviterAvatar string         `json:"inviterAvatar,omitempty"`
-	InviteId      uint64         `json:"inviteId,string"`
-	Role          string         `json:"role,omitempty"`
-	Permissions   string         `json:"permissions,omitempty"`
-	AcceptStatus  string         `json:"acceptStatus,omitempty"`
-	InvitedAt     utils.NullTime `json:"invitedAt,omitempty"`
+	ID            uint64 `json:"id,string"`
+	Group         string `json:"group,omitempty"`
+	InviterName   string `json:"inviterName,omitempty"`
+	InviterAvatar string `json:"inviterAvatar,omitempty"`
+	InviteId      uint64 `json:"inviteId,string"`
+	Role          string `json:"role,omitempty"`
+	Permissions   string `json:"permissions,omitempty"`
+	AcceptStatus  string `json:"acceptStatus,omitempty"`
 }
 
 type NodeResourceVo struct {

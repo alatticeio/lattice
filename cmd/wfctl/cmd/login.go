@@ -16,19 +16,10 @@ package cmd
 
 import (
 	"bufio"
-	"context"
 	"fmt"
 	"os"
-	"wireflow/internal/core/domain"
-	"wireflow/management/client"
-	mgtclient "wireflow/management/grpc/client"
-	"wireflow/pkg/config"
-	"wireflow/pkg/log"
-	"wireflow/pkg/redis"
-	"wireflow/pkg/wferrors"
 
 	"github.com/moby/term"
-	"github.com/pion/turn/v4"
 	"github.com/spf13/cobra"
 )
 
@@ -66,71 +57,72 @@ func loginCmd() *cobra.Command {
 
 // runJoin join a network cmd
 func runLogin(opts loginOptions) error {
-	logger := log.NewLogger(log.Loglevel, "wireflow")
-	var err error
-	defer func() {
-		if err == nil {
-			logger.Infof("login success")
-		}
-	}()
-	if opts.Password == "" {
-		if opts.Username == "" {
-			opts.Username, _ = readLine("username: ", false)
-		}
-
-		if opts.Password == "" {
-			//	if token, err := readLine("Token", true); err != nil {
-			//		return errors.New("token required")
-			//	} else {
-			//		opts.Password = token
-			//	}
-			//} else {
-			if password, err := readLine("password: ", false); err != nil {
-				return wferrors.ErrPasswordRequired
-			} else {
-				opts.Password = password
-			}
-		}
-	}
-
-	grpcClient, err := mgtclient.NewClient(&mgtclient.GrpcConfig{Addr: fmt.Sprintf("%s:%d", domain.ManagementDomain, domain.DefaultManagementPort), Logger: log.NewLogger(log.Loglevel, "mgtclient")})
-	if err != nil {
-		return err
-	}
-
-	mgtClient := client.NewClient(&client.ClientConfig{
-		GrpcClient: grpcClient,
-	})
-	user := &config.User{
-		Username: opts.Username,
-		Password: opts.Password,
-	}
-	err = mgtClient.Login(user)
-
-	if err != nil {
-		return err
-	}
-
-	//set turn key to redis
-	if opts.RedisAddr != "" && opts.RedisPass != "" {
-		// set user to redis
-		rdbClient, err := redis.NewClient(&redis.ClientConfig{
-			Addr:     opts.RedisAddr,
-			Password: opts.RedisPass,
-		})
-
-		if err != nil {
-			return fmt.Errorf("failed to connect redis: %v", err)
-		}
-
-		key := turn.GenerateAuthKey(opts.Username, "wireflowio.com", opts.Password)
-		if err = rdbClient.Set(context.Background(), opts.Username, string(key)); err != nil {
-			return fmt.Errorf("failed to set user turnKey to redis: %v", err)
-		}
-
-	}
-
-	return err
+	//logger := log.NewLogger(log.Loglevel, "wireflow")
+	//var err error
+	//defer func() {
+	//	if err == nil {
+	//		logger.Infof("login success")
+	//	}
+	//}()
+	//if opts.Password == "" {
+	//	if opts.Username == "" {
+	//		opts.Username, _ = readLine("username: ", false)
+	//	}
+	//
+	//	if opts.Password == "" {
+	//		//	if token, err := readLine("Token", true); err != nil {
+	//		//		return errors.New("token required")
+	//		//	} else {
+	//		//		opts.Password = token
+	//		//	}
+	//		//} else {
+	//		if password, err := readLine("password: ", false); err != nil {
+	//			return wferrors.ErrPasswordRequired
+	//		} else {
+	//			opts.Password = password
+	//		}
+	//	}
+	//}
+	//
+	//grpcClient, err := mgtclient.NewClient(&mgtclient.GrpcConfig{Addr: fmt.Sprintf("%s:%d", domain.ManagementDomain, domain.DefaultManagementPort), Logger: log.NewLogger(log.Loglevel, "mgtclient")})
+	//if err != nil {
+	//	return err
+	//}
+	//
+	//mgtClient := client.NewClient(&client.ClientConfig{
+	//	GrpcClient: grpcClient,
+	//})
+	//user := &config.User{
+	//	Username: opts.Username,
+	//	Password: opts.Password,
+	//}
+	//err = mgtClient.Login(user)
+	//
+	//if err != nil {
+	//	return err
+	//}
+	//
+	////set turn key to redis
+	//if opts.RedisAddr != "" && opts.RedisPass != "" {
+	//	// set user to redis
+	//	rdbClient, err := redis.NewClient(&redis.ClientConfig{
+	//		Addr:     opts.RedisAddr,
+	//		Password: opts.RedisPass,
+	//	})
+	//
+	//	if err != nil {
+	//		return fmt.Errorf("failed to connect redis: %v", err)
+	//	}
+	//
+	//	key := turn.GenerateAuthKey(opts.Username, "wireflowio.com", opts.Password)
+	//	if err = rdbClient.Set(context.Background(), opts.Username, string(key)); err != nil {
+	//		return fmt.Errorf("failed to set user turnKey to redis: %v", err)
+	//	}
+	//
+	//}
+	//
+	//return err
+	return nil
 }
 
 func readLine(prompt string, slient bool) (string, error) {

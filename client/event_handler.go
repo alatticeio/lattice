@@ -19,15 +19,14 @@ import (
 	"fmt"
 	"wireflow/internal/core/domain"
 	"wireflow/internal/core/infra"
+	"wireflow/internal/log"
 	mgtclient "wireflow/management/client"
-	"wireflow/pkg/log"
 )
 
 // event handler for wireflow to handle event from management
 type EventHandler struct {
 	deviceManager domain.Client
 	logger        *log.Logger
-	client        *mgtclient.Client
 	applier       infra.RouteApplier
 }
 
@@ -35,7 +34,6 @@ func NewEventHandler(e domain.Client, logger *log.Logger, client *mgtclient.Clie
 	return &EventHandler{
 		deviceManager: e,
 		logger:        logger,
-		client:        client,
 		applier:       infra.NewRouteApplier(),
 	}
 }
@@ -62,7 +60,7 @@ func (h *EventHandler) HandleEvent() HandlerFunc {
 				if msg.Current.Address == nil {
 					if len(msg.Changes.NetworkLeft) > 0 {
 						//删除IP
-						if err := h.applier.ApplyIP("remove", *msg.Current.Address, h.deviceManager.GetDeviceConfiger().GetIfaceName()); err != nil {
+						if err := h.applier.ApplyIP("remove", *msg.Current.Address, h.deviceManager.GetDeviceName()); err != nil {
 							return err
 						}
 						//移除所有peers
@@ -70,21 +68,20 @@ func (h *EventHandler) HandleEvent() HandlerFunc {
 					}
 
 				} else if msg.Current.Address != nil {
-					if err := h.applier.ApplyIP("add", *msg.Current.Address, h.deviceManager.GetDeviceConfiger().GetIfaceName()); err != nil {
+					if err := h.applier.ApplyIP("add", *msg.Current.Address, h.deviceManager.GetDeviceName()); err != nil {
 						return err
 					}
 				}
 				msg.Current.AllowedIPs = fmt.Sprintf("%s/%d", *msg.Current.Address, 32)
-				h.deviceManager.GetDeviceConfiger().GetPeersManager().AddPeer(msg.Current.PublicKey, msg.Current)
 			}
 
 			//reconfigure
 			if msg.Changes.KeyChanged {
-				if err := h.deviceManager.Configure(&domain.DeviceConfig{
-					PrivateKey: msg.Current.PrivateKey,
-				}); err != nil {
-					return err
-				}
+				//if err := h.deviceManager.Configure(&domain.DeviceConfig{
+				//	PrivateKey: msg.Current.PrivateKey,
+				//}); err != nil {
+				//	return err
+				//}
 
 				// TODO 重新连接所有的节点，基本不会发生，这要remove掉所有已连接的Peer, 然后重新连接
 			}
@@ -94,7 +91,6 @@ func (h *EventHandler) HandleEvent() HandlerFunc {
 				h.logger.Infof("peers added: %v", msg.Changes.PeersAdded)
 				for _, peer := range msg.Changes.PeersAdded {
 					// add peer to peers cached
-					h.deviceManager.GetDeviceConfiger().GetPeersManager().AddPeer(peer.PublicKey, peer)
 					if err := h.deviceManager.AddPeer(peer); err != nil {
 						return err
 					}
@@ -138,10 +134,10 @@ func (h *EventHandler) ApplyFullConfig(ctx context.Context, msg *domain.Message)
 }
 
 func (h *EventHandler) applyRemotePeers(ctx context.Context, msg *domain.Message) error {
-
 	for _, peer := range msg.ComputedPeers {
 		// add peer to peers cached
-		h.deviceManager.GetDeviceConfiger().GetPeersManager().AddPeer(peer.PublicKey, peer)
+		//h.deviceManager.GetDeviceConfiger().GetPeersManager().AddPeer(peer.PublicKey, peer)
+		h.deviceManager.AddPeer(peer)
 		if err := h.deviceManager.AddPeer(peer); err != nil {
 			return err
 		}

@@ -17,16 +17,16 @@ package turn
 import (
 	"net"
 	"sync"
-	"wireflow/pkg/config"
-	"wireflow/pkg/log"
-	turnclient "wireflow/pkg/turn"
+	"wireflow/internal"
+	"wireflow/internal/config"
+	"wireflow/internal/log"
 
 	"github.com/pion/logging"
 	"github.com/pion/turn/v4"
 )
 
 var (
-	_ turnclient.Client = (*Client)(nil)
+	_ internal.Client = (*Client)(nil)
 )
 
 type Client struct {
@@ -37,7 +37,7 @@ type Client struct {
 	turnClient *turn.Client
 	relayConn  net.PacketConn
 	mappedAddr net.Addr
-	relayInfo  *turnclient.RelayInfo
+	relayInfo  *internal.RelayInfo
 }
 
 type ClientConfig struct {
@@ -46,7 +46,7 @@ type ClientConfig struct {
 	Realm     string
 }
 
-func NewClient(cfg *ClientConfig) (turnclient.Client, error) {
+func NewClient(cfg *ClientConfig) (internal.Client, error) {
 	//Dial TURN Server
 	conn, err := net.Dial("udp", cfg.ServerUrl)
 	if err != nil {
@@ -78,7 +78,7 @@ func NewClient(cfg *ClientConfig) (turnclient.Client, error) {
 	return c, nil
 }
 
-func (c *Client) GetRelayInfo(allocated bool) (*turnclient.RelayInfo, error) {
+func (c *Client) GetRelayInfo(allocated bool) (*internal.RelayInfo, error) {
 
 	if c.relayInfo != nil {
 		return c.relayInfo, nil
@@ -93,7 +93,7 @@ func (c *Client) GetRelayInfo(allocated bool) (*turnclient.RelayInfo, error) {
 	// will return a net.PacketConn which represents the remote
 	// socket.
 	// Push BindingRequest to learn our external IP
-	c.relayInfo = &turnclient.RelayInfo{}
+	c.relayInfo = &internal.RelayInfo{}
 	if allocated {
 		relayConn, err := c.turnClient.Allocate()
 		if err != nil {
@@ -110,7 +110,7 @@ func (c *Client) GetRelayInfo(allocated bool) (*turnclient.RelayInfo, error) {
 
 	c.logger.Verbosef("get from turn relayed-address=%s", mappedAddr.String())
 
-	mapAddr, _ := turnclient.AddrToUdpAddr(mappedAddr)
+	mapAddr, _ := internal.AddrToUdpAddr(mappedAddr)
 	c.relayInfo.MappedAddr = *mapAddr
 
 	return c.relayInfo, nil

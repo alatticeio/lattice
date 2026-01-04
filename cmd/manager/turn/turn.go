@@ -15,8 +15,12 @@
 package turn
 
 import (
+	"fmt"
+	"wireflow/internal/config"
+	"wireflow/internal/core/domain"
+	"wireflow/internal/log"
 	"wireflow/management/client"
-	"wireflow/pkg/log"
+	"wireflow/management/nats"
 	"wireflow/turn"
 
 	"github.com/spf13/cobra"
@@ -56,7 +60,18 @@ func runTurn(opts turnOptions) error {
 	}
 
 	log.SetLogLevel(opts.LogLevel)
-	client := client.NewClient(&client.ClientConfig{})
+	if config.GlobalConfig.SignalUrl == "" {
+		config.GlobalConfig.SignalUrl = fmt.Sprintf("nats://%s:%d", domain.SignalingDomain, domain.DefaultSignalingPort)
+		config.WriteConfig("signal-url", config.GlobalConfig.SignalUrl)
+	}
+	signalService, err := nats.NewNatsService(config.GlobalConfig.SignalUrl)
+	if err != nil {
+		return err
+	}
+	client, err := client.NewClient(signalService, nil)
+	if err != nil {
+		return err
+	}
 
 	return turn.Start(&turn.TurnServerConfig{
 		Logger:   log.NewLogger(log.Loglevel, "turnserver"),

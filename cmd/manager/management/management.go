@@ -15,8 +15,8 @@
 package management
 
 import (
+	"wireflow/internal/log"
 	"wireflow/management"
-	"wireflow/pkg/log"
 
 	"github.com/spf13/cobra"
 )

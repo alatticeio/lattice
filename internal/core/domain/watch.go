@@ -32,10 +32,3 @@ func (n *NodeChannel) GetChannel() chan *Message {
 	}
 	return n.Channel
 }
-
-// IWatchManager used to manage all the channels of connected peers
-type IWatchManager interface {
-	GetChannel(clientId string) *NodeChannel
-	Remove(clientID string)
-	Send(clientId string, msg *Message) error
-}

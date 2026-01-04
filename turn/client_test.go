@@ -17,7 +17,7 @@ package turn
 import (
 	"fmt"
 	"testing"
-	"wireflow/pkg/log"
+	"wireflow/internal/log"
 )
 
 func TestClient_GetRelayInfo(t *testing.T) {

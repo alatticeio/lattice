@@ -1,9 +1,5 @@
 package entity
 
-import (
-	"wireflow/pkg/utils"
-)
-
 // SharedNodeGroup is the entity that represents the shared group
 type SharedNodeGroup struct {
 	Model
@@ -14,8 +10,6 @@ type SharedNodeGroup struct {
 	InviteId     uint64
 	AcceptStatus AcceptStatus
 	Description  string
-	GrantedAt    utils.NullTime
-	RevokedAt    utils.NullTime
 
 	GroupNodes    []GroupNode   `gorm:"foreignKey:NetworkID;references:NetworkID"`
 	GroupPolicies []GroupPolicy `gorm:"foreignKey:NetworkID;references:NetworkID"`
@@ -36,8 +30,6 @@ type SharedPolicy struct {
 	InviteId     uint64
 	Description  string
 	AcceptStatus AcceptStatus
-	GrantedAt    utils.NullTime
-	RevokedAt    utils.NullTime
 }
 
 // TableName returns the table name of the shared policy
@@ -56,8 +48,6 @@ type SharedNode struct {
 	InviteId     uint64
 	AcceptStatus AcceptStatus
 	Description  string
-	GrantedAt    utils.NullTime
-	RevokedAt    utils.NullTime
 
 	NodeLabels []NodeLabel `gorm:"foreignKey:NodeId;references:NodeId"`
 }
@@ -75,8 +65,6 @@ type SharedLabel struct {
 	InviteId     uint64
 	AcceptStatus AcceptStatus
 	Description  string
-	GrantedAt    utils.NullTime
-	RevokedAt    utils.NullTime
 }
 
 func (SharedLabel) TableName() string {

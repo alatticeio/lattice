@@ -16,8 +16,8 @@ package monitor
 
 import (
 	"time"
+	"wireflow/internal/log"
 	"wireflow/monitor/collector"
-	"wireflow/pkg/log"
 )
 
 // NodeMonitor 节点监控器

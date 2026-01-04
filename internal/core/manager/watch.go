@@ -17,16 +17,16 @@ package manager
 import (
 	"sync"
 	"wireflow/internal/core/domain"
-	"wireflow/pkg/log"
+	"wireflow/internal/log"
 )
 
 var lock sync.Mutex
 var once sync.Once
 var manager *WatchManager
 
-var (
-	_ domain.IWatchManager = (*WatchManager)(nil)
-)
+//var (
+//	_ domain.IWatchManager = (*WatchManager)(nil)
+//)
 
 // WatchManager is a singleton that manages the watch channels for connected peers
 // It is used to send messages to all connected peers

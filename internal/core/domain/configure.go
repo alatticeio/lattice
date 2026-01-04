@@ -26,7 +26,7 @@ import (
 // Configurer is the interface for configuring WireGuard interfaces.
 type Configurer interface {
 	// ConfigureWG configures the WireGuard interface.
-	Configure() error
+	Configure(conf *DeviceConfig) error
 
 	AddPeer(peer *SetPeer) error
 
@@ -34,13 +34,9 @@ type Configurer interface {
 
 	RemoveAllPeers()
 
-	ConfigSet(conf *DeviceConfig) error
-
 	GetAddress() string
 
 	GetIfaceName() string
-
-	GetPeersManager() PeerManager
 }
 
 type SetPeer struct {

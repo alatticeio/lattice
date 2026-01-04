@@ -42,7 +42,7 @@ import (
 }
 */
 
-func (vo *NodeVo) TransferToNode() *domain.Peer {
+func (vo *PeerVO) TransferToNode() *domain.Peer {
 	return &domain.Peer{
 		Name:                vo.Name,
 		Description:         vo.Description,

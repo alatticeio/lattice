@@ -33,7 +33,7 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 )
 
-func (c *Client) Register(ctx context.Context, e *dto.NodeDto) (*domain.Peer, error) {
+func (c *Client) Register(ctx context.Context, e *dto.PeerDto) (*domain.Peer, error) {
 	log := logf.FromContext(ctx)
 	log.Info("Register node", "node", e)
 	var (

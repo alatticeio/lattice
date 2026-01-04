@@ -22,8 +22,7 @@ import (
 )
 
 var (
-	_ domain.KeyManager  = (*keyManager)(nil)
-	_ domain.PeerManager = (*PeerManager)(nil)
+	_ domain.KeyManager = (*keyManager)(nil)
 )
 
 type keyManager struct {
@@ -55,34 +54,4 @@ func (km *keyManager) GetPublicKey() string {
 		return ""
 	}
 	return key.PublicKey().String()
-}
-
-// PeerManager manager all peers connected or connecte to
-type PeerManager struct {
-	lock  sync.Mutex
-	peers map[string]*domain.Peer
-}
-
-func NewPeerManager() *PeerManager {
-	return &PeerManager{
-		peers: make(map[string]*domain.Peer),
-	}
-}
-
-func (pm *PeerManager) AddPeer(key string, peer *domain.Peer) {
-	pm.lock.Lock()
-	defer pm.lock.Unlock()
-	pm.peers[key] = peer
-}
-
-func (pm *PeerManager) GetPeer(key string) *domain.Peer {
-	pm.lock.Lock()
-	defer pm.lock.Unlock()
-	return pm.peers[key]
-}
-
-func (pm *PeerManager) RemovePeer(key string) {
-	pm.lock.Lock()
-	defer pm.lock.Unlock()
-	delete(pm.peers, key)
 }

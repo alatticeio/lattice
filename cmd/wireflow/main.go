@@ -19,8 +19,8 @@ import (
 	"fmt"
 	"os"
 	"wireflow/client"
-	"wireflow/pkg/config"
-	"wireflow/pkg/log"
+	"wireflow/internal/config"
+	"wireflow/internal/log"
 )
 
 func main() {

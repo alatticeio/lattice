@@ -1,9 +1,5 @@
 package entity
 
-import (
-	"wireflow/pkg/utils"
-)
-
 type AppKey struct {
 	Model
 	OrderId uint64
@@ -44,8 +40,6 @@ type UserSettings struct {
 	NodeFree   uint64
 	GroupLimit uint64
 	GroupFree  uint64
-	FromDate   utils.NullTime
-	EndDate    utils.NullTime
 }
 
 func (UserSettings) TableName() string {

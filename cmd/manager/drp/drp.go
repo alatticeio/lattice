@@ -15,8 +15,8 @@
 package drp
 
 import (
-	"wireflow/drp"
-	"wireflow/pkg/log"
+	"wireflow/internal/log"
+	"wireflow/signal"
 
 	"github.com/spf13/cobra"
 )
@@ -54,5 +54,5 @@ func runSignaling(opts signalerOptions) error {
 		opts.LogLevel = "error"
 	}
 	log.SetLogLevel(opts.LogLevel)
-	return drp.Start(opts.Listen)
+	return signal.Start(opts.Listen)
 }

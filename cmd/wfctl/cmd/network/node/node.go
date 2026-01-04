@@ -17,11 +17,9 @@ package node
 import (
 	"context"
 	"fmt"
+	"wireflow/internal/config"
 	"wireflow/internal/core/domain"
-	"wireflow/pkg/cli/network"
-	"wireflow/pkg/config"
-
-	_ "wireflow/pkg/config"
+	"wireflow/management/cli/network"
 
 	"github.com/spf13/cobra"
 )
@@ -83,10 +81,12 @@ func newNodeAddCommand() *cobra.Command {
 }
 
 func addNodeToNetwork(networkId string, nodeIds []string) error {
-	if domain.ServerUrl == "" {
-		domain.ServerUrl = config.GlobalConfig.ServerUrl
+	if config.GlobalConfig.SignalUrl == "" {
+		config.GlobalConfig.SignalUrl = fmt.Sprintf("nats://%s:%d", domain.SignalingDomain, domain.DefaultSignalingPort)
+		config.WriteConfig("siganl-url", config.GlobalConfig.SignalUrl)
 	}
-	manager, err := network.NewNetworkManager(domain.ServerUrl)
+
+	manager, err := network.NewNetworkManager(config.GlobalConfig.SignalUrl)
 	if err != nil {
 		return err
 	}

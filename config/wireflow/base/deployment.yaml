@@ -22,16 +22,15 @@ spec:
       labels:
         k8s-app: wireflow-control
     spec:
-      #      imagePullSecrets:
-      #        - name: ali-registry
+      hostAliases:
+      - ip: "81.68.109.143"
+        hostnames:
+          - "signaling.wireflowio.com"
       serviceAccountName: wireflow-controller-admin
       containers:
         - name: wireflow-control
           image: controller:latest
           imagePullPolicy: Always
-          ports:
-            - containerPort: 6060
-              hostPort: 6060
           args:
             - "start"
             - "manager"
@@ -51,38 +50,6 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: wireflow-signaling
-  labels:
-    k8s-app: wireflow-signaling
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      k8s-app: wireflow-signaling
-  template:
-    metadata:
-      labels:
-        k8s-app: wireflow-signaling
-    spec:
-      hostAliases:
-        - ip: "10.96.98.115"
-          hostnames:
-            - "console.wireflowio.com"
-      containers:
-        - name: wireflow-signaling
-          image: controller:latest
-          imagePullPolicy: Always
-          ports:
-            - containerPort: 6066
-              hostPort: 6066
-          args:
-            - "start"
-            - "signaling"
-            - "--log-level=verbose"
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
   name: wireflow-turn
   labels:
     k8s-app: wireflow-turn
@@ -97,9 +64,9 @@ spec:
         k8s-app: wireflow-turn
     spec:
       hostAliases:
-        - ip: "10.96.80.105"
+        - ip: "81.68.109.143"
           hostnames:
-            - "console.wireflowio.com"
+            - "signaling.wireflowio.com"
       containers:
         - name: wireflow-turn
           image: controller:latest

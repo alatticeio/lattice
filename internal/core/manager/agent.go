@@ -18,7 +18,7 @@ import (
 	"fmt"
 	"sync"
 	"sync/atomic"
-	"wireflow/pkg/log"
+	"wireflow/internal/log"
 
 	"github.com/pion/logging"
 	"github.com/pion/randutil"

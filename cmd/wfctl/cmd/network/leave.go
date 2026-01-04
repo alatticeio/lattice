@@ -17,8 +17,8 @@ package network
 import (
 	"context"
 	"fmt"
-	"wireflow/pkg/cli/network"
-	"wireflow/pkg/config"
+	"wireflow/internal/config"
+	"wireflow/management/cli/network"
 
 	"github.com/spf13/cobra"
 )

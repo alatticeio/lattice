@@ -1,9 +1,5 @@
 package entity
 
-import (
-	"wireflow/pkg/utils"
-)
-
 type User struct {
 	Model
 	Username string `json:"username,omitempty"`
@@ -19,14 +15,13 @@ type User struct {
 // resource level
 type UserResourceGrantedPermission struct {
 	Model
-	InvitationId    uint64             // 分配的用户
-	OwnerId         uint64             // 资源所有者,也即是邀请者
-	InviteId        uint64             //关联的邀请表主键
-	ResourceType    utils.ResourceType //资源类型
-	ResourceId      uint64             //资源id
-	PermissionText  string             //添加组
-	PermissionValue string             //group:add
-	PermissionId    uint64             //group:add
+	InvitationId    uint64 // 分配的用户
+	OwnerId         uint64 // 资源所有者,也即是邀请者
+	InviteId        uint64 //关联的邀请表主键
+	ResourceId      uint64 //资源id
+	PermissionText  string //添加组
+	PermissionValue string //group:add
+	PermissionId    uint64 //group:add
 
 	AcceptStatus AcceptStatus
 }

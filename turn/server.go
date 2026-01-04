@@ -20,9 +20,9 @@ import (
 	"os/signal"
 	"strconv"
 	"syscall"
+	"wireflow/internal/config"
+	"wireflow/internal/log"
 	"wireflow/management/client"
-	"wireflow/pkg/config"
-	"wireflow/pkg/log"
 
 	"github.com/pion/turn/v4"
 )
@@ -67,7 +67,8 @@ func (ts *TurnServer) start(publicIP string, port int) error {
 	//	usersMap[kv[1]] = turn.GenerateAuthKey(kv[1], "wireflowio.com", kv[2])
 	//}
 
-	usersMap := generateAuthKeyMap(ts.client.GetUsers())
+	// TODO
+	usersMap := generateAuthKeyMap(nil)
 
 	s, err := turn.NewServer(turn.ServerConfig{
 		Realm: "wireflowio.com",

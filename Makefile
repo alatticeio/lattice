@@ -79,7 +79,7 @@ generate: controller-gen ## Generate code containing DeepCopy, DeepCopyInto, and
 		--go_out=internal/grpc \
 		--go_opt=paths=source_relative \
 		--go-grpc_out=internal/grpc \
-		--go-grpc_opt=paths=source_relative drp.proto management.proto
+		--go-grpc_opt=paths=source_relative drp.proto signal.proto management.proto
 
 .PHONY: fmt
 fmt: ## Run go fmt against code.

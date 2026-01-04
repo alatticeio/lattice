@@ -2,7 +2,6 @@ package entity
 
 import (
 	"time"
-	"wireflow/pkg/utils"
 )
 
 // InviterEntity invites invite others
@@ -18,7 +17,6 @@ type InviterEntity struct {
 	Permissions  string
 	AcceptStatus AcceptStatus
 	InvitedAt    time.Time
-	CanceledAt   utils.NullTime
 
 	// gorm Has Many
 	SharedGroups      []SharedNodeGroup               `gorm:"foreignKey:InviteId"`
@@ -44,9 +42,6 @@ type InviteeEntity struct {
 	Role         string
 	Permissions  string
 	Network      string //192.168.0.0/24
-	InvitedAt    utils.NullTime
-	AcceptAt     utils.NullTime
-	RejectAt     utils.NullTime
 }
 
 func (i *InviterEntity) TableName() string {

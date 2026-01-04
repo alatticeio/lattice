@@ -20,11 +20,14 @@ import (
 	wg "golang.zx2c4.com/wireguard/device"
 )
 
+var (
+	_ domain.Configurer = (*defaultConfiger)(nil)
+)
+
 type defaultConfiger struct {
-	device       *wg.Device
-	address      string
-	ifaceName    string
-	peersManager domain.PeerManager
+	device    *wg.Device
+	address   string
+	ifaceName string
 }
 
 func (c *defaultConfiger) GetAddress() string {
@@ -35,23 +38,14 @@ func (c *defaultConfiger) GetIfaceName() string {
 	return c.ifaceName
 }
 
-func (c *defaultConfiger) GetPeersManager() domain.PeerManager {
-	return c.peersManager
-}
-
 type Params struct {
-	Device       *wg.Device
-	IfaceName    string
-	Address      string
-	PeersManager domain.PeerManager
+	Device    *wg.Device
+	IfaceName string
+	Address   string
 }
 
-func (c *defaultConfiger) Configure() error {
-	return nil
-}
-
-func (c *defaultConfiger) ConfigSet(conf *domain.DeviceConfig) error {
-	return nil
+func (c *defaultConfiger) Configure(conf *domain.DeviceConfig) error {
+	return c.device.IpcSet(conf.String())
 }
 
 func (c *defaultConfiger) AddPeer(peer *domain.SetPeer) error {
@@ -68,9 +62,8 @@ func (c *defaultConfiger) RemoveAllPeers() {
 
 func NewConfigurer(config *Params) domain.Configurer {
 	return &defaultConfiger{
-		device:       config.Device,
-		address:      config.Address,
-		ifaceName:    config.IfaceName,
-		peersManager: config.PeersManager,
+		device:    config.Device,
+		address:   config.Address,
+		ifaceName: config.IfaceName,
 	}
 }

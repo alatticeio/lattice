@@ -6,6 +6,6 @@ import (
 
 type NetworkMap struct {
 	UserId  string
-	Current *NodeVo
+	Current *PeerVO
 	Nodes   []*domain.Peer
 }

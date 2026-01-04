@@ -1,0 +1,42 @@
+syntax = "proto3";
+
+package wireflow.signal;
+option go_package = "internal/grpc";
+
+// 定义信令包类型
+enum PacketType {
+  UNKNOWN = 0;
+  HANDSHAKE_SYN = 1;  // 发起握手：你在吗？
+  HANDSHAKE_ACK = 2;  // 响应握手：我在，可以交换。
+  OFFER = 3;    // 业务数据：Offer
+  ANSWER = 4; //
+  MESSAGE = 5;
+}
+
+message SignalPacket {
+  PacketType type = 1;
+  string sender_id = 2;
+  oneof payload {
+    Handshake handshake = 3;
+    Offer offer = 4;
+    Offer answer = 5;
+    Message message = 6;
+  }
+}
+
+message Offer {
+  string ufrag = 1;
+  string pwd = 2;
+  uint64 tieBreaker = 3;
+  string candidate = 4;
+  string vip = 5;
+}
+
+// for wrapper Message from api server
+message Message {
+  bytes content = 1;
+}
+
+message Handshake {
+  int64 timestamp = 1;
+}

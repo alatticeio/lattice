@@ -24,10 +24,9 @@ import (
 	"strings"
 	"sync"
 	"syscall"
-	"time"
-	"wireflow/drp"
 	"wireflow/internal/core/domain"
-	"wireflow/pkg/log"
+	"wireflow/internal/log"
+	"wireflow/signal"
 
 	"github.com/wireflowio/ice"
 	"golang.org/x/net/ipv4"
@@ -50,14 +49,12 @@ type DefaultBind struct {
 	agent           *ice.Agent
 	universalUdpMux *ice.UniversalUDPMuxDefault
 	conn            net.Conn // drp clients conn
-	node            *drp.Node
+	node            *signal.Node
 	PublicKey       wgtypes.Key
 	keyManager      domain.KeyManager
 
 	// used for turn relay
 	relayConn net.PacketConn
-
-	proxy *drp.Proxy
 
 	drpAddr net.TCPAddr // drp addr，drp created from console
 
@@ -85,14 +82,12 @@ type BindConfig struct {
 	V6Conn          *net.UDPConn
 	UniversalUDPMux *ice.UniversalUDPMuxDefault
 	RelayConn       net.PacketConn // relay conn, used for relay endpoint
-	Proxy           *drp.Proxy
 	KeyManager      domain.KeyManager
 }
 
 func NewBind(cfg *BindConfig) *DefaultBind {
 	return &DefaultBind{
 		logger:          cfg.Logger,
-		proxy:           cfg.Proxy,
 		v4conn:          cfg.V4Conn,
 		v6conn:          cfg.V6Conn,
 		universalUdpMux: cfg.UniversalUDPMux,
@@ -282,29 +277,11 @@ func (b *DefaultBind) Open(uport uint16) ([]conn.ReceiveFunc, uint16, error) {
 		return nil, 0, syscall.EAFNOSUPPORT
 	}
 
-	if b.proxy != nil {
-		go func() {
-			for {
-				if err := b.proxy.Start(); err != nil {
-					b.logger.Errorf("handle drp message error: %v, after 1s retry", err)
-					time.Sleep(1 * time.Second)
-				}
-			}
-		}()
-		fns = append(fns, b.makeReceiveDrp())
-	}
-
 	if b.relayConn != nil {
 		fns = append(fns, b.makeReceiveRelay())
 	}
 
 	return fns, uint16(port), nil
-}
-
-// makeReceiveDrp will receive data from drp server, using grpc transport.
-// It will return a conn.ReceiveFunc that can be used to receive data from the drp server.
-func (b *DefaultBind) makeReceiveDrp() conn.ReceiveFunc {
-	return b.proxy.MakeReceiveFromDrp()
 }
 
 func (b *DefaultBind) makeReceiveRelay() conn.ReceiveFunc {
@@ -473,12 +450,6 @@ func (b *DefaultBind) Send(bufs [][]byte, endpoint conn.Endpoint) error {
 	if v, ok := endpoint.(domain.RelayEndpoint); ok {
 		switch v.FromType() {
 		case domain.DRP:
-			if b.proxy == nil {
-				return errors.New("proxy is nil, please set proxy first")
-			}
-			if err := b.proxy.Send(endpoint, bufs); err != nil {
-				return err
-			}
 			return nil
 		case domain.Relay:
 			if b.relayConn == nil {

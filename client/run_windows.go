@@ -23,7 +23,6 @@ import (
 	"os"
 	"wireflow/internal"
 	"wireflow/management/vo"
-	"wireflow/pkg/log"
 
 	wg "golang.zx2c4.com/wireguard/device"
 	"golang.zx2c4.com/wireguard/ipc"
@@ -55,7 +54,7 @@ func Start(flags *Flags) error {
 	}
 
 	if flags.SignalingUrl == "" {
-		engineCfg.SignalingUrl = fmt.Sprintf("%s:%d", internal.SignalingDomain, internal.DefaultSignalingPort)
+		engineCfg.SignalingUrl = fmt.Sprintf("nats://%s:%d", internal.SignalingDomain, internal.DefaultSignalingPort)
 	}
 
 	if flags.TurnServerUrl == "" {

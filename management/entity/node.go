@@ -3,7 +3,6 @@ package entity
 import (
 	"wireflow/internal/core/domain"
 	"wireflow/management/vo"
-	"wireflow/pkg/utils"
 )
 
 type GroupRoleType string
@@ -43,10 +42,8 @@ type Node struct {
 	TieBreaker          uint32  `gorm:"column:tie_breaker" json:"tie_breaker"`
 	Ufrag               string  `gorm:"column:ufrag;size:30" json:"ufrag"`
 	Owner               string
-	Pwd                 string           `gorm:"column:pwd;size:50" json:"pwd"`
-	Port                int              `gorm:"column:port" json:"port"`
-	Status              utils.NodeStatus `gorm:"type:int;column:status" json:"status"`
-	ActiveStatus        utils.ActiveStatus
+	Pwd                 string          `gorm:"column:pwd;size:50" json:"pwd"`
+	Port                int             `gorm:"column:port" json:"port"`
 	ConnectType         domain.ConnType // direct, relay, drp
 
 	Group      GroupNode   `gorm:"foreignKey:NodeId;"`
@@ -70,12 +67,11 @@ type NodeGroup struct {
 	Name        string `gorm:"column:name;size:64" json:"name"`
 	Description string `gorm:"column:description;size:255" json:"description"`
 
-	OwnId     uint64             `gorm:"column:own_id;size:20" json:"ownerId"`
-	Owner     string             `gorm:"column:owner;size:64" json:"owner"`
-	IsPublic  bool               `gorm:"column:is_public" json:"isPublic"`
-	Status    utils.ActiveStatus `gorm:"column:status" json:"status"` // 0: unapproved, 1: approved, 2: rejected
-	CreatedBy string             `gorm:"column:created_by;size:64" json:"createdBy"`
-	UpdatedBy string             `gorm:"column:updated_by;size:64" json:"updatedBy"`
+	OwnId     uint64 `gorm:"column:own_id;size:20" json:"ownerId"`
+	Owner     string `gorm:"column:owner;size:64" json:"owner"`
+	IsPublic  bool   `gorm:"column:is_public" json:"isPublic"`
+	CreatedBy string `gorm:"column:created_by;size:64" json:"createdBy"`
+	UpdatedBy string `gorm:"column:updated_by;size:64" json:"updatedBy"`
 
 	GroupNodes    []GroupNode   `gorm:"foreignKey:NetworkID;"`
 	GroupPolicies []GroupPolicy `gorm:"foreignKey:NetworkID;"`
@@ -130,8 +126,8 @@ func (GroupPolicy) TableName() string {
 	return "la_group_policy"
 }
 
-func (node Node) TransferToNodeVo() *vo.NodeVo {
-	return &vo.NodeVo{
+func (node Node) TransferToNodeVo() *vo.PeerVO {
+	return &vo.PeerVO{
 		ID:                  node.ID,
 		Name:                node.Name,
 		Description:         node.Description,
@@ -149,6 +145,5 @@ func (node Node) TransferToNodeVo() *vo.NodeVo {
 		Ufrag:               node.Ufrag,
 		Pwd:                 node.Pwd,
 		Port:                node.Port,
-		Status:              node.Status,
 	}
 }

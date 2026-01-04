@@ -22,15 +22,20 @@ import (
 )
 
 type Offer interface {
+	Kind() OfferType
 	Marshal() (int, []byte, error)
-	GetOfferType() OfferType
 	TieBreaker() uint64
 	GetNode() *Peer
 }
 
+// OfferHandler 处理接收到的offer
 type OfferHandler interface {
-	SendOffer(context.Context, grpc.MessageType, string, string, Offer) error
-	ReceiveOffer(ctx context.Context, message *grpc.DrpMessage) error
+	HandleOffer(ctx context.Context, message *grpc.DrpMessage) error
+}
+
+// Initiator 接点加入时发送一个offer
+type Initiator interface {
+	SendOffer(context.Context, Offer) error
 }
 
 type OfferType int

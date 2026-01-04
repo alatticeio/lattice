@@ -24,13 +24,13 @@ import (
 	"runtime"
 	"time"
 	"wireflow/dns"
+	"wireflow/internal"
+	"wireflow/internal/config"
 	"wireflow/internal/core/domain"
 	"wireflow/internal/core/infra"
+	"wireflow/internal/log"
 	"wireflow/monitor"
 	"wireflow/monitor/collector"
-	"wireflow/pkg/config"
-	"wireflow/pkg/log"
-	"wireflow/pkg/utils"
 
 	wg "golang.zx2c4.com/wireguard/device"
 	"golang.zx2c4.com/wireguard/ipc"
@@ -69,22 +69,13 @@ func Start(flags *config.Flags) error {
 		if err != nil {
 			return err
 		}
-		config.GlobalConfig.AppId = utils.StringFormatter(hostName)
+		config.GlobalConfig.AppId = internal.StringFormatter(hostName)
 		//更新到.wireflow.yaml
 		config.WriteConfig("app-id", config.GlobalConfig.AppId)
 	}
 
-	if flags.ManagementUrl == "" {
-		//first get from config file
-		engineCfg.ManagementUrl = config.GlobalConfig.ServerUrl
-		// second using default one
-		if engineCfg.ManagementUrl == "" {
-			engineCfg.ManagementUrl = fmt.Sprintf("%s:%d", domain.ManagementDomain, domain.DefaultManagementPort)
-		}
-	}
-
 	if flags.SignalingUrl == "" {
-		engineCfg.SignalingUrl = fmt.Sprintf("%s:%d", domain.SignalingDomain, domain.DefaultSignalingPort)
+		engineCfg.SignalingUrl = fmt.Sprintf("nats://%s:%d", domain.SignalingDomain, domain.DefaultSignalingPort)
 	}
 
 	if flags.TurnServerUrl == "" {
@@ -207,7 +198,7 @@ func Start(flags *config.Flags) error {
 
 	c.GetNetworkMap = func() (*domain.Message, error) {
 		// get network map from list
-		msg, err := c.clients.ctrClient.GetNetMap()
+		msg, err := c.ctrClient.GetNetMap()
 		if err != nil {
 			logger.Errorf("Get network map failed: %v", err)
 			return nil, err
@@ -290,13 +281,13 @@ func Status(flags *config.Flags) error {
 		}
 
 		if len(devices) == 0 {
-			return fmt.Errorf("没有找到任何 Linkany 设备")
+			return fmt.Errorf("没有找到任何 WireFlow 设备")
 		}
 
 		interfaceName = devices[0].Name
 	}
 
-	fmt.Printf("Linkany interface: %s\n", interfaceName)
+	fmt.Printf("Wierflow interface: %s\n", interfaceName)
 	return nil
 }
 

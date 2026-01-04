@@ -15,7 +15,7 @@
 package infra
 
 import (
-	"wireflow/pkg/log"
+	"wireflow/internal/log"
 )
 
 type RouteApplier interface {

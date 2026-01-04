@@ -36,7 +36,6 @@ import (
 	"wireflow/management/vo"
 	"wireflow/pkg/config"
 	lipc "wireflow/pkg/ipc"
-	"wireflow/pkg/log"
 	"wireflow/pkg/probe"
 	"wireflow/turn"
 
@@ -179,7 +178,6 @@ func NewEngine(cfg *EngineConfig) (*Engine, error) {
 	}
 
 	// init manager
-	engine.nodeManager = internal.NewPeerManager()
 	engine.agentManager = drp2.NewAgentManager()
 
 	// control-ctrClient
@@ -279,7 +277,7 @@ func NewEngine(cfg *EngineConfig) (*Engine, error) {
 
 	probeManager = probe.NewProberManager(cfg.ForceRelay, universalUdpMuxDefault.UDPMuxDefault, universalUdpMuxDefault, engine, cfg.TurnServerUrl)
 
-	offerHandler := drp2.NewOfferHandler(&drp2.OfferHandlerConfig{
+	offerHandler := drp2.NewPacketHandler(&drp2.PacketHandlerConfig{
 		Logger:       log.NewLogger(log.Loglevel, "offer-handler"),
 		ProbeManager: probeManager,
 		StunUri:      cfg.TurnServerUrl,

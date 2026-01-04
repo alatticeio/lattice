@@ -25,6 +25,6 @@ const (
 	SignalingDomain       = "signaling.wireflowio.com"
 	TurnServerDomain      = "stun.wireflowio.com"
 	DefaultManagementPort = 6060
-	DefaultSignalingPort  = 6066
+	DefaultSignalingPort  = 4222
 	DefaultTurnServerPort = 3478
 )

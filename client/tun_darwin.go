@@ -19,7 +19,7 @@ import (
 	"fmt"
 	"os"
 	"syscall"
-	"wireflow/pkg/log"
+	"wireflow/internal/log"
 
 	"golang.org/x/sys/unix"
 	"golang.zx2c4.com/wireguard/tun"

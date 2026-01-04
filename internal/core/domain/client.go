@@ -16,7 +16,6 @@ package domain
 
 import (
 	"context"
-	"wireflow/internal/grpc"
 )
 
 // Client is the interface for managing WireGuard devices.
@@ -26,13 +25,10 @@ type Client interface {
 
 	GetDeviceName() string
 
+	Configure(peerId string) error
+
 	// Stop the engine
 	Stop() error
-
-	// GetDeviceConfiger  // Get the WireGuard configuration manager
-	GetDeviceConfiger() Configurer
-
-	Configure(conf *DeviceConfig) error
 
 	// AddPeer adds a peer to the WireGuard device, add peer from contrl client, then will start connect to peer
 	AddPeer(peer *Peer) error
@@ -53,21 +49,8 @@ type KeyManager interface {
 	GetPublicKey() string
 }
 
-type PeerManager interface {
-	AddPeer(key string, peer *Peer)
-	GetPeer(key string) *Peer
-	RemovePeer(key string)
-}
-
 type ManagementClient interface {
 	GetNetMap() (*Message, error)
-	Register(ctx context.Context, appId string) (*Peer, error)
+	Register(ctx context.Context, interfaceName string) (*Peer, error)
 	AddPeer(p *Peer) error
-	Watch(ctx context.Context, fn func(message *Message) error) error
-	Keepalive(ctx context.Context) error
-}
-
-type DRPClient interface {
-	HandleMessage(ctx context.Context, outBoundQueue chan *grpc.DrpMessage, receive func(ctx context.Context, msg *grpc.DrpMessage) error) error
-	Close() error
 }

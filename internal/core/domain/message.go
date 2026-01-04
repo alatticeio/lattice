@@ -21,7 +21,6 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
-	"wireflow/pkg/utils"
 
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 )
@@ -133,33 +132,28 @@ func (c *ChangeDetails) Summary() string {
 
 // Peer is the information of a wireflow peer, contains all the information of a peer
 type Peer struct {
-	Name                string           `json:"name,omitempty"`
-	InterfaceName       string           `json:"interfaceName,omitempty"`
-	Platform            string           `json:"platform,omitempty"`
-	Description         string           `json:"description,omitempty"`
-	NetworkId           string           `json:"NetworkId,omitempty"` // belong to which group
-	CreatedBy           string           `json:"createdBy,omitempty"` // ownerID
-	UserId              uint64           `json:"userId,omitempty"`
-	Hostname            string           `json:"hostname,omitempty"`
-	AppID               string           `json:"appId,omitempty"`
-	Address             *string          `json:"address,omitempty"`
-	Endpoint            string           `json:"endpoint,omitempty"`
-	Remove              bool             `json:"remove,omitempty"` // whether to remove node
-	PresharedKey        string           `json:"presharedKey,omitempty"`
-	PersistentKeepalive int              `json:"persistentKeepalive,omitempty"`
-	PrivateKey          string           `json:"privateKey,omitempty"`
-	PublicKey           string           `json:"publicKey,omitempty"`
-	AllowedIPs          string           `json:"allowedIps,omitempty"`
-	ReplacePeers        bool             `json:"replacePeers,omitempty"` // whether to replace peers when updating node
-	Port                int              `json:"port"`
-	Status              utils.NodeStatus `json:"status"`
-	GroupName           string           `json:"groupName"`
-	Version             uint64           `json:"version"`
-	LastUpdatedAt       string           `json:"lastUpdatedAt"`
-
-	//conn type
-	DrpAddr     string   `json:"drpAddr,omitempty"`     // drp server address, if is drp node
-	ConnectType ConnType `json:"connectType,omitempty"` // DirectType, RelayType, DrpType
+	Name                string  `json:"name,omitempty"`
+	InterfaceName       string  `json:"interfaceName,omitempty"`
+	Platform            string  `json:"platform,omitempty"`
+	Description         string  `json:"description,omitempty"`
+	NetworkId           string  `json:"NetworkId,omitempty"` // belong to which group
+	CreatedBy           string  `json:"createdBy,omitempty"` // ownerID
+	UserId              uint64  `json:"userId,omitempty"`
+	Hostname            string  `json:"hostname,omitempty"`
+	AppID               string  `json:"appId,omitempty"`
+	Address             *string `json:"address,omitempty"`
+	Endpoint            string  `json:"endpoint,omitempty"`
+	Remove              bool    `json:"remove,omitempty"` // whether to remove node
+	PresharedKey        string  `json:"presharedKey,omitempty"`
+	PersistentKeepalive int     `json:"persistentKeepalive,omitempty"`
+	PrivateKey          string  `json:"privateKey,omitempty"`
+	PublicKey           string  `json:"publicKey,omitempty"`
+	AllowedIPs          string  `json:"allowedIps,omitempty"`
+	ReplacePeers        bool    `json:"replacePeers,omitempty"` // whether to replace peers when updating node
+	Port                int     `json:"port"`
+	GroupName           string  `json:"groupName"`
+	Version             uint64  `json:"version"`
+	LastUpdatedAt       string  `json:"lastUpdatedAt"`
 }
 
 // Network is the network information, contains all peers/policies in the network
