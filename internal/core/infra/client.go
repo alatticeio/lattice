@@ -12,10 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package domain
+package infra
 
 import (
 	"context"
+	"sync"
+
+	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 )
 
 // Client is the interface for managing WireGuard devices.
@@ -53,4 +56,35 @@ type ManagementClient interface {
 	GetNetMap() (*Message, error)
 	Register(ctx context.Context, interfaceName string) (*Peer, error)
 	AddPeer(p *Peer) error
+}
+
+type keyManager struct {
+	lock       sync.Mutex
+	privateKey string
+}
+
+func NewKeyManager(privateKey string) KeyManager {
+	return &keyManager{privateKey: privateKey}
+}
+
+func (km *keyManager) UpdateKey(privateKey string) {
+	km.lock.Lock()
+	defer km.lock.Unlock()
+	km.privateKey = privateKey
+}
+
+func (km *keyManager) GetKey() string {
+	km.lock.Lock()
+	defer km.lock.Unlock()
+	return km.privateKey
+}
+
+func (km *keyManager) GetPublicKey() string {
+	km.lock.Lock()
+	defer km.lock.Unlock()
+	key, err := wgtypes.ParseKey(km.privateKey)
+	if err != nil {
+		return ""
+	}
+	return key.PublicKey().String()
 }

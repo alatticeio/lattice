@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package domain
+package infra
 
 import (
 	"context"
@@ -35,10 +35,10 @@ type SignalService interface {
 // Transport for transfer wireguard packets
 type Transport interface {
 	// Init and gather candidates send to peerId
-	Prepare(ctx context.Context, peerId string, send func(ctx context.Context, peerId string, data []byte) error) error
+	Prepare() error
 
 	// 2. 注入远端发来的候选地址或 Offer
-	HandleSignal(ctx context.Context, peerId string, packet *grpc.SignalPacket) error
+	HandleOffer(ctx context.Context, peerId string, packet *grpc.SignalPacket) error
 
 	OnConnectionStateChange(state TransportState) error
 
@@ -61,6 +61,7 @@ type TransportState int
 
 const (
 	New TransportState = iota
+	Preparing
 	Gathering
 	Checking
 	Connected
@@ -69,7 +70,9 @@ const (
 
 type Probe interface {
 	// 1. 核心控制循环：驱动 Transport 进行打洞
-	Probe(ctx context.Context, peerID string) error
+	Probe(ctx context.Context, remoteId string) error
+
+	HandleOffer(ctx context.Context, remoteId string, packet *grpc.SignalPacket) error
 
 	// 2. 健康检查：在链路 Connected 后，定时发送探测包
 	// 记录 RTT、抖动、丢包率等

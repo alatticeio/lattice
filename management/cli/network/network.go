@@ -22,7 +22,7 @@ import (
 	"os"
 	"time"
 	"wireflow/internal/config"
-	"wireflow/internal/core/domain"
+	"wireflow/internal/core/infra"
 	"wireflow/management/dto"
 	"wireflow/management/nats"
 
@@ -42,7 +42,7 @@ var (
 )
 
 type networkManager struct {
-	client domain.SignalService
+	client infra.SignalService
 }
 
 func NewNetworkManager(signalUrl string) (NetworkManager, error) {

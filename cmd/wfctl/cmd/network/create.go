@@ -18,7 +18,7 @@ import (
 	"context"
 	"fmt"
 	"wireflow/internal/config"
-	"wireflow/internal/core/domain"
+	"wireflow/internal/core/infra"
 	"wireflow/management/cli/network"
 
 	"github.com/spf13/cobra"
@@ -53,10 +53,10 @@ func newCreateCmd() *cobra.Command {
 }
 
 func runCreate(opts *config.NetworkOptions) error {
-	if domain.ServerUrl == "" {
-		domain.ServerUrl = config.GlobalConfig.ServerUrl
+	if infra.ServerUrl == "" {
+		infra.ServerUrl = config.GlobalConfig.ServerUrl
 	}
-	manager, err := network.NewNetworkManager(domain.ServerUrl)
+	manager, err := network.NewNetworkManager(infra.ServerUrl)
 	if err != nil {
 		return err
 	}

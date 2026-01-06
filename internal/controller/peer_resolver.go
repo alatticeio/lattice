@@ -17,13 +17,13 @@ package controller
 import (
 	"context"
 	"wireflow/internal"
-	"wireflow/internal/core/domain"
+	"wireflow/internal/core/infra"
 )
 
 // PeerResolver 根据network与policies来计算当前node的最后要连接peers
 // PeerResolver 只关注要连接的对象， 更细粒度的防火墙规则由FileWallResolver来实现
 type PeerResolver interface {
-	ResolvePeers(ctx context.Context, network *domain.Network, policies []*domain.Policy) ([]*domain.Peer, error)
+	ResolvePeers(ctx context.Context, network *infra.Network, policies []*infra.Policy) ([]*infra.Peer, error)
 }
 
 type peerResolver struct {
@@ -34,13 +34,13 @@ func NewPeerResolver() PeerResolver {
 }
 
 // ResolvePeers 只计算egress，表示当前节点该连接谁，然后与Network中的Peers做过滤
-func (p *peerResolver) ResolvePeers(ctx context.Context, network *domain.Network, policies []*domain.Policy) ([]*domain.Peer, error) {
+func (p *peerResolver) ResolvePeers(ctx context.Context, network *infra.Network, policies []*infra.Policy) ([]*infra.Peer, error) {
 	//加入到该网络中的所有Peers
 	peerSet := peerToSet(network.Peers)
 
 	var (
-		peers  []*domain.Peer
-		result []*domain.Peer
+		peers  []*infra.Peer
+		result []*infra.Peer
 	)
 
 	peers = network.Peers
@@ -53,7 +53,7 @@ func (p *peerResolver) ResolvePeers(ctx context.Context, network *domain.Network
 
 		peerSetTmp := peerStringSet(peers)
 		if len(peers) > 0 {
-			peers = internal.Filter(peers, func(peer *domain.Peer) bool {
+			peers = internal.Filter(peers, func(peer *infra.Peer) bool {
 				if _, ok := peerSetTmp[peer.Name]; !ok {
 					return false
 				}
@@ -70,7 +70,7 @@ func (p *peerResolver) ResolvePeers(ctx context.Context, network *domain.Network
 	}
 
 	set := make(map[string]struct{})
-	result = internal.Filter(result, func(peer *domain.Peer) bool {
+	result = internal.Filter(result, func(peer *infra.Peer) bool {
 		if _, ok := set[peer.Name]; ok {
 			return false
 		}
@@ -82,7 +82,7 @@ func (p *peerResolver) ResolvePeers(ctx context.Context, network *domain.Network
 	return result, nil
 }
 
-func peerStringSet(peers []*domain.Peer) map[string]struct{} {
+func peerStringSet(peers []*infra.Peer) map[string]struct{} {
 	m := make(map[string]struct{})
 	for _, peer := range peers {
 		m[peer.Name] = struct{}{}

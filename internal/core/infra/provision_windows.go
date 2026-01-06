@@ -2,7 +2,7 @@ package infra
 
 import "fmt"
 
-func (r *applier) ApplyRoute(action, address, interfaceName string) error {
+func (r *routeProvisioner) ApplyRoute(action, address, interfaceName string) error {
 	//example: sudo route -nv add -net 192.168.10.1 -netmask 255.255.255.0 -interface en0
 	// example: netsh interface ipv4 set address name="linkany-xx" static 192.168.1.10
 	ip := TrimCIDR(address)
@@ -13,7 +13,7 @@ func (r *applier) ApplyRoute(action, address, interfaceName string) error {
 	return nil
 }
 
-func (r *applier) ApplyIP(action, address, name string) error {
+func (r *routeProvisioner) ApplyIP(action, address, name string) error {
 	switch action {
 	case "add":
 		ip := TrimCIDR(address)
@@ -21,5 +21,9 @@ func (r *applier) ApplyIP(action, address, name string) error {
 		ExecCommand("cmd", "/C", fmt.Sprintf(`netsh interface set interface name="%s" admin=ENABLED`, name))
 	}
 
+	return nil
+}
+
+func (r *ruleProvisioner) ApplyRule(action, rule string) error {
 	return nil
 }

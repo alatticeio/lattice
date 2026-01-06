@@ -1,7 +1,6 @@
 package entity
 
 import (
-	"wireflow/internal/core/domain"
 	"wireflow/management/vo"
 )
 
@@ -42,9 +41,8 @@ type Node struct {
 	TieBreaker          uint32  `gorm:"column:tie_breaker" json:"tie_breaker"`
 	Ufrag               string  `gorm:"column:ufrag;size:30" json:"ufrag"`
 	Owner               string
-	Pwd                 string          `gorm:"column:pwd;size:50" json:"pwd"`
-	Port                int             `gorm:"column:port" json:"port"`
-	ConnectType         domain.ConnType // direct, relay, drp
+	Pwd                 string `gorm:"column:pwd;size:50" json:"pwd"`
+	Port                int    `gorm:"column:port" json:"port"`
 
 	Group      GroupNode   `gorm:"foreignKey:NodeId;"`
 	NodeLabels []NodeLabel `gorm:"foreignKey:NodeId;"`

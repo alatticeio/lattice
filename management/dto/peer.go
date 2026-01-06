@@ -16,31 +16,29 @@ package dto
 
 import (
 	"time"
-	"wireflow/internal/core/domain"
 )
 
 type PeerDto struct {
-	Name                string          `json:"name,omitempty"`
-	Description         string          `json:"description,omitempty"`
-	Platform            string          `json:"platform,omitempty"`
-	InterfaceName       string          `json:"interface_name,omitempty"`
-	NetworkID           string          `json:"networkID,omitempty"` // belong to which group
-	CreatedBy           string          `json:"createdBy,omitempty"` // ownerID
-	UserId              uint64          `json:"userId,omitempty"`
-	Hostname            string          `json:"hostname,omitempty"`
-	AppID               string          `json:"app_id,omitempty"`
-	Address             *string         `json:"address,omitempty"`
-	Endpoint            string          `json:"endpoint,omitempty"`
-	PersistentKeepalive int             `json:"persistentKeepalive,omitempty"`
-	PublicKey           string          `json:"publicKey,omitempty"`
-	AllowedIPs          string          `json:"allowedIps,omitempty"`
-	RelayIP             string          `json:"relayIp,omitempty"`
-	TieBreaker          uint32          `json:"tieBreaker"`
-	Ufrag               string          `json:"ufrag"`
-	Pwd                 string          `json:"pwd"`
-	Port                int             `json:"port"`
-	GroupName           string          `json:"groupName"`
-	Version             uint64          `json:"version"`
-	LastUpdatedAt       time.Time       `json:"lastUpdatedAt"`
-	ConnectType         domain.ConnType `json:"connectType"` // direct, relay, drp
+	Name                string    `json:"name,omitempty"`
+	Description         string    `json:"description,omitempty"`
+	Platform            string    `json:"platform,omitempty"`
+	InterfaceName       string    `json:"interface_name,omitempty"`
+	NetworkID           string    `json:"networkID,omitempty"` // belong to which group
+	CreatedBy           string    `json:"createdBy,omitempty"` // ownerID
+	UserId              uint64    `json:"userId,omitempty"`
+	Hostname            string    `json:"hostname,omitempty"`
+	AppID               string    `json:"app_id,omitempty"`
+	Address             *string   `json:"address,omitempty"`
+	Endpoint            string    `json:"endpoint,omitempty"`
+	PersistentKeepalive int       `json:"persistentKeepalive,omitempty"`
+	PublicKey           string    `json:"publicKey,omitempty"`
+	AllowedIPs          string    `json:"allowedIps,omitempty"`
+	RelayIP             string    `json:"relayIp,omitempty"`
+	TieBreaker          uint32    `json:"tieBreaker"`
+	Ufrag               string    `json:"ufrag"`
+	Pwd                 string    `json:"pwd"`
+	Port                int       `json:"port"`
+	GroupName           string    `json:"groupName"`
+	Version             uint64    `json:"version"`
+	LastUpdatedAt       time.Time `json:"lastUpdatedAt"`
 }

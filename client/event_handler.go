@@ -17,31 +17,29 @@ package client
 import (
 	"context"
 	"fmt"
-	"wireflow/internal/core/domain"
 	"wireflow/internal/core/infra"
 	"wireflow/internal/log"
-	mgtclient "wireflow/management/client"
 )
 
 // event handler for wireflow to handle event from management
 type EventHandler struct {
-	deviceManager domain.Client
+	deviceManager infra.Client
 	logger        *log.Logger
-	applier       infra.RouteApplier
+	provisioner   infra.Provisioner
 }
 
-func NewEventHandler(e domain.Client, logger *log.Logger, client *mgtclient.Client) *EventHandler {
+func NewEventHandler(e infra.Client, logger *log.Logger, provisioner infra.Provisioner) *EventHandler {
 	return &EventHandler{
 		deviceManager: e,
 		logger:        logger,
-		applier:       infra.NewRouteApplier(),
+		provisioner:   provisioner,
 	}
 }
 
-type HandlerFunc func(msg *domain.Message) error
+type HandlerFunc func(msg *infra.Message) error
 
 func (h *EventHandler) HandleEvent() HandlerFunc {
-	return func(msg *domain.Message) error {
+	return func(msg *infra.Message) error {
 		if msg == nil {
 			return nil
 		}
@@ -60,7 +58,7 @@ func (h *EventHandler) HandleEvent() HandlerFunc {
 				if msg.Current.Address == nil {
 					if len(msg.Changes.NetworkLeft) > 0 {
 						//删除IP
-						if err := h.applier.ApplyIP("remove", *msg.Current.Address, h.deviceManager.GetDeviceName()); err != nil {
+						if err := h.provisioner.ApplyIP("remove", *msg.Current.Address, h.deviceManager.GetDeviceName()); err != nil {
 							return err
 						}
 						//移除所有peers
@@ -68,7 +66,7 @@ func (h *EventHandler) HandleEvent() HandlerFunc {
 					}
 
 				} else if msg.Current.Address != nil {
-					if err := h.applier.ApplyIP("add", *msg.Current.Address, h.deviceManager.GetDeviceName()); err != nil {
+					if err := h.provisioner.ApplyIP("add", *msg.Current.Address, h.deviceManager.GetDeviceName()); err != nil {
 						return err
 					}
 				}
@@ -77,7 +75,7 @@ func (h *EventHandler) HandleEvent() HandlerFunc {
 
 			//reconfigure
 			if msg.Changes.KeyChanged {
-				//if err := h.deviceManager.Configure(&domain.DeviceConfig{
+				//if err := h.deviceManager.SetupInterface(&infra.DeviceConfig{
 				//	PrivateKey: msg.Current.PrivateKey,
 				//}); err != nil {
 				//	return err
@@ -114,7 +112,7 @@ func (h *EventHandler) HandleEvent() HandlerFunc {
 }
 
 // ApplyFullConfig when wireflow start, apply full config
-func (h *EventHandler) ApplyFullConfig(ctx context.Context, msg *domain.Message) error {
+func (h *EventHandler) ApplyFullConfig(ctx context.Context, msg *infra.Message) error {
 	h.logger.Verbosef("ApplyFullConfig start: %v", msg)
 	var err error
 
@@ -133,7 +131,7 @@ func (h *EventHandler) ApplyFullConfig(ctx context.Context, msg *domain.Message)
 	return nil
 }
 
-func (h *EventHandler) applyRemotePeers(ctx context.Context, msg *domain.Message) error {
+func (h *EventHandler) applyRemotePeers(ctx context.Context, msg *infra.Message) error {
 	for _, peer := range msg.ComputedPeers {
 		// add peer to peers cached
 		//h.deviceManager.GetDeviceConfiger().GetPeersManager().AddPeer(peer.PublicKey, peer)
@@ -145,7 +143,7 @@ func (h *EventHandler) applyRemotePeers(ctx context.Context, msg *domain.Message
 	return nil
 }
 
-func (h *EventHandler) applyFirewallRules(ctx context.Context, msg *domain.Message) error {
+func (h *EventHandler) applyFirewallRules(ctx context.Context, msg *infra.Message) error {
 	if msg.ComputedRules == nil {
 		return nil
 	}
@@ -153,19 +151,14 @@ func (h *EventHandler) applyFirewallRules(ctx context.Context, msg *domain.Messa
 	ingress := msg.ComputedRules.IngressRules
 	egress := msg.ComputedRules.EgressRules
 
-	platform := msg.ComputedRules.Platform
-	executor, err := infra.NewExecutor(platform)
-	if err != nil {
-		return err
-	}
 	for _, rule := range ingress {
-		if err = executor.ExecCommand(rule); err != nil {
+		if err = h.provisioner.ApplyRule("add", rule); err != nil {
 			return err
 		}
 	}
 
 	for _, rule := range egress {
-		if err = executor.ExecCommand(rule); err != nil {
+		if err = h.provisioner.ApplyRule("add", rule); err != nil {
 			return err
 		}
 	}

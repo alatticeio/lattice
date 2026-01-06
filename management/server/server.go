@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 	"wireflow/internal/config"
-	"wireflow/internal/core/domain"
+	"wireflow/internal/core/infra"
 	"wireflow/internal/log"
 	"wireflow/management/controller"
 	"wireflow/management/nats"
@@ -27,7 +27,7 @@ type Server struct {
 	*gin.Engine
 	logger *log.Logger
 	listen string
-	nats   domain.SignalService
+	nats   infra.SignalService
 
 	peerController    controller.PeerController
 	networkController controller.NetworkController
@@ -38,14 +38,14 @@ type ServerConfig struct {
 	Listen          string
 	DatabaseService *gorm.DB
 	Rdb             *redis.Client
-	Nats            domain.SignalService
+	Nats            infra.SignalService
 }
 
 // NewServer creates a new server
 func NewServer(cfg *ServerConfig) (*Server, error) {
 	e := gin.Default()
 	if config.GlobalConfig.SignalUrl == "" {
-		config.GlobalConfig.SignalUrl = fmt.Sprintf("nats://%s:%d", domain.SignalingDomain, domain.DefaultSignalingPort)
+		config.GlobalConfig.SignalUrl = fmt.Sprintf("nats://%s:%d", infra.SignalingDomain, infra.DefaultSignalingPort)
 		config.WriteConfig("signal-url", config.GlobalConfig.SignalUrl)
 	}
 

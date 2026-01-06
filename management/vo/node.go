@@ -2,7 +2,6 @@ package vo
 
 import (
 	"time"
-	"wireflow/internal/core/domain"
 
 	"gorm.io/gorm"
 )
@@ -55,27 +54,26 @@ func NewLabelResourceVo() *LabelResourceVo {
 }
 
 type PeerVO struct {
-	ID                  uint64          `json:"id,string"`
-	Name                string          `json:"name,omitempty"`
-	Description         string          `json:"description,omitempty"`
-	NetworkID           string          `json:"networkID,omitempty"` // belong to which group
-	CreatedBy           string          `json:"createdBy,omitempty"` // ownerID
-	UserId              uint64          `json:"userId,omitempty"`
-	Hostname            string          `json:"hostname,omitempty"`
-	AppID               string          `json:"appId,omitempty"`
-	Address             *string         `json:"address,omitempty"`
-	Endpoint            string          `json:"endpoint,omitempty"`
-	PersistentKeepalive int             `json:"persistentKeepalive,omitempty"`
-	PublicKey           string          `json:"publicKey,omitempty"`
-	AllowedIPs          string          `json:"allowedIps,omitempty"`
-	RelayIP             string          `json:"relayIp,omitempty"`
-	TieBreaker          uint32          `json:"tieBreaker"`
-	Ufrag               string          `json:"ufrag"`
-	Pwd                 string          `json:"pwd"`
-	Port                int             `json:"port"`
-	GroupName           string          `json:"groupName"`
-	Version             uint64          `json:"version"`
-	LastUpdatedAt       time.Time       `json:"lastUpdatedAt"`
-	ConnectType         domain.ConnType `json:"connectType"` // direct, relay, drp
+	ID                  uint64    `json:"id,string"`
+	Name                string    `json:"name,omitempty"`
+	Description         string    `json:"description,omitempty"`
+	NetworkID           string    `json:"networkID,omitempty"` // belong to which group
+	CreatedBy           string    `json:"createdBy,omitempty"` // ownerID
+	UserId              uint64    `json:"userId,omitempty"`
+	Hostname            string    `json:"hostname,omitempty"`
+	AppID               string    `json:"appId,omitempty"`
+	Address             *string   `json:"address,omitempty"`
+	Endpoint            string    `json:"endpoint,omitempty"`
+	PersistentKeepalive int       `json:"persistentKeepalive,omitempty"`
+	PublicKey           string    `json:"publicKey,omitempty"`
+	AllowedIPs          string    `json:"allowedIps,omitempty"`
+	RelayIP             string    `json:"relayIp,omitempty"`
+	TieBreaker          uint32    `json:"tieBreaker"`
+	Ufrag               string    `json:"ufrag"`
+	Pwd                 string    `json:"pwd"`
+	Port                int       `json:"port"`
+	GroupName           string    `json:"groupName"`
+	Version             uint64    `json:"version"`
+	LastUpdatedAt       time.Time `json:"lastUpdatedAt"`
 	*LabelResourceVo
 }

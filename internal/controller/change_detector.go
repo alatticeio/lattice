@@ -20,7 +20,7 @@ import (
 	"sync"
 	"time"
 	wireflowv1alpha1 "wireflow/api/v1alpha1"
-	"wireflow/internal/core/domain"
+	"wireflow/internal/core/infra"
 
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -63,9 +63,9 @@ func (d *ChangeDetector) DetectNodeChanges(
 	oldNetwork, newNetwork *wireflowv1alpha1.Network,
 	oldPolicies, newPolicies []*wireflowv1alpha1.NetworkPolicy,
 	req ctrl.Request,
-) *domain.ChangeDetails {
+) *infra.ChangeDetails {
 
-	changes := &domain.ChangeDetails{
+	changes := &infra.ChangeDetails{
 		TotalChanges: 0,
 	}
 
@@ -85,7 +85,7 @@ func (d *ChangeDetector) DetectNodeChanges(
 	return changes
 }
 
-func (d *ChangeDetector) detectNodeConfigChanges(ctx context.Context, changes *domain.ChangeDetails, oldNodeCtx *NodeContext, oldNode, newNode *wireflowv1alpha1.Node, req ctrl.Request) *domain.ChangeDetails {
+func (d *ChangeDetector) detectNodeConfigChanges(ctx context.Context, changes *infra.ChangeDetails, oldNodeCtx *NodeContext, oldNode, newNode *wireflowv1alpha1.Node, req ctrl.Request) *infra.ChangeDetails {
 	var newCreated bool
 	if oldNode == nil {
 		newCreated = true
@@ -133,7 +133,7 @@ func (d *ChangeDetector) detectNodeConfigChanges(ctx context.Context, changes *d
 	return changes
 }
 
-func (d *ChangeDetector) detectNetworkChanges(ctx context.Context, changes *domain.ChangeDetails, oldNodeCtx *NodeContext, oldNetwork, newNetwork *wireflowv1alpha1.Network, req ctrl.Request) *domain.ChangeDetails {
+func (d *ChangeDetector) detectNetworkChanges(ctx context.Context, changes *infra.ChangeDetails, oldNodeCtx *NodeContext, oldNetwork, newNetwork *wireflowv1alpha1.Network, req ctrl.Request) *infra.ChangeDetails {
 	networkUpdateType := d.detectNetworkUpdateType(oldNetwork, newNetwork)
 
 	switch networkUpdateType {
@@ -233,7 +233,7 @@ func (d *ChangeDetector) detectPolicyUpdateType(oldPolicies, newPolicies []*wire
 	return typeNone
 }
 
-func (d *ChangeDetector) detectPolicyChanges(ctx context.Context, changes *domain.ChangeDetails, oldPolicies, newPolicies []*wireflowv1alpha1.NetworkPolicy, req ctrl.Request) *domain.ChangeDetails {
+func (d *ChangeDetector) detectPolicyChanges(ctx context.Context, changes *infra.ChangeDetails, oldPolicies, newPolicies []*wireflowv1alpha1.NetworkPolicy, req ctrl.Request) *infra.ChangeDetails {
 
 	policyUpdateType := d.detectPolicyUpdateType(oldPolicies, newPolicies)
 
@@ -288,7 +288,7 @@ func (d *ChangeDetector) detectPolicyChanges(ctx context.Context, changes *domai
 		return changes
 	case typeAdd:
 		changes.Reason = "NetworkPolicy new created"
-		policies := make([]*domain.Policy, 0)
+		policies := make([]*infra.Policy, 0)
 		for _, p := range newPolicies {
 			policies = append(policies, d.transferToPolicy(ctx, p))
 		}
@@ -297,7 +297,7 @@ func (d *ChangeDetector) detectPolicyChanges(ctx context.Context, changes *domai
 		return changes
 	case typeDel:
 		changes.Reason = "NetworkPolicy deleted"
-		policies := make([]*domain.Policy, 0)
+		policies := make([]*infra.Policy, 0)
 		for _, p := range oldPolicies {
 			policies = append(policies, d.transferToPolicy(ctx, p))
 		}
@@ -310,13 +310,13 @@ func (d *ChangeDetector) detectPolicyChanges(ctx context.Context, changes *domai
 	return changes
 }
 
-func (d *ChangeDetector) findPolicy(ctx context.Context, node *wireflowv1alpha1.Node, req ctrl.Request) ([]*domain.Policy, error) {
+func (d *ChangeDetector) findPolicy(ctx context.Context, node *wireflowv1alpha1.Node, req ctrl.Request) ([]*infra.Policy, error) {
 	var policyList wireflowv1alpha1.NetworkPolicyList
 	if err := d.client.List(ctx, &policyList, client.InNamespace(req.Namespace)); err != nil {
 		return nil, err
 	}
 
-	var policies []*domain.Policy
+	var policies []*infra.Policy
 
 	for _, policy := range policyList.Items {
 		selector, _ := metav1.LabelSelectorAsSelector(&policy.Spec.NodeSelector)
@@ -330,10 +330,10 @@ func (d *ChangeDetector) findPolicy(ctx context.Context, node *wireflowv1alpha1.
 	return policies, nil
 }
 
-func (d *ChangeDetector) findChangedNodes(ctx context.Context, oldNodeCtx *NodeContext, added, removed []string, req ctrl.Request) ([]*domain.Peer, []*domain.Peer) {
+func (d *ChangeDetector) findChangedNodes(ctx context.Context, oldNodeCtx *NodeContext, added, removed []string, req ctrl.Request) ([]*infra.Peer, []*infra.Peer) {
 	logger := logf.FromContext(ctx)
-	addedPeers := make([]*domain.Peer, 0)
-	removedPeers := make([]*domain.Peer, 0)
+	addedPeers := make([]*infra.Peer, 0)
+	removedPeers := make([]*infra.Peer, 0)
 
 	//1、删除的节点
 	for _, remove := range removed {
@@ -361,10 +361,10 @@ func (d *ChangeDetector) findChangedNodes(ctx context.Context, oldNodeCtx *NodeC
 	return addedPeers, removedPeers
 }
 
-func (d *ChangeDetector) findNodes(ctx context.Context, names []string, req ctrl.Request) ([]*domain.Peer, error) {
+func (d *ChangeDetector) findNodes(ctx context.Context, names []string, req ctrl.Request) ([]*infra.Peer, error) {
 	log := logf.FromContext(ctx)
 	log.Info("findNodes from", "names", names)
-	var addedPeers []*domain.Peer
+	var addedPeers []*infra.Peer
 	for _, name := range names {
 		var node wireflowv1alpha1.Node
 		if err := d.client.Get(ctx, types.NamespacedName{
@@ -394,17 +394,17 @@ func setDifference(a, b map[string]struct{}) []string {
 	return diff
 }
 
-func (d *ChangeDetector) buildFullConfig(ctx context.Context, node *wireflowv1alpha1.Node, context *NodeContext, changes *domain.ChangeDetails, version string) (*domain.Message, error) {
+func (d *ChangeDetector) buildFullConfig(ctx context.Context, node *wireflowv1alpha1.Node, context *NodeContext, changes *infra.ChangeDetails, version string) (*infra.Message, error) {
 	var err error
 	// 生成配置版本号
-	msg := &domain.Message{
-		EventType:     domain.EventTypeNodeUpdate, // 统一使用 ConfigUpdate
+	msg := &infra.Message{
+		EventType:     infra.EventTypeNodeUpdate, // 统一使用 ConfigUpdate
 		ConfigVersion: version,
 		Timestamp:     time.Now().Unix(),
 		Changes:       changes, // ← 携带变更详情
 		Current:       transferToPeer(node),
-		Network: &domain.Network{
-			Peers: make([]*domain.Peer, 0),
+		Network: &infra.Network{
+			Peers: make([]*infra.Peer, 0),
 		},
 	}
 
@@ -443,8 +443,8 @@ func (d *ChangeDetector) buildFullConfig(ctx context.Context, node *wireflowv1al
 	return msg, nil
 }
 
-func peerToSet(peers []*domain.Peer) map[string]*domain.Peer {
-	m := make(map[string]*domain.Peer)
+func peerToSet(peers []*infra.Peer) map[string]*infra.Peer {
+	m := make(map[string]*infra.Peer)
 	for _, peer := range peers {
 		m[peer.Name] = peer
 	}
@@ -461,18 +461,18 @@ func (d *ChangeDetector) generateConfigVersion() string {
 	return fmt.Sprintf("v%d", d.versionCounter)
 }
 
-func (d *ChangeDetector) transferToPolicy(ctx context.Context, src *wireflowv1alpha1.NetworkPolicy) *domain.Policy {
+func (d *ChangeDetector) transferToPolicy(ctx context.Context, src *wireflowv1alpha1.NetworkPolicy) *infra.Policy {
 	log := logf.FromContext(ctx)
 	log.Info("transferToPolicy", "policy", src.Name)
-	policy := &domain.Policy{
+	policy := &infra.Policy{
 		PolicyName: src.Name,
 	}
 
-	var ingresses, egresses []*domain.Rule
+	var ingresses, egresses []*infra.Rule
 	srcIngresses := src.Spec.IngressRule
 	srcEgresses := src.Spec.EgressRule
 	for _, ingress := range srcIngresses {
-		rule := &domain.Rule{}
+		rule := &infra.Rule{}
 		nodes, err := d.getNodeFromLabels(ctx, ingress.From)
 		if err != nil {
 			log.Error(err, "failed to get nodes from labels", "labels", ingress.From)
@@ -489,7 +489,7 @@ func (d *ChangeDetector) transferToPolicy(ctx context.Context, src *wireflowv1al
 	}
 
 	for _, egress := range srcEgresses {
-		rule := &domain.Rule{}
+		rule := &infra.Rule{}
 		nodes, err := d.getNodeFromLabels(ctx, egress.To)
 		if err != nil {
 			log.Error(err, "failed to get nodes from labels", "labels", egress.To)
@@ -510,7 +510,7 @@ func (d *ChangeDetector) transferToPolicy(ctx context.Context, src *wireflowv1al
 	return policy
 }
 
-func (d *ChangeDetector) getNodeFromLabels(ctx context.Context, rules []wireflowv1alpha1.PeerSelection) ([]*domain.Peer, error) {
+func (d *ChangeDetector) getNodeFromLabels(ctx context.Context, rules []wireflowv1alpha1.PeerSelection) ([]*infra.Peer, error) {
 	// 使用 map 来存储已找到的节点，以确保结果不重复
 	// key: 节点的 UID，value: 节点对象本身
 	foundNodes := make(map[types.UID]wireflowv1alpha1.Node)
@@ -541,7 +541,7 @@ func (d *ChangeDetector) getNodeFromLabels(ctx context.Context, rules []wireflow
 	}
 
 	// 4. 将 map 中的节点转换为切片作为最终结果返回
-	result := make([]*domain.Peer, 0, len(foundNodes))
+	result := make([]*infra.Peer, 0, len(foundNodes))
 	for _, node := range foundNodes {
 		result = append(result, transferToPeer(&node))
 	}

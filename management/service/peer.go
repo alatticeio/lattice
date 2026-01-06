@@ -16,7 +16,7 @@ package service
 
 import (
 	"context"
-	"wireflow/internal/core/domain"
+	"wireflow/internal/core/infra"
 	"wireflow/internal/log"
 	"wireflow/management/dto"
 	"wireflow/management/resource"
@@ -27,9 +27,9 @@ var (
 )
 
 type PeerService interface {
-	Register(ctx context.Context, dto *dto.PeerDto) (*domain.Peer, error)
+	Register(ctx context.Context, dto *dto.PeerDto) (*infra.Peer, error)
 	UpdateStatus(ctx context.Context, status int) error
-	GetNetmap(ctx context.Context, namespace string, appId string) (*domain.Message, error)
+	GetNetmap(ctx context.Context, namespace string, appId string) (*infra.Message, error)
 }
 
 type peerService struct {
@@ -44,7 +44,7 @@ func NewPeerService(client *resource.Client) PeerService {
 	}
 }
 
-func (p *peerService) GetNetmap(ctx context.Context, namespace string, appId string) (*domain.Message, error) {
+func (p *peerService) GetNetmap(ctx context.Context, namespace string, appId string) (*infra.Message, error) {
 	return p.client.GetNetworkMap(ctx, namespace, appId)
 }
 
@@ -53,7 +53,7 @@ func (p *peerService) UpdateStatus(ctx context.Context, status int) error {
 	panic("implement me")
 }
 
-func (p *peerService) Register(ctx context.Context, dto *dto.PeerDto) (*domain.Peer, error) {
+func (p *peerService) Register(ctx context.Context, dto *dto.PeerDto) (*infra.Peer, error) {
 	p.logger.Infof("Received peer info: %+v", dto)
 	node, err := p.client.Register(ctx, dto)
 

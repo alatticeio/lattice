@@ -17,12 +17,12 @@ package service
 import (
 	"context"
 	wireflowv1alpha1 "wireflow/api/v1alpha1"
-	"wireflow/internal/core/domain"
+	"wireflow/internal/core/infra"
 	"wireflow/management/resource"
 )
 
 type NetworkService interface {
-	CreateNetwork(ctx context.Context, networkId, cidr string) (*domain.Network, error)
+	CreateNetwork(ctx context.Context, networkId, cidr string) (*infra.Network, error)
 	JoinNetwork(ctx context.Context, appIds []string, networkId string) error
 	LeaveNetwork(ctx context.Context, appIds []string, networkId string) error
 }
@@ -39,13 +39,13 @@ func NewNetworkService(client *resource.Client) NetworkService {
 
 // TODO implement for wireflow-cli
 
-func (s *networkService) CreateNetwork(ctx context.Context, networkId, cidr string) (*domain.Network, error) {
+func (s *networkService) CreateNetwork(ctx context.Context, networkId, cidr string) (*infra.Network, error) {
 	network, err := s.client.CreateNetwork(ctx, networkId, cidr)
 	if err != nil {
 		return nil, err
 	}
 
-	return &domain.Network{
+	return &infra.Network{
 		NetworkName: network.Name,
 	}, nil
 

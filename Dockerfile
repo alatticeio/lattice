@@ -34,8 +34,6 @@ ARG TARGETSERVICE
 
 WORKDIR /
 COPY --from=builder /workspace/$TARGETSERVICE /wfctl
-COPY management/templates management/templates
-COPY management/static management/static
 USER 65532:65532
 
 ENTRYPOINT ["/wfctl"]

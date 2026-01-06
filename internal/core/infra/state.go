@@ -12,23 +12,31 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package domain
+package infra
 
-import (
-	"sync"
+type ConnectionState int
+
+const (
+	ConnectionStateNew ConnectionState = iota
+	ConnectionStateChecking
+	ConnectionStateFailed
+	ConnectionStateConnected
+	ConnectionStateDisconnected
 )
 
-type NodeChannel struct {
-	nu        sync.Mutex
-	NetworkId []string
-	Channel   chan *Message // key: clientId, value: Channel
-}
-
-func (n *NodeChannel) GetChannel() chan *Message {
-	n.nu.Lock()
-	defer n.nu.Unlock()
-	if n.Channel == nil {
-		n.Channel = make(chan *Message, 1000) // buffered Channel
+func (c ConnectionState) String() string {
+	switch c {
+	case ConnectionStateNew:
+		return "New"
+	case ConnectionStateChecking:
+		return "Checking"
+	case ConnectionStateConnected:
+		return "Connected"
+	case ConnectionStateFailed:
+		return "Failed"
+	case ConnectionStateDisconnected:
+		return "Disconnected"
+	default:
+		return "Invalid"
 	}
-	return n.Channel
 }

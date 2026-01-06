@@ -21,25 +21,26 @@ import (
 	"os"
 	"runtime"
 	"wireflow/internal/config"
-	"wireflow/internal/core/domain"
+	"wireflow/internal/core/infra"
 	"wireflow/internal/log"
 	"wireflow/management/dto"
-	"wireflow/management/probe"
+	"wireflow/management/transport"
 )
 
 var (
-	_ domain.ManagementClient = (*Client)(nil)
+	_ infra.ManagementClient = (*Client)(nil)
 )
 
 type Client struct {
-	logger     *log.Logger
-	natsUrl    string
-	nats       domain.SignalService
-	keyManager domain.KeyManager
-	factory    *probe.TransportFactory
+	logger       *log.Logger
+	natsUrl      string
+	nats         infra.SignalService
+	keyManager   infra.KeyManager
+	factory      *transport.TransportFactory
+	probeFactory *transport.ProbeFactory
 }
 
-func NewClient(nats domain.SignalService, factory *probe.TransportFactory) (*Client, error) {
+func NewClient(nats infra.SignalService, factory *transport.TransportFactory) (*Client, error) {
 	client := &Client{
 		logger:  log.NewLogger(log.Loglevel, "ctrl-client"),
 		factory: factory,
@@ -51,15 +52,21 @@ func NewClient(nats domain.SignalService, factory *probe.TransportFactory) (*Cli
 
 type ClientOptions func(*Client)
 
-func WithKeyManager(keyManager domain.KeyManager) func(*Client) {
+func WithKeyManager(keyManager infra.KeyManager) func(*Client) {
 	return func(c *Client) {
 		c.keyManager = keyManager
 	}
 }
 
-func WithSignalHandler(nats domain.SignalService) func(*Client) {
+func WithSignalHandler(nats infra.SignalService) func(*Client) {
 	return func(c *Client) {
 		c.nats = nats
+	}
+}
+
+func WithProbeFactory(probeFactory *transport.ProbeFactory) func(*Client) {
+	return func(c *Client) {
+		c.probeFactory = probeFactory
 	}
 }
 
@@ -69,7 +76,7 @@ func (c *Client) Configure(opts ...ClientOptions) {
 	}
 }
 
-func (c *Client) GetNetMap() (*domain.Message, error) {
+func (c *Client) GetNetMap() (*infra.Message, error) {
 	ctx := context.Background()
 	var err error
 
@@ -87,7 +94,7 @@ func (c *Client) GetNetMap() (*domain.Message, error) {
 		return nil, err
 	}
 
-	var msg domain.Message
+	var msg infra.Message
 	if err = json.Unmarshal(data, &msg); err != nil {
 		return nil, err
 	}
@@ -96,7 +103,7 @@ func (c *Client) GetNetMap() (*domain.Message, error) {
 }
 
 // Register will register device to wireflow center
-func (c *Client) Register(ctx context.Context, interfaceName string) (*domain.Peer, error) {
+func (c *Client) Register(ctx context.Context, interfaceName string) (*infra.Peer, error) {
 	var err error
 
 	hostname, err := os.Hostname()
@@ -126,7 +133,7 @@ func (c *Client) Register(ctx context.Context, interfaceName string) (*domain.Pe
 		return nil, fmt.Errorf("register failed. %v", err)
 	}
 
-	var node domain.Peer
+	var node infra.Peer
 	if err = json.Unmarshal(data, &node); err != nil {
 		return nil, err
 	}
@@ -143,10 +150,25 @@ func (c *Client) RequestNats(ctx context.Context, subject, method string, data [
 	return data, nil
 }
 
-func (c *Client) AddPeer(p *domain.Peer) error {
-	probe, err := probe.NewProbe(c.keyManager.GetPublicKey(), p.PublicKey, c.nats, c.factory)
+func (c *Client) AddPeer(p *infra.Peer) error {
+	var (
+		err   error
+		probe *transport.Probe
+	)
+
+	remoteId := p.PublicKey
+
+	onClose := func(remoteId string) error {
+		c.probeFactory.Remove(remoteId)
+		c.logger.Infof("remote prober for peer %s from client probe maps", remoteId)
+		return nil
+	}
+
+	c.factory.Configure(transport.WithOnClose(onClose))
+
+	probe, err = c.probeFactory.Get(remoteId)
 	if err != nil {
 		return err
 	}
-	return probe.Probe(context.Background(), p.PublicKey)
+	return probe.Probe(context.Background(), remoteId)
 }

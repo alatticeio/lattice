@@ -14,21 +14,17 @@
 
 package infra
 
-import (
-	"wireflow/internal/log"
+// used for cli flags
+var ServerUrl string
+
+const (
+	DefaultMTU = 1420
+	// ConsoleDomain domain for service
+	ConsoleDomain         = "http://console.wireflowio.com"
+	ManagementDomain      = "console.wireflowio.com"
+	SignalingDomain       = "signaling.wireflowio.com"
+	TurnServerDomain      = "stun.wireflowio.com"
+	DefaultManagementPort = 6060
+	DefaultSignalingPort  = 4222
+	DefaultTurnServerPort = 3478
 )
-
-type RouteApplier interface {
-	ApplyRoute(action, address, name string) error
-	ApplyIP(action, address, name string) error
-}
-
-type applier struct {
-	logger *log.Logger
-}
-
-func NewRouteApplier() RouteApplier {
-	return &applier{
-		logger: log.NewLogger(log.Loglevel, "route-applier"),
-	}
-}

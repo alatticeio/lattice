@@ -15,9 +15,6 @@
 package drp
 
 import (
-	"wireflow/internal/log"
-	"wireflow/signal"
-
 	"github.com/spf13/cobra"
 )
 
@@ -50,9 +47,5 @@ func NewDrpCmd() *cobra.Command {
 
 // run signaling server
 func runSignaling(opts signalerOptions) error {
-	if opts.LogLevel == "" {
-		opts.LogLevel = "error"
-	}
-	log.SetLogLevel(opts.LogLevel)
-	return signal.Start(opts.Listen)
+	return nil
 }

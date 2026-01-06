@@ -15,7 +15,7 @@
 package client
 
 import (
-	"wireflow/internal/core/domain"
+	"wireflow/internal/core/infra"
 )
 
 // TODO: macOS, FreeBSD and other BSDs likely do support this feature set, but
@@ -23,12 +23,12 @@ import (
 
 // getSrcFromControl parses the control for PKTINFO and if found updates ep with
 // the source information found.
-func getSrcFromControl(control []byte, wep *domain.MagicEndpoint) {
+func getSrcFromControl(control []byte, wep *infra.MagicEndpoint) {
 }
 
 // setSrcControl parses the control for PKTINFO and if found updates ep with
 // the source information found.
-func setSrcControl(control *[]byte, ep *domain.MagicEndpoint) {
+func setSrcControl(control *[]byte, ep *infra.MagicEndpoint) {
 }
 
 // srcControlSize returns the recommended buffer size for pooling sticky control

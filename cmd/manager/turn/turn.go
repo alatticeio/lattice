@@ -17,7 +17,7 @@ package turn
 import (
 	"fmt"
 	"wireflow/internal/config"
-	"wireflow/internal/core/domain"
+	"wireflow/internal/core/infra"
 	"wireflow/internal/log"
 	"wireflow/management/client"
 	"wireflow/management/nats"
@@ -61,7 +61,7 @@ func runTurn(opts turnOptions) error {
 
 	log.SetLogLevel(opts.LogLevel)
 	if config.GlobalConfig.SignalUrl == "" {
-		config.GlobalConfig.SignalUrl = fmt.Sprintf("nats://%s:%d", domain.SignalingDomain, domain.DefaultSignalingPort)
+		config.GlobalConfig.SignalUrl = fmt.Sprintf("nats://%s:%d", infra.SignalingDomain, infra.DefaultSignalingPort)
 		config.WriteConfig("signal-url", config.GlobalConfig.SignalUrl)
 	}
 	signalService, err := nats.NewNatsService(config.GlobalConfig.SignalUrl)

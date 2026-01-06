@@ -22,7 +22,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
-	"wireflow/internal/core/domain"
+	"wireflow/internal/core/infra"
 	"wireflow/internal/log"
 
 	wireflowv1alpha1 "wireflow/api/v1alpha1"
@@ -50,7 +50,7 @@ type Client struct {
 
 	hashMu         sync.RWMutex
 	lastPushedHash map[string]string
-	sender         domain.SignalService
+	sender         infra.SignalService
 }
 
 var scheme = runtime.NewScheme()
@@ -188,7 +188,7 @@ func (c *Client) handleConfigMapEvent(ctx context.Context, obj interface{}, even
 
 	// 可以在这里添加您的自定义业务逻辑，例如触发配置推送
 
-	var message domain.Message
+	var message infra.Message
 	if err := json.Unmarshal([]byte(cm.Data["config.json"]), &message); err != nil {
 		c.log.Errorf("Failed to unmarshal message: %v", err)
 	}
@@ -197,7 +197,7 @@ func (c *Client) handleConfigMapEvent(ctx context.Context, obj interface{}, even
 	c.log.Infof(">>> Message pushed to node success <<< Name: %s/%s, RV: %s", cm.Namespace, message.Current.AppID, cm.ResourceVersion)
 }
 
-func (c *Client) pushToNode(ctx context.Context, appId string, msg *domain.Message) error {
+func (c *Client) pushToNode(ctx context.Context, appId string, msg *infra.Message) error {
 	// 1. 计算消息哈希
 	msgHash := c.computeMessageHash(msg)
 
@@ -231,7 +231,7 @@ func (c *Client) pushToNode(ctx context.Context, appId string, msg *domain.Messa
 	return nil
 }
 
-func (c *Client) computeMessageHash(msg *domain.Message) string {
+func (c *Client) computeMessageHash(msg *infra.Message) string {
 	data, _ := json.Marshal(msg)
 	return fmt.Sprintf("%x", sha256.Sum256(data))
 }

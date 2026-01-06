@@ -12,21 +12,31 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package domain
+package infra
 
 import (
 	"encoding/hex"
 	"fmt"
 	"strconv"
 	"strings"
+	"wireflow/internal/log"
 
+	wg "golang.zx2c4.com/wireguard/device"
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 )
 
-// Configurer is the interface for configuring WireGuard interfaces.
-type Configurer interface {
+const (
+	PlatformLinux   = "linux"
+	PlatformWindows = "windows"
+	PlatformMacOS   = "darwin"
+)
+
+// Provisioner is the interface for configuring WireGuard interfaces.
+type Provisioner interface {
+	RouteProvisioner
+	RuleProvisioner
 	// ConfigureWG configures the WireGuard interface.
-	Configure(conf *DeviceConfig) error
+	SetupInterface(conf *DeviceConfig) error
 
 	AddPeer(peer *SetPeer) error
 
@@ -37,6 +47,15 @@ type Configurer interface {
 	GetAddress() string
 
 	GetIfaceName() string
+}
+
+type RouteProvisioner interface {
+	ApplyRoute(action, address, name string) error
+	ApplyIP(action, address, name string) error
+}
+
+type RuleProvisioner interface {
+	ApplyRule(action, rule string) error
 }
 
 type SetPeer struct {
@@ -85,4 +104,72 @@ func (p *SetPeer) String() string {
 	}
 
 	return sb.String()
+}
+
+type provisioner struct {
+	RouteProvisioner
+	RuleProvisioner
+	device    *wg.Device
+	address   string
+	ifaceName string
+}
+
+func (p *provisioner) GetAddress() string {
+	return p.address
+}
+
+func (p *provisioner) GetIfaceName() string {
+	return p.ifaceName
+}
+
+type Params struct {
+	Device    *wg.Device
+	IfaceName string
+	Address   string
+}
+
+func (p *provisioner) SetupInterface(conf *DeviceConfig) error {
+	return p.device.IpcSet(conf.String())
+}
+
+func (p *provisioner) AddPeer(peer *SetPeer) error {
+	return p.device.IpcSet(peer.String())
+}
+
+func (p *provisioner) RemovePeer(peer *SetPeer) error {
+	return p.device.IpcSet(peer.String())
+}
+
+func (p *provisioner) RemoveAllPeers() {
+	p.device.RemoveAllPeers()
+}
+
+func NewProvisioner(routeProvisioner RouteProvisioner, ruleProvisioner RuleProvisioner, config *Params) Provisioner {
+	return &provisioner{
+		RouteProvisioner: routeProvisioner,
+		RuleProvisioner:  ruleProvisioner,
+		device:           config.Device,
+		address:          config.Address,
+		ifaceName:        config.IfaceName,
+	}
+}
+
+type routeProvisioner struct {
+	logger *log.Logger
+}
+
+func NewRouteProvisioner(logger *log.Logger) RouteProvisioner {
+	return &routeProvisioner{
+		logger: logger,
+	}
+}
+
+type ruleProvisioner struct {
+	logger *log.Logger
+}
+
+func NewRuleProvisioner(logger *log.Logger) RuleProvisioner {
+	return &ruleProvisioner{
+		logger: logger,
+	}
 }

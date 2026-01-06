@@ -17,7 +17,7 @@ package controller
 import (
 	"fmt"
 	wireflowv1alpha1 "wireflow/api/v1alpha1"
-	"wireflow/internal/core/domain"
+	"wireflow/internal/core/infra"
 )
 
 // 辅助函数
@@ -90,8 +90,8 @@ func stringSliceEqual(a, b []string) bool {
 	return true
 }
 
-func transferToPeer(peer *wireflowv1alpha1.Node) *domain.Peer {
-	p := &domain.Peer{
+func transferToPeer(peer *wireflowv1alpha1.Node) *infra.Peer {
+	p := &infra.Peer{
 		Name:          peer.Name,
 		AppID:         peer.Spec.AppId,
 		Platform:      peer.Spec.Platform,

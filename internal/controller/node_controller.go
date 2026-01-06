@@ -20,7 +20,7 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
-	"wireflow/internal/core/domain"
+	"wireflow/internal/core/infra"
 
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 	corev1 "k8s.io/api/core/v1"
@@ -220,8 +220,8 @@ func (r *NodeReconciler) reconcileJoinNetwork(ctx context.Context, node *v1alpha
 func (r *NodeReconciler) reconcileConfigMap(ctx context.Context, node *v1alpha1.Node, request ctrl.Request) (ctrl.Result, error) {
 	var (
 		err              error
-		changes          *domain.ChangeDetails
-		message          *domain.Message
+		changes          *infra.ChangeDetails
+		message          *infra.Message
 		desiredConfigMap *corev1.ConfigMap
 	)
 	logger := logf.FromContext(ctx)
@@ -268,7 +268,7 @@ func (r *NodeReconciler) reconcileConfigMap(ctx context.Context, node *v1alpha1.
 		r.NodeCtxCache[request.NamespacedName] = newNodeCtx
 		changes = r.Detector.DetectNodeChanges(ctx, oldNodeCtx, oldNodeCtx.Node, newNodeCtx.Node, oldNodeCtx.Network, newNodeCtx.Network, oldNodeCtx.Policies, newNodeCtx.Policies, request)
 		if changes.HasChanges() {
-			var currentMessage domain.Message
+			var currentMessage infra.Message
 			err = json.Unmarshal([]byte(foundConfigMap.Data["config.json"]), &currentMessage)
 			if err != nil {
 				return ctrl.Result{}, err

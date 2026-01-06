@@ -12,30 +12,37 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package signal
+package infra
 
 import (
-	"fmt"
-	"net"
-	"net/url"
-	"testing"
+	"sync"
 )
 
-func TestParseNode(t *testing.T) {
+type PeerManager struct {
+	mu    sync.RWMutex
+	peers map[string]*Peer
+}
 
-	str := "http://10.0.0.1:8080/drp"
-	u, err := url.Parse(str)
-	if err != nil {
-		t.Fatal(err)
+func NewPeerManager() *PeerManager {
+	return &PeerManager{
+		peers: make(map[string]*Peer),
 	}
-	fmt.Println(u.Host, u.Port())
+}
 
-	addr, err := net.ResolveTCPAddr("tcp", u.Host)
-	if err != nil {
-		t.Fatal(err)
-	}
+func (p *PeerManager) AddPeer(peerId string, peer *Peer) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.peers[peerId] = peer
+}
 
-	node := NewNode("", addr, nil)
-	fmt.Println(node)
+func (p *PeerManager) RemovePeer(peerId string) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	delete(p.peers, peerId)
+}
 
+func (p *PeerManager) GetPeer(peerId string) *Peer {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	return p.peers[peerId]
 }

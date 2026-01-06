@@ -14,7 +14,5 @@ WORKDIR /app
 
 # copy binary and frontend assets from builder and source
 COPY bin/wireflow /app/wireflow
-COPY templates/ /app/templates/
-COPY static/ /app/static/
 
 CMD ["/app/wireflow","login"]

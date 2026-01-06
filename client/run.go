@@ -26,7 +26,6 @@ import (
 	"wireflow/dns"
 	"wireflow/internal"
 	"wireflow/internal/config"
-	"wireflow/internal/core/domain"
 	"wireflow/internal/core/infra"
 	"wireflow/internal/log"
 	"wireflow/monitor"
@@ -75,11 +74,11 @@ func Start(flags *config.Flags) error {
 	}
 
 	if flags.SignalingUrl == "" {
-		engineCfg.SignalingUrl = fmt.Sprintf("nats://%s:%d", domain.SignalingDomain, domain.DefaultSignalingPort)
+		engineCfg.SignalingUrl = fmt.Sprintf("nats://%s:%d", infra.SignalingDomain, infra.DefaultSignalingPort)
 	}
 
 	if flags.TurnServerUrl == "" {
-		engineCfg.TurnServerUrl = fmt.Sprintf("%s:%d", domain.TurnServerDomain, domain.DefaultTurnServerPort)
+		engineCfg.TurnServerUrl = fmt.Sprintf("%s:%d", infra.TurnServerDomain, infra.DefaultTurnServerPort)
 	}
 
 	if flags.DaemonGround {
@@ -196,7 +195,7 @@ func Start(flags *config.Flags) error {
 		return err
 	}
 
-	c.GetNetworkMap = func() (*domain.Message, error) {
+	c.GetNetworkMap = func() (*infra.Message, error) {
 		// get network map from list
 		msg, err := c.ctrClient.GetNetMap()
 		if err != nil {

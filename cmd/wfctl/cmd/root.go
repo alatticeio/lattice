@@ -18,7 +18,7 @@ import (
 	"fmt"
 	"os"
 	"wireflow/cmd/wfctl/cmd/network"
-	"wireflow/internal/core/domain"
+	"wireflow/internal/core/infra"
 
 	"github.com/spf13/cobra"
 )
@@ -39,7 +39,7 @@ func Execute() {
 
 func init() {
 	fs := rootCmd.PersistentFlags()
-	fs.StringVarP(&domain.ServerUrl, "server-url", "", "", "management server url")
+	fs.StringVarP(&infra.ServerUrl, "server-url", "", "", "management server url")
 	rootCmd.AddCommand(network.NewNetworkCommand())
 	rootCmd.AddCommand(configCmd)
 }

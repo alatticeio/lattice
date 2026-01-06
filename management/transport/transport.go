@@ -12,14 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package probe
+package transport
 
 import (
-	"context"
 	"sync"
-	"wireflow/internal/core/domain"
-	"wireflow/internal/core/manager"
-	"wireflow/internal/grpc"
+	"wireflow/internal/core/infra"
 	"wireflow/internal/log"
 
 	"github.com/wireflowio/ice"
@@ -27,18 +24,19 @@ import (
 
 type TransportFactory struct {
 	mu                     sync.Mutex
-	transports             map[string]domain.Transport
-	sender                 domain.SignalService
-	keyManager             domain.KeyManager
+	transports             map[string]infra.Transport
+	sender                 infra.SignalService
+	keyManager             infra.KeyManager
 	universalUdpMuxDefault *ice.UniversalUDPMuxDefault
-	configurer             domain.Configurer
-	peerManager            *manager.PeerManager
+	provisioner            infra.Provisioner
+	peerManager            *infra.PeerManager
 	log                    *log.Logger
+	onClose                func(remoteId string) error
 }
 
-func NewTransportFactory(sender domain.SignalService, universalUdpMuxDefault *ice.UniversalUDPMuxDefault) *TransportFactory {
+func NewTransportFactory(sender infra.SignalService, universalUdpMuxDefault *ice.UniversalUDPMuxDefault) *TransportFactory {
 	return &TransportFactory{
-		transports:             make(map[string]domain.Transport),
+		transports:             make(map[string]infra.Transport),
 		sender:                 sender,
 		universalUdpMuxDefault: universalUdpMuxDefault,
 		log:                    log.NewLogger(log.Loglevel, "wireflow"),
@@ -47,21 +45,27 @@ func NewTransportFactory(sender domain.SignalService, universalUdpMuxDefault *ic
 
 type FactoryOptions func(*TransportFactory)
 
-func WithKeyManager(keyManager domain.KeyManager) FactoryOptions {
+func WithKeyManager(keyManager infra.KeyManager) FactoryOptions {
 	return func(t *TransportFactory) {
 		t.keyManager = keyManager
 	}
 }
 
-func WithConfigurer(configure domain.Configurer) FactoryOptions {
+func WithProvisioner(provisioner infra.Provisioner) FactoryOptions {
 	return func(t *TransportFactory) {
-		t.configurer = configure
+		t.provisioner = provisioner
 	}
 }
 
-func WithPeerManager(peerManager *manager.PeerManager) FactoryOptions {
+func WithPeerManager(peerManager *infra.PeerManager) FactoryOptions {
 	return func(t *TransportFactory) {
 		t.peerManager = peerManager
+	}
+}
+
+func WithOnClose(onClose func(remoteId string) error) FactoryOptions {
+	return func(t *TransportFactory) {
+		t.onClose = onClose
 	}
 }
 
@@ -71,13 +75,13 @@ func (t *TransportFactory) Configure(opts ...FactoryOptions) {
 	}
 }
 
-func (t *TransportFactory) MakeTransport(localId, peerId string) (domain.Transport, error) {
+func (t *TransportFactory) MakeTransport(localId, remoteId string) (infra.Transport, error) {
 	transport, err := NewPionTransport(&ICETransportConfig{
 		Sender:                 t.sender.Send,
-		PeerId:                 peerId,
+		RemoteId:               remoteId,
 		LocalId:                localId,
 		UniversalUdpMuxDefault: t.universalUdpMuxDefault,
-		Configurer:             t.configurer,
+		Configurer:             t.provisioner,
 		PeerManager:            t.peerManager,
 	})
 
@@ -85,39 +89,28 @@ func (t *TransportFactory) MakeTransport(localId, peerId string) (domain.Transpo
 		return nil, err
 	}
 
-	transport.onClose = func(peerId string) {
+	orignalClose := t.onClose
+	transport.onClose = func(remoteId string) {
+		orignalClose(remoteId)
 		t.mu.Lock()
 		defer t.mu.Unlock()
-		delete(t.transports, peerId)
-		t.log.Infof("transport: peer %s closed and removed from factory", peerId)
+		delete(t.transports, remoteId)
+		t.log.Infof("transport: peer %s closed and removed from factory", remoteId)
 	}
-	t.transports[peerId] = transport
+	t.transports[remoteId] = transport
 	return transport, nil
 }
 
-func (t *TransportFactory) GetTransport(peerId string) (domain.Transport, error) {
+func (t *TransportFactory) GetTransport(remoteId string) (infra.Transport, error) {
 	var err error
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	transport, ok := t.transports[peerId]
+	transport, ok := t.transports[remoteId]
 	if !ok {
-		transport, err = t.MakeTransport(t.keyManager.GetPublicKey(), peerId)
+		transport, err = t.MakeTransport(t.keyManager.GetPublicKey(), remoteId)
 		if err != nil {
 			return nil, err
 		}
 	}
 	return transport, nil
-}
-
-func (t *TransportFactory) HandleSignal(ctx context.Context, peerId string, packet *grpc.SignalPacket) error {
-	transport := t.transports[peerId]
-	var err error
-	if transport == nil {
-		transport, err = t.GetTransport(peerId)
-		if err != nil {
-			return err
-		}
-	}
-
-	return transport.HandleSignal(ctx, peerId, packet)
 }

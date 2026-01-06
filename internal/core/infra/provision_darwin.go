@@ -2,7 +2,7 @@ package infra
 
 import "fmt"
 
-func (r *applier) ApplyRoute(action, address, interfaceName string) error {
+func (r *routeProvisioner) ApplyRoute(action, address, interfaceName string) error {
 	//example: sudo route -nv add -net 192.168.10.1 -netmask 255.255.255.0 -interface en0
 	switch action {
 	case "add":
@@ -23,7 +23,7 @@ func (r *applier) ApplyRoute(action, address, interfaceName string) error {
 	return nil
 }
 
-func (r *applier) ApplyIP(action, address, name string) error {
+func (r *routeProvisioner) ApplyIP(action, address, name string) error {
 	switch action {
 	case "add":
 		if err := ExecCommand("/bin/sh", "-c", fmt.Sprintf("ifconfig %s %s %s", name, address, address)); err != nil {
@@ -32,5 +32,9 @@ func (r *applier) ApplyIP(action, address, name string) error {
 
 	}
 
+	return nil
+}
+
+func (r *ruleProvisioner) ApplyRule(action, rule string) error {
 	return nil
 }

@@ -2,7 +2,7 @@ package infra
 
 import "fmt"
 
-func (r *applier) ApplyRoute(action, address, name string) error {
+func (r *routeProvisioner) ApplyRoute(action, address, name string) error {
 	cidr := GetCidrFromIP(address)
 	switch action {
 	case "add":
@@ -17,12 +17,16 @@ func (r *applier) ApplyRoute(action, address, name string) error {
 	return nil
 }
 
-func (r *applier) ApplyIP(action, address, name string) error {
+func (r *routeProvisioner) ApplyIP(action, address, name string) error {
 	switch action {
 	case "add":
 		ExecCommand("/bin/sh", "-c", fmt.Sprintf("ip address add dev %s %s", name, address))
 		ExecCommand("/bin/sh", "-c", fmt.Sprintf("ip link set dev %s up", name))
 	}
 
+	return nil
+}
+
+func (r *ruleProvisioner) ApplyRule(action, rule string) error {
 	return nil
 }

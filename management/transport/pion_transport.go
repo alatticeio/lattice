@@ -12,16 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package probe
+package transport
 
 import (
 	"context"
 	"fmt"
 	"net"
 	"sync"
-	"time"
-	"wireflow/internal/core/domain"
-	"wireflow/internal/core/manager"
+	"wireflow/internal/core/infra"
 	"wireflow/internal/grpc"
 	"wireflow/internal/log"
 
@@ -31,7 +29,7 @@ import (
 )
 
 var (
-	_ domain.Transport = (*PionTransport)(nil)
+	_ infra.Transport = (*PionTransport)(nil)
 )
 
 // PionTransport using pion ice for transport
@@ -41,10 +39,10 @@ type PionTransport struct {
 	localId       string
 	sender        func(ctx context.Context, peerId string, data []byte) error
 	onClose       func(peerId string)
-	Configurer    domain.Configurer
-	peerId        string
+	provisioner   infra.Provisioner
+	remoteId      string
 	agent         *AgentWrapper
-	state         domain.TransportState
+	state         infra.TransportState
 	probeAckChan  chan struct{}
 	closeOnce     sync.Once
 	ackClose      sync.Once
@@ -52,17 +50,17 @@ type PionTransport struct {
 
 	universalUdpMuxDefault *ice.UniversalUDPMuxDefault
 
-	peers *manager.PeerManager
+	peers *infra.PeerManager
 }
 
 type ICETransportConfig struct {
 	Sender                 func(ctx context.Context, peerId string, data []byte) error
-	PeerId                 string
+	RemoteId               string
 	LocalId                string
 	OnClose                func(peerId string)
 	UniversalUdpMuxDefault *ice.UniversalUDPMuxDefault
-	Configurer             domain.Configurer
-	PeerManager            *manager.PeerManager
+	Configurer             infra.Provisioner
+	PeerManager            *infra.PeerManager
 }
 
 func NewPionTransport(cfg *ICETransportConfig) (*PionTransport, error) {
@@ -71,15 +69,15 @@ func NewPionTransport(cfg *ICETransportConfig) (*PionTransport, error) {
 		onClose:                cfg.OnClose,
 		sender:                 cfg.Sender,
 		localId:                cfg.LocalId,
-		peerId:                 cfg.PeerId,
+		remoteId:               cfg.RemoteId,
 		probeAckChan:           make(chan struct{}),
 		OfferRecvChan:          make(chan struct{}),
 		universalUdpMuxDefault: cfg.UniversalUdpMuxDefault,
-		Configurer:             cfg.Configurer,
+		provisioner:            cfg.Configurer,
 		peers:                  cfg.PeerManager,
 	}
 	var err error
-	t.agent, err = t.getAgent(cfg.PeerId)
+	t.agent, err = t.getAgent(cfg.RemoteId)
 	if err != nil {
 		return nil, err
 	}
@@ -87,7 +85,7 @@ func NewPionTransport(cfg *ICETransportConfig) (*PionTransport, error) {
 	return t, nil
 }
 
-func (t *PionTransport) getAgent(peerID string) (*AgentWrapper, error) {
+func (t *PionTransport) getAgent(remoteId string) (*AgentWrapper, error) {
 	f := logging.NewDefaultLoggerFactory()
 	f.DefaultLogLevel = logging.LogLevelDebug
 	// 创建新 Agent
@@ -115,7 +113,7 @@ func (t *PionTransport) getAgent(peerID string) (*AgentWrapper, error) {
 					return
 				}
 
-				if err := t.AddPeer(peerID, fmt.Sprintf("%s:%d", pair.Remote.Address(), pair.Remote.Port())); err != nil {
+				if err := t.AddPeer(remoteId, fmt.Sprintf("%s:%d", pair.Remote.Address(), pair.Remote.Port())); err != nil {
 					t.log.Errorf("Add peer error: %v", err)
 				}
 			}
@@ -131,7 +129,7 @@ func (t *PionTransport) getAgent(peerID string) (*AgentWrapper, error) {
 			return
 		}
 
-		if err = t.sendCandidate(context.TODO(), agent, peerID, candidate); err != nil {
+		if err = t.sendCandidate(context.TODO(), agent, remoteId, candidate); err != nil {
 			t.log.Errorf("Send candidate error: %v", err)
 		}
 
@@ -143,161 +141,73 @@ func (t *PionTransport) getAgent(peerID string) (*AgentWrapper, error) {
 	return agent, err
 }
 
-func (t *PionTransport) Prepare(ctx context.Context, peerId string, send func(ctx context.Context, peerId string, data []byte) error) error {
-	ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
-	defer cancel()
-	//1. start handshake syn
-	go func() {
-		ticker := time.NewTicker(2 * time.Second)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-ctx.Done():
-				t.log.Errorf("stop send syn packet: %v", ctx.Err())
-				return
-			case <-ticker.C:
-				// send syn
-				t.probePacket(ctx, peerId, grpc.PacketType_HANDSHAKE_SYN)
-			}
-		}
-
-	}()
-
-	//waiting probe ack
-	t.log.Infof("waiting for [%s] preProbe ACK...", peerId)
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	case <-t.probeAckChan:
-		// send offer
-		t.log.Infof("preProbe ACK received, will sending offer to: %s", peerId)
-		cancel()
-		return t.agent.GatherCandidates()
-	}
+func (t *PionTransport) Prepare() error {
+	return t.agent.GatherCandidates()
 }
 
-func (t *PionTransport) probePacket(ctx context.Context, peerId string, packetType grpc.PacketType) error {
-	packet := &grpc.SignalPacket{
-		SenderId: t.localId,
-		Type:     packetType,
-		Payload: &grpc.SignalPacket_Handshake{
-			Handshake: &grpc.Handshake{
-				Timestamp: time.Now().Unix(),
-			},
-		},
+func (t *PionTransport) HandleOffer(ctx context.Context, remoteId string, packet *grpc.SignalPacket) error {
+	agent := t.agent
+	offer := packet.GetOffer()
+
+	//第一次接收
+	if !agent.IsCredentialsInited.Load() {
+		agent.RUfrag = offer.Ufrag
+		agent.RPwd = offer.Pwd
+		agent.RTieBreaker = offer.TieBreaker
+		agent.IsCredentialsInited.Store(true)
 	}
 
-	data, err := proto.Marshal(packet)
+	candidate, err := ice.UnmarshalCandidate(offer.Candidate)
 	if err != nil {
 		return err
 	}
 
-	return t.sender(ctx, peerId, data)
-}
-
-func (t *PionTransport) HandleSignal(ctx context.Context, peerId string, packet *grpc.SignalPacket) error {
-	var err error
-	switch packet.Type {
-	case grpc.PacketType_HANDSHAKE_SYN:
-		// send ack
-		if err = t.probePacket(ctx, peerId, grpc.PacketType_HANDSHAKE_ACK); err != nil {
-			return err
-		}
-	case grpc.PacketType_HANDSHAKE_ACK:
-		// ack chan close, will send or waiting offer
-		t.log.Infof("probe ACK received from [%s]", peerId)
-		t.ackClose.Do(func() {
-			close(t.probeAckChan)
-		})
-	default:
-		agent := t.agent
-		offer := packet.GetOffer()
-
-		//第一次接收
-		if !agent.IsCredentialsInited.Load() {
-			agent.RUfrag = offer.Ufrag
-			agent.RPwd = offer.Pwd
-			agent.RTieBreaker = offer.TieBreaker
-			agent.IsCredentialsInited.Store(true)
-			close(t.OfferRecvChan)
-
-			//start
-			go func() {
-				t.Start(ctx, peerId)
-			}()
-		}
-
-		candidate, err := ice.UnmarshalCandidate(offer.Candidate)
-		if err != nil {
-			return err
-		}
-
-		if err = agent.AddRemoteCandidate(candidate); err != nil {
-			return err
-		}
-
-		return nil
+	if err = agent.AddRemoteCandidate(candidate); err != nil {
+		return err
 	}
 
 	return nil
 }
 
-func (t *PionTransport) OnConnectionStateChange(state domain.TransportState) error {
+func (t *PionTransport) OnConnectionStateChange(state infra.TransportState) error {
 	return nil
 }
 
-func (t *PionTransport) Start(ctx context.Context, peerId string) (err error) {
-	agent := t.agent
-	go func() {
-		ctx, timeout := context.WithTimeout(ctx, 60*time.Second)
-		defer timeout()
-		select {
-		case <-ctx.Done():
-			t.log.Errorf("close peer %s connection", peerId)
-			return
-		case <-t.OfferRecvChan:
-			if agent.GetTieBreaker() > agent.RTieBreaker {
-				_, err = agent.Dial(ctx, agent.RUfrag, agent.RPwd)
-			} else {
-				_, err = agent.Accept(ctx, agent.RUfrag, agent.RPwd)
-			}
+func (t *PionTransport) Start(ctx context.Context, remoteId string) (err error) {
+	if t.agent.GetTieBreaker() > t.agent.RTieBreaker {
+		_, err = t.agent.Dial(ctx, t.agent.RUfrag, t.agent.RPwd)
+	} else {
+		_, err = t.agent.Accept(ctx, t.agent.RUfrag, t.agent.RPwd)
+	}
 
-			if err != nil {
-				t.log.Errorf("err: %v", err)
-			}
-		}
-
-	}()
-
-	return nil
-
+	return err
 }
 
 func (t *PionTransport) RawConn() (net.Conn, error) {
 	return nil, nil
 }
 
-func (t *PionTransport) State() domain.TransportState {
+func (t *PionTransport) State() infra.TransportState {
 	return t.state
 }
 
 func (t *PionTransport) Close() error {
-	t.log.Infof("closing transport for : %s", t.peerId)
+	t.log.Infof("closing transport for : %s", t.remoteId)
 	t.closeOnce.Do(func() {
 		if err := t.agent.Close(); err != nil {
 			t.log.Errorf("close agent error: %v", err)
 		}
 
 		if t.onClose != nil {
-			t.onClose(t.peerId)
+			t.onClose(t.remoteId)
 		}
 	})
 
 	return nil
 }
 
-func (t *PionTransport) sendCandidate(ctx context.Context, agent *AgentWrapper, peerId string, candidate ice.Candidate) error {
-	//if !t.isShouldSendOffer(t.localId, peerId) {
+func (t *PionTransport) sendCandidate(ctx context.Context, agent *AgentWrapper, remoteId string, candidate ice.Candidate) error {
+	//if !t.isShouldSendOffer(t.localId, remoteId) {
 	//	return nil
 	//}
 	ufrag, pwd, err := agent.GetLocalUserCredentials()
@@ -323,7 +233,7 @@ func (t *PionTransport) sendCandidate(ctx context.Context, agent *AgentWrapper, 
 		return err
 	}
 
-	if err = t.sender(context.TODO(), peerId, data); err != nil {
+	if err = t.sender(context.TODO(), remoteId, data); err != nil {
 		t.log.Errorf("send candidate: %v", err)
 		return err
 	}
@@ -331,28 +241,36 @@ func (t *PionTransport) sendCandidate(ctx context.Context, agent *AgentWrapper, 
 	return nil
 }
 
-func (t *PionTransport) isShouldSendOffer(localId, peerId string) bool {
-	return localId > peerId
+func (t *PionTransport) isShouldSendOffer(localId, remoteId string) bool {
+	return localId > remoteId
 }
 
-func (t *PionTransport) updateTransportState(newState domain.TransportState) {
+func (t *PionTransport) updateTransportState(newState infra.TransportState) {
 	t.su.Lock()
 	defer t.su.Unlock()
 	oldState := t.state
 	t.state = newState
 	if oldState != newState {
-		t.log.Infof("Transport State changed: %v -> %v", t.peerId, oldState, newState)
+		t.log.Infof("Transport State changed: %v -> %v", t.remoteId, oldState, newState)
 		// 这里可以触发回调通知 Probe 层或 WireGuard 层
 		t.OnConnectionStateChange(newState)
 	}
 }
 
-func (t *PionTransport) AddPeer(peerId, addr string) error {
-	peer := t.peers.GetPeer(peerId)
-	return t.Configurer.AddPeer(&domain.SetPeer{
+func (t *PionTransport) AddPeer(remoteId, addr string) error {
+	var err error
+	peer := t.peers.GetPeer(remoteId)
+	if err = t.provisioner.AddPeer(&infra.SetPeer{
 		Endpoint:             addr,
-		PublicKey:            peerId,
+		PublicKey:            remoteId,
 		AllowedIPs:           peer.AllowedIPs,
 		PersistentKeepalived: 25,
-	})
+	}); err != nil {
+		return err
+	}
+
+	if err = t.provisioner.ApplyRoute("add", *peer.Address, t.provisioner.GetIfaceName()); err != nil {
+		return err
+	}
+	return nil
 }

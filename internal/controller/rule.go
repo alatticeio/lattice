@@ -17,7 +17,6 @@ package controller
 import (
 	"fmt"
 	"strings"
-	"wireflow/internal/core/domain"
 	"wireflow/internal/core/infra"
 )
 
@@ -30,7 +29,7 @@ type RuleGenerator interface {
 	// chain: "INPUT" 或 "OUTPUT"
 	// baseCmd: e.g., "-A INPUT -i wg0 -s 10.0.0.1" (通用部分)
 	// peer: 规则涉及的对端 Peer
-	GenerateRule(chain string, baseCmd string, rule *domain.Rule, peer *domain.Peer) (string, error)
+	GenerateRule(chain string, baseCmd string, rule *infra.Rule, peer *infra.Peer) (string, error)
 
 	// GenerateStatefulAccept 生成状态检测规则（RELATED, ESTABLISHED）
 	GenerateStatefulAccept(iface string, chain string) string
@@ -69,7 +68,7 @@ func (g *WindowsGenerator) Name() string {
 	return "Windows"
 }
 
-func (g *WindowsGenerator) GenerateRule(chain string, baseCmd string, rule *domain.Rule, peer *domain.Peer) (string, error) {
+func (g *WindowsGenerator) GenerateRule(chain string, baseCmd string, rule *infra.Rule, peer *infra.Peer) (string, error) {
 	direction := "Outbound"
 	if chain == "INPUT" {
 		direction = "Inbound"
@@ -127,7 +126,7 @@ func (g *IptablesGenerator) Name() string {
 	return "Linux"
 }
 
-func (g *IptablesGenerator) GenerateRule(chain string, baseCmd string, rule *domain.Rule, peer *domain.Peer) (string, error) {
+func (g *IptablesGenerator) GenerateRule(chain string, baseCmd string, rule *infra.Rule, peer *infra.Peer) (string, error) {
 	// baseCmd: e.g., "-A INPUT -i wg0 -s 10.0.0.1"
 
 	cmd := baseCmd

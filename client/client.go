@@ -28,15 +28,13 @@ import (
 	"syscall"
 	"wireflow/internal"
 	"wireflow/internal/config"
-	"wireflow/internal/core/domain"
 	"wireflow/internal/core/infra"
-	"wireflow/internal/core/manager"
 	"wireflow/internal/log"
 	"wireflow/internal/wferrors"
 	ctrclient "wireflow/management/client"
 	mgtclient "wireflow/management/client"
 	"wireflow/management/nats"
-	"wireflow/management/probe"
+	"wireflow/management/transport"
 
 	wg "golang.zx2c4.com/wireguard/device"
 	"golang.zx2c4.com/wireguard/ipc"
@@ -44,30 +42,29 @@ import (
 )
 
 var (
-	_ domain.Client = (*Client)(nil)
+	_ infra.Client = (*Client)(nil)
 )
 
 // Client act as wireflow data plane, wrappers around wireguard device
 type Client struct {
-	logger       *log.Logger
-	Name         string
-	iface        *wg.Device
-	bind         *DefaultBind
-	routeApplier infra.RouteApplier
+	logger      *log.Logger
+	Name        string
+	iface       *wg.Device
+	bind        *DefaultBind
+	provisioner infra.Provisioner
 
-	GetNetworkMap func() (*domain.Message, error)
+	GetNetworkMap func() (*infra.Message, error)
 	ctrClient     *ctrclient.Client
 
 	manager struct {
-		keyManager  domain.KeyManager
+		keyManager  infra.KeyManager
 		turnManager *internal.TurnManager
-		peerManager *manager.PeerManager
+		peerManager *infra.PeerManager
 	}
 
-	wgConfigure domain.Configurer
-	current     *domain.Peer
+	current *infra.Peer
 
-	callback     func(message *domain.Message) error
+	callback     func(message *infra.Message) error
 	eventHandler *EventHandler
 }
 
@@ -151,10 +148,10 @@ func NewClient(cfg *ClientConfig) (*Client, error) {
 		v6conn *net.UDPConn
 	)
 	client = new(Client)
-	client.manager.peerManager = manager.NewPeerManager()
+	client.manager.peerManager = infra.NewPeerManager()
 	client.logger = cfg.Logger
 	client.manager.turnManager = new(internal.TurnManager)
-	client.Name, iface, err = CreateTUN(domain.DefaultMTU, cfg.Logger)
+	client.Name, iface, err = CreateTUN(infra.DefaultMTU, cfg.Logger)
 	if err != nil {
 		return nil, err
 	}
@@ -169,14 +166,12 @@ func NewClient(cfg *ClientConfig) (*Client, error) {
 
 	universalUdpMuxDefault := infra.NewUdpMux(v4conn)
 
-	client.routeApplier = infra.NewRouteApplier()
-
 	natsSignalService, err := nats.NewNatsService(config.GlobalConfig.SignalUrl)
 	if err != nil {
 		return nil, err
 	}
 
-	factory := probe.NewTransportFactory(natsSignalService, universalUdpMuxDefault)
+	factory := transport.NewTransportFactory(natsSignalService, universalUdpMuxDefault)
 
 	client.ctrClient, err = ctrclient.NewClient(natsSignalService, factory)
 	if err != nil {
@@ -190,14 +185,24 @@ func NewClient(cfg *ClientConfig) (*Client, error) {
 	}
 
 	privateKey = client.current.PrivateKey
-	client.manager.keyManager = manager.NewKeyManager(privateKey)
+	client.manager.keyManager = infra.NewKeyManager(privateKey)
 
-	factory.Configure(probe.WithPeerManager(client.manager.peerManager), probe.WithKeyManager(client.manager.keyManager))
+	factory.Configure(transport.WithPeerManager(client.manager.peerManager), transport.WithKeyManager(client.manager.keyManager))
+
+	localId := client.manager.keyManager.GetPublicKey()
+	probeFactory := transport.NewProbeFactory(&transport.ProbeFactoryConfig{
+		Factory: factory,
+		LocalId: localId,
+		Signal:  natsSignalService,
+	})
 
 	//subscribe
-	natsSignalService.Subscribe(fmt.Sprintf("%s.%s", "wireflow.signals.peers", client.manager.keyManager.GetPublicKey()), factory.HandleSignal)
+	natsSignalService.Subscribe(fmt.Sprintf("%s.%s", "wireflow.signals.peers", localId), probeFactory.HandleSignal)
 
-	client.ctrClient.Configure(ctrclient.WithSignalHandler(natsSignalService), ctrclient.WithKeyManager(client.manager.keyManager))
+	client.ctrClient.Configure(
+		ctrclient.WithSignalHandler(natsSignalService),
+		ctrclient.WithKeyManager(client.manager.keyManager),
+		ctrclient.WithProbeFactory(probeFactory))
 
 	// init stun
 	//if turnClient, err = turn.NewClient(&turn.ClientConfig{
@@ -217,7 +222,7 @@ func NewClient(cfg *ClientConfig) (*Client, error) {
 	//client.manager.turnManager.SetInfo(info)
 
 	client.bind = NewBind(&BindConfig{
-		Logger:          log.NewLogger(log.Loglevel, "wireflow"),
+		Logger:          cfg.Logger,
 		UniversalUDPMux: universalUdpMuxDefault,
 		V4Conn:          v4conn,
 		V6Conn:          v6conn,
@@ -233,14 +238,14 @@ func NewClient(cfg *ClientConfig) (*Client, error) {
 
 	client.iface = wg.NewDevice(iface, client.bind, cfg.WgLogger)
 
-	wgConfigure := manager.NewConfigurer(&manager.Params{
-		Device:    client.iface,
-		IfaceName: client.Name,
-	})
+	client.provisioner = infra.NewProvisioner(infra.NewRouteProvisioner(cfg.Logger),
+		infra.NewRuleProvisioner(cfg.Logger), &infra.Params{
+			Device:    client.iface,
+			IfaceName: client.Name,
+		})
 
-	client.wgConfigure = wgConfigure
 	// set configurer
-	factory.Configure(probe.WithConfigurer(wgConfigure))
+	factory.Configure(transport.WithProvisioner(client.provisioner))
 
 	return client, err
 }
@@ -249,7 +254,7 @@ func NewClient(cfg *ClientConfig) (*Client, error) {
 func (c *Client) Start() error {
 	ctx := context.Background()
 	// init event handler
-	c.eventHandler = NewEventHandler(c, log.NewLogger(log.Loglevel, "event-handler"), c.ctrClient)
+	c.eventHandler = NewEventHandler(c, log.NewLogger(log.Loglevel, "event-handler"), c.provisioner)
 	// start deviceManager, open udp port
 	if err := c.iface.Up(); err != nil {
 		return err
@@ -257,13 +262,13 @@ func (c *Client) Start() error {
 
 	if c.current.Address != nil {
 		// 设置Device
-		if err := c.routeApplier.ApplyIP("add", *c.current.Address, c.wgConfigure.GetIfaceName()); err != nil {
+		if err := c.provisioner.ApplyIP("add", *c.current.Address, c.provisioner.GetIfaceName()); err != nil {
 			return err
 		}
 	}
 
 	if c.manager.keyManager.GetKey() != "" {
-		if err := c.wgConfigure.Configure(&domain.DeviceConfig{
+		if err := c.provisioner.SetupInterface(&infra.DeviceConfig{
 			PrivateKey: c.current.PrivateKey,
 		}); err != nil {
 			return err
@@ -287,7 +292,7 @@ func (c *Client) Stop() error {
 }
 
 // SetConfig updates the configuration of the given interface.
-func (c *Client) SetConfig(conf *domain.DeviceConf) error {
+func (c *Client) SetConfig(conf *infra.DeviceConf) error {
 	nowConf, err := c.iface.IpcGet()
 	if err != nil {
 		return err
@@ -307,33 +312,33 @@ func (c *Client) close() {
 	c.logger.Verbosef("deviceManager closed")
 }
 
-func (c *Client) AddPeer(peer *domain.Peer) error {
+func (c *Client) AddPeer(peer *infra.Peer) error {
 	c.manager.peerManager.AddPeer(peer.PublicKey, peer)
 	return c.ctrClient.AddPeer(peer)
 }
 
 func (c *Client) Configure(peerId string) error {
-	//conf *domain.DeviceConfig
+	//conf *infra.DeviceConfig
 	peer := c.manager.peerManager.GetPeer(peerId)
 	if peer == nil {
 		return errors.New("peer not found")
 	}
 
-	conf := &domain.DeviceConfig{
+	conf := &infra.DeviceConfig{
 		PrivateKey: peer.PrivateKey,
 	}
-	return c.wgConfigure.Configure(conf)
+	return c.provisioner.SetupInterface(conf)
 }
 
-func (c *Client) RemovePeer(peer *domain.Peer) error {
-	return c.wgConfigure.RemovePeer(&domain.SetPeer{
+func (c *Client) RemovePeer(peer *infra.Peer) error {
+	return c.provisioner.RemovePeer(&infra.SetPeer{
 		Remove:    true,
 		PublicKey: peer.PublicKey,
 	})
 }
 
 func (c *Client) RemoveAllPeers() {
-	c.wgConfigure.RemoveAllPeers()
+	c.provisioner.RemoveAllPeers()
 }
 
 func (c *Client) GetDeviceName() string {

@@ -18,7 +18,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"wireflow/internal/core/domain"
+	"wireflow/internal/core/infra"
 
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 )
@@ -26,7 +26,7 @@ import (
 // 关注L3/L4的策略，根据Policy中的ingress来实现
 // Default deny， 只生成Accept策略， 零信任
 type FirewallRuleResolver interface {
-	ResolveRules(ctx context.Context, currentPeer *domain.Peer, network *domain.Network, policies []*domain.Policy) (*domain.FirewallRule, error)
+	ResolveRules(ctx context.Context, currentPeer *infra.Peer, network *infra.Network, policies []*infra.Policy) (*infra.FirewallRule, error)
 }
 
 type firewallRuleResolver struct {
@@ -37,14 +37,14 @@ func NewFirewallResolver() FirewallRuleResolver {
 	return &firewallRuleResolver{}
 }
 
-func (r *firewallRuleResolver) ResolveRules(ctx context.Context, currentPeer *domain.Peer, network *domain.Network, allPolicies []*domain.Policy) (*domain.FirewallRule, error) {
+func (r *firewallRuleResolver) ResolveRules(ctx context.Context, currentPeer *infra.Peer, network *infra.Network, allPolicies []*infra.Policy) (*infra.FirewallRule, error) {
 	log := logf.FromContext(ctx)
 	log.Info("Resolving firewall rules")
 	if currentPeer == nil || network == nil {
 		return nil, fmt.Errorf("currentPeer or network cannot be nil")
 	}
 
-	result := &domain.FirewallRule{
+	result := &infra.FirewallRule{
 		Platform:     currentPeer.Platform,
 		IngressRules: make([]string, 0),
 		EgressRules:  make([]string, 0),
@@ -64,7 +64,7 @@ func (r *firewallRuleResolver) ResolveRules(ctx context.Context, currentPeer *do
 
 	// [Step 1] 筛选出适用于当前 Peer 的策略
 	appliedPolicies := allPolicies
-	//appliedPolicies := make([]*domain.Policy, 0)
+	//appliedPolicies := make([]*infra.Policy, 0)
 	//for _, policy := range allPolicies {
 	//	for _, appliedID := range policy.AppliedToPeerIDs {
 	//		if appliedID == currentPeer.Name {

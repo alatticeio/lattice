@@ -18,7 +18,7 @@ import (
 	"context"
 	"fmt"
 	"time"
-	"wireflow/internal/core/domain"
+	"wireflow/internal/core/infra"
 	"wireflow/internal/log"
 
 	"wireflow/internal/grpc"
@@ -29,7 +29,7 @@ import (
 )
 
 var (
-	_ domain.SignalService = (*NatsSignalService)(nil)
+	_ infra.SignalService = (*NatsSignalService)(nil)
 )
 
 type SignalHandler func(ctx context.Context, peerId string, packet *grpc.SignalPacket) error
