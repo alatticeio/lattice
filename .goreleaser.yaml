@@ -1,0 +1,36 @@
+version: 2
+project_name: wireflow
+
+builds:
+  # 第一个二进制文件：主控制器
+  - id: "wireflow"
+    binary: "wireflow"
+    main: "./cmd/wireflow/main.go" # 替换为你实际的路径
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+
+  # 第二个二进制文件：边缘 Agent
+  - id: "wireflow-wfctl"
+    binary: "wfctl"
+    main: "./cmd/wfctl/main.go" # 替换为你实际的路径
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+
+archives:
+  - name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    # 默认情况下，goreleaser 会把所有编译出的 binary 放到同一个压缩包里
+    # 如果你想把它们分开打包，可以参考下面的配置
+    id: "wireflow-archive"
