@@ -31,9 +31,9 @@ type NetworkPolicyReconciler struct {
 	Scheme *runtime.Scheme
 }
 
-// +kubebuilder:rbac:groups=wireflowcontroller.wireflowio.com,resources=networkpolicies,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=wireflowcontroller.wireflowio.com,resources=networkpolicies/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=wireflowcontroller.wireflowio.com,resources=networkpolicies/finalizers,verbs=update
+// +kubebuilder:rbac:groups=wireflowcontroller.wireflow.run,resources=networkpolicies,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=wireflowcontroller.wireflow.run,resources=networkpolicies/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=wireflowcontroller.wireflow.run,resources=networkpolicies/finalizers,verbs=update
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.

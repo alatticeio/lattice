@@ -20,7 +20,7 @@ WireGuard.
   receives the desired state from the controller, enabling automated orchestration of connectivity and granular access
   policies.
 
-For more information, please visit our official website: [wireflowio.com](https://wireflowio.com)
+For more information, please visit our official website: [wireflow.run](https://wireflow.run)
 
 ## Wireflow Technical Capabilities
 
@@ -36,38 +36,28 @@ For more information, please visit our official website: [wireflowio.com](https:
 
 - Kubernetes-Native Orchestration: Peer discovery and connection orchestration are managed directly through a
   Kubernetes-native CRDs controller.
-- Seamless NAT Traversal: Achieves resilient connectivity by prioritizing direct P2P connection attempts, with an
+- Seamless NAT Traversal: Achieves resilient connectivity by prioritizing direct P2P connection attempts, in future with an
   automated relay (TURN) fallback when required.
-- Private Service Resolution: Integrated Private DNS service for secure and simplified service/name resolution within
-  the overlay network.
-
-**3.Management & Observability**
-
-- Centralized Management: Features a powerful Management API and Web UI with built-in RBAC-ready (Role-Based Access
-  Control) access policies.
-- Operational Visibility: Provides Prometheus-friendly exporters for robust metrics and monitoring integration.
-- Flexible Deployment: Easily deployable via Docker; ready-to-use Kubernetes manifests and examples are provided in the
-  conf/ directory.
 
 Broad Platform Support: Cross-platform agents supporting Linux, macOS, and Windows (with mobile support currently in
 progress).
 
 ## Network Topology (High-Level Overview)
 
-- P2P Mesh Overlay: Devices automatically form a full mesh overlay network utilizing the WireGuard protocol for secure,
+- [x] P2P Mesh Overlay: Devices automatically form a full mesh overlay network utilizing the WireGuard protocol for secure,
   low-latency communication.
-- Intelligent NAT Traversal: Connectivity prioritizes direct P2P tunnels; if direct connection fails, traffic seamlessly
+- [] Intelligent NAT Traversal: Connectivity prioritizes direct P2P tunnels; if direct connection fails, traffic seamlessly
   relays via a dedicated TURN/relay server.
-- Centralized Orchestration: A Kubernetes-native control plane manages device lifecycle, cryptographic keys, and access
+- [x] Centralized Orchestration: A Kubernetes-native control plane manages device lifecycle, cryptographic keys, and access
   policies, ensuring zero-touch configuration across the entire network.
 
 
 **Key Features:**
-- Kubernetes CRD-based configuration
-- Automatic IP allocation (IPAM)
-- Multi-cloud/hybrid-cloud support
-- Built on WireGuard (fast & secure)
-- GitOps ready
+- [x] Kubernetes CRD-based configuration
+- [x] Automatic IP allocation (IPAM)
+- [] Multi-cloud/hybrid-cloud support
+- [x] Built on WireGuard (fast & secure)
+- [] GitOps ready
 
 ## Quick Start
 
@@ -84,41 +74,33 @@ Follow the steps on: [The Wireflow Authors](https://The Wireflow Authors)
 
 ## Steps
 
-**1. Building Client**
+**1. Building All**
 
 ```bash
 git clone https://github.com/wireflowio/wireflow.git
 cd wireflow
-make build-wireflow
-# then install or run the built binaries as needed
-```
-
-**2. Building Controller**
-
-```bash
-make build-wfctl
+make build-all
 # then install or run the built binaries as needed
 ```
 
 **3. Deploying wireflow-controller && CRDs && management / DRP / TURN server**
 
 ```bash
-make install && make deploy
+make manifests && make deploy
 # 
 ```
 
 ### Uninstall
 
 ```bash
-make uninstall && make undeploy
+make undeploy
 ```
 
 ## Wireflow Components
 
 **1. Wireflow signaling server**
 
-The Wireflow application requires a Signaling Server to establish peer-to-peer connections and exchange necessary peer metadata.
-You may use the public server at https://signaling.The Wireflow Authors or deploy your own instance using the provided docker image.
+The Wireflow using nats to exchange signaling messages between the controller and the data plane.
 
 **2. Relay (TURN) Overview**
 
@@ -152,8 +134,14 @@ These features represent the foundational, working architecture of Wireflow, foc
   connections are blocked by strict NATs or firewalls.
 
 **1. Product Roadmap and Milestones**
-
-- [] Access control: define rules and policies for who can reach what or where then want
+- [] Private Service Resolution: Integrated Private DNS service for secure and simplified service/name resolution within
+  the overlay network.
+- [] Centralized Management: Features a powerful Management API and Web UI with built-in RBAC-ready (Role-Based Access
+  Control) access policies.
+- [] Operational Visibility: Provides Prometheus-friendly exporters for robust metrics and monitoring integration.
+- [x] Flexible Deployment: Easily deployable via Docker; ready-to-use Kubernetes manifests and examples are provided in the
+  conf/ directory.
+- [x] Access control: define rules and policies for who can reach what or where then want
 - [] Private DNS: Provides a secure and simplified service discovery mechanism for internal services.
 
 ## License

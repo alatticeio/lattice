@@ -78,7 +78,7 @@ spec:
       hostAliases:
         - ip: "10.96.98.115"
           hostnames:
-            - "console.wireflowio.com"
+            - "console.wireflow.run"
       containers:
         - name: wireflow-signaling
           image: registry.cn-hangzhou.aliyuncs.com/wireflow-io/wireflow:latest
@@ -124,7 +124,7 @@ spec:
       hostAliases:
         - ip: "10.96.80.105"
           hostnames:
-            - "console.wireflowio.com"
+            - "console.wireflow.run"
       containers:
         - name: wireflow-turn
           image: registry.cn-hangzhou.aliyuncs.com/wireflow-io/wireflow:latest

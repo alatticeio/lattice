@@ -42,7 +42,7 @@ type Client struct {
 
 type ClientConfig struct {
 	Logger    *log.Logger
-	ServerUrl string // stun.wireflowio.com:3478
+	ServerUrl string // stun.wireflow.run:3478
 	Realm     string
 }
 
@@ -65,7 +65,7 @@ func NewClient(cfg *ClientConfig) (internal.Client, error) {
 		Conn:           turn.NewSTUNConn(conn),
 		Username:       username,
 		Password:       password,
-		Realm:          "wireflowio.com",
+		Realm:          "wireflow.run",
 		LoggerFactory:  logging.NewDefaultLoggerFactory(),
 	}
 
@@ -108,7 +108,7 @@ func (c *Client) GetRelayInfo(allocated bool) (*internal.RelayInfo, error) {
 		return nil, err
 	}
 
-	c.logger.Verbosef("get from turn relayed-address=%s", mappedAddr.String())
+	c.logger.Info("get from turn", "relayed-info", mappedAddr.String())
 
 	mapAddr, _ := internal.AddrToUdpAddr(mappedAddr)
 	c.relayInfo.MappedAddr = *mapAddr

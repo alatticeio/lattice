@@ -63,7 +63,7 @@ func NewAgent(cfg *AgentConfig) (*AgentWrapper, error) {
 	if err == nil {
 		agent = &AgentWrapper{
 			Agent:   iceAgent,
-			log:     log.NewLogger(log.Loglevel, "agent-wrapper"),
+			log:     log.GetLogger("agent-wrapper"),
 			sender:  cfg.Send,
 			localId: cfg.LocalId,
 			peerId:  cfg.PeerID,
@@ -73,7 +73,7 @@ func NewAgent(cfg *AgentConfig) (*AgentWrapper, error) {
 			if s == ice.ConnectionStateConnected {
 				pair, err := agent.GetSelectedCandidatePair()
 				if err != nil {
-					agent.log.Errorf("Get selected candidate pair error: %v", err)
+					agent.log.Error("Get selected candidate pair", err)
 					return
 				}
 				cfg.onCall(cfg.PeerID, fmt.Sprintf("%s:%d", pair.Remote.Address(), pair.Remote.Port()))
@@ -88,7 +88,7 @@ func NewAgent(cfg *AgentConfig) (*AgentWrapper, error) {
 		}
 
 		if err = agent.sendCandidate(context.Background(), candidate); err != nil {
-			agent.log.Errorf("Send candidate error: %v", err)
+			agent.log.Error("Send candidate", err)
 		}
 
 	}); err != nil {
@@ -118,7 +118,7 @@ func (agent *AgentWrapper) sendCandidate(ctx context.Context, candidate ice.Cand
 
 	data, err := proto.Marshal(packet)
 	if err != nil {
-		agent.log.Errorf("Marshal packet error: %v", err)
+		agent.log.Error("Marshal packet", err)
 		return err
 	}
 

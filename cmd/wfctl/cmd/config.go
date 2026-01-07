@@ -32,7 +32,7 @@ var configCmd = &cobra.Command{
 var setCmd = &cobra.Command{
 	Use:     "set <key> <value>",
 	Short:   "设置配置项的值",
-	Example: "  wfctl config set server-url http://wireflowio.com",
+	Example: "  wfctl config set server-url https://wireflow.run",
 	Args:    cobra.ExactArgs(2),
 	Run: func(cmd *cobra.Command, args []string) {
 		key := args[0]

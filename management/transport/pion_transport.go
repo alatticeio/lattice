@@ -65,7 +65,7 @@ type ICETransportConfig struct {
 
 func NewPionTransport(cfg *ICETransportConfig) (*PionTransport, error) {
 	t := &PionTransport{
-		log:                    log.NewLogger(log.Loglevel, "transport"),
+		log:                    log.GetLogger("transport"),
 		onClose:                cfg.OnClose,
 		sender:                 cfg.Sender,
 		localId:                cfg.LocalId,
@@ -109,12 +109,12 @@ func (t *PionTransport) getAgent(remoteId string) (*AgentWrapper, error) {
 			if s == ice.ConnectionStateConnected {
 				pair, err := agent.GetSelectedCandidatePair()
 				if err != nil {
-					t.log.Errorf("Get selected candidate pair error: %v", err)
+					t.log.Error("Get selected candidate pair", err)
 					return
 				}
 
 				if err := t.AddPeer(remoteId, fmt.Sprintf("%s:%d", pair.Remote.Address(), pair.Remote.Port())); err != nil {
-					t.log.Errorf("Add peer error: %v", err)
+					t.log.Error("Add peer", err)
 				}
 			}
 
@@ -130,10 +130,10 @@ func (t *PionTransport) getAgent(remoteId string) (*AgentWrapper, error) {
 		}
 
 		if err = t.sendCandidate(context.TODO(), agent, remoteId, candidate); err != nil {
-			t.log.Errorf("Send candidate error: %v", err)
+			t.log.Error("Send candidate", err)
 		}
 
-		t.log.Infof("Sending candidate: %v", candidate)
+		t.log.Info("Sending candidate", "candidate", candidate)
 	}); err != nil {
 		return nil, err
 	}
@@ -192,15 +192,18 @@ func (t *PionTransport) State() infra.TransportState {
 }
 
 func (t *PionTransport) Close() error {
-	t.log.Infof("closing transport for : %s", t.remoteId)
+	t.log.Info("closing transport", "remoteId", t.remoteId)
 	t.closeOnce.Do(func() {
 		if err := t.agent.Close(); err != nil {
-			t.log.Errorf("close agent error: %v", err)
+			t.log.Error("close agent", err)
 		}
 
 		if t.onClose != nil {
 			t.onClose(t.remoteId)
 		}
+
+		//remove peer
+		t.Remove(t.remoteId, "")
 	})
 
 	return nil
@@ -229,12 +232,12 @@ func (t *PionTransport) sendCandidate(ctx context.Context, agent *AgentWrapper, 
 
 	data, err := proto.Marshal(packet)
 	if err != nil {
-		t.log.Errorf("Marshal packet error: %v", err)
+		t.log.Error("Marshal packet", err)
 		return err
 	}
 
 	if err = t.sender(context.TODO(), remoteId, data); err != nil {
-		t.log.Errorf("send candidate: %v", err)
+		t.log.Error("send candidate", err)
 		return err
 	}
 
@@ -251,7 +254,7 @@ func (t *PionTransport) updateTransportState(newState infra.TransportState) {
 	oldState := t.state
 	t.state = newState
 	if oldState != newState {
-		t.log.Infof("Transport State changed: %v -> %v", t.remoteId, oldState, newState)
+		t.log.Info("Transport State changed", "remoteId", t.remoteId, "oldState", oldState, "newState", newState)
 		// 这里可以触发回调通知 Probe 层或 WireGuard 层
 		t.OnConnectionStateChange(newState)
 	}
@@ -270,6 +273,25 @@ func (t *PionTransport) AddPeer(remoteId, addr string) error {
 	}
 
 	if err = t.provisioner.ApplyRoute("add", *peer.Address, t.provisioner.GetIfaceName()); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (t *PionTransport) Remove(remoteId, addr string) error {
+	var err error
+	peer := t.peers.GetPeer(remoteId)
+	if err = t.provisioner.RemovePeer(&infra.SetPeer{
+		Endpoint:             addr,
+		PublicKey:            remoteId,
+		AllowedIPs:           peer.AllowedIPs,
+		PersistentKeepalived: 25,
+		Remove:               true,
+	}); err != nil {
+		return err
+	}
+
+	if err = t.provisioner.ApplyRoute("delete", *peer.Address, t.provisioner.GetIfaceName()); err != nil {
 		return err
 	}
 	return nil

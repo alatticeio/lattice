@@ -37,7 +37,7 @@ func main() {
 	flag.BoolVar(&flags.DnsEnable, "dns", false, "enable dns")
 	flag.Parse()
 
-	log.SetLogLevel(flags.LogLevel)
+	log.SetLevel(flags.LogLevel)
 	if err := client.Start(flags); err != nil {
 		fmt.Fprintln(os.Stderr, err.Error())
 		os.Exit(1)

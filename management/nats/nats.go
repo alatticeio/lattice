@@ -49,14 +49,14 @@ func NewNatsService(url string) (*NatsSignalService, error) {
 	}
 
 	s := &NatsSignalService{
-		log: log.NewLogger(log.Loglevel, "nats-signal"),
+		log: log.GetLogger("nats-signal"),
 		nc:  nc,
 	}
 
 	// 2. 创建 JetStream 管理实例
 	js, err := jetstream.New(nc)
 	if err != nil {
-		s.log.Errorf("Failed to connect to NATS JetStream: %v", err)
+		s.log.Error("Failed to connect to NATS JetStream", err)
 		return nil, err
 	}
 
@@ -69,7 +69,7 @@ func NewNatsService(url string) (*NatsSignalService, error) {
 	_, err = js.Stream(ctx, streamName)
 	if err != nil {
 		if err == jetstream.ErrStreamNotFound {
-			s.log.Infof("Stream %s not found, creating", streamName)
+			s.log.Info("Stream not found, creating", "stream", streamName)
 
 			// 创建 Stream 的配置
 			_, err = js.CreateStream(ctx, jetstream.StreamConfig{
@@ -78,16 +78,16 @@ func NewNatsService(url string) (*NatsSignalService, error) {
 				Storage:  jetstream.FileStorage, // 持久化存储
 			})
 			if err != nil {
-				s.log.Errorf("Failed to create stream %s: %v", streamName, err)
+				s.log.Error("Failed to create stream", err, "stream", streamName)
 				return nil, err
 			}
 			fmt.Println("Stream 创建成功")
 		} else {
-			s.log.Errorf("Failed to create stream %s: %v", streamName, err)
+			s.log.Error("Failed to create stream", err, "stream", streamName)
 			return nil, err
 		}
 	} else {
-		s.log.Infof("stream exists.")
+		s.log.Info("stream exists.")
 	}
 	return s, nil
 }
@@ -96,7 +96,7 @@ func (s *NatsSignalService) Subscribe(subject string, onMessage SignalHandler) e
 	sub, err := s.nc.Subscribe(subject, func(m *nats.Msg) {
 		var packet grpc.SignalPacket
 		if err := proto.Unmarshal(m.Data, &packet); err != nil {
-			s.log.Errorf("failed to unmarshal packet: %v", err)
+			s.log.Error("failed to unmarshal packet", err)
 			return
 		}
 		err := onMessage(context.Background(), packet.SenderId, &packet)

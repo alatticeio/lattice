@@ -21,6 +21,11 @@ import (
 	"wireflow/internal/log"
 )
 
+type Handler interface {
+	HandleEvent(ctx context.Context, msg *infra.Message) error
+	ApplyFullConfig(ctx context.Context, msg *infra.Message) error
+}
+
 // event handler for wireflow to handle event from management
 type EventHandler struct {
 	deviceManager infra.Client
@@ -36,98 +41,99 @@ func NewEventHandler(e infra.Client, logger *log.Logger, provisioner infra.Provi
 	}
 }
 
-type HandlerFunc func(msg *infra.Message) error
+type HandlerFunc func(ctx context.Context, msg *infra.Message) error
 
-func (h *EventHandler) HandleEvent() HandlerFunc {
-	return func(msg *infra.Message) error {
-		if msg == nil {
-			return nil
-		}
-
-		if msg.Changes == nil {
-			return nil
-		}
-		h.logger.Infof("Received config update %s: %s", msg.ConfigVersion, msg.Changes.Summary())
-
-		ctx := context.Background()
-		if msg.Changes.HasChanges() {
-			h.logger.Infof("Received remote changes: %v", msg)
-
-			// 地址变化
-			if msg.Changes.AddressChanged {
-				if msg.Current.Address == nil {
-					if len(msg.Changes.NetworkLeft) > 0 {
-						//删除IP
-						if err := h.provisioner.ApplyIP("remove", *msg.Current.Address, h.deviceManager.GetDeviceName()); err != nil {
-							return err
-						}
-						//移除所有peers
-						h.deviceManager.RemoveAllPeers()
-					}
-
-				} else if msg.Current.Address != nil {
-					if err := h.provisioner.ApplyIP("add", *msg.Current.Address, h.deviceManager.GetDeviceName()); err != nil {
-						return err
-					}
-				}
-				msg.Current.AllowedIPs = fmt.Sprintf("%s/%d", *msg.Current.Address, 32)
-			}
-
-			//reconfigure
-			if msg.Changes.KeyChanged {
-				//if err := h.deviceManager.SetupInterface(&infra.DeviceConfig{
-				//	PrivateKey: msg.Current.PrivateKey,
-				//}); err != nil {
-				//	return err
-				//}
-
-				// TODO 重新连接所有的节点，基本不会发生，这要remove掉所有已连接的Peer, 然后重新连接
-			}
-
-			//
-			if len(msg.Changes.PeersAdded) > 0 {
-				h.logger.Infof("peers added: %v", msg.Changes.PeersAdded)
-				for _, peer := range msg.Changes.PeersAdded {
-					// add peer to peers cached
-					if err := h.deviceManager.AddPeer(peer); err != nil {
-						return err
-					}
-				}
-			}
-
-			// handle peer removed
-			if len(msg.Changes.PeersRemoved) > 0 {
-				h.logger.Infof("peers removed: %v", msg.Changes.PeersRemoved)
-				for _, peer := range msg.Changes.PeersRemoved {
-					if err := h.deviceManager.RemovePeer(peer); err != nil {
-						return err
-					}
-				}
-			}
-
-		}
-
-		return h.ApplyFullConfig(ctx, msg)
+func (h *EventHandler) HandleEvent(ctx context.Context, msg *infra.Message) error {
+	if msg == nil {
+		return nil
 	}
+
+	if msg.Changes == nil {
+		return nil
+	}
+	h.logger.Info("Received config update", "version", msg.ConfigVersion, "summary", msg.Changes.Summary())
+
+	if msg.Changes.HasChanges() {
+		h.logger.Info("Received remote changes", "message", msg)
+
+		// 地址变化
+		if msg.Changes.AddressChanged {
+			if msg.Current.Address == nil {
+				if len(msg.Changes.NetworkLeft) > 0 {
+					//删除IP
+					if err := h.provisioner.ApplyIP("remove", *msg.Current.Address, h.deviceManager.GetDeviceName()); err != nil {
+						return err
+					}
+					//移除所有peers
+					h.deviceManager.RemoveAllPeers()
+				}
+
+			} else if msg.Current.Address != nil {
+				if err := h.provisioner.ApplyIP("add", *msg.Current.Address, h.deviceManager.GetDeviceName()); err != nil {
+					return err
+				}
+			}
+			msg.Current.AllowedIPs = fmt.Sprintf("%s/%d", *msg.Current.Address, 32)
+		}
+
+		//reconfigure
+		if msg.Changes.KeyChanged {
+			//if err := h.deviceManager.SetupInterface(&infra.DeviceConfig{
+			//	PrivateKey: msg.Current.PrivateKey,
+			//}); err != nil {
+			//	return err
+			//}
+
+			// TODO 重新连接所有的节点，基本不会发生，这要remove掉所有已连接的Peer, 然后重新连接
+		}
+
+		//
+		if len(msg.Changes.PeersAdded) > 0 {
+			h.logger.Info("peers added", "peers", msg.Changes.PeersAdded)
+			for _, peer := range msg.Changes.PeersAdded {
+				// add peer to peers cached
+				if peer.PublicKey == msg.Current.PublicKey {
+					// skip self
+					continue
+				}
+				if err := h.deviceManager.AddPeer(peer); err != nil {
+					return err
+				}
+			}
+		}
+
+		// handle peer removed
+		if len(msg.Changes.PeersRemoved) > 0 {
+			h.logger.Info("peers removed", "peers", msg.Changes.PeersRemoved)
+			for _, peer := range msg.Changes.PeersRemoved {
+				if err := h.deviceManager.RemovePeer(peer); err != nil {
+					return err
+				}
+			}
+		}
+
+	}
+
+	return h.ApplyFullConfig(ctx, msg)
 }
 
 // ApplyFullConfig when wireflow start, apply full config
 func (h *EventHandler) ApplyFullConfig(ctx context.Context, msg *infra.Message) error {
-	h.logger.Verbosef("ApplyFullConfig start: %v", msg)
+	h.logger.Info("ApplyFullConfig start", "message", msg)
 	var err error
 
 	//设置Peers
 	if err = h.applyRemotePeers(ctx, msg); err != nil {
-		h.logger.Errorf("ApplyFullConfig err: %v", err)
+		h.logger.Error("ApplyFullConfig", err)
 		return err
 	}
 
 	if err = h.applyFirewallRules(ctx, msg); err != nil {
-		h.logger.Errorf("ApplyFullConfig err: %v", err)
+		h.logger.Error("ApplyFullConfig", err)
 		return err
 	}
 
-	h.logger.Verbosef("ApplyFullConfig done, message version: %v", msg.ConfigVersion)
+	h.logger.Info("ApplyFullConfig done", "version", msg.ConfigVersion)
 	return nil
 }
 

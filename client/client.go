@@ -65,7 +65,7 @@ type Client struct {
 	current *infra.Peer
 
 	callback     func(message *infra.Message) error
-	eventHandler *EventHandler
+	eventHandler Handler
 }
 
 type ClientConfig struct {
@@ -116,7 +116,7 @@ func (c *Client) IpcHandle(socket net.Conn) {
 			}
 			err = c.iface.IpcGetOperation(buffered.Writer)
 		default:
-			c.logger.Errorf("invalid UAPI operation: %v", op)
+			c.logger.Error("invalid UAPI operation", errors.New("set error"), "op", op)
 			return
 		}
 
@@ -127,7 +127,7 @@ func (c *Client) IpcHandle(socket net.Conn) {
 			status = wferrors.IpcErrorf(ipc.IpcErrorUnknown, "other UAPI error: %w", err)
 		}
 		if status != nil {
-			c.logger.Errorf("%v", status)
+			c.logger.Error("status", status)
 			fmt.Fprintf(buffered, "errno=%d\n\n", status.ErrorCode())
 		} else {
 			fmt.Fprintf(buffered, "errno=0\n\n")
@@ -232,7 +232,7 @@ func NewClient(cfg *ClientConfig) (*Client, error) {
 
 	stunUrl := config.GlobalConfig.StunUrl
 	if stunUrl == "" {
-		stunUrl = "stun.wireflowio.com"
+		stunUrl = "stun.wireflow.run"
 		config.WriteConfig("stun-url", stunUrl)
 	}
 
@@ -243,18 +243,19 @@ func NewClient(cfg *ClientConfig) (*Client, error) {
 			Device:    client.iface,
 			IfaceName: client.Name,
 		})
-
+	// init event handler
+	client.eventHandler = NewEventHandler(client, log.GetLogger("event-handler"), client.provisioner)
 	// set configurer
 	factory.Configure(transport.WithProvisioner(client.provisioner))
 
+	probeFactory.Configure(transport.WithOnMessage(client.eventHandler.HandleEvent))
 	return client, err
 }
 
 // Start will get networkmap
 func (c *Client) Start() error {
 	ctx := context.Background()
-	// init event handler
-	c.eventHandler = NewEventHandler(c, log.NewLogger(log.Loglevel, "event-handler"), c.provisioner)
+
 	// start deviceManager, open udp port
 	if err := c.iface.Up(); err != nil {
 		return err
@@ -299,7 +300,7 @@ func (c *Client) SetConfig(conf *infra.DeviceConf) error {
 	}
 
 	if conf.String() == nowConf {
-		c.logger.Infof("config is same, no need to update")
+		c.logger.Info("config is same, no need to update", "conf", conf)
 		return nil
 	}
 
@@ -309,7 +310,7 @@ func (c *Client) SetConfig(conf *infra.DeviceConf) error {
 }
 
 func (c *Client) close() {
-	c.logger.Verbosef("deviceManager closed")
+	c.logger.Info("deviceManager closed")
 }
 
 func (c *Client) AddPeer(peer *infra.Peer) error {

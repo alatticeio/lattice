@@ -59,7 +59,7 @@ func runTurn(opts turnOptions) error {
 		opts.LogLevel = "error"
 	}
 
-	log.SetLogLevel(opts.LogLevel)
+	log.SetLevel(opts.LogLevel)
 	if config.GlobalConfig.SignalUrl == "" {
 		config.GlobalConfig.SignalUrl = fmt.Sprintf("nats://%s:%d", infra.SignalingDomain, infra.DefaultSignalingPort)
 		config.WriteConfig("signal-url", config.GlobalConfig.SignalUrl)
@@ -74,7 +74,7 @@ func runTurn(opts turnOptions) error {
 	}
 
 	return turn.Start(&turn.TurnServerConfig{
-		Logger:   log.NewLogger(log.Loglevel, "turnserver"),
+		Logger:   log.GetLogger("turnserver"),
 		PublicIP: opts.PublicIP,
 		Port:     opts.Port,
 		Client:   client,

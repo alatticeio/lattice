@@ -50,7 +50,7 @@ func (ts *TurnServer) Start() error {
 }
 
 func (ts *TurnServer) start(publicIP string, port int) error {
-	ts.logger.Verbosef("Starting turn server on %s:%d", publicIP, port)
+	ts.logger.Debug("Starting turn server on", "public-ip", publicIP, "port", port)
 
 	// Create a UDP listener to pass into pion/turn
 	// pion/turn itself doesn't allocate any UDP sockets, but lets the user pass them in
@@ -71,7 +71,7 @@ func (ts *TurnServer) start(publicIP string, port int) error {
 	usersMap := generateAuthKeyMap(nil)
 
 	s, err := turn.NewServer(turn.ServerConfig{
-		Realm: "wireflowio.com",
+		Realm: "wireflow.run",
 		// Set AuthHandler callback
 		// This is called every time a user tries to authenticate with the TURN server
 		// Return the remoteKey for that user, or false when no user is found
@@ -102,7 +102,7 @@ func (ts *TurnServer) start(publicIP string, port int) error {
 	<-sigs
 
 	if err = s.Close(); err != nil {
-		ts.logger.Errorf("Failed to close turn server: %v", err)
+		ts.logger.Error("Failed to close turn server: %v", err)
 	}
 
 	return nil
@@ -111,7 +111,7 @@ func (ts *TurnServer) start(publicIP string, port int) error {
 func generateAuthKeyMap(users []*config.User) map[string][]byte {
 	usersMap := map[string][]byte{}
 	for _, user := range users {
-		usersMap[user.Username] = generateAuthKey(user.Username, "wireflowio.com", user.Password)
+		usersMap[user.Username] = generateAuthKey(user.Username, "wireflow.run", user.Password)
 	}
 	return usersMap
 }

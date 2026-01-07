@@ -62,7 +62,7 @@ func CreateTUN(mtu int, logger *log.Logger) (string, tun.Device, error) {
 		err = unix.Connect(fd, sc)
 		if err != nil {
 			unix.Close(fd)
-			logger.Errorf("connect fd failed: %v, index: %d", err, sc.Unit)
+			logger.Error("connect fd failed", err, "index", sc.Unit)
 			ifIndex++
 			continue
 		}
@@ -70,7 +70,7 @@ func CreateTUN(mtu int, logger *log.Logger) (string, tun.Device, error) {
 		err = unix.SetNonblock(fd, true)
 		if err != nil {
 			unix.Close(fd)
-			logger.Infof("set non block failed:%v", err)
+			logger.Error("set non block failed", err)
 			ifIndex++
 			continue
 		}
@@ -87,7 +87,7 @@ func CreateTUN(mtu int, logger *log.Logger) (string, tun.Device, error) {
 	if err != nil {
 		return "", nil, err
 	}
-	logger.Verbosef("create tun %s success", name)
+	logger.Info("create tun success", "name", name)
 	return name, tun, nil
 }
 

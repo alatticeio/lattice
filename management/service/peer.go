@@ -40,7 +40,7 @@ type peerService struct {
 func NewPeerService(client *resource.Client) PeerService {
 	return &peerService{
 		client: client,
-		logger: log.NewLogger(log.Loglevel, "peer-service"),
+		logger: log.GetLogger("peer-service"),
 	}
 }
 
@@ -54,7 +54,7 @@ func (p *peerService) UpdateStatus(ctx context.Context, status int) error {
 }
 
 func (p *peerService) Register(ctx context.Context, dto *dto.PeerDto) (*infra.Peer, error) {
-	p.logger.Infof("Received peer info: %+v", dto)
+	p.logger.Info("Received peer", "info", dto)
 	node, err := p.client.Register(ctx, dto)
 
 	if err != nil {

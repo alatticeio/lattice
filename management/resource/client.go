@@ -23,10 +23,12 @@ import (
 	"path/filepath"
 	"sync"
 	"wireflow/internal/core/infra"
+	"wireflow/internal/grpc"
 	"wireflow/internal/log"
 
 	wireflowv1alpha1 "wireflow/api/v1alpha1"
 
+	"google.golang.org/protobuf/proto"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -56,6 +58,11 @@ type Client struct {
 var scheme = runtime.NewScheme()
 
 func init() {
+	_ = clientgoscheme.AddToScheme(scheme)
+	_ = wireflowv1alpha1.AddToScheme(scheme)
+}
+
+func init() {
 	// 注册 Kubernetes 内置资源 Scheme（例如 Pod, Deployment）
 	_ = clientgoscheme.AddToScheme(scheme)
 
@@ -66,9 +73,9 @@ func init() {
 	// 如果有其他自定义资源，也需在此注册
 }
 
-func NewClient() (*Client, error) {
+func NewClient(signal infra.SignalService, mgr manager.Manager) (*Client, error) {
 	ctx := context.Background()
-	logger := log.NewLogger(log.Loglevel, "crdclient")
+	logger := log.GetLogger("crd-client")
 
 	// 1. Define Zap Options
 	// By default, it uses Production JSON format.
@@ -93,49 +100,39 @@ func NewClient() (*Client, error) {
 	// 3. 创建 client-runtime 的通用 Client
 	crdClient, err := client.New(config, client.Options{Scheme: scheme})
 	if err != nil {
-		logger.Errorf("Error creating client: %v", err)
+		logger.Error("Error creating client", err)
 	}
 
 	client := &Client{
 		client:         crdClient,
 		lastPushedHash: make(map[string]string),
 		log:            logger,
-	}
-	// 1. 初始化 Manager (它是 Informer 和 Cache 的核心)
-	// 默认会尝试加载集群内配置
-	mgr, err := manager.New(ctrl.GetConfigOrDie(), manager.Options{
-		Scheme: scheme,
-		Cache: cache2.Options{
-			DefaultLabelSelector: labels.SelectorFromSet(map[string]string{
-				"app.kubernetes.io/managed-by": "wireflow-controller",
-			}),
-		},
-	})
-	if err != nil {
-		client.log.Errorf("unable to start manager: %v", err)
+		sender:         signal,
+		manager:        mgr,
 	}
 
-	client.manager = mgr
-
-	client.log.Infof("Starting CRD Status Monitoring Agent...")
+	client.log.Info("Starting CRD Status Monitoring Agent...")
 	// 2. 获取 Informer 并注册事件处理器
 	informer, err := mgr.GetCache().GetInformer(ctx, &corev1.ConfigMap{})
 	if err != nil {
-		client.log.Errorf("failed to get informer for configMap: %v", err)
+		client.log.Error("failed to get informer for configMap", err)
 		return nil, err
 	}
 
 	// 3. 注册事件回调函数
 	informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
+			logger.Info("Received add event for configMap", "obj", obj)
 			client.handleConfigMapEvent(ctx, obj, "ADD")
 		},
 		UpdateFunc: func(oldObj, newObj interface{}) {
 			// 默认 Informer 即使 RV 没变也会触发 Update。
 			// 实际业务中，您可能需要比较新旧对象的 ResourceVersion 或 Status 字段来过滤。
+			logger.Info("Received update event for configMap", "oldObj", oldObj, "newObj", newObj)
 			client.handleConfigMapEvent(ctx, newObj, "UPDATE")
 		},
 		DeleteFunc: func(obj interface{}) {
+			logger.Info("Received delete event for configMap", "obj", obj)
 			client.handleConfigMapEvent(ctx, obj, "DELETE")
 		},
 	})
@@ -146,7 +143,7 @@ func (c *Client) Start() error {
 	var err error
 	// 3. 启动 Manager (这将启动所有的 Informer 和缓存)
 	if err = c.manager.Start(context.Background()); err != nil {
-		c.log.Errorf("problem running manager: %v", err)
+		c.log.Error("problem running manager", err)
 		return err
 	}
 
@@ -174,40 +171,40 @@ func loadKubeConfig() (*rest.Config, error) {
 func (c *Client) handleConfigMapEvent(ctx context.Context, obj interface{}, eventType string) {
 	cm, ok := obj.(*corev1.ConfigMap)
 	if !ok {
-		c.log.Infof("Received object of unexpected type: %T", obj)
+		c.log.Info("Received object of unexpected type", "obj", obj)
 		return
 	}
 
 	// 打印关键信息，包括 ResourceVersion 来追踪变化
-	c.log.Infof(">>> [%s] Event Detected <<< Name: %s/%s, RV: %s",
-		eventType,
-		cm.Namespace,
-		cm.Name,
-		cm.ResourceVersion,
+	c.log.Info(">>> Event Detected <<<",
+		"eventType", eventType,
+		"namespace", cm.Namespace,
+		"name", cm.Name,
+		"version", cm.ResourceVersion,
 	)
 
 	// 可以在这里添加您的自定义业务逻辑，例如触发配置推送
 
 	var message infra.Message
 	if err := json.Unmarshal([]byte(cm.Data["config.json"]), &message); err != nil {
-		c.log.Errorf("Failed to unmarshal message: %v", err)
+		c.log.Error("Failed to unmarshal message", err)
 	}
 
-	c.pushToNode(ctx, message.Current.AppID, &message)
-	c.log.Infof(">>> Message pushed to node success <<< Name: %s/%s, RV: %s", cm.Namespace, message.Current.AppID, cm.ResourceVersion)
+	c.pushToNode(ctx, message.Current.PublicKey, &message)
+	c.log.Info(">>> Message pushed to node success <<<", "namespace", cm.Namespace, "appId", message.Current.PublicKey, "version", cm.ResourceVersion)
 }
 
-func (c *Client) pushToNode(ctx context.Context, appId string, msg *infra.Message) error {
+func (c *Client) pushToNode(ctx context.Context, peerId string, msg *infra.Message) error {
 	// 1. 计算消息哈希
 	msgHash := c.computeMessageHash(msg)
 
 	// 2. 检查是否与上次推送相同
 	c.hashMu.RLock()
-	lastHash, exists := c.lastPushedHash[appId]
+	lastHash, exists := c.lastPushedHash[peerId]
 	c.hashMu.RUnlock()
 
 	if exists && lastHash == msgHash {
-		c.log.Infof("Message unchanged, skipping push appId: %v", appId)
+		c.log.Info("Message unchanged, skipping push", "peerId", peerId)
 		return nil
 	}
 
@@ -216,22 +213,52 @@ func (c *Client) pushToNode(ctx context.Context, appId string, msg *infra.Messag
 	if err != nil {
 		return err
 	}
-	if err := c.sender.Send(ctx, appId, data); err != nil {
-		return fmt.Errorf("failed to send message to node %s: %v", appId, err)
+
+	packet := &grpc.SignalPacket{
+		SenderId: "manager",
+		Type:     grpc.PacketType_MESSAGE,
+		Payload: &grpc.SignalPacket_Message{
+			Message: &grpc.Message{
+				Content: data,
+			},
+		},
+	}
+
+	content, err := proto.Marshal(packet)
+	if err != nil {
+		return err
+	}
+
+	if err := c.sender.Send(ctx, peerId, content); err != nil {
+		return fmt.Errorf("failed to send message to node %s: %v", peerId, err)
 	}
 
 	// 4. 更新缓存
 	c.hashMu.Lock()
-	c.lastPushedHash[appId] = msgHash
+	c.lastPushedHash[peerId] = msgHash
 	c.hashMu.Unlock()
 
 	// 5. 记录日志
 	b, _ := json.Marshal(msg)
-	c.log.Infof(">>> Pushed message to node: %s, eventType: %s, size: %v", appId, "ConfigUpdate", len(b))
+	c.log.Info("push message", "peerId", peerId, "data", len(b))
 	return nil
 }
 
 func (c *Client) computeMessageHash(msg *infra.Message) string {
 	data, _ := json.Marshal(msg)
 	return fmt.Sprintf("%x", sha256.Sum256(data))
+}
+
+func NewManager() (manager.Manager, error) {
+	// 1. 初始化 Manager (它是 Informer 和 Cache 的核心)
+	// 默认会尝试加载集群内配置
+	mgr, err := manager.New(ctrl.GetConfigOrDie(), manager.Options{
+		Scheme: scheme,
+		Cache: cache2.Options{
+			DefaultLabelSelector: labels.SelectorFromSet(map[string]string{
+				"app.kubernetes.io/managed-by": "wireflow-controller",
+			}),
+		},
+	})
+	return mgr, err
 }

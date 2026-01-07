@@ -1,3 +1,17 @@
+// Copyright 2025 The Wireflow Authors, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package server
 
 import (
@@ -11,10 +25,8 @@ import (
 	"wireflow/management/nats"
 	"wireflow/management/resource"
 
-	"github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
-
-	"github.com/gin-gonic/gin"
+	"sigs.k8s.io/controller-runtime/pkg/manager"
 )
 
 const (
@@ -23,12 +35,11 @@ const (
 
 // Server is the main server struct
 type Server struct {
-	ctx context.Context
-	*gin.Engine
 	logger *log.Logger
 	listen string
 	nats   infra.SignalService
 
+	manager           manager.Manager
 	peerController    controller.PeerController
 	networkController controller.NetworkController
 }
@@ -37,13 +48,12 @@ type Server struct {
 type ServerConfig struct {
 	Listen          string
 	DatabaseService *gorm.DB
-	Rdb             *redis.Client
 	Nats            infra.SignalService
 }
 
 // NewServer creates a new server
 func NewServer(cfg *ServerConfig) (*Server, error) {
-	e := gin.Default()
+	logger := log.GetLogger("management")
 	if config.GlobalConfig.SignalUrl == "" {
 		config.GlobalConfig.SignalUrl = fmt.Sprintf("nats://%s:%d", infra.SignalingDomain, infra.DefaultSignalingPort)
 		config.WriteConfig("signal-url", config.GlobalConfig.SignalUrl)
@@ -51,42 +61,37 @@ func NewServer(cfg *ServerConfig) (*Server, error) {
 
 	signal, err := nats.NewNatsService(config.GlobalConfig.SignalUrl)
 	if err != nil {
+		logger.Error("init signal failed", err)
 		return nil, err
 	}
 
-	client, err := resource.NewClient()
+	mgr, err := resource.NewManager()
 	if err != nil {
+		logger.Error("init mgr failed", err)
+		return nil, err
+	}
+
+	client, err := resource.NewClient(signal, mgr)
+	if err != nil {
+		logger.Error("init client failed", err)
 		return nil, err
 	}
 
 	s := &Server{
-		logger:            log.NewLogger(log.Loglevel, "ctrl-server"),
-		Engine:            e,
+		logger:            logger,
 		listen:            cfg.Listen,
 		nats:              signal,
+		manager:           mgr,
 		peerController:    controller.NewPeerController(client),
 		networkController: controller.NewNetworkController(client),
 	}
 
 	s.nats.Service("wireflow.signals.register.*", "wireflow_queue", s.Service)
-	//启动informer
-	s.initRoute()
-	s.logger.Infof("listening on %s", cfg.Listen)
 	return s, nil
 }
 
-// tokenFilter checks if the user is authenticated
-func (s *Server) initRoute() {
-	// register user router
-
-	// register api
-	s.RegisterApis()
-
-	s.GET("/ping", func(c *gin.Context) {
-		c.JSON(200, gin.H{
-			"message": "pong",
-		})
-	})
+func (s *Server) Start(ctx context.Context) error {
+	return s.manager.Start(ctx)
 }
 
 func (s *Server) Service(subject string, content []byte) ([]byte, error) {

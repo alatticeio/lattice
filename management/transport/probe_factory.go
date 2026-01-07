@@ -32,7 +32,7 @@ type ProbeFactory struct {
 
 	log *log.Logger
 
-	onMessage func(context.Context, *infra.Message)
+	onMessage func(context.Context, *infra.Message) error
 }
 
 type ProbeFactoryConfig struct {
@@ -50,6 +50,12 @@ func WithSignal(signal infra.SignalService) ProbeFactoryOptions {
 	}
 }
 
+func WithOnMessage(onMessage func(context.Context, *infra.Message) error) ProbeFactoryOptions {
+	return func(p *ProbeFactory) {
+		p.onMessage = onMessage
+	}
+}
+
 func (t *ProbeFactory) Configure(opts ...ProbeFactoryOptions) {
 	for _, opt := range opts {
 		opt(t)
@@ -58,7 +64,7 @@ func (t *ProbeFactory) Configure(opts ...ProbeFactoryOptions) {
 
 func NewProbeFactory(cfg *ProbeFactoryConfig) *ProbeFactory {
 	return &ProbeFactory{
-		log:     log.NewLogger(log.Loglevel, "wireflow"),
+		log:     log.GetLogger("probe-factory"),
 		localId: cfg.LocalId,
 		signal:  cfg.Signal,
 		factory: cfg.Factory,
@@ -129,7 +135,7 @@ func (p *ProbeFactory) HandleSignal(ctx context.Context, remoteId string, packet
 	if err != nil {
 		return err
 	}
-	p.log.Infof("handle signal packet from: %s, type: %v", remoteId, packet.Type)
+	p.log.Info("handle signal packet from", "remoteId", remoteId, "packetType", packet.Type)
 	switch packet.Type {
 	case grpc.PacketType_MESSAGE:
 		var msg infra.Message
@@ -138,7 +144,7 @@ func (p *ProbeFactory) HandleSignal(ctx context.Context, remoteId string, packet
 		}
 		p.onMessage(ctx, &msg)
 	case grpc.PacketType_HANDSHAKE_SYN:
-		p.log.Infof("receive syn packet from: %s, will sending ack", remoteId)
+		p.log.Info("receive syn packet from: %s, will sending ack", "remoteId", remoteId)
 		// send ack
 		if err = probe.probePacket(ctx, remoteId, grpc.PacketType_HANDSHAKE_ACK); err != nil {
 			return err

@@ -11,13 +11,13 @@ func (r *routeProvisioner) ApplyRoute(action, address, interfaceName string) err
 		if err := ExecCommand("/bin/sh", "-c", rule); err != nil {
 			return err
 		}
-		r.logger.Infof("route -nv %s -net %s -netmask 255.255.255.0 -interface %s", action, address, interfaceName)
+		r.logger.Info("root command issued", "cmd", fmt.Sprintf("route -nv %s -net %s -netmask 255.255.255.0 -interface %s", action, address, interfaceName))
 	case "delete":
 		rule := fmt.Sprintf("route -nv %s -net %s -netmask 255.255.255.0 -interface %s", action, address, interfaceName)
 		if err := ExecCommand("/bin/sh", "-c", rule); err != nil {
 			return err
 		}
-		r.logger.Infof("route -nv %s -net %s -netmask 255.255.255.0 -interface %s", action, address, interfaceName)
+		r.logger.Info("root command command", "cmd", fmt.Sprintf("route -nv %s -net %s -netmask 255.255.255.0 -interface %s", action, address, interfaceName))
 	}
 
 	return nil

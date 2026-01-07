@@ -64,7 +64,7 @@ func (p *Probe) Probe(ctx context.Context, remoteId string) error {
 }
 
 func (p *Probe) Prepare(ctx context.Context, remoteId string, send func(ctx context.Context, remoteId string, data []byte) error) error {
-	p.log.Infof("Prepare probe peer %s", remoteId)
+	p.log.Info("Prepare probe peer", "remoteId", remoteId)
 	probeCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	//1. start handshake syn
@@ -74,7 +74,7 @@ func (p *Probe) Prepare(ctx context.Context, remoteId string, send func(ctx cont
 		for {
 			select {
 			case <-probeCtx.Done():
-				p.log.Errorf("stop send syn packet: %v", ctx.Err())
+				p.log.Error("stop send syn packet", ctx.Err())
 				return
 			case <-ticker.C:
 				// send syn
@@ -90,14 +90,14 @@ func (p *Probe) Prepare(ctx context.Context, remoteId string, send func(ctx cont
 	}
 
 	//waiting probe ack
-	p.log.Infof("waiting for [%s] preProbe ACK...", remoteId)
+	p.log.Info("waiting for preProbe ACK...", "remoteId", remoteId)
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
 	case <-p.probeAckChan:
 		cancel()
 		// send offer
-		p.log.Infof("preProbe ACK received, will sending offer to: %s", remoteId)
+		p.log.Info("preProbe ACK received, will sending offer", "remoteId", remoteId)
 		return p.transport.Prepare()
 	}
 }
@@ -142,7 +142,7 @@ func (p *Probe) HandleOffer(ctx context.Context, remoteId string, packet *grpc.S
 }
 
 func (p *Probe) Start(ctx context.Context, remoteId string) error {
-	p.log.Infof("Start probe peer %s", remoteId)
+	p.log.Info("Start probe pee", "remoteId", remoteId)
 	sendReady, recvReady := false, false
 	ctx, cancel := context.WithCancel(ctx)
 	p.cancel = cancel
@@ -150,7 +150,7 @@ func (p *Probe) Start(ctx context.Context, remoteId string) error {
 		for {
 			select {
 			case <-ctx.Done():
-				p.log.Errorf("stop send ready ack: %v", ctx.Err())
+				p.log.Error("stop send ready ack", ctx.Err())
 				return
 			case <-p.probeAckChan:
 				sendReady = true
@@ -161,7 +161,7 @@ func (p *Probe) Start(ctx context.Context, remoteId string) error {
 
 			//
 			if sendReady && recvReady {
-				p.log.Infof("send ready and recv ready, will dial or accept connection")
+				p.log.Info("send ready and recv ready, will dial or accept connection")
 				break
 			}
 		}
@@ -179,7 +179,7 @@ func (p *Probe) Ping(ctx context.Context) error {
 }
 
 func (p *Probe) OnTransportFail(err error) {
-	p.log.Errorf("OnTransportFail: %v", err)
+	p.log.Error("OnTransportFail", err)
 }
 
 func (p *Probe) updateState(state infra.TransportState) {

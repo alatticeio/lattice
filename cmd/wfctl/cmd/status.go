@@ -44,6 +44,6 @@ func wireflowInfo(flags *config.Flags) error {
 	if flags.LogLevel == "" {
 		flags.LogLevel = "error"
 	}
-	log.SetLogLevel(flags.LogLevel)
+	log.SetLevel(flags.LogLevel)
 	return client.Status(flags)
 }

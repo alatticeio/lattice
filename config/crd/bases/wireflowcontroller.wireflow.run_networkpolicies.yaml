@@ -4,9 +4,9 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.18.0
-  name: networkpolicies.wireflowcontroller.wireflowio.com
+  name: networkpolicies.wireflowcontroller.wireflow.run
 spec:
-  group: wireflowcontroller.wireflowio.com
+  group: wireflowcontroller.wireflow.run
   names:
     kind: NetworkPolicy
     listKind: NetworkPolicyList

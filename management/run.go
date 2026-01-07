@@ -16,6 +16,8 @@ package management
 
 import (
 	"wireflow/management/server"
+
+	"sigs.k8s.io/controller-runtime/pkg/manager/signals"
 )
 
 func Start(listen string) error {
@@ -28,5 +30,6 @@ func Start(listen string) error {
 		return err
 	}
 
-	return hs.Run()
+	ctx := signals.SetupSignalHandler()
+	return hs.Start(ctx)
 }

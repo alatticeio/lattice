@@ -17,7 +17,7 @@ rules:
   - update
   - watch
 - apiGroups:
-  - wireflowcontroller.wireflowio.com
+  - wireflowcontroller.wireflow.run
   resources:
   - networkpolicies
   - networks
@@ -31,7 +31,7 @@ rules:
   - update
   - watch
 - apiGroups:
-  - wireflowcontroller.wireflowio.com
+  - wireflowcontroller.wireflow.run
   resources:
   - networkpolicies/finalizers
   - networks/finalizers
@@ -39,7 +39,7 @@ rules:
   verbs:
   - update
 - apiGroups:
-  - wireflowcontroller.wireflowio.com
+  - wireflowcontroller.wireflow.run
   resources:
   - networkpolicies/status
   - networks/status

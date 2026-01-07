@@ -17,7 +17,7 @@ Wireflow 的独特之处在于其 Kubernetes 原生的控制平面：wireflow-co
 
 核心价值： 告别复杂的 VPN 配置，实现企业级零信任网络自动化。
 
-了解更多详情，请访问官网：[The Wireflow Authors](https://wireflowio.com)
+了解更多详情，请访问官网：[The Wireflow Authors](https://wireflow.run)
 
 ## 技术架构
 
@@ -64,7 +64,7 @@ docker run -d \
 ### 二进制（一键脚本）
 
 ```bash
-bash <(curl -fsSL https://wireflowio.com/install.sh)
+bash <(curl -fsSL https://wireflow.run/install.sh)
 ```
 
 ### 从源码构建
@@ -78,7 +78,7 @@ make build
 
 ### 桌面/移动端应用
 
-从官网获取安装包：[wireflowio.com](https://wireflowio.com)
+从官网获取安装包：[wireflow.run](https://wireflow.run)
 
 ## 中继（TURN）概览
 

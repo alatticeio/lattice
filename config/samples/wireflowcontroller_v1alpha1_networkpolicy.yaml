@@ -1,4 +1,4 @@
-apiVersion: wireflowcontroller.wireflowio.com/v1alpha1
+apiVersion: wireflowcontroller.wireflow.run/v1alpha1
 kind: NetworkPolicy
 metadata:
   labels:

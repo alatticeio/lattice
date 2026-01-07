@@ -39,7 +39,7 @@ func NewTransportFactory(sender infra.SignalService, universalUdpMuxDefault *ice
 		transports:             make(map[string]infra.Transport),
 		sender:                 sender,
 		universalUdpMuxDefault: universalUdpMuxDefault,
-		log:                    log.NewLogger(log.Loglevel, "wireflow"),
+		log:                    log.GetLogger("wireflow"),
 	}
 }
 
@@ -95,7 +95,7 @@ func (t *TransportFactory) MakeTransport(localId, remoteId string) (infra.Transp
 		t.mu.Lock()
 		defer t.mu.Unlock()
 		delete(t.transports, remoteId)
-		t.log.Infof("transport: peer %s closed and removed from factory", remoteId)
+		t.log.Info("transport: peer %s closed and removed from factory", "remoteId", remoteId)
 	}
 	t.transports[remoteId] = transport
 	return transport, nil

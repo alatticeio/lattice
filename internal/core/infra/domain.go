@@ -20,10 +20,10 @@ var ServerUrl string
 const (
 	DefaultMTU = 1420
 	// ConsoleDomain domain for service
-	ConsoleDomain         = "http://console.wireflowio.com"
-	ManagementDomain      = "console.wireflowio.com"
-	SignalingDomain       = "signaling.wireflowio.com"
-	TurnServerDomain      = "stun.wireflowio.com"
+	ConsoleDomain         = "http://console.wireflow.run"
+	ManagementDomain      = "console.wireflow.run"
+	SignalingDomain       = "signaling.wireflow.run"
+	TurnServerDomain      = "stun.wireflow.run"
 	DefaultManagementPort = 6060
 	DefaultSignalingPort  = 4222
 	DefaultTurnServerPort = 3478

@@ -51,9 +51,9 @@ type NodeReconciler struct {
 }
 
 // +kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=wireflowcontroller.wireflowio.com,resources=nodes,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=wireflowcontroller.wireflowio.com,resources=nodes/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=wireflowcontroller.wireflowio.com,resources=nodes/finalizers,verbs=update
+// +kubebuilder:rbac:groups=wireflowcontroller.wireflow.run,resources=nodes,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=wireflowcontroller.wireflow.run,resources=nodes/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=wireflowcontroller.wireflow.run,resources=nodes/finalizers,verbs=update
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -141,7 +141,7 @@ func (r *NodeReconciler) reconcileJoinNetwork(ctx context.Context, node *v1alpha
 			labels = make(map[string]string)
 		}
 		for _, network := range associatedNetworks {
-			labels[fmt.Sprintf("wireflowio.com/network-%s", network.Name)] = "true"
+			labels[fmt.Sprintf("wireflow.run/network-%s", network.Name)] = "true"
 		}
 		node.SetLabels(labels)
 
@@ -280,11 +280,10 @@ func (r *NodeReconciler) reconcileConfigMap(ctx context.Context, node *v1alpha1.
 			if !currentMessage.Equal(message) {
 				logger.Info("Updating configmap data", "name", configMapName)
 
-				foundConfigMapCopy := foundConfigMap.DeepCopy()
-				// 复制最新的 Data 到已存在的对象上 (保持 ResourceVersion 和其他字段)
-				foundConfigMapCopy.Data = desiredConfigMap.Data
-
-				if err = r.Patch(ctx, foundConfigMapCopy, client.MergeFrom(foundConfigMap)); err != nil {
+				// 使用SSA模式
+				// 使用SSA模式
+				manager := client.FieldOwner("wireflow-controller-manager")
+				if err = r.Patch(ctx, desiredConfigMap, client.Apply, manager); err != nil {
 					logger.Error(err, "Failed to update configmap")
 					return ctrl.Result{}, err
 				}
@@ -350,7 +349,7 @@ func (r *NodeReconciler) reconcileLeaveNetwork(ctx context.Context, node *v1alph
 
 		labels := node.GetLabels()
 		for label, _ := range labels {
-			if strings.HasPrefix(label, "wireflowio.com/network-") {
+			if strings.HasPrefix(label, "wireflow.run/network-") {
 				delete(labels, label)
 			}
 			// 删除network in spec
@@ -616,8 +615,8 @@ func (r *NodeReconciler) mapConfigMapForNodes(ctx context.Context, obj client.Ob
 
 	// 1. 获取所有 Node (或只获取匹配 Network.Spec.NodeSelector 的 Node)
 	var node v1alpha1.Node
-	names := strings.Split(cm.Name, "-")
-	if err := r.Get(ctx, types.NamespacedName{Namespace: cm.Namespace, Name: names[0]}, &node); err != nil {
+	name := strings.TrimSuffix(cm.Name, "-config")
+	if err := r.Get(ctx, types.NamespacedName{Namespace: cm.Namespace, Name: name}, &node); err != nil {
 		return nil
 	}
 

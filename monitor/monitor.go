@@ -37,7 +37,7 @@ func NewNodeMonitor(interval time.Duration, storage collector.Storage, alerter c
 		storage:    storage,
 		alerter:    alerter,
 		stopChan:   make(chan struct{}),
-		logger:     log.NewLogger(log.Loglevel, "monitor"),
+		logger:     log.GetLogger("monitor"),
 	}
 }
 
@@ -61,7 +61,7 @@ func (m *NodeMonitor) Start() error {
 				for _, collector := range m.collectors {
 					metrics, err := collector.Collect()
 					if err != nil {
-						m.logger.Errorf("Error collecting metrics from %s: %v", collector.Name(), err)
+						m.logger.Error("Error collecting metrics from", err, "name", collector.Name())
 						continue
 					}
 					allMetrics = append(allMetrics, metrics...)
@@ -69,7 +69,7 @@ func (m *NodeMonitor) Start() error {
 
 				// 存储指标数据
 				if err := m.storage.Store(allMetrics); err != nil {
-					m.logger.Errorf("Error storing metrics: %v", err)
+					m.logger.Error("Error storing metrics", err)
 				}
 
 				// 告警检查
@@ -82,7 +82,7 @@ func (m *NodeMonitor) Start() error {
 				//	}
 				//}
 
-				m.logger.Verbosef("Storing %d metrics", len(allMetrics))
+				m.logger.Debug("Storing metrics", "sum", len(allMetrics))
 			}
 		}
 	}()

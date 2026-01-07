@@ -297,7 +297,7 @@ func (b *DefaultBind) makeReceiveRelay() conn.ReceiveFunc {
 		sizes[0] = n
 		addrPort, err := netip.ParseAddrPort(addr.String())
 		if err != nil {
-			b.logger.Errorf("err: %v", err)
+			b.logger.Error("make receive relay", err)
 			return 0, err
 		}
 
@@ -343,7 +343,7 @@ func (b *DefaultBind) makeReceiveIPv4(pc *ipv4.PacketConn, udpConn *net.UDPConn)
 
 			ok, err := b.universalUdpMux.FilterMessage(msg.Buffers[0], msg.N, msg.Addr.(*net.UDPAddr))
 			if err != nil {
-				b.logger.Errorf("handle stun message error: %v", err)
+				b.logger.Error("handle stun message error", err)
 				return 0, nil
 			}
 
@@ -389,7 +389,7 @@ func (b *DefaultBind) makeReceiveIPv6(pc *ipv6.PacketConn, udpConn *net.UDPConn)
 
 			ok, err := b.universalUdpMux.FilterMessage(msg.Buffers[0], msg.N, msg.Addr.(*net.UDPAddr))
 			if err != nil {
-				b.logger.Errorf("handle stun message error: %v", err)
+				b.logger.Error("handle stun message error", err)
 				return 0, nil
 			}
 
@@ -460,9 +460,9 @@ func (b *DefaultBind) Send(bufs [][]byte, endpoint conn.Endpoint) error {
 			}
 
 			for _, buf := range bufs {
-				b.logger.Verbosef("send data to: %v, data: %v", addr, buf)
+				b.logger.Info("send data", "to", addr, "data", buf)
 				if _, err := b.relayConn.WriteTo(buf, addr); err != nil {
-					b.logger.Errorf("send relay message error: %v", err)
+					b.logger.Error("send relay message error", err)
 					return err
 				}
 			}

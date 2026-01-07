@@ -44,9 +44,9 @@ type NetworkReconciler struct {
 	Allocator *IPAllocator
 }
 
-// +kubebuilder:rbac:groups=wireflowcontroller.wireflowio.com,resources=networks,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=wireflowcontroller.wireflowio.com,resources=networks/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=wireflowcontroller.wireflowio.com,resources=networks/finalizers,verbs=update
+// +kubebuilder:rbac:groups=wireflowcontroller.wireflow.run,resources=networks,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=wireflowcontroller.wireflow.run,resources=networks/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=wireflowcontroller.wireflow.run,resources=networks/finalizers,verbs=update
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -244,7 +244,7 @@ func (r *NetworkReconciler) updateStatus(ctx context.Context, network *v1alpha1.
 
 // 查询所有的node， 然后更新Network的Spec
 func (r *NetworkReconciler) findNodesByLabels(ctx context.Context, network *v1alpha1.Network) (v1alpha1.NodeList, error) {
-	labels := fmt.Sprintf("wireflowio.com/network-%s", network.Name)
+	labels := fmt.Sprintf("wireflow.run/network-%s", network.Name)
 	var nodes v1alpha1.NodeList
 	if err := r.List(ctx, &nodes, client.InNamespace(network.Namespace), client.MatchingLabels(map[string]string{labels: "true"})); err != nil {
 		return nodes, err
@@ -274,8 +274,8 @@ func (r *NetworkReconciler) mapNodeForNetworks(ctx context.Context, obj client.O
 	//通过node的label获取
 	labels := node.GetLabels()
 	for key, value := range labels {
-		if strings.HasPrefix(key, "wireflowio.com/network-") && value == "true" {
-			networkName, b := strings.CutPrefix(key, "wireflowio.com/network-")
+		if strings.HasPrefix(key, "wireflow.run/network-") && value == "true" {
+			networkName, b := strings.CutPrefix(key, "wireflow.run/network-")
 			if !b {
 				continue
 			}

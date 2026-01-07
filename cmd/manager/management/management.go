@@ -32,7 +32,7 @@ func NewManagementCmd() *cobra.Command {
 		Use:          "manager [command]",
 		SilenceUsage: true,
 		Short:        "manager is control server",
-		Long:         `manager used for starting management server, management providing our all control plance features.`,
+		Long:         `manager used for starting management server, management providing our all control plane features.`,
 
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			return nil
@@ -53,6 +53,6 @@ func runManagement(opts managementOptions) error {
 	if opts.LogLevel == "" {
 		opts.LogLevel = "error"
 	}
-	log.SetLogLevel(opts.LogLevel)
+	log.SetLevel(opts.LogLevel)
 	return management.Start(opts.Listen)
 }

@@ -42,7 +42,7 @@ type Client struct {
 
 func NewClient(nats infra.SignalService, factory *transport.TransportFactory) (*Client, error) {
 	client := &Client{
-		logger:  log.NewLogger(log.Loglevel, "ctrl-client"),
+		logger:  log.GetLogger("ctrl-client"),
 		factory: factory,
 		nats:    nats,
 	}
@@ -108,7 +108,7 @@ func (c *Client) Register(ctx context.Context, interfaceName string) (*infra.Pee
 
 	hostname, err := os.Hostname()
 	if err != nil {
-		c.logger.Errorf("get hostname failed: %v", err)
+		c.logger.Error("get hostname failed", err)
 		return nil, err
 	}
 
@@ -160,7 +160,7 @@ func (c *Client) AddPeer(p *infra.Peer) error {
 
 	onClose := func(remoteId string) error {
 		c.probeFactory.Remove(remoteId)
-		c.logger.Infof("remote prober for peer %s from client probe maps", remoteId)
+		c.logger.Info("remote prober for peer", "peerId", remoteId)
 		return nil
 	}
 

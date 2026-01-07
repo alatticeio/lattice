@@ -62,7 +62,7 @@ func (c *Client) Register(ctx context.Context, e *dto.PeerDto) (*infra.Peer, err
 	if err = c.client.Patch(ctx, &wireflowv1alpha1.Node{
 		TypeMeta: v1.TypeMeta{
 			Kind:       "Node",
-			APIVersion: "wireflowcontroller.wireflowio.com/v1alpha1",
+			APIVersion: "wireflowcontroller.wireflow.run/v1alpha1",
 		},
 		ObjectMeta: v1.ObjectMeta{
 			Namespace: "default",
@@ -115,7 +115,7 @@ func (c *Client) UpdateNodeStatus(ctx context.Context, namespace, name string, u
 
 func (c *Client) UpdateNodeSepc(ctx context.Context, namespace, name string, updateFunc func(node *wireflowv1alpha1.Node)) error {
 	logger := logf.FromContext(ctx)
-	logger.Info("Update node sepc", "namespace", namespace, "name", name)
+	logger.Info("Update node spec", "namespace", namespace, "name", name)
 	var node wireflowv1alpha1.Node
 	if err := c.client.Get(ctx, types.NamespacedName{Namespace: namespace, Name: name}, &node); err != nil {
 		return err
@@ -127,7 +127,7 @@ func (c *Client) UpdateNodeSepc(ctx context.Context, namespace, name string, upd
 // GetNetworkMap get network map when node init
 func (c *Client) GetNetworkMap(ctx context.Context, namespace, name string) (*infra.Message, error) {
 	logger := c.log
-	logger.Infof("Get node, namespace: %s, name: %s", namespace, name)
+	logger.Info("Get node", "namespace", namespace, "name", name)
 
 	var node wireflowv1alpha1.Node
 	if err := c.client.Get(ctx, types.NamespacedName{Namespace: namespace, Name: name}, &node); err != nil {
@@ -150,7 +150,7 @@ func (c *Client) GetNetworkMap(ctx context.Context, namespace, name string) (*in
 		return nil, err
 	}
 
-	logger.Infof("Get network map success, namespace: %s, name: %s, messsage: %v", namespace, name, message)
+	logger.Info("Get network map success", "namespace", namespace, "name", name, "message", message)
 	return message, nil
 }
 
@@ -176,7 +176,7 @@ func (c *Client) CreateNetwork(ctx context.Context, networkId, cidr string) (*wi
 		if err = c.client.Patch(ctx, &wireflowv1alpha1.Network{
 			TypeMeta: v1.TypeMeta{
 				Kind:       "Network",
-				APIVersion: "wireflowcontroller.wireflowio.com/v1alpha1",
+				APIVersion: "wireflowcontroller.wireflow.run/v1alpha1",
 			},
 			ObjectMeta: v1.ObjectMeta{
 				Namespace: "default",

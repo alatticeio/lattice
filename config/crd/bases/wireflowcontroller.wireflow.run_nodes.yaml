@@ -4,35 +4,39 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.18.0
-  name: networks.wireflowcontroller.wireflowio.com
+  name: nodes.wireflowcontroller.wireflow.run
 spec:
-  group: wireflowcontroller.wireflowio.com
+  group: wireflowcontroller.wireflow.run
   names:
-    kind: Network
-    listKind: NetworkList
-    plural: networks
+    kind: Node
+    listKind: NodeList
+    plural: nodes
     shortNames:
-    - wfnet
-    - wfnetwork
-    singular: network
+    - wfnode
+    - wfn
+    singular: node
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
-    - description: The current phase of the network
+    - description: The current status of the node
+      jsonPath: .status.status
+      name: STATUS
+      type: string
+    - description: The current phase of the node
       jsonPath: .status.phase
       name: PHASE
       type: string
-    - description: The CIDR block of the network
-      jsonPath: .spec.cidr
-      name: CIDR
+    - description: The IP address allocated to the node
+      jsonPath: .status.allocatedAddress
+      name: IP
       type: string
-    - description: Number of nodes in the network
-      jsonPath: .status.addedNodes
-      name: NODES
-      type: integer
-    - description: Number of available IP addresses
-      jsonPath: .status.availableIPs
-      name: IPS-AVAIL
+    - description: The network the node belongs to
+      jsonPath: .spec.network
+      name: NETWORK
+      type: string
+    - description: Number of active connections
+      jsonPath: .status.connectionSummary.connected
+      name: CONNECTED
       type: integer
     - jsonPath: .metadata.creationTimestamp
       name: AGE
@@ -40,7 +44,7 @@ spec:
     name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: Network is the Schema for the networks API.
+        description: Node is the Schema for the nodes API.
         properties:
           apiVersion:
             description: |-
@@ -60,75 +64,53 @@ spec:
           metadata:
             type: object
           spec:
-            description: NetworkSpec defines the desired state of Network.
+            description: NodeSpec defines the desired state of Node.
             properties:
-              cidr:
-                pattern: ^([0-9]{1,3}\.){3}[0-9]{1,3}/[0-9]{1,2}$
+              allowedIPs:
+                items:
+                  type: string
+                type: array
+              appId:
                 type: string
-              dns:
-                properties:
-                  enabled:
-                    type: boolean
-                  servers:
-                    items:
-                      type: string
-                    type: array
-                required:
-                - enabled
-                type: object
+              dnsServers:
+                items:
+                  type: string
+                type: array
+              interfaceName:
+                description: Interface for the node
+                type: string
               mtu:
                 type: integer
-              name:
-                description: name of network
+              network:
                 type: string
-              networkId:
-                type: string
-              nodeSelector:
-                additionalProperties:
-                  type: string
-                type: object
-              nodes:
+              networkPolicies:
                 items:
                   type: string
                 type: array
-              owner:
+              platform:
+                description: platform which node runs on
                 type: string
-              policies:
-                items:
-                  type: string
-                type: array
-            required:
-            - cidr
+              privateKey:
+                type: string
+              publicKey:
+                type: string
             type: object
           status:
-            description: NetworkStatus defines the observed state of Network.
+            description: NodeStatus defines the observed state of Node.
             properties:
-              activeCIDR:
+              activeKey:
+                description: Active key
                 type: string
-              addedNodes:
-                description: 加入的节点数量
-                type: integer
-              allocatedIPs:
-                description: 已分配的 IP 列表
+              activeNetwork:
+                description: Active networks, record the network the node joined
+                type: string
+              activeNetworkPolicies:
                 items:
-                  description: IPAllocation IP 分配记录
-                  properties:
-                    allocatedAt:
-                      format: date-time
-                      type: string
-                    ip:
-                      type: string
-                    node:
-                      type: string
-                  required:
-                  - allocatedAt
-                  - ip
-                  - node
-                  type: object
+                  type: string
                 type: array
-              availableIPs:
-                description: 可用 IP 数量
-                type: integer
+              allocatedAddress:
+                description: Allocated IP address, auto allocated by controller
+                type: string
               conditions:
                 items:
                   description: Condition contains details for one aspect of the current
@@ -185,10 +167,31 @@ spec:
                   - type
                   type: object
                 type: array
+              connectionSummary:
+                description: Connection summary
+                properties:
+                  connected:
+                    type: integer
+                  disconnected:
+                    type: integer
+                  total:
+                    type: integer
+                required:
+                - connected
+                - disconnected
+                - total
+                type: object
+              lastSyncTime:
+                format: date-time
+                type: string
               observedGeneration:
+                description: ObserveGeneration is the generation observed by the controller.
                 format: int64
                 type: integer
               phase:
+                type: string
+              status:
+                description: Node status
                 type: string
             type: object
         type: object

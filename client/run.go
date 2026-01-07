@@ -45,7 +45,7 @@ func Start(flags *config.Flags) error {
 	)
 	ctx := infra.SetupSignalHandler()
 
-	logger := log.NewLogger(log.Loglevel, "wireflow")
+	logger := log.GetLogger("wireflow")
 
 	engineCfg := &ClientConfig{
 		Logger: logger,
@@ -143,7 +143,7 @@ func Start(flags *config.Flags) error {
 
 			path, err = os.Executable()
 			if err != nil {
-				logger.Errorf("Failed to determine executable: %v", err)
+				logger.Error("Failed to determine executable", err)
 				os.Exit(1)
 			}
 
@@ -160,7 +160,7 @@ func Start(flags *config.Flags) error {
 				attr,
 			)
 			if err != nil {
-				logger.Errorf("Failed to daemonize: %v", err)
+				logger.Error("Failed to daemonize", err)
 				os.Exit(1)
 			}
 			process.Release()
@@ -199,11 +199,11 @@ func Start(flags *config.Flags) error {
 		// get network map from list
 		msg, err := c.ctrClient.GetNetMap()
 		if err != nil {
-			logger.Errorf("Get network map failed: %v", err)
+			logger.Error("Get network map failed", err)
 			return nil, err
 		}
 
-		logger.Infof("Success get net map")
+		logger.Info("Success get net map")
 
 		return msg, err
 	}
@@ -211,14 +211,14 @@ func Start(flags *config.Flags) error {
 	err = c.Start()
 
 	// open UAPI file
-	logger.Infof("Interface name is: [%s]", c.Name)
+	logger.Info("Interface name", "name", c.Name)
 	fileUAPI, err := func() (*os.File, error) {
 		return ipc.UAPIOpen(c.Name)
 	}()
 
 	uapi, err := ipc.UAPIListen(c.Name, fileUAPI)
 	if err != nil {
-		logger.Errorf("Failed to listen on uapi socket: %v", err)
+		logger.Error("Failed to listen on uapi socket", err)
 		os.Exit(-1)
 	}
 
@@ -231,13 +231,13 @@ func Start(flags *config.Flags) error {
 			go c.IpcHandle(conn)
 		}
 	}()
-	logger.Infof("wireflow started")
+	logger.Info("wireflow started")
 
 	<-ctx.Done()
 	uapi.Close()
 
 	c.close()
-	logger.Infof("wireflow shutting down")
+	logger.Info("wireflow shutting down")
 	return err
 }
 
