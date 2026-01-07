@@ -1,4 +1,4 @@
-version: 2
+version: 1
 project_name: wireflow
 
 builds:
@@ -24,7 +24,6 @@ builds:
     goos:
       - linux
       - darwin
-      - windows
     goarch:
       - amd64
       - arm64
