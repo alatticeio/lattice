@@ -1,8 +1,7 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: wireflow-control-config
-  namespace: wireflow
+  name: control-config
 data:
   control.yaml: |
     listen: :8080

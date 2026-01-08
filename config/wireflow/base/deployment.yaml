@@ -1,15 +1,7 @@
-apiVersion: v1
-kind: Namespace
-metadata:
-  labels:
-    app.kubernetes.io/name: wireflow-controller
-    app.kubernetes.io/managed-by: kustomize
-  name: wireflow
----
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: wireflow-control
+  name: control
   labels:
     k8s-app: wireflow-control
 spec:
@@ -27,6 +19,17 @@ spec:
         hostnames:
           - "signaling.wireflow.run"
       serviceAccountName: wireflow-controller-admin
+      initContainers:
+        - name: wait-for-nats
+          image: curlimages/curl:latest
+          command:
+            - '/bin/sh'
+            - '-c'
+            - |
+              until curl -f http://wireflow-nats-service:8222/varz; do
+                echo "Waiting for nats server..."
+                sleep 2
+              done
       containers:
         - name: wireflow-control
           image: controller:latest
@@ -67,6 +70,17 @@ spec:
         - ip: "81.68.109.143"
           hostnames:
             - "signaling.wireflow.run"
+      initContainers:
+        - name: wait-for-nats
+          image: curlimages/curl:latest
+          command:
+            - '/bin/sh'
+            - '-c'
+            - |
+              until curl -f http://wireflow-nats-service:8222/varz; do
+                echo "Waiting for nats server..."
+                sleep 2
+              done
       containers:
         - name: wireflow-turn
           image: controller:latest
