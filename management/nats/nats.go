@@ -128,9 +128,9 @@ func (s *NatsSignalService) Request(ctx context.Context, subject, method string,
 	return resp.Data, nil
 }
 
-func (s *NatsSignalService) Service(subject, queue string, service func(subject string, data []byte) ([]byte, error)) {
+func (s *NatsSignalService) Service(subject, queue string, service func(data []byte) ([]byte, error)) {
 	s.nc.QueueSubscribe(subject, queue, func(msg *nats.Msg) {
-		data, err := service(msg.Subject, msg.Data)
+		data, err := service(msg.Data)
 		if err != nil {
 			msg.Respond([]byte(err.Error()))
 			return

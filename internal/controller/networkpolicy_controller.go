@@ -25,7 +25,7 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 )
 
-// NetworkPolicyReconciler reconciles a NetworkPolicy object
+// NetworkPolicyReconciler reconciles a WireflowPolicy object
 type NetworkPolicyReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
@@ -38,7 +38,7 @@ type NetworkPolicyReconciler struct {
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
 // TODO(user): Modify the Reconcile function to compare the state specified by
-// the NetworkPolicy object against the actual cluster state, and then
+// the WireflowPolicy object against the actual cluster state, and then
 // perform operations to make the cluster state reflect the state specified by
 // the user.
 //
@@ -46,12 +46,12 @@ type NetworkPolicyReconciler struct {
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.21.0/pkg/reconcile
 func (r *NetworkPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := logf.FromContext(ctx)
-	log.Info("Reconciling NetworkPolicy", "namespace", req.Namespace, "name", req.Name)
+	log.Info("Reconciling WireflowPolicy", "namespace", req.Namespace, "name", req.Name)
 
-	var policy v1alpha1.NetworkPolicy
+	var policy v1alpha1.WireflowPolicy
 	if err := r.Get(ctx, req.NamespacedName, &policy); err != nil {
 		if client.IgnoreNotFound(err) != nil {
-			log.Error(err, "Failed to get NetworkPolicy")
+			log.Error(err, "Failed to get WireflowPolicy")
 			return ctrl.Result{}, err
 		}
 		return ctrl.Result{}, nil
@@ -63,7 +63,7 @@ func (r *NetworkPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 // SetupWithManager sets up the controller with the Manager.
 func (r *NetworkPolicyReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&v1alpha1.NetworkPolicy{}).
+		For(&v1alpha1.WireflowPolicy{}).
 		Named("networkpolicy").
 		Complete(r)
 }

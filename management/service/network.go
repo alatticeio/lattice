@@ -59,7 +59,7 @@ func (s *networkService) JoinNetwork(ctx context.Context, appIds []string, netwo
 		return nil
 	}
 	for _, appId := range appIds {
-		if err = s.client.UpdateNodeSepc(ctx, "default", appId, func(node *wireflowv1alpha1.Node) {
+		if err = s.client.UpdateNodeSepc(ctx, "default", appId, func(node *wireflowv1alpha1.WireflowPeer) {
 			node.Spec.Network = &networkId
 		}); err != nil {
 			return err
@@ -77,7 +77,7 @@ func (s *networkService) LeaveNetwork(ctx context.Context, appIds []string, netw
 	//更新
 	var err error
 	for _, appId := range appIds {
-		if err = s.client.UpdateNodeSepc(ctx, "default", appId, func(node *wireflowv1alpha1.Node) {
+		if err = s.client.UpdateNodeSepc(ctx, "default", appId, func(node *wireflowv1alpha1.WireflowPeer) {
 			node.Spec.Network = nil
 		}); err != nil {
 			return err

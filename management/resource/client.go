@@ -67,7 +67,7 @@ func init() {
 	_ = clientgoscheme.AddToScheme(scheme)
 
 	// 🚨 注册你的 CRD Scheme（必须！）
-	// 这使得 client.Client 知道如何序列化和反序列化你的 Network 资源
+	// 这使得 client.Client 知道如何序列化和反序列化你的 WireflowNetwork 资源
 	_ = wireflowv1alpha1.AddToScheme(scheme)
 
 	// 如果有其他自定义资源，也需在此注册

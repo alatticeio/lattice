@@ -17,7 +17,6 @@ package server
 import (
 	"context"
 	"fmt"
-	"strings"
 	"wireflow/internal/config"
 	"wireflow/internal/core/infra"
 	"wireflow/internal/log"
@@ -32,6 +31,8 @@ import (
 const (
 	PREFIX = "/api/v1/"
 )
+
+type Handler func(data []byte) ([]byte, error)
 
 // Server is the main server struct
 type Server struct {
@@ -86,7 +87,16 @@ func NewServer(cfg *ServerConfig) (*Server, error) {
 		networkController: controller.NewNetworkController(client),
 	}
 
-	s.nats.Service("wireflow.signals.register.*", "wireflow_queue", s.Service)
+	routes := map[string]Handler{
+		"wireflow.signals.peer.register":  s.Register,
+		"wireflow.signals.peer.GetNetMap": s.GetNetMap,
+		"wireflow.signals.peer.join":      s.Join,
+	}
+
+	for route, handler := range routes {
+		s.nats.Service(route, "wireflow_queue", handler)
+	}
+
 	return s, nil
 }
 
@@ -94,33 +104,14 @@ func (s *Server) Start(ctx context.Context) error {
 	return s.manager.Start(ctx)
 }
 
-func (s *Server) Service(subject string, content []byte) ([]byte, error) {
-	ctx := context.Background()
-	action := getAction(subject)
-	switch action {
-	case "GetNetMap":
-		return s.peerController.GetNetmap(context.Background(), content)
-	case "register":
-		return s.peerController.Register(ctx, content)
-	case "create_network":
-		return s.networkController.CreateNetwork(ctx, content)
-	case "join_network", "add_network":
-		if err := s.networkController.JoinNetwork(ctx, content); err != nil {
-			return nil, err
-		}
-
-		return nil, nil
-	case "leave_network", "rm_network":
-		if err := s.networkController.LeaveNetwork(ctx, content); err != nil {
-			return nil, err
-		}
-
-		return nil, nil
-	}
-	return nil, nil
+func (s *Server) Register(content []byte) ([]byte, error) {
+	return s.peerController.Register(context.Background(), content)
 }
 
-func getAction(subject string) string {
-	index := strings.LastIndex(subject, ".")
-	return subject[index+1:]
+func (s *Server) GetNetMap(content []byte) ([]byte, error) {
+	return s.peerController.GetNetmap(context.Background(), content)
+}
+
+func (s *Server) Join(content []byte) ([]byte, error) {
+	return s.peerController.Join(context.Background(), content)
 }

@@ -37,7 +37,7 @@ func (c *Client) Register(ctx context.Context, e *dto.PeerDto) (*infra.Peer, err
 	log := logf.FromContext(ctx)
 	log.Info("Register node", "node", e)
 	var (
-		node wireflowv1alpha1.Node
+		node wireflowv1alpha1.WireflowPeer
 		err  error
 		key  wgtypes.Key
 	)
@@ -59,16 +59,16 @@ func (c *Client) Register(ctx context.Context, e *dto.PeerDto) (*infra.Peer, err
 	// 使用SSA模式
 	manager := client.FieldOwner("wireflow-controller-manager")
 
-	if err = c.client.Patch(ctx, &wireflowv1alpha1.Node{
+	if err = c.client.Patch(ctx, &wireflowv1alpha1.WireflowPeer{
 		TypeMeta: v1.TypeMeta{
-			Kind:       "Node",
+			Kind:       "WireflowPeer",
 			APIVersion: "wireflowcontroller.wireflow.run/v1alpha1",
 		},
 		ObjectMeta: v1.ObjectMeta{
 			Namespace: "default",
 			Name:      e.AppID,
 		},
-		Spec: wireflowv1alpha1.NodeSpec{
+		Spec: wireflowv1alpha1.WireflowPeerSpec{
 			AppId:         e.AppID,
 			Platform:      e.Platform,
 			InterfaceName: e.InterfaceName,
@@ -76,7 +76,7 @@ func (c *Client) Register(ctx context.Context, e *dto.PeerDto) (*infra.Peer, err
 			PublicKey:     key.PublicKey().String(),
 		},
 
-		Status: wireflowv1alpha1.NodeStatus{
+		Status: wireflowv1alpha1.WireflowPeerStatus{
 			Status: "Inactive",
 		},
 	}, client.Apply, manager); err != nil {
@@ -99,11 +99,11 @@ func (c *Client) Register(ctx context.Context, e *dto.PeerDto) (*infra.Peer, err
 }
 
 // UpdateNodeStatus used to update node status
-func (c *Client) UpdateNodeStatus(ctx context.Context, namespace, name string, updateFunc func(status *wireflowv1alpha1.NodeStatus)) error {
+func (c *Client) UpdateNodeStatus(ctx context.Context, namespace, name string, updateFunc func(status *wireflowv1alpha1.WireflowPeerStatus)) error {
 	logger := logf.FromContext(ctx)
 	logger.Info("Update node status", "namespace", namespace, "name", name)
 
-	var node wireflowv1alpha1.Node
+	var node wireflowv1alpha1.WireflowPeer
 	if err := c.client.Get(ctx, types.NamespacedName{Namespace: namespace, Name: name}, &node); err != nil {
 		return err
 	}
@@ -113,10 +113,10 @@ func (c *Client) UpdateNodeStatus(ctx context.Context, namespace, name string, u
 	return c.client.Status().Update(ctx, &node)
 }
 
-func (c *Client) UpdateNodeSepc(ctx context.Context, namespace, name string, updateFunc func(node *wireflowv1alpha1.Node)) error {
+func (c *Client) UpdateNodeSepc(ctx context.Context, namespace, name string, updateFunc func(node *wireflowv1alpha1.WireflowPeer)) error {
 	logger := logf.FromContext(ctx)
 	logger.Info("Update node spec", "namespace", namespace, "name", name)
-	var node wireflowv1alpha1.Node
+	var node wireflowv1alpha1.WireflowPeer
 	if err := c.client.Get(ctx, types.NamespacedName{Namespace: namespace, Name: name}, &node); err != nil {
 		return err
 	}
@@ -129,7 +129,7 @@ func (c *Client) GetNetworkMap(ctx context.Context, namespace, name string) (*in
 	logger := c.log
 	logger.Info("Get node", "namespace", namespace, "name", name)
 
-	var node wireflowv1alpha1.Node
+	var node wireflowv1alpha1.WireflowPeer
 	if err := c.client.Get(ctx, types.NamespacedName{Namespace: namespace, Name: name}, &node); err != nil {
 		return nil, err
 	}
@@ -159,10 +159,10 @@ func (c *Client) GetByAppId(ctx context.Context, appId string) (*entity.Node, er
 }
 
 // CreateNetwork create a network
-func (c *Client) CreateNetwork(ctx context.Context, networkId, cidr string) (*wireflowv1alpha1.Network, error) {
+func (c *Client) CreateNetwork(ctx context.Context, networkId, cidr string) (*wireflowv1alpha1.WireflowNetwork, error) {
 	var (
 		err     error
-		network wireflowv1alpha1.Network
+		network wireflowv1alpha1.WireflowNetwork
 	)
 	err = c.client.Get(ctx, types.NamespacedName{
 		Namespace: "default",
@@ -173,16 +173,16 @@ func (c *Client) CreateNetwork(ctx context.Context, networkId, cidr string) (*wi
 		// 使用SSA模式
 		manager := client.FieldOwner("wireflow-controller-manager")
 
-		if err = c.client.Patch(ctx, &wireflowv1alpha1.Network{
+		if err = c.client.Patch(ctx, &wireflowv1alpha1.WireflowNetwork{
 			TypeMeta: v1.TypeMeta{
-				Kind:       "Network",
+				Kind:       "WireflowNetwork",
 				APIVersion: "wireflowcontroller.wireflow.run/v1alpha1",
 			},
 			ObjectMeta: v1.ObjectMeta{
 				Namespace: "default",
 				Name:      networkId,
 			},
-			Spec: wireflowv1alpha1.NetworkSpec{
+			Spec: wireflowv1alpha1.WireflowNetworkSpec{
 				Name: networkId,
 				CIDR: cidr,
 			},

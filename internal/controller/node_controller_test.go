@@ -28,7 +28,7 @@ import (
 	v1alpha1 "wireflow/api/v1alpha1"
 )
 
-var _ = Describe("Node Controller", func() {
+var _ = Describe("WireflowPeer Controller", func() {
 	Context("When reconciling a resource", func() {
 		const resourceName = "test-resource"
 
@@ -38,13 +38,13 @@ var _ = Describe("Node Controller", func() {
 			Name:      resourceName,
 			Namespace: "default", // TODO(user):Modify as needed
 		}
-		node := &v1alpha1.Node{}
+		node := &v1alpha1.WireflowPeer{}
 
 		BeforeEach(func() {
-			By("creating the custom resource for the Kind Node")
+			By("creating the custom resource for the Kind WireflowPeer")
 			err := k8sClient.Get(ctx, typeNamespacedName, node)
 			if err != nil && errors.IsNotFound(err) {
-				resource := &v1alpha1.Node{
+				resource := &v1alpha1.WireflowPeer{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      resourceName,
 						Namespace: "default",
@@ -57,11 +57,11 @@ var _ = Describe("Node Controller", func() {
 
 		AfterEach(func() {
 			// TODO(user): Cleanup logic after each test, like removing the resource instance.
-			resource := &v1alpha1.Node{}
+			resource := &v1alpha1.WireflowPeer{}
 			err := k8sClient.Get(ctx, typeNamespacedName, resource)
 			Expect(err).NotTo(HaveOccurred())
 
-			By("Cleanup the specific resource instance Node")
+			By("Cleanup the specific resource instance WireflowPeer")
 			Expect(k8sClient.Delete(ctx, resource)).To(Succeed())
 		})
 		It("should successfully reconcile the resource", func() {

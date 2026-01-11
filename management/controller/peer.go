@@ -33,6 +33,9 @@ type PeerController interface {
 	Register(ctx context.Context, request []byte) ([]byte, error)
 	GetNetmap(ctx context.Context, request []byte) ([]byte, error)
 	UpdateStatus(ctx context.Context, status int) error
+
+	// wireflow agent start join network
+	Join(ctx context.Context, request []byte) ([]byte, error)
 }
 
 func NewPeerController(client *resource.Client) PeerController {
@@ -43,6 +46,11 @@ func NewPeerController(client *resource.Client) PeerController {
 
 type peerController struct {
 	peerService service.PeerService
+}
+
+func (p *peerController) Join(ctx context.Context, request []byte) ([]byte, error) {
+	//TODO implement me
+	panic("implement me")
 }
 
 func (p *peerController) UpdateStatus(ctx context.Context, status int) error {

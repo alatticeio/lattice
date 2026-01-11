@@ -29,7 +29,7 @@ type SignalService interface {
 	Request(ctx context.Context, subject, method string, data []byte) ([]byte, error)
 
 	// server service
-	Service(subject, queue string, service func(subject string, data []byte) ([]byte, error))
+	Service(subject, queue string, service func(data []byte) ([]byte, error))
 }
 
 // Transport for transfer wireguard packets

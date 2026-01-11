@@ -16,7 +16,7 @@ type LabelVo struct {
 	Description string         `json:"description"`
 }
 
-// NodeLabelVo Node label relation
+// NodeLabelVo Peer label relation
 type NodeLabelVo struct {
 	ModelVo
 	NodeId    uint64

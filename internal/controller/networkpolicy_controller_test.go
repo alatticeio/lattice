@@ -28,7 +28,7 @@ import (
 	"wireflow/api/v1alpha1"
 )
 
-var _ = Describe("NetworkPolicy Controller", func() {
+var _ = Describe("WireflowPolicy Controller", func() {
 	Context("When reconciling a resource", func() {
 		const resourceName = "test-resource"
 
@@ -38,13 +38,13 @@ var _ = Describe("NetworkPolicy Controller", func() {
 			Name:      resourceName,
 			Namespace: "default", // TODO(user):Modify as needed
 		}
-		networkpolicy := &v1alpha1.NetworkPolicy{}
+		networkpolicy := &v1alpha1.WireflowPolicy{}
 
 		BeforeEach(func() {
-			By("creating the custom resource for the Kind NetworkPolicy")
+			By("creating the custom resource for the Kind WireflowPolicy")
 			err := k8sClient.Get(ctx, typeNamespacedName, networkpolicy)
 			if err != nil && errors.IsNotFound(err) {
-				resource := &v1alpha1.NetworkPolicy{
+				resource := &v1alpha1.WireflowPolicy{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      resourceName,
 						Namespace: "default",
@@ -57,11 +57,11 @@ var _ = Describe("NetworkPolicy Controller", func() {
 
 		AfterEach(func() {
 			// TODO(user): Cleanup logic after each test, like removing the resource instance.
-			resource := &v1alpha1.NetworkPolicy{}
+			resource := &v1alpha1.WireflowPolicy{}
 			err := k8sClient.Get(ctx, typeNamespacedName, resource)
 			Expect(err).NotTo(HaveOccurred())
 
-			By("Cleanup the specific resource instance NetworkPolicy")
+			By("Cleanup the specific resource instance WireflowPolicy")
 			Expect(k8sClient.Delete(ctx, resource)).To(Succeed())
 		})
 		It("should successfully reconcile the resource", func() {

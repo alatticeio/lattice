@@ -1,0 +1,106 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.18.0
+  name: wireflowinvitations.wireflowcontroller.wireflow.run
+spec:
+  group: wireflowcontroller.wireflow.run
+  names:
+    kind: WireflowInvitation
+    listKind: WireflowInvitationList
+    plural: wireflowinvitations
+    shortNames:
+    - wfinv
+    singular: wireflowinvitation
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - description: Joined Network
+      jsonPath: .spec.network
+      name: NETWORK
+      type: string
+    - description: Joined namespace
+      jsonPath: .spec.namespace
+      name: NAMESPACE
+      type: string
+    - description: Added labels when joined
+      jsonPath: .spec.peerLabels
+      name: LABELS
+      type: string
+    - description: Expires time
+      jsonPath: .spec.expiresAt
+      name: ExpiresAt
+      type: string
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: WireflowInvitation is the Schema for the networks API.
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            properties:
+              expiresAt:
+                format: date-time
+                type: string
+              network:
+                description: Invite a peer join to a network
+                type: string
+              peerLabels:
+                additionalProperties:
+                  type: string
+                description: '预设给新 Peer 的标签（例如 role: developer）'
+                type: object
+              targetNamespace:
+                description: join to special namespace
+                type: string
+            required:
+            - expiresAt
+            - network
+            - targetNamespace
+            type: object
+          status:
+            properties:
+              expiresAt:
+                format: date-time
+                type: string
+              token:
+                description: 生成给客户端的token
+                type: string
+              usedCount:
+                description: 已使用的次数
+                type: integer
+              usedPeers:
+                items:
+                  type: string
+                type: array
+            required:
+            - expiresAt
+            - token
+            - usedCount
+            - usedPeers
+            type: object
+        required:
+        - spec
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

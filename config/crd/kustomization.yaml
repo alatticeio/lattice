@@ -2,9 +2,13 @@
 # since it depends on service name and namespace that are out of this kustomize package.
 # It should be run by config/default
 resources:
-- bases/wireflowcontroller.wireflow.run_nodes.yaml
-- bases/wireflowcontroller.wireflow.run_networks.yaml
-- bases/wireflowcontroller.wireflow.run_networkpolicies.yaml
+- bases/wireflowcontroller.wireflow.run_wireflowinvitations.yaml
+- bases/wireflowcontroller.wireflow.run_wireflownetworks.yaml
+- bases/wireflowcontroller.wireflow.run_wireflowpolicies.yaml
+- bases/wireflowcontroller.wireflow.run_wireflowpeers.yaml
+- bases/wireflowcontroller.wireflow.run_wireflowglobalippools.yaml
+- bases/wireflowcontroller.wireflow.run_wireflowendpoints.yaml
+- bases/wireflowcontroller.wireflow.run_wireflowsubnetallocations.yaml
 # +kubebuilder:scaffold:crdkustomizeresource
 
 patches:

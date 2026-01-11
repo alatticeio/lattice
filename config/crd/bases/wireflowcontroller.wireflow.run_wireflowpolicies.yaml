@@ -1,0 +1,289 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.18.0
+  name: wireflowpolicies.wireflowcontroller.wireflow.run
+spec:
+  group: wireflowcontroller.wireflow.run
+  names:
+    kind: WireflowPolicy
+    listKind: WireflowPolicyList
+    plural: wireflowpolicies
+    shortNames:
+    - wfpolicy
+    singular: wireflowpolicy
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - description: The type of the network policy (ingress or egress)
+      jsonPath: .spec.policyType
+      name: TYPE
+      type: string
+    - description: The selector to identify nodes this policy applies to
+      jsonPath: .spec.nodeSelector
+      name: NODE-SELECTOR
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: AGE
+      type: date
+    - description: Number of nodes targeted by this policy
+      jsonPath: .status.targetNodes
+      name: TARGETS
+      type: integer
+    - description: Number of rules defined in this policy
+      jsonPath: .status.ruleCount
+      name: RULES
+      type: integer
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: WireflowPolicy is the Schema for the networkpolicies API.
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: WireflowPolicySpec defines the desired state of WireflowPolicy.
+              which used to control the wireflow's traffic flow.
+            properties:
+              action:
+                description: default DENY
+                type: string
+              egressRule:
+                items:
+                  properties:
+                    ports:
+                      items:
+                        properties:
+                          port:
+                            format: int32
+                            type: integer
+                          protocol:
+                            type: string
+                        type: object
+                      type: array
+                    to:
+                      items:
+                        properties:
+                          ipBlock:
+                            properties:
+                              cidr:
+                                type: string
+                            type: object
+                          peerSelector:
+                            description: |-
+                              A label selector is a label query over a set of resources. The result of matchLabels and
+                              matchExpressions are ANDed. An empty label selector matches all objects. A null
+                              label selector matches no objects.
+                            properties:
+                              matchExpressions:
+                                description: matchExpressions is a list of label selector
+                                  requirements. The requirements are ANDed.
+                                items:
+                                  description: |-
+                                    A label selector requirement is a selector that contains values, a key, and an operator that
+                                    relates the key and values.
+                                  properties:
+                                    key:
+                                      description: key is the label key that the selector
+                                        applies to.
+                                      type: string
+                                    operator:
+                                      description: |-
+                                        operator represents a key's relationship to a set of values.
+                                        Valid operators are In, NotIn, Exists and DoesNotExist.
+                                      type: string
+                                    values:
+                                      description: |-
+                                        values is an array of string values. If the operator is In or NotIn,
+                                        the values array must be non-empty. If the operator is Exists or DoesNotExist,
+                                        the values array must be empty. This array is replaced during a strategic
+                                        merge patch.
+                                      items:
+                                        type: string
+                                      type: array
+                                      x-kubernetes-list-type: atomic
+                                  required:
+                                  - key
+                                  - operator
+                                  type: object
+                                type: array
+                                x-kubernetes-list-type: atomic
+                              matchLabels:
+                                additionalProperties:
+                                  type: string
+                                description: |-
+                                  matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels
+                                  map is equivalent to an element of matchExpressions, whose key field is "key", the
+                                  operator is "In", and the values array contains only "value". The requirements are ANDed.
+                                type: object
+                            type: object
+                            x-kubernetes-map-type: atomic
+                        type: object
+                      type: array
+                  type: object
+                type: array
+              ingressRule:
+                items:
+                  description: IngressRule and EgressRule are used to control the
+                    wireflow's traffic flow.
+                  properties:
+                    from:
+                      items:
+                        properties:
+                          ipBlock:
+                            properties:
+                              cidr:
+                                type: string
+                            type: object
+                          peerSelector:
+                            description: |-
+                              A label selector is a label query over a set of resources. The result of matchLabels and
+                              matchExpressions are ANDed. An empty label selector matches all objects. A null
+                              label selector matches no objects.
+                            properties:
+                              matchExpressions:
+                                description: matchExpressions is a list of label selector
+                                  requirements. The requirements are ANDed.
+                                items:
+                                  description: |-
+                                    A label selector requirement is a selector that contains values, a key, and an operator that
+                                    relates the key and values.
+                                  properties:
+                                    key:
+                                      description: key is the label key that the selector
+                                        applies to.
+                                      type: string
+                                    operator:
+                                      description: |-
+                                        operator represents a key's relationship to a set of values.
+                                        Valid operators are In, NotIn, Exists and DoesNotExist.
+                                      type: string
+                                    values:
+                                      description: |-
+                                        values is an array of string values. If the operator is In or NotIn,
+                                        the values array must be non-empty. If the operator is Exists or DoesNotExist,
+                                        the values array must be empty. This array is replaced during a strategic
+                                        merge patch.
+                                      items:
+                                        type: string
+                                      type: array
+                                      x-kubernetes-list-type: atomic
+                                  required:
+                                  - key
+                                  - operator
+                                  type: object
+                                type: array
+                                x-kubernetes-list-type: atomic
+                              matchLabels:
+                                additionalProperties:
+                                  type: string
+                                description: |-
+                                  matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels
+                                  map is equivalent to an element of matchExpressions, whose key field is "key", the
+                                  operator is "In", and the values array contains only "value". The requirements are ANDed.
+                                type: object
+                            type: object
+                            x-kubernetes-map-type: atomic
+                        type: object
+                      type: array
+                    ports:
+                      items:
+                        properties:
+                          port:
+                            format: int32
+                            type: integer
+                          protocol:
+                            type: string
+                        type: object
+                      type: array
+                  type: object
+                type: array
+              network:
+                type: string
+              peerSelector:
+                description: PeerSelector is a label query over node that should be
+                  applied to the wireflow policy.
+                properties:
+                  matchExpressions:
+                    description: matchExpressions is a list of label selector requirements.
+                      The requirements are ANDed.
+                    items:
+                      description: |-
+                        A label selector requirement is a selector that contains values, a key, and an operator that
+                        relates the key and values.
+                      properties:
+                        key:
+                          description: key is the label key that the selector applies
+                            to.
+                          type: string
+                        operator:
+                          description: |-
+                            operator represents a key's relationship to a set of values.
+                            Valid operators are In, NotIn, Exists and DoesNotExist.
+                          type: string
+                        values:
+                          description: |-
+                            values is an array of string values. If the operator is In or NotIn,
+                            the values array must be non-empty. If the operator is Exists or DoesNotExist,
+                            the values array must be empty. This array is replaced during a strategic
+                            merge patch.
+                          items:
+                            type: string
+                          type: array
+                          x-kubernetes-list-type: atomic
+                      required:
+                      - key
+                      - operator
+                      type: object
+                    type: array
+                    x-kubernetes-list-type: atomic
+                  matchLabels:
+                    additionalProperties:
+                      type: string
+                    description: |-
+                      matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels
+                      map is equivalent to an element of matchExpressions, whose key field is "key", the
+                      operator is "In", and the values array contains only "value". The requirements are ANDed.
+                    type: object
+                type: object
+                x-kubernetes-map-type: atomic
+              policyType:
+                type: string
+            required:
+            - network
+            type: object
+          status:
+            description: NetworkPolicyStatus defines the observed state of WireflowPolicy.
+            properties:
+              ruleCount:
+                description: 规则条数（Ingress + Egress）
+                type: integer
+              targetNodes:
+                description: 策略当前匹配到的节点数量
+                type: integer
+            required:
+            - ruleCount
+            - targetNodes
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

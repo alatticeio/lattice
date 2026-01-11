@@ -28,7 +28,7 @@ import (
 	"wireflow/api/v1alpha1"
 )
 
-var _ = Describe("Network Controller", func() {
+var _ = Describe("WireflowNetwork Controller", func() {
 	Context("When reconciling a resource", func() {
 		const resourceName = "test-resource"
 
@@ -38,13 +38,13 @@ var _ = Describe("Network Controller", func() {
 			Name:      resourceName,
 			Namespace: "default", // TODO(user):Modify as needed
 		}
-		network := &v1alpha1.Network{}
+		network := &v1alpha1.WireflowNetwork{}
 
 		BeforeEach(func() {
-			By("creating the custom resource for the Kind Network")
+			By("creating the custom resource for the Kind WireflowNetwork")
 			err := k8sClient.Get(ctx, typeNamespacedName, network)
 			if err != nil && errors.IsNotFound(err) {
-				resource := &v1alpha1.Network{
+				resource := &v1alpha1.WireflowNetwork{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      resourceName,
 						Namespace: "default",
@@ -57,11 +57,11 @@ var _ = Describe("Network Controller", func() {
 
 		AfterEach(func() {
 			// TODO(user): Cleanup logic after each test, like removing the resource instance.
-			resource := &v1alpha1.Network{}
+			resource := &v1alpha1.WireflowNetwork{}
 			err := k8sClient.Get(ctx, typeNamespacedName, resource)
 			Expect(err).NotTo(HaveOccurred())
 
-			By("Cleanup the specific resource instance Network")
+			By("Cleanup the specific resource instance WireflowNetwork")
 			Expect(k8sClient.Delete(ctx, resource)).To(Succeed())
 		})
 		It("should successfully reconcile the resource", func() {
@@ -70,7 +70,6 @@ var _ = Describe("Network Controller", func() {
 				Client: k8sClient,
 				Scheme: k8sClient.Scheme(),
 				// add ip Allocator
-				Allocator: NewIPAllocator(),
 			}
 
 			_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
