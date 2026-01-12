@@ -32,6 +32,8 @@ type Flags struct {
 	ManagementUrl string
 	SignalingUrl  string
 	TurnServerUrl string
+
+	Token string
 }
 
 type NetworkOptions struct {

@@ -16,8 +16,8 @@ package controller
 
 import (
 	"context"
-	"wireflow/internal"
 	"wireflow/internal/core/infra"
+	"wireflow/pkg/utils"
 )
 
 // PeerResolver 根据network与policies来计算当前node的最后要连接peers
@@ -53,7 +53,7 @@ func (p *peerResolver) ResolvePeers(ctx context.Context, network *infra.Network,
 
 		peerSetTmp := peerStringSet(peers)
 		if len(peers) > 0 {
-			peers = internal.Filter(peers, func(peer *infra.Peer) bool {
+			peers = utils.Filter(peers, func(peer *infra.Peer) bool {
 				if _, ok := peerSetTmp[peer.Name]; !ok {
 					return false
 				}
@@ -70,7 +70,7 @@ func (p *peerResolver) ResolvePeers(ctx context.Context, network *infra.Network,
 	}
 
 	set := make(map[string]struct{})
-	result = internal.Filter(result, func(peer *infra.Peer) bool {
+	result = utils.Filter(result, func(peer *infra.Peer) bool {
 		if _, ok := set[peer.Name]; ok {
 			return false
 		}

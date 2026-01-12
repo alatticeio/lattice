@@ -11,10 +11,21 @@ spec:
     kind: WireflowEndpoint
     listKind: WireflowEndpointList
     plural: wireflowendpoints
+    shortNames:
+    - wfe
     singular: wireflowendpoint
   scope: Namespaced
   versions:
-  - name: v1alpha1
+  - additionalPrinterColumns:
+    - description: The current address of the peer
+      jsonPath: .status.address
+      name: ADDRESS
+      type: string
+    - description: the endpoint's peer reference
+      jsonPath: .spec.peerref
+      name: PEER-REF
+      type: string
+    name: v1alpha1
     schema:
       openAPIV3Schema:
         properties:
@@ -51,3 +62,4 @@ spec:
         type: object
     served: true
     storage: true
+    subresources: {}

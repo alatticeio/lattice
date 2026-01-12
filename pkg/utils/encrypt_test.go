@@ -12,21 +12,27 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package internal
+package utils
 
-import (
-	"golang.org/x/crypto/bcrypt"
-)
+import "testing"
 
-func EncryptPassword(password string) (string, error) {
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
-	if err != nil {
-		return "", err
-	}
+func TestEncryptPassword(t *testing.T) {
+	password := "123456"
+	t.Run("EncryptPassword", func(t *testing.T) {
+		hashedPassword, err := EncryptPassword(password)
+		if err != nil {
+			t.Fatal(err)
+		}
 
-	return string(hashedPassword), nil
-}
+		t.Log(hashedPassword)
+	})
 
-func ComparePassword(hashedPassword, password string) error {
-	return bcrypt.CompareHashAndPassword([]byte(hashedPassword), []byte(password))
+	t.Run("ComparePassword", func(t *testing.T) {
+		hashedPassword := "$2a$10$PLHhDRCM1u5b10kCXCTu9O6nWk/dSLo5RWlwbKoyMITOwfBFVuzn2"
+		err := ComparePassword(hashedPassword, password)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Log(true)
+	})
 }

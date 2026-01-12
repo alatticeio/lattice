@@ -1,8 +1,22 @@
 # Image URL to use all building/pushing image targets
+
+# 获取版本信息
+WIREFLOW_VERSION ?= $(shell git describe --tags --always --dirty)
+GIT_COMMIT = $(shell git rev-parse HEAD)
+BUILD_TIME = $(shell date -u +'%Y-%m-%dT%H:%M:%SZ')
+GO_VERSION = $(shell go version | cut -d ' ' -f 3)
+
+# 注入路径（对应 pkg/version 里的变量名）
+LDFLAGS = -X 'github.com/your-org/wireflow/pkg/version.Version=$(WIREFLOW_VERSION)' \
+          -X 'github.com/your-org/wireflow/pkg/version.GitCommit=$(GIT_COMMIT)' \
+          -X 'github.com/your-org/wireflow/pkg/version.BuildTime=$(BUILD_TIME)' \
+          -X 'github.com/your-org/wireflow/pkg/version.GoVersion=$(GO_VERSION)'
+
+
 IMG ?= registry.cn-hangzhou.aliyuncs.com/wireflow-io/manager:dev
 
 REGISTRY ?= registry.cn-hangzhou.aliyuncs.com/wireflow-io
-SERVICES := manager wfctl wireflow
+SERVICES := manager wireflow
 TARGETOS ?= linux
 TARGETARCH ?=amd64
 VERSION ?= dev
@@ -42,7 +56,7 @@ build: fmt vet ## 构建单个服务 (使用: make build SERVICE=wfctl)
 	@mkdir -p bin
 	CGO_ENABLED=0 GOOS=$(TARGETOS) GOARCH=$(TARGETARCH) \
 		go build \
-		-ldflags="-s -w -X main.Version=$(VERSION) -X main.BuildDate=$(BUILD_DATE)" \
+		-ldflags="-s -w $(LDFLAGS)" \
 		-o bin/$(SERVICE) \
 		./cmd/$(SERVICE)/main.go
 	@echo "✅ Built: bin/$(SERVICE)"

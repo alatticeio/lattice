@@ -20,8 +20,8 @@ type IPAM struct {
 	client client.Client
 }
 
-func NewIPAM(clietn client.Client) *IPAM {
-	return &IPAM{client: clietn}
+func NewIPAM(client client.Client) *IPAM {
+	return &IPAM{client: client}
 }
 
 // AllocateSubnet allocate a subnet for new network
@@ -76,7 +76,9 @@ func (m *IPAM) FindFirstFree(ctx context.Context, pool *v1alpha1.WireflowGlobalI
 
 	// 1. 从 Informer 缓存获取所有现有的分配
 	var allAllocations v1alpha1.WireflowSubnetAllocationList
-	m.client.List(ctx, &allAllocations)
+	if err = m.client.List(ctx, &allAllocations); err != nil {
+		return nil, err
+	}
 
 	// 2. 将已占用的 Hex 后缀存入 Map
 	used := make(map[string]struct{})
@@ -87,9 +89,9 @@ func (m *IPAM) FindFirstFree(ctx context.Context, pool *v1alpha1.WireflowGlobalI
 	}
 
 	// 3. 迭代计算，遇到不在 used Map 里的第一个地址就返回
-	for curr := startIP; ipnet.Contains(ip); curr = nextSubnet(curr, pool.Spec.SubnetMask) {
-		if _, exists := used[ipToHex(ip)]; !exists {
-			return ip, nil // 找到了回收后的空洞或全新的网段
+	for curr := startIP; ipnet.Contains(curr); curr = nextSubnet(curr, pool.Spec.SubnetMask) {
+		if _, exists := used[ipToHex(curr)]; !exists {
+			return curr, nil // 找到了回收后的空洞或全新的网段
 		}
 	}
 	return nil, fmt.Errorf("no available subnet in pool")

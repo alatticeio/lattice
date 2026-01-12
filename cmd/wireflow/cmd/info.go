@@ -1,0 +1,38 @@
+package cmd
+
+import (
+	"context"
+	"fmt"
+	"wireflow/internal/config"
+	"wireflow/internal/core/infra"
+	"wireflow/pkg/cmd"
+
+	"github.com/spf13/cobra"
+)
+
+func versionCmd() *cobra.Command {
+	// versionCmd 代表 config 顶层命令
+	var versionCmd = &cobra.Command{
+		Use:     "version",
+		Short:   "wireflow version",
+		Example: "wireflow version",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runVersion()
+		},
+	}
+
+	return versionCmd
+}
+
+func runVersion() error {
+	if config.GlobalConfig.SignalUrl == "" {
+		config.GlobalConfig.SignalUrl = fmt.Sprintf("nats://%s:%d", infra.SignalingDomain, infra.DefaultSignalingPort)
+		config.WriteConfig("siganl-url", config.GlobalConfig.SignalUrl)
+	}
+	client, err := cmd.NewClient(config.GlobalConfig.SignalUrl)
+	if err != nil {
+		return err
+	}
+
+	return client.Info(context.Background())
+}

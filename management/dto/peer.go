@@ -41,4 +41,5 @@ type PeerDto struct {
 	GroupName           string    `json:"groupName"`
 	Version             uint64    `json:"version"`
 	LastUpdatedAt       time.Time `json:"lastUpdatedAt"`
+	Token               string    `json:"token,omitempty"`
 }

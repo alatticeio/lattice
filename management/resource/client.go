@@ -45,8 +45,8 @@ import (
 )
 
 type Client struct {
-	client  client.Client
-	manager manager.Manager
+	client.Client
+	manager.Manager
 
 	log *log.Logger
 
@@ -92,23 +92,23 @@ func NewClient(signal infra.SignalService, mgr manager.Manager) (*Client, error)
 	logf.SetLogger(zapLogger)
 
 	// 2. 获取 Kubernetes 配置
-	config, err := loadKubeConfig()
-	if err != nil {
-		return nil, err
-	}
+	//config, err := loadKubeConfig()
+	//if err != nil {
+	//	return nil, err
+	//}
 
 	// 3. 创建 client-runtime 的通用 Client
-	crdClient, err := client.New(config, client.Options{Scheme: scheme})
-	if err != nil {
-		logger.Error("Error creating client", err)
-	}
+	//crdClient, err := client.New(config, client.Options{Scheme: scheme})
+	//if err != nil {
+	//	logger.Error("Error creating client", err)
+	//}
 
 	client := &Client{
-		client:         crdClient,
+		Client:         mgr.GetClient(),
 		lastPushedHash: make(map[string]string),
 		log:            logger,
 		sender:         signal,
-		manager:        mgr,
+		Manager:        mgr,
 	}
 
 	client.log.Info("Starting CRD Status Monitoring Agent...")
@@ -137,17 +137,6 @@ func NewClient(signal infra.SignalService, mgr manager.Manager) (*Client, error)
 		},
 	})
 	return client, nil
-}
-
-func (c *Client) Start() error {
-	var err error
-	// 3. 启动 Manager (这将启动所有的 Informer 和缓存)
-	if err = c.manager.Start(context.Background()); err != nil {
-		c.log.Error("problem running manager", err)
-		return err
-	}
-
-	return nil
 }
 
 // loadKubeConfig 尝试加载集群内配置或本地 kubeconfig
@@ -188,6 +177,7 @@ func (c *Client) handleConfigMapEvent(ctx context.Context, obj interface{}, even
 	var message infra.Message
 	if err := json.Unmarshal([]byte(cm.Data["config.json"]), &message); err != nil {
 		c.log.Error("Failed to unmarshal message", err)
+		return
 	}
 
 	c.pushToNode(ctx, message.Current.PublicKey, &message)

@@ -2,7 +2,8 @@ apiVersion: wireflowcontroller.wireflow.run/v1alpha1
 kind: WireflowPeer
 metadata:
   name: 30a589e950
-  namespace: wf-tenant-01
+  namespace: wf-a235a7adb7d9
 spec:
   appId: 30a589e950
-  network: network-sample
+  network: wireflow-default-net
+  platform: linux

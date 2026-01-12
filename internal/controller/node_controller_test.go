@@ -66,7 +66,7 @@ var _ = Describe("WireflowPeer Controller", func() {
 		})
 		It("should successfully reconcile the resource", func() {
 			By("Reconciling the created resource")
-			controllerReconciler := &NodeReconciler{
+			controllerReconciler := &PeerReconciler{
 				Client: k8sClient,
 				Scheme: k8sClient.Scheme(),
 			}

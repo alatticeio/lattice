@@ -16,6 +16,7 @@ package infra
 
 // used for cli flags
 var ServerUrl string
+var SignalUrl string
 
 const (
 	DefaultMTU = 1420

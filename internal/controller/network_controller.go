@@ -26,11 +26,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/handler"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
-	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"wireflow/api/v1alpha1"
@@ -44,9 +41,9 @@ type NetworkReconciler struct {
 	IPAM *ipam.IPAM
 }
 
-// +kubebuilder:rbac:groups=wireflowcontroller.wireflow.run,resources=networks,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=wireflowcontroller.wireflow.run,resources=networks/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=wireflowcontroller.wireflow.run,resources=networks/finalizers,verbs=update
+// +kubebuilder:rbac:groups=wireflowcontroller.wireflow.run,resources=wireflownetworks,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=wireflowcontroller.wireflow.run,resources=wireflownetworks/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=wireflowcontroller.wireflow.run,resources=wireflownetworks/finalizers,verbs=update
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -218,9 +215,9 @@ func (r *NetworkReconciler) findNodesByLabels(ctx context.Context, network *v1al
 func (r *NetworkReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&v1alpha1.WireflowNetwork{}).
-		Watches(&v1alpha1.WireflowPeer{},
-			handler.EnqueueRequestsFromMapFunc(r.mapNodeForNetworks),
-			builder.WithPredicates(predicate.ResourceVersionChangedPredicate{})).
+		//Watches(&v1alpha1.WireflowPeer{},
+		//	handler.EnqueueRequestsFromMapFunc(r.mapNodeForNetworks),
+		//	builder.WithPredicates(predicate.ResourceVersionChangedPredicate{})).
 		Named("network").
 		Complete(r)
 }

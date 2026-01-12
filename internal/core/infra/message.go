@@ -154,6 +154,7 @@ type Peer struct {
 	GroupName           string  `json:"groupName"`
 	Version             uint64  `json:"version"`
 	LastUpdatedAt       string  `json:"lastUpdatedAt"`
+	Token               string  `json:"token,omitempty"`
 }
 
 // Network is the network information, contains all peers/policies in the network
