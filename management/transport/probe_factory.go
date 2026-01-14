@@ -18,8 +18,8 @@ import (
 	"context"
 	"encoding/json"
 	"sync"
-	"wireflow/internal/core/infra"
 	"wireflow/internal/grpc"
+	"wireflow/internal/infra"
 	"wireflow/internal/log"
 )
 
@@ -111,6 +111,8 @@ func (p *ProbeFactory) NewProbe(remoteId string) (*Probe, error) {
 		remoteOfferChan: make(chan struct{}),
 		transport:       transport,
 	}
+
+	transport.probe = probe
 
 	p.Register(remoteId, probe)
 	return probe, nil

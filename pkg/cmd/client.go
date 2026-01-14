@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"wireflow/internal/core/infra"
+	"wireflow/internal/infra"
 	"wireflow/management/dto"
 	"wireflow/management/nats"
 	"wireflow/pkg/version"
@@ -15,7 +15,7 @@ type Client struct {
 }
 
 func NewClient(signalUrl string) (*Client, error) {
-	natsClient, err := nats.NewNatsService(signalUrl)
+	natsClient, err := nats.NewNatsService(context.Background(), signalUrl)
 	if err != nil {
 		return nil, err
 	}
@@ -43,8 +43,8 @@ func (c *Client) Info(ctx context.Context) error {
 
 func (c *Client) printInfo() {
 	clientInfo := version.Get()
-	fmt.Printf("Client Version: %s\n", clientInfo.Version)
-	fmt.Printf("Client GitCommit: %s\n", clientInfo.GitCommit)
+	fmt.Printf("AgentInterface Version: %s\n", clientInfo.Version)
+	fmt.Printf("AgentInterface GitCommit: %s\n", clientInfo.GitCommit)
 }
 
 func (c *Client) CreateToken(namespace, name, expiry string) error {

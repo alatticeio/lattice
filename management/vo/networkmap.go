@@ -1,7 +1,7 @@
 package vo
 
 import (
-	"wireflow/internal/core/infra"
+	"wireflow/internal/infra"
 )
 
 type NetworkMap struct {

@@ -18,7 +18,7 @@ import (
 	"context"
 	"fmt"
 	"time"
-	"wireflow/internal/core/infra"
+	"wireflow/internal/infra"
 	"wireflow/internal/log"
 	"wireflow/management/dto"
 	"wireflow/management/resource"

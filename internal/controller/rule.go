@@ -17,7 +17,7 @@ package controller
 import (
 	"fmt"
 	"strings"
-	"wireflow/internal/core/infra"
+	"wireflow/internal/infra"
 )
 
 // RuleGenerator for mutiple platform generate firewall rules

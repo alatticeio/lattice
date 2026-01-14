@@ -18,10 +18,11 @@ import (
 	"context"
 	"sync"
 	"time"
-	"wireflow/internal/core/infra"
 	"wireflow/internal/grpc"
+	"wireflow/internal/infra"
 	"wireflow/internal/log"
 
+	"github.com/wireflowio/ice"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -35,7 +36,7 @@ type Probe struct {
 	peerId          string
 	factory         *TransportFactory
 	transport       infra.Transport
-	state           infra.TransportState
+	state           ice.ConnectionState
 	signal          infra.SignalService
 	ctx             context.Context
 	cancel          context.CancelFunc
@@ -48,11 +49,15 @@ type Probe struct {
 	rtt             time.Duration
 }
 
+func (p *Probe) OnConnectionStateChange(state ice.ConnectionState) {
+	p.updateState(state)
+}
+
 func (p *Probe) Probe(ctx context.Context, remoteId string) error {
-	if p.state != infra.New {
+	if p.state != ice.ConnectionStateNew {
 		return nil
 	}
-	p.updateState(infra.Preparing)
+	p.updateState(ice.ConnectionStateChecking)
 	// 1. first prepare candidate then send to remoteId
 	go func() {
 		if err := p.Prepare(ctx, remoteId, p.signal.Send); err != nil {
@@ -98,7 +103,7 @@ func (p *Probe) Prepare(ctx context.Context, remoteId string, send func(ctx cont
 		cancel()
 		// send offer
 		p.log.Info("preProbe ACK received, will sending offer", "remoteId", remoteId)
-		return p.transport.Prepare()
+		return p.transport.Prepare(p)
 	}
 }
 
@@ -127,7 +132,7 @@ func (p *Probe) HandleAck(ctx context.Context, remoteId string, packet *grpc.Sig
 			close(p.probeAckChan)
 		})
 	}()
-	p.updateState(infra.Checking)
+	p.updateState(ice.ConnectionStateChecking)
 	return nil
 }
 
@@ -182,6 +187,6 @@ func (p *Probe) OnTransportFail(err error) {
 	p.log.Error("OnTransportFail", err)
 }
 
-func (p *Probe) updateState(state infra.TransportState) {
+func (p *Probe) updateState(state ice.ConnectionState) {
 	p.state = state
 }

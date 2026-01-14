@@ -3,7 +3,7 @@ package token
 import (
 	"fmt"
 	"wireflow/internal/config"
-	"wireflow/internal/core/infra"
+	"wireflow/internal/infra"
 	"wireflow/pkg/cmd"
 
 	"github.com/spf13/cobra"

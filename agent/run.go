@@ -14,9 +14,10 @@
 
 //go:build !windows
 
-package client
+package agent
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"os"
@@ -25,7 +26,7 @@ import (
 	"time"
 	"wireflow/dns"
 	"wireflow/internal/config"
-	"wireflow/internal/core/infra"
+	"wireflow/internal/infra"
 	"wireflow/internal/log"
 	"wireflow/monitor"
 	"wireflow/monitor/collector"
@@ -37,17 +38,16 @@ import (
 )
 
 // Start start wireflow
-func Start(flags *config.Flags) error {
+func Start(ctx context.Context, flags *config.Flags) error {
 	var (
 		logFile *os.File
 		path    string
 		err     error
 	)
-	ctx := infra.SetupSignalHandler()
 
 	logger := log.GetLogger("wireflow")
 
-	engineCfg := &ClientConfig{
+	engineCfg := &AgentConfig{
 		Logger: logger,
 		//Conf:          conf,
 		Port:          51820,
@@ -185,13 +185,13 @@ func Start(flags *config.Flags) error {
 	// enable DNS
 	if flags.DnsEnable {
 		go func() {
-			linkDns := dns.NewLinkDNS(&dns.DNSConfig{})
-			linkDns.Start()
+			nativeDNS := dns.NewNativeDNS(&dns.DNSConfig{})
+			nativeDNS.Start()
 			fmt.Println("Dns started")
 		}()
 	}
 
-	c, err := NewClient(engineCfg)
+	c, err := NewAgent(ctx, engineCfg)
 	if err != nil {
 		return err
 	}
@@ -209,7 +209,7 @@ func Start(flags *config.Flags) error {
 		return msg, err
 	}
 
-	err = c.Start()
+	err = c.Start(ctx)
 
 	// open UAPI file
 	logger.Info("Interface name", "name", c.Name)
@@ -229,7 +229,7 @@ func Start(flags *config.Flags) error {
 			if err != nil {
 				return
 			}
-			go c.IpcHandle(conn)
+			go c.DeviceManager.IpcHandle(conn)
 		}
 	}()
 	logger.Info("wireflow started")

@@ -15,7 +15,7 @@
 //go:build windows
 // +build windows
 
-package client
+package agent
 
 import (
 	"fmt"
@@ -37,7 +37,7 @@ func Start(flags *Flags) error {
 	logger := log.NewLogger(log.Loglevel, "linkany")
 
 	// peers config to wireGuard
-	engineCfg := &ClientConfig{
+	engineCfg := &AgentConfig{
 		Logger:        logger,
 		Conf:          conf,
 		Port:          51820,
@@ -61,7 +61,7 @@ func Start(flags *Flags) error {
 		engineCfg.TurnServerUrl = fmt.Sprintf("%s:%d", internal.TurnServerDomain, internal.DefaultTurnServerPort)
 	}
 
-	engine, err := NewClient(engineCfg)
+	engine, err := NewAgent(engineCfg)
 	if err != nil {
 		return err
 	}

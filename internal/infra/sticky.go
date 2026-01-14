@@ -12,23 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package client
-
-import (
-	"wireflow/internal/core/infra"
-)
+package infra
 
 // TODO: macOS, FreeBSD and other BSDs likely do support this feature set, but
 // use alternatively named flags and need ports and require testing.
 
 // getSrcFromControl parses the control for PKTINFO and if found updates ep with
 // the source information found.
-func getSrcFromControl(control []byte, wep *infra.MagicEndpoint) {
+func getSrcFromControl(control []byte, wep *MagicEndpoint) {
 }
 
 // setSrcControl parses the control for PKTINFO and if found updates ep with
 // the source information found.
-func setSrcControl(control *[]byte, ep *infra.MagicEndpoint) {
+func setSrcControl(control *[]byte, ep *MagicEndpoint) {
 }
 
 // srcControlSize returns the recommended buffer size for pooling sticky control

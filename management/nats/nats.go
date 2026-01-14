@@ -18,7 +18,7 @@ import (
 	"context"
 	"fmt"
 	"time"
-	"wireflow/internal/core/infra"
+	"wireflow/internal/infra"
 	"wireflow/internal/log"
 
 	"wireflow/internal/grpc"
@@ -42,7 +42,7 @@ type NatsSignalService struct {
 	onMessage SignalHandler
 }
 
-func NewNatsService(url string) (*NatsSignalService, error) {
+func NewNatsService(ctx context.Context, url string) (*NatsSignalService, error) {
 	nc, err := nats.Connect(url)
 	if err != nil {
 		return nil, err
@@ -60,7 +60,7 @@ func NewNatsService(url string) (*NatsSignalService, error) {
 		return nil, err
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
 	streamName := "WIREFLOW"

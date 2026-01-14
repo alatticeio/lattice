@@ -20,8 +20,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"sync"
-	"wireflow/internal/core/infra"
 	"wireflow/internal/grpc"
+	"wireflow/internal/infra"
 	"wireflow/internal/log"
 
 	v1alpha1 "wireflow/api/v1alpha1"

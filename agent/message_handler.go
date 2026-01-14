@@ -12,12 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package client
+package agent
 
 import (
 	"context"
 	"fmt"
-	"wireflow/internal/core/infra"
+	"wireflow/internal/infra"
 	"wireflow/internal/log"
 )
 
@@ -27,14 +27,14 @@ type Handler interface {
 }
 
 // event handler for wireflow to handle event from management
-type EventHandler struct {
-	deviceManager infra.Client
+type MessageHandler struct {
+	deviceManager infra.AgentInterface
 	logger        *log.Logger
 	provisioner   infra.Provisioner
 }
 
-func NewEventHandler(e infra.Client, logger *log.Logger, provisioner infra.Provisioner) *EventHandler {
-	return &EventHandler{
+func NewMessageHandler(e infra.AgentInterface, logger *log.Logger, provisioner infra.Provisioner) *MessageHandler {
+	return &MessageHandler{
 		deviceManager: e,
 		logger:        logger,
 		provisioner:   provisioner,
@@ -43,7 +43,7 @@ func NewEventHandler(e infra.Client, logger *log.Logger, provisioner infra.Provi
 
 type HandlerFunc func(ctx context.Context, msg *infra.Message) error
 
-func (h *EventHandler) HandleEvent(ctx context.Context, msg *infra.Message) error {
+func (h *MessageHandler) HandleEvent(ctx context.Context, msg *infra.Message) error {
 	if msg == nil {
 		return nil
 	}
@@ -118,7 +118,7 @@ func (h *EventHandler) HandleEvent(ctx context.Context, msg *infra.Message) erro
 }
 
 // ApplyFullConfig when wireflow start, apply full config
-func (h *EventHandler) ApplyFullConfig(ctx context.Context, msg *infra.Message) error {
+func (h *MessageHandler) ApplyFullConfig(ctx context.Context, msg *infra.Message) error {
 	h.logger.Info("ApplyFullConfig start", "message", msg)
 	var err error
 
@@ -137,7 +137,7 @@ func (h *EventHandler) ApplyFullConfig(ctx context.Context, msg *infra.Message) 
 	return nil
 }
 
-func (h *EventHandler) applyRemotePeers(ctx context.Context, msg *infra.Message) error {
+func (h *MessageHandler) applyRemotePeers(ctx context.Context, msg *infra.Message) error {
 	for _, peer := range msg.ComputedPeers {
 		// add peer to peers cached and probe start
 		if err := h.deviceManager.AddPeer(peer); err != nil {
@@ -147,7 +147,7 @@ func (h *EventHandler) applyRemotePeers(ctx context.Context, msg *infra.Message)
 	return nil
 }
 
-func (h *EventHandler) applyFirewallRules(ctx context.Context, msg *infra.Message) error {
+func (h *MessageHandler) applyFirewallRules(ctx context.Context, msg *infra.Message) error {
 	if msg.ComputedRules == nil {
 		return nil
 	}

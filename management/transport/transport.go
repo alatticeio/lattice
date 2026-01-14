@@ -16,7 +16,7 @@ package transport
 
 import (
 	"sync"
-	"wireflow/internal/core/infra"
+	"wireflow/internal/infra"
 	"wireflow/internal/log"
 
 	"github.com/wireflowio/ice"
@@ -32,6 +32,8 @@ type TransportFactory struct {
 	peerManager            *infra.PeerManager
 	log                    *log.Logger
 	onClose                func(remoteId string) error
+
+	probe infra.Probe
 }
 
 func NewTransportFactory(sender infra.SignalService, universalUdpMuxDefault *ice.UniversalUDPMuxDefault) *TransportFactory {
@@ -91,7 +93,9 @@ func (t *TransportFactory) MakeTransport(localId, remoteId string) (infra.Transp
 
 	orignalClose := t.onClose
 	transport.onClose = func(remoteId string) {
-		orignalClose(remoteId)
+		if orignalClose != nil {
+			orignalClose(remoteId)
+		}
 		t.mu.Lock()
 		defer t.mu.Unlock()
 		delete(t.transports, remoteId)

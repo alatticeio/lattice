@@ -17,7 +17,7 @@ package turn
 import (
 	"fmt"
 	"wireflow/internal/config"
-	"wireflow/internal/core/infra"
+	"wireflow/internal/infra"
 	"wireflow/internal/log"
 	"wireflow/management/client"
 	"wireflow/management/nats"

@@ -19,7 +19,7 @@ import (
 	"encoding/json"
 	"fmt"
 	v1alpha1 "wireflow/api/v1alpha1"
-	"wireflow/internal/core/infra"
+	"wireflow/internal/infra"
 	"wireflow/management/dto"
 	"wireflow/management/entity"
 

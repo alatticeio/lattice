@@ -45,5 +45,5 @@ func stopWireflowd(flags *config.Flags) error {
 		flags.LogLevel = "error"
 	}
 	log.SetLevel(flags.LogLevel)
-	return client.Stop(flags)
+	return agent.Stop(flags)
 }

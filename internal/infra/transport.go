@@ -18,6 +18,8 @@ import (
 	"context"
 	"net"
 	"wireflow/internal/grpc"
+
+	"github.com/wireflowio/ice"
 )
 
 // SignalService only used for sending signal byte packet
@@ -35,38 +37,21 @@ type SignalService interface {
 // Transport for transfer wireguard packets
 type Transport interface {
 	// Init and gather candidates send to peerId
-	Prepare() error
+	Prepare(probe Probe) error
 
-	// 2. 注入远端发来的候选地址或 Offer
 	HandleOffer(ctx context.Context, peerId string, packet *grpc.SignalPacket) error
 
-	OnConnectionStateChange(state TransportState) error
+	OnConnectionStateChange(state ice.ConnectionState) error
 
-	// 3. 启动/重启打洞尝试
-	// 这是一个异步过程，成功后会建立物理连接
 	Start(ctx context.Context, peerId string) error
 
-	// 4. 获取连接对象
-	// 打洞成功后，提供给 Wireguard 使用的 ReadWriter
 	RawConn() (net.Conn, error)
 
-	// 5. 暴露底层状态（New/Gathering/Checking/Connected/Failed）
-	State() TransportState
+	State() ice.ConnectionState
 
 	// 6. 销毁资源
 	Close() error
 }
-
-type TransportState int
-
-const (
-	New TransportState = iota
-	Preparing
-	Gathering
-	Checking
-	Connected
-	Failed
-)
 
 type Probe interface {
 	// 1. 核心控制循环：驱动 Transport 进行打洞
@@ -81,4 +66,6 @@ type Probe interface {
 	// 3. 策略回调：当 Transport 报告 Failed 时被调用
 	// 内部实现：是立即重试，还是退避 5 秒后再重试
 	OnTransportFail(err error)
+
+	OnConnectionStateChange(state ice.ConnectionState)
 }

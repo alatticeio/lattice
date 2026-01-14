@@ -20,7 +20,7 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
-	"wireflow/internal/core/infra"
+	"wireflow/internal/infra"
 	"wireflow/internal/ipam"
 
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"

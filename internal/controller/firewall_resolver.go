@@ -18,7 +18,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"wireflow/internal/core/infra"
+	"wireflow/internal/infra"
 
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 )

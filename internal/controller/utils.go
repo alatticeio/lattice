@@ -17,7 +17,7 @@ package controller
 import (
 	"fmt"
 	wireflowv1alpha1 "wireflow/api/v1alpha1"
-	"wireflow/internal/core/infra"
+	"wireflow/internal/infra"
 )
 
 // 辅助函数

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package client
+package infra
 
 import (
 	"context"
@@ -24,7 +24,6 @@ import (
 	"strings"
 	"sync"
 	"syscall"
-	"wireflow/internal/core/infra"
 	"wireflow/internal/log"
 
 	"github.com/wireflowio/ice"
@@ -49,7 +48,7 @@ type DefaultBind struct {
 	universalUdpMux *ice.UniversalUDPMuxDefault
 	conn            net.Conn // drp clients conn
 	PublicKey       wgtypes.Key
-	keyManager      infra.KeyManager
+	keyManager      KeyManager
 
 	// used for turn relay
 	relayConn net.PacketConn
@@ -80,7 +79,7 @@ type BindConfig struct {
 	V6Conn          *net.UDPConn
 	UniversalUDPMux *ice.UniversalUDPMuxDefault
 	RelayConn       net.PacketConn // relay conn, used for relay endpoint
-	KeyManager      infra.KeyManager
+	KeyManager      KeyManager
 }
 
 func NewBind(cfg *BindConfig) *DefaultBind {
@@ -153,14 +152,14 @@ func (b *DefaultBind) ParseEndpoint(s string) (conn.Endpoint, error) {
 		if !isExists {
 			return nil, errors.New("invalid drp endpoint format, missing 'to='")
 		}
-		return &infra.MagicEndpoint{
+		return &MagicEndpoint{
 			Relay: &struct {
-				FromType infra.EndpointType
+				FromType EndpointType
 				Status   bool
 				From     string
 				To       string
 				Endpoint netip.AddrPort
-			}{FromType: infra.DRP, Status: true, From: b.keyManager.GetPublicKey(), To: to, Endpoint: e},
+			}{FromType: DRP, Status: true, From: b.keyManager.GetPublicKey(), To: to, Endpoint: e},
 		}, nil
 	} else if strings.HasPrefix(s, "relay:") {
 		// relay endpoint
@@ -189,14 +188,14 @@ func (b *DefaultBind) ParseEndpoint(s string) (conn.Endpoint, error) {
 		if !isExists {
 			return nil, errors.New("invalid drp endpoint format, missing 'to='")
 		}
-		return &infra.MagicEndpoint{
+		return &MagicEndpoint{
 			Relay: &struct {
-				FromType infra.EndpointType
+				FromType EndpointType
 				Status   bool
 				From     string
 				To       string
 				Endpoint netip.AddrPort
-			}{FromType: infra.Relay, Status: true, From: b.keyManager.GetPublicKey(), To: to, Endpoint: e},
+			}{FromType: Relay, Status: true, From: b.keyManager.GetPublicKey(), To: to, Endpoint: e},
 		}, nil
 	}
 	e, err := netip.ParseAddrPort(s)
@@ -204,7 +203,7 @@ func (b *DefaultBind) ParseEndpoint(s string) (conn.Endpoint, error) {
 		return nil, err
 	}
 
-	return &infra.MagicEndpoint{
+	return &MagicEndpoint{
 		Direct: struct{ AddrPort netip.AddrPort }{AddrPort: e},
 	}, nil
 
@@ -301,14 +300,14 @@ func (b *DefaultBind) makeReceiveRelay() conn.ReceiveFunc {
 			return 0, err
 		}
 
-		eps[0] = &infra.MagicEndpoint{
+		eps[0] = &MagicEndpoint{
 			Relay: &struct {
-				FromType infra.EndpointType
+				FromType EndpointType
 				Status   bool
 				From     string
 				To       string
 				Endpoint netip.AddrPort
-			}{FromType: infra.Relay, Status: true, From: "", To: b.keyManager.GetPublicKey(), Endpoint: addrPort},
+			}{FromType: Relay, Status: true, From: "", To: b.keyManager.GetPublicKey(), Endpoint: addrPort},
 		}
 
 		return 1, nil
@@ -353,7 +352,7 @@ func (b *DefaultBind) makeReceiveIPv4(pc *ipv4.PacketConn, udpConn *net.UDPConn)
 
 			sizes[i] = msg.N
 			addrPort := msg.Addr.(*net.UDPAddr).AddrPort()
-			ep := &infra.MagicEndpoint{
+			ep := &MagicEndpoint{
 				Direct: struct{ AddrPort netip.AddrPort }{AddrPort: addrPort},
 			} // TODO: remove allocation
 			getSrcFromControl(msg.OOB[:msg.NN], ep)
@@ -398,7 +397,7 @@ func (b *DefaultBind) makeReceiveIPv6(pc *ipv6.PacketConn, udpConn *net.UDPConn)
 			}
 			sizes[i] = msg.N
 			addrPort := msg.Addr.(*net.UDPAddr).AddrPort()
-			ep := &infra.MagicEndpoint{Direct: struct{ AddrPort netip.AddrPort }{AddrPort: addrPort}} // TODO: remove allocation
+			ep := &MagicEndpoint{Direct: struct{ AddrPort netip.AddrPort }{AddrPort: addrPort}} // TODO: remove allocation
 			getSrcFromControl(msg.OOB[:msg.NN], ep)
 			eps[i] = ep
 		}
@@ -445,11 +444,11 @@ func (b *DefaultBind) Close() error {
 
 func (b *DefaultBind) Send(bufs [][]byte, endpoint conn.Endpoint) error {
 	// add drp write
-	if v, ok := endpoint.(infra.RelayEndpoint); ok {
+	if v, ok := endpoint.(RelayEndpoint); ok {
 		switch v.FromType() {
-		case infra.DRP:
+		case DRP:
 			return nil
-		case infra.Relay:
+		case Relay:
 			if b.relayConn == nil {
 				return errors.New("relayConn is nil, please set relayConn first")
 			}
@@ -509,12 +508,12 @@ func (b *DefaultBind) send4(conn *net.UDPConn, pc *ipv4.PacketConn, ep conn.Endp
 	as4 := ep.DstIP().As4()
 	copy(ua.IP, as4[:])
 	ua.IP = ua.IP[:4]
-	ua.Port = int(ep.(*infra.MagicEndpoint).Direct.AddrPort.Port())
+	ua.Port = int(ep.(*MagicEndpoint).Direct.AddrPort.Port())
 	msgs := b.ipv4MsgsPool.Get().(*[]ipv4.Message)
 	for i, buf := range bufs {
 		(*msgs)[i].Buffers[0] = buf
 		(*msgs)[i].Addr = ua
-		setSrcControl(&(*msgs)[i].OOB, ep.(*infra.MagicEndpoint))
+		setSrcControl(&(*msgs)[i].OOB, ep.(*MagicEndpoint))
 	}
 	var (
 		n     int
@@ -552,7 +551,7 @@ func (b *DefaultBind) send6(conn *net.UDPConn, pc *ipv6.PacketConn, ep conn.Endp
 	for i, buf := range bufs {
 		(*msgs)[i].Buffers[0] = buf
 		(*msgs)[i].Addr = ua
-		setSrcControl(&(*msgs)[i].OOB, ep.(*infra.MagicEndpoint))
+		setSrcControl(&(*msgs)[i].OOB, ep.(*MagicEndpoint))
 	}
 	var (
 		n     int

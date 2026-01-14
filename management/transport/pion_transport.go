@@ -20,8 +20,8 @@ import (
 	"fmt"
 	"net"
 	"sync"
-	"wireflow/internal/core/infra"
 	"wireflow/internal/grpc"
+	"wireflow/internal/infra"
 	"wireflow/internal/log"
 
 	"github.com/pion/logging"
@@ -43,7 +43,7 @@ type PionTransport struct {
 	provisioner   infra.Provisioner
 	remoteId      string
 	agent         *AgentWrapper
-	state         infra.TransportState
+	state         ice.ConnectionState
 	probeAckChan  chan struct{}
 	closeOnce     sync.Once
 	ackClose      sync.Once
@@ -52,6 +52,7 @@ type PionTransport struct {
 	universalUdpMuxDefault *ice.UniversalUDPMuxDefault
 
 	peers *infra.PeerManager
+	probe infra.Probe
 }
 
 type ICETransportConfig struct {
@@ -107,7 +108,9 @@ func (t *PionTransport) getAgent(remoteId string) (*AgentWrapper, error) {
 		}
 		// 绑定状态监听，成功后更新 WireGuard
 		agent.OnConnectionStateChange(func(s ice.ConnectionState) {
+			t.updateTransportState(s)
 			if s == ice.ConnectionStateConnected {
+				t.log.Info("Setting new connection", "state", "connected")
 				pair, err := agent.GetSelectedCandidatePair()
 				if err != nil {
 					t.log.Error("Get selected candidate pair", err)
@@ -142,7 +145,8 @@ func (t *PionTransport) getAgent(remoteId string) (*AgentWrapper, error) {
 	return agent, err
 }
 
-func (t *PionTransport) Prepare() error {
+func (t *PionTransport) Prepare(probe infra.Probe) error {
+	t.probe = probe
 	return t.agent.GatherCandidates()
 }
 
@@ -179,7 +183,7 @@ func (t *PionTransport) HandleOffer(ctx context.Context, remoteId string, packet
 	return nil
 }
 
-func (t *PionTransport) OnConnectionStateChange(state infra.TransportState) error {
+func (t *PionTransport) OnConnectionStateChange(state ice.ConnectionState) error {
 	return nil
 }
 
@@ -197,7 +201,7 @@ func (t *PionTransport) RawConn() (net.Conn, error) {
 	return nil, nil
 }
 
-func (t *PionTransport) State() infra.TransportState {
+func (t *PionTransport) State() ice.ConnectionState {
 	return t.state
 }
 
@@ -264,16 +268,12 @@ func (t *PionTransport) isShouldSendOffer(localId, remoteId string) bool {
 	return localId > remoteId
 }
 
-func (t *PionTransport) updateTransportState(newState infra.TransportState) {
+func (t *PionTransport) updateTransportState(newState ice.ConnectionState) {
 	t.su.Lock()
 	defer t.su.Unlock()
-	oldState := t.state
-	t.state = newState
-	if oldState != newState {
-		t.log.Info("Transport State changed", "remoteId", t.remoteId, "oldState", oldState, "newState", newState)
-		// 这里可以触发回调通知 Probe 层或 WireGuard 层
-		t.OnConnectionStateChange(newState)
-	}
+	t.log.Info("Setting new connection state", "remoteId", t.remoteId, "newState", newState)
+	t.probe.OnConnectionStateChange(newState)
+	t.OnConnectionStateChange(newState)
 }
 
 func (t *PionTransport) AddPeer(remoteId, addr string) error {

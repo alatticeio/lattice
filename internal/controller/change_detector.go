@@ -20,7 +20,7 @@ import (
 	"sync"
 	"time"
 	v1alpha1 "wireflow/api/v1alpha1"
-	"wireflow/internal/core/infra"
+	"wireflow/internal/infra"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"

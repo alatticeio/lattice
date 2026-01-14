@@ -1,4 +1,4 @@
-package client
+package infra
 
 func getInterfaceName() string {
 	return "wf0"

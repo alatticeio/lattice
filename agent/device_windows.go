@@ -15,7 +15,7 @@
 //go:build windows
 // +build windows
 
-package client
+package agent
 
 import (
 	"bufio"
@@ -54,7 +54,7 @@ const (
 	DefaultMTU = 1420
 )
 
-// Client is the daemon that manages the wireGuard iface
+// Agent is the daemon that manages the wireGuard iface
 type Engine struct {
 	logger        *log.Logger
 	keyManager    internal.KeyManager
@@ -151,7 +151,7 @@ func (e *Engine) IpcHandle(socket net.Conn) {
 
 }
 
-// NewClient create a new Client instance
+// NewAgent create a new Agent instance
 func NewEngine(cfg *EngineConfig) (*Engine, error) {
 	var (
 		device       tun.Device
@@ -292,9 +292,9 @@ func NewEngine(cfg *EngineConfig) (*Engine, error) {
 	engine.device = wg.NewDevice(device, engine.bind, cfg.WgLogger)
 
 	wgConfigure := internal.NewConfigurer(&internal.Params{
-		Device:       engine.device,
-		IfaceName:    engine.Name,
-		PeersManager: engine.nodeManager,
+		DeviceManager: engine.device,
+		IfaceName:     engine.Name,
+		PeersManager:  engine.nodeManager,
 	})
 	engine.wgConfigure = wgConfigure
 

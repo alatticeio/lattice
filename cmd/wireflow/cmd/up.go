@@ -15,8 +15,9 @@
 package cmd
 
 import (
-	"wireflow/client"
+	"wireflow/agent"
 	"wireflow/internal/config"
+	"wireflow/internal/infra"
 
 	"github.com/spf13/cobra"
 )
@@ -29,7 +30,8 @@ func upCmd() *cobra.Command {
 		Short:   "wireflow startup command",
 		Example: "wireflow up --token <token> --server-url <server-url> --signaling-url <signaling-url>",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return client.Start(&flags)
+			ctx := infra.SetupSignalHandler()
+			return agent.Start(ctx, &flags)
 		},
 	}
 

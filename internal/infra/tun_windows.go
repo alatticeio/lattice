@@ -12,11 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package client
+package infra
 
 import (
-	"wireflow/internal/log"
-
 	"golang.zx2c4.com/wireguard/tun"
 )
 
@@ -26,14 +24,14 @@ func CreateTUN(mtu int, logger *log.Logger) (string, tun.Device, error) {
 	return name, device, err
 }
 
-// wf0 is default interface name
-//func getInterfaceName() string {
-//	//rand.Seed(time.Now().UnixNano())
-//	//const letters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-//	//bytes := make([]byte, 3)
-//	//for i := 0; i < 3; i++ {
-//	//	bytes[i] = letters[rand.Intn(len(letters))]
-//	//}
 //
-//	return "wf0"
+//func getInterfaceName() string {
+//	rand.Seed(time.Now().UnixNano())
+//	const letters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+//	bytes := make([]byte, 3)
+//	for i := 0; i < 3; i++ {
+//		bytes[i] = letters[rand.Intn(len(letters))]
+//	}
+//
+//	return "wf0" + string(bytes)
 //}

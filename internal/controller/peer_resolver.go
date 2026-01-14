@@ -16,7 +16,7 @@ package controller
 
 import (
 	"context"
-	"wireflow/internal/core/infra"
+	"wireflow/internal/infra"
 	"wireflow/pkg/utils"
 )
 

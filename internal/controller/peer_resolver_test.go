@@ -17,7 +17,7 @@ package controller
 import (
 	"context"
 	"testing"
-	"wireflow/internal/core/infra"
+	"wireflow/internal/infra"
 )
 
 func TestPeerResolver_ResolvePeers(t *testing.T) {

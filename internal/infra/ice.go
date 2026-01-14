@@ -8,11 +8,12 @@ import (
 )
 
 func NewUdpMux(conn net.PacketConn) *ice.UniversalUDPMuxDefault {
+
 	loggerFactory := logging.NewDefaultLoggerFactory()
 	loggerFactory.DefaultLogLevel = logging.LogLevelDebug
 
 	universalUdpMux := ice.NewUniversalUDPMuxDefault(ice.UniversalUDPMuxParams{
-		Logger:  loggerFactory.NewLogger("wrapper"),
+		Logger:  loggerFactory.NewLogger("infra"),
 		UDPConn: conn,
 		Net:     nil,
 	})

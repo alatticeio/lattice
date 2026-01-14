@@ -21,10 +21,10 @@ import (
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 )
 
-// Client is the interface for managing WireGuard devices.
-type Client interface {
+// AgentInterface is the interface for managing WireGuard devices.
+type AgentInterface interface {
 	// Start the engine
-	Start() error
+	Start(ctx context.Context) error
 
 	GetDeviceName() string
 

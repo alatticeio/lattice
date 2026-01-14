@@ -1,7 +1,7 @@
 package vo
 
 import (
-	"wireflow/internal/core/infra"
+	"wireflow/internal/infra"
 )
 
 func (vo *PeerVO) TransferToNode() *infra.Peer {

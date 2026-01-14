@@ -18,7 +18,7 @@ import (
 	"fmt"
 	"os"
 	"wireflow/cmd/wireflow/cmd/token"
-	"wireflow/internal/core/infra"
+	"wireflow/internal/infra"
 
 	"github.com/spf13/cobra"
 )

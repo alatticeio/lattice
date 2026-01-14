@@ -14,43 +14,37 @@
 
 //go:build !windows
 
-package client
+package agent
 
 import (
-	"bufio"
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"net"
-	"os"
 	"strings"
-	"syscall"
 	"wireflow/internal"
 	"wireflow/internal/config"
-	"wireflow/internal/core/infra"
+	"wireflow/internal/infra"
 	"wireflow/internal/log"
-	"wireflow/internal/wferrors"
 	ctrclient "wireflow/management/client"
 	mgtclient "wireflow/management/client"
 	"wireflow/management/nats"
 	"wireflow/management/transport"
 
 	wg "golang.zx2c4.com/wireguard/device"
-	"golang.zx2c4.com/wireguard/ipc"
 	"golang.zx2c4.com/wireguard/tun"
 )
 
 var (
-	_ infra.Client = (*Client)(nil)
+	_ infra.AgentInterface = (*Agent)(nil)
 )
 
-// Client act as wireflow data plane, wrappers around wireguard device
-type Client struct {
+// Agent act as wireflow data plane, wrappers around wireguard device
+type Agent struct {
 	logger      *log.Logger
 	Name        string
 	iface       *wg.Device
-	bind        *DefaultBind
+	bind        *infra.DefaultBind
 	provisioner infra.Provisioner
 
 	GetNetworkMap func() (*infra.Message, error)
@@ -66,15 +60,18 @@ type Client struct {
 
 	callback     func(message *infra.Message) error
 	eventHandler Handler
+
+	DeviceManager *DeviceManager
 }
 
-type ClientConfig struct {
+type AgentConfig struct {
 	Logger        *log.Logger
 	Port          int
 	UdpConn       *net.UDPConn
 	InterfaceName string
 	client        *mgtclient.Client
 	WgLogger      *wg.Logger
+	deviceManager *DeviceManager
 	TurnServerUrl string
 	ForceRelay    bool
 	ManagementUrl string
@@ -83,119 +80,64 @@ type ClientConfig struct {
 	Token         string
 }
 
-func (c *Client) IpcHandle(socket net.Conn) {
-	defer socket.Close()
-
-	buffered := func(s io.ReadWriter) *bufio.ReadWriter {
-		reader := bufio.NewReader(s)
-		writer := bufio.NewWriter(s)
-		return bufio.NewReadWriter(reader, writer)
-	}(socket)
-	for {
-		op, err := buffered.ReadString('\n')
-		if err != nil {
-			return
-		}
-
-		// handle operation
-		switch op {
-		case "stop\n":
-			buffered.Write([]byte("OK\n\n"))
-			// send kill signal
-			syscall.Kill(os.Getpid(), syscall.SIGTERM)
-		case "set=1\n":
-			err = c.iface.IpcSetOperation(buffered.Reader)
-		case "get=1\n":
-			var nextByte byte
-			nextByte, err = buffered.ReadByte()
-			if err != nil {
-				return
-			}
-			if nextByte != '\n' {
-				err = wferrors.IpcErrorf(ipc.IpcErrorInvalid, "trailing character in UAPI get: %q", nextByte)
-				break
-			}
-			err = c.iface.IpcGetOperation(buffered.Writer)
-		default:
-			c.logger.Error("invalid UAPI operation", errors.New("set error"), "op", op)
-			return
-		}
-
-		// write status
-		var status *wferrors.IPCError
-		if err != nil && !errors.As(err, &status) {
-			// shouldn't happen
-			status = wferrors.IpcErrorf(ipc.IpcErrorUnknown, "other UAPI error: %w", err)
-		}
-		if status != nil {
-			c.logger.Error("status", status)
-			fmt.Fprintf(buffered, "errno=%d\n\n", status.ErrorCode())
-		} else {
-			fmt.Fprintf(buffered, "errno=0\n\n")
-		}
-		buffered.Flush()
-	}
-
-}
-
-// NewClient create a new Client instance
-func NewClient(cfg *ClientConfig) (*Client, error) {
+// NewAgent create a new Agent instance
+func NewAgent(ctx context.Context, cfg *AgentConfig) (*Agent, error) {
 	var (
-		iface  tun.Device
-		err    error
-		client *Client
-		//turnClient internal.Client
+		iface tun.Device
+		err   error
+		agent *Agent
+		//turnClient internal.Agent
 		v4conn *net.UDPConn
 		v6conn *net.UDPConn
 	)
-	client = new(Client)
-	client.manager.peerManager = infra.NewPeerManager()
-	client.logger = cfg.Logger
-	client.manager.turnManager = new(internal.TurnManager)
-	client.Name, iface, err = CreateTUN(infra.DefaultMTU, cfg.Logger)
+	agent = new(Agent)
+	agent.manager.peerManager = infra.NewPeerManager()
+	agent.logger = cfg.Logger
+	agent.manager.turnManager = new(internal.TurnManager)
+	agent.Name, iface, err = infra.CreateTUN(infra.DefaultMTU, cfg.Logger)
 	if err != nil {
 		return nil, err
 	}
 
-	if v4conn, _, err = ListenUDP("udp4", uint16(cfg.Port)); err != nil {
+	if v4conn, _, err = infra.ListenUDP("udp4", uint16(cfg.Port)); err != nil {
 		return nil, err
 	}
 
-	if v6conn, _, err = ListenUDP("udp6", uint16(cfg.Port)); err != nil {
+	if v6conn, _, err = infra.ListenUDP("udp6", uint16(cfg.Port)); err != nil {
 		return nil, err
 	}
 
 	universalUdpMuxDefault := infra.NewUdpMux(v4conn)
 
-	natsSignalService, err := nats.NewNatsService(config.GlobalConfig.SignalUrl)
+	natsSignalService, err := nats.NewNatsService(ctx, config.GlobalConfig.SignalUrl)
 	if err != nil {
 		return nil, err
 	}
 
 	factory := transport.NewTransportFactory(natsSignalService, universalUdpMuxDefault)
 
-	client.ctrClient, err = ctrclient.NewClient(natsSignalService, factory)
+	agent.ctrClient, err = ctrclient.NewClient(natsSignalService, factory)
 	if err != nil {
 		return nil, err
 	}
 
 	var privateKey string
-	client.current, err = client.ctrClient.Register(context.Background(), cfg.Token, client.Name)
+	agent.current, err = agent.ctrClient.Register(context.Background(), cfg.Token, agent.Name)
 	if err != nil {
 		return nil, err
 	}
 
 	// write token
-	if err = config.WriteConfig("token", client.current.Token); err != nil {
+	if err = config.WriteConfig("token", agent.current.Token); err != nil {
 		return nil, err
 	}
 
-	privateKey = client.current.PrivateKey
-	client.manager.keyManager = infra.NewKeyManager(privateKey)
+	privateKey = agent.current.PrivateKey
+	agent.manager.keyManager = infra.NewKeyManager(privateKey)
 
-	factory.Configure(transport.WithPeerManager(client.manager.peerManager), transport.WithKeyManager(client.manager.keyManager))
+	factory.Configure(transport.WithPeerManager(agent.manager.peerManager), transport.WithKeyManager(agent.manager.keyManager))
 
-	localId := client.manager.keyManager.GetPublicKey()
+	localId := agent.manager.keyManager.GetPublicKey()
 	probeFactory := transport.NewProbeFactory(&transport.ProbeFactoryConfig{
 		Factory: factory,
 		LocalId: localId,
@@ -205,35 +147,17 @@ func NewClient(cfg *ClientConfig) (*Client, error) {
 	//subscribe
 	natsSignalService.Subscribe(fmt.Sprintf("%s.%s", "wireflow.signals.peers", localId), probeFactory.HandleSignal)
 
-	client.ctrClient.Configure(
+	agent.ctrClient.Configure(
 		ctrclient.WithSignalHandler(natsSignalService),
-		ctrclient.WithKeyManager(client.manager.keyManager),
+		ctrclient.WithKeyManager(agent.manager.keyManager),
 		ctrclient.WithProbeFactory(probeFactory))
 
-	// init stun
-	//if turnClient, err = turn.NewClient(&turn.ClientConfig{
-	//	ServerUrl: cfg.TurnServerUrl,
-	//	Logger:    log.NewLogger(log.Loglevel, "turnclient"),
-	//}); err != nil {
-	//	return nil, err
-	//}
-
-	//var info *internal.RelayInfo
-	//if info, err = turnClient.GetRelayInfo(true); err != nil {
-	//	return nil, err
-	//}
-	//
-	//client.logger.Verbosef("get relay info, mapped addr: %v, conn addr: %v", info.MappedAddr, info.RelayConn.LocalAddr())
-
-	//client.manager.turnManager.SetInfo(info)
-
-	client.bind = NewBind(&BindConfig{
+	agent.bind = infra.NewBind(&infra.BindConfig{
 		Logger:          cfg.Logger,
 		UniversalUDPMux: universalUdpMuxDefault,
 		V4Conn:          v4conn,
 		V6Conn:          v6conn,
-		KeyManager:      client.manager.keyManager,
-		//RelayConn:       info.RelayConn,
+		KeyManager:      agent.manager.keyManager,
 	})
 
 	stunUrl := config.GlobalConfig.StunUrl
@@ -242,26 +166,26 @@ func NewClient(cfg *ClientConfig) (*Client, error) {
 		config.WriteConfig("stun-url", stunUrl)
 	}
 
-	client.iface = wg.NewDevice(iface, client.bind, cfg.WgLogger)
+	agent.iface = wg.NewDevice(iface, agent.bind, cfg.WgLogger)
 
-	client.provisioner = infra.NewProvisioner(infra.NewRouteProvisioner(cfg.Logger),
+	agent.provisioner = infra.NewProvisioner(infra.NewRouteProvisioner(cfg.Logger),
 		infra.NewRuleProvisioner(cfg.Logger), &infra.Params{
-			Device:    client.iface,
-			IfaceName: client.Name,
+			Device:    agent.iface,
+			IfaceName: agent.Name,
 		})
 	// init event handler
-	client.eventHandler = NewEventHandler(client, log.GetLogger("event-handler"), client.provisioner)
+	agent.eventHandler = NewMessageHandler(agent, log.GetLogger("event-handler"), agent.provisioner)
 	// set configurer
-	factory.Configure(transport.WithProvisioner(client.provisioner))
+	factory.Configure(transport.WithProvisioner(agent.provisioner))
 
-	probeFactory.Configure(transport.WithOnMessage(client.eventHandler.HandleEvent))
-	return client, err
+	probeFactory.Configure(transport.WithOnMessage(agent.eventHandler.HandleEvent))
+
+	agent.DeviceManager = NewDeviceManager(log.GetLogger("device-manager"), agent.iface)
+	return agent, err
 }
 
 // Start will get networkmap
-func (c *Client) Start() error {
-	ctx := context.Background()
-
+func (c *Agent) Start(ctx context.Context) error {
 	// start deviceManager, open udp port
 	if err := c.iface.Up(); err != nil {
 		return err
@@ -293,13 +217,13 @@ func (c *Client) Start() error {
 	return nil
 }
 
-func (c *Client) Stop() error {
+func (c *Agent) Stop() error {
 	c.iface.Close()
 	return nil
 }
 
 // SetConfig updates the configuration of the given interface.
-func (c *Client) SetConfig(conf *infra.DeviceConf) error {
+func (c *Agent) SetConfig(conf *infra.DeviceConf) error {
 	nowConf, err := c.iface.IpcGet()
 	if err != nil {
 		return err
@@ -315,11 +239,11 @@ func (c *Client) SetConfig(conf *infra.DeviceConf) error {
 	return c.iface.IpcSetOperation(reader)
 }
 
-func (c *Client) close() {
+func (c *Agent) close() {
 	c.logger.Info("deviceManager closed")
 }
 
-func (c *Client) AddPeer(peer *infra.Peer) error {
+func (c *Agent) AddPeer(peer *infra.Peer) error {
 	c.manager.peerManager.AddPeer(peer.PublicKey, peer)
 	if peer.PublicKey == c.current.PublicKey {
 		return nil
@@ -327,7 +251,7 @@ func (c *Client) AddPeer(peer *infra.Peer) error {
 	return c.ctrClient.AddPeer(peer)
 }
 
-func (c *Client) Configure(peerId string) error {
+func (c *Agent) Configure(peerId string) error {
 	//conf *infra.DeviceConfig
 	peer := c.manager.peerManager.GetPeer(peerId)
 	if peer == nil {
@@ -340,17 +264,17 @@ func (c *Client) Configure(peerId string) error {
 	return c.provisioner.SetupInterface(conf)
 }
 
-func (c *Client) RemovePeer(peer *infra.Peer) error {
+func (c *Agent) RemovePeer(peer *infra.Peer) error {
 	return c.provisioner.RemovePeer(&infra.SetPeer{
 		Remove:    true,
 		PublicKey: peer.PublicKey,
 	})
 }
 
-func (c *Client) RemoveAllPeers() {
+func (c *Agent) RemoveAllPeers() {
 	c.provisioner.RemoveAllPeers()
 }
 
-func (c *Client) GetDeviceName() string {
+func (c *Agent) GetDeviceName() string {
 	return c.Name
 }

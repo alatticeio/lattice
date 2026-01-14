@@ -22,7 +22,7 @@ import (
 	"os"
 	"time"
 	"wireflow/internal/config"
-	"wireflow/internal/core/infra"
+	"wireflow/internal/infra"
 	"wireflow/management/dto"
 	"wireflow/management/nats"
 

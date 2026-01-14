@@ -21,7 +21,7 @@ import (
 	"os"
 	"runtime"
 	"wireflow/internal/config"
-	"wireflow/internal/core/infra"
+	"wireflow/internal/infra"
 	"wireflow/internal/log"
 	"wireflow/management/dto"
 	"wireflow/management/transport"

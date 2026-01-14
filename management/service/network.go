@@ -17,7 +17,7 @@ package service
 import (
 	"context"
 	wireflowv1alpha1 "wireflow/api/v1alpha1"
-	"wireflow/internal/core/infra"
+	"wireflow/internal/infra"
 	"wireflow/management/resource"
 )
 

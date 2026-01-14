@@ -34,7 +34,7 @@ type DNSConfig struct {
 	ListenAddress string            `json:"listen_address"`
 }
 
-func NewLinkDNS(cfg *DNSConfig) *LinkDNS {
+func NewNativeDNS(cfg *DNSConfig) *LinkDNS {
 	if cfg.ListenAddress == "" {
 		cfg.ListenAddress = ":53"
 	}
