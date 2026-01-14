@@ -16,6 +16,7 @@ package transport
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net"
 	"sync"
@@ -162,6 +163,15 @@ func (t *PionTransport) HandleOffer(ctx context.Context, remoteId string, packet
 		return err
 	}
 
+	currentData := offer.Current
+	var remotePeer infra.Peer
+	if err = json.Unmarshal(currentData, &remotePeer); err != nil {
+		return err
+	}
+
+	// cache peer
+	t.peers.AddPeer(t.remoteId, &remotePeer)
+
 	if err = agent.AddRemoteCandidate(candidate); err != nil {
 		return err
 	}
@@ -213,6 +223,11 @@ func (t *PionTransport) sendCandidate(ctx context.Context, agent *AgentWrapper, 
 	//if !t.isShouldSendOffer(t.localId, remoteId) {
 	//	return nil
 	//}
+	current := t.peers.GetPeer(t.localId)
+	currentData, err := json.Marshal(current)
+	if err != nil {
+		return err
+	}
 	ufrag, pwd, err := agent.GetLocalUserCredentials()
 	if err != nil {
 		return err
@@ -226,6 +241,7 @@ func (t *PionTransport) sendCandidate(ctx context.Context, agent *AgentWrapper, 
 				Pwd:        pwd,
 				TieBreaker: agent.GetTieBreaker(),
 				Candidate:  candidate.Marshal(),
+				Current:    currentData,
 			},
 		},
 	}

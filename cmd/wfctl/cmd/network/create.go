@@ -19,7 +19,7 @@ import (
 	"fmt"
 	"wireflow/internal/config"
 	"wireflow/internal/core/infra"
-	"wireflow/management/cli/network"
+	"wireflow/pkg/cmd/network"
 
 	"github.com/spf13/cobra"
 )

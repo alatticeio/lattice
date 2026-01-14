@@ -15,13 +15,15 @@
 package management
 
 import (
+	"fmt"
+	"wireflow/internal/log"
 	"wireflow/management/server"
 
 	"sigs.k8s.io/controller-runtime/pkg/manager/signals"
 )
 
 func Start(listen string) error {
-
+	logger := log.GetLogger("management")
 	hs, err := server.NewServer(&server.ServerConfig{
 		Listen: listen,
 	})
@@ -31,5 +33,12 @@ func Start(listen string) error {
 	}
 
 	ctx := signals.SetupSignalHandler()
-	return hs.Start(ctx)
+	go hs.Start(ctx)
+	if !hs.GetManager().GetCache().WaitForCacheSync(ctx) {
+		return fmt.Errorf("failed to wait for cache sync")
+	}
+
+	logger.Info("management server started, cache sync successfully...")
+	<-ctx.Done()
+	return nil
 }

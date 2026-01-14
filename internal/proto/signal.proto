@@ -30,6 +30,7 @@ message Offer {
   uint64 tieBreaker = 3;
   string candidate = 4;
   string vip = 5;
+  bytes current = 6;
 }
 
 // for wrapper Message from api server

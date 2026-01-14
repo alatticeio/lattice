@@ -27,7 +27,7 @@ func upCmd() *cobra.Command {
 	var upCmd = &cobra.Command{
 		Use:     "up",
 		Short:   "wireflow startup command",
-		Example: "wireflow up --token <token> --server-url <server-url> --signal-url <signal-url>",
+		Example: "wireflow up --token <token> --server-url <server-url> --signaling-url <signaling-url>",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return client.Start(&flags)
 		},

@@ -8,7 +8,7 @@ import (
 
 func TestToken(t *testing.T) {
 	t.Run("TestToken", func(t *testing.T) {
-		token, err := GenerateSecureToken()
+		token, err := utils.GenerateSecureToken()
 		if err != nil {
 			t.Fatal(err)
 		}

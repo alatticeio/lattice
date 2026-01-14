@@ -46,14 +46,11 @@ progress).
 ## Network Topology (High-Level Overview)
 
 - [x] P2P Mesh Overlay: Devices automatically form a full mesh overlay network utilizing the WireGuard protocol for
-  secure,
-  low-latency communication.
+  secure, low-latency communication.
 - [] Intelligent NAT Traversal: Connectivity prioritizes direct P2P tunnels; if direct connection fails, traffic
-  seamlessly
-  relays via a dedicated TURN/relay server.
+  seamlessly relays via a dedicated TURN/relay server.
 - [x] Centralized Orchestration: A Kubernetes-native control plane manages device lifecycle, cryptographic keys, and
-  access
-  policies, ensuring zero-touch configuration across the entire network.
+  access policies, ensuring zero-touch configuration across the entire network.
 
 **Key Features:**
 
@@ -81,7 +78,7 @@ curl -sSL https://raw.githubusercontent.com/wireflowio/wireflow/master/deploy/wi
 curl -sSL https://raw.githubusercontent.com/wireflowio/wireflow/master/install.sh | bash
 ```
 
-- specific version: v0.1.0 etc
+- specific version: v0.1.0
 
 ```bash
 curl -sSL https://raw.githubusercontent.com/wireflowio/wireflow/master/install.sh | bash -s -- v0.1.0
@@ -92,74 +89,65 @@ curl -sSL https://raw.githubusercontent.com/wireflowio/wireflow/master/install.s
 using wireflow-cli to check whether both components have installed successfuly:
 
 ```bash
-wfctl --version
+wireflow --version
 ```
 
-## Usage
+> - Note: After installation, you can also use 'wireflow' command to check the version. before check, you should set the signal server address, default is 'nats://signaling.wireflow.run:4222'
+> - As **your-nats-ip** is your k8s server ip
+> ```bash
+> wireflow --signaling-url=nats://your-nats-ip:4222 --version
+> ```
+> you can persist the signaling server address by using 'wireflow config set signaling-url nats://signaling.wireflow.run:4222'
 
-After the installation, you can use the `wfctl` command to manage your Wireflow network.
+### Start The Wireflow Agent
 
-### Start wireflow
-
-Just run command as bellow, you will start the wireflow agent on your local machine, if you host name is 'pee1',
-peer1 will register to wireflow-controller, you can get the CRDs info using 'kubectl':
+Run the following command to start the Wireflow agent on your local machine.
 
 ```bash
-wireflow --log-level=debug
+wireflow up --level=debug --token=YOUR_TOKEN
 ```
 
-on the kubernetes cluster:
+### Token Management:
+
+- **Automatic Generation**: If no token is provided during the first connection, the Control Plane will automatically
+  generate one for your peer.
+- **Persistence**: The token will be returned to your peer and saved automatically to ~/.wireflow.yaml.
+- **Auto-load**: On subsequent restarts, the agent will automatically load the token from the configuration file if the
+  --token flag is omitted.
+- **Manual Override**: You can also manually specify the token using the --token flag.
+
+when another peer want to join the network that first peer created, just run below command:
+> Note: PEER_TOKEN is the token of first peer
 
 ```bash
-kubectl get wfn
+wireflow up --level=debug --token=PEER_TOKEN
 ```
 
-Now you can use `wfctl` command to manage your Wireflow network.
+### Check the network status
 
-### Create a network named 'prod-net'
+wireflow current also support wireguard's command, using 'wg' to show the connected info:
 
 ```bash
-wfctl network create prod-net --cidr=10.10.0.0/24
+wg
 ```
 
-### add peer to network
-
-```
-wfctl network node add prod-net peer1
-```
-
-the peer1 will join the network prod-net successfully, and will get an ip '10.0.0.1' address from the ipam, you can see
-it on your kubernetes cluster:
+check network:
 
 ```bash
-kubectl wget wfn
+ping -c 3 peer1
 ```
 
-here, we create a network named 'prod-net' with cidr 10.10.0.0/24, and add peer1 to the network, you can follow the step
-to create more peers. all peers will connected to each other automatically.
-after you create second peer, you can see the ip address '10.0.0.2' of peer2 on the kubernetes cluster, now you can ping
-peer2 from peer1.
+### Uninstall
 
-```bash
-ping 10.0.0.2 -t 10
-```
+To remove the Control Plane and cleanup:
 
-### leave the network
-if you want to leave the network, you can run command bellow:
-```bash
-wfctl network node rm prod-net peer1
-```
-
-## Uninstall
-
-After tests, unstall wireflow control-plane components from kubernetes cluster, delete wireflow data-plane directly:
 ```bash
 curl -sSL -f https://raw.githubusercontent.com/wireflowio/wireflow/master/deploy/wireflow.yaml | kubectl delete -f -
 `````
 
 For more information, visit [wireflow](https://wireflow.run)
 
-## Building
+## Development
 
 ### Requirements
 
@@ -168,45 +156,51 @@ For more information, visit [wireflow](https://wireflow.run)
 - kubectl version v1.11.3+.
 - Access to a Kubernetes v1.11.3+ cluster.
 
-### Steps
-
-**1. Building All**
+### Build from source:
 
 ```bash
 git clone https://github.com/wireflowio/wireflow.git
 cd wireflow
 make build-all
-# then install or run the built binaries as needed
 ```
 
 ## Wireflow Features, Roadmap, and Roadmap Progress
 
-**1. Core Features**
+**1. Core Features (Available)**
 These features represent the foundational, working architecture of Wireflow, focusing on security and automation.
 
-- Zero-Touch Onboarding: Users instantly and easily create an encrypted private network without
+- [x] Zero-Touch Onboarding: Users instantly and easily create an encrypted private network without
   requiring any manual tunnel configuration.
-- Automatic Enrollment & Autoplay: Devices automatically enroll and configure themselves upon joining, ensuring the
+- [x] Automatic Enrollment & Autoplay: Devices automatically enroll and configure themselves upon joining, ensuring the
   tunnel is established without manual intervention.
-- Security Foundation: Utilizes WireGuard encryption (ChaCha20-Poly1305) with all cryptographic key management
+- [x] Security Foundation: Utilizes WireGuard encryption (ChaCha20-Poly1305) with all cryptographic key management
   centralized within the Control Plane.
-- Access Control: A robust policy engine is implemented to define granular rules and policies, controlling which devices
-  can reach specific endpoints within the network.
-- Resilient Connectivity: Implements Relay Fallback to ensure seamless connectivity when direct Peer-to-Peer (P2P)
-  connections are blocked by strict NATs or firewalls.
+- [x] Kubernetes-Native Orchestration: Peer discovery and connection orchestration are managed directly through a
+  Kubernetes-native CRDs controller.
+- [x] Native Kubernetes Support: Wireflow is designed to run natively within Kubernetes, eliminating the need for
+  additional orchestration layers.
+- [x] Native Networking Support: Wireflow leverages Kubernetes networking primitives to provide a seamless,
+  transparent overlay network.
+- [x] Native Access Control: Wireflow provides a simple, declarative access policy model for controlling peer access.
+- [x] Native Device Discovery: Wireflow leverages Kubernetes node labels to automatically discover and connect to
+  devices.
+- [x] Native Device Management: Wireflow provides a simple, declarative device management model for managing peer
+  lifecycle.
+- [x] IPAM Support: Wireflow Create an IPAM to automatically allocate network for tenant and allocate IP addresses for each peer.
 
-**1. Product Roadmap and Milestones**
 
-- [] Private Service Resolution: Integrated Private DNS service for secure and simplified service/name resolution within
-  the overlay network.
+**2. Future Milestones (Planned)**
+
+- [] Multi-Cloud Support: Wireflow supports hybrid cloud deployments, allowing users to connect to their devices from
+  multiple cloud providers.
+- [] Multi-Region Support: Wireflow supports multi-region deployments, allowing users to connect to their devices from
+  multiple regions.
+- [] Multi-Tenant Support: Wireflow supports multi-tenant deployments, allowing users to connect to their devices from
+  multiple tenants.
 - [] Centralized Management: Features a powerful Management API and Web UI with built-in RBAC-ready (Role-Based Access
   Control) access policies.
 - [] Operational Visibility: Provides Prometheus-friendly exporters for robust metrics and monitoring integration.
-- [x] Flexible Deployment: Easily deployable via Docker; ready-to-use Kubernetes manifests and examples are provided in
-  the
-  conf/ directory.
-- [x] Access control: define rules and policies for who can reach what or where then want
-- [] Private DNS: Provides a secure and simplified service discovery mechanism for internal services.
+- [] Native DNS: Provides a secure and simplified service discovery mechanism for internal services.
 
 ## License
 

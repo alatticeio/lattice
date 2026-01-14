@@ -6,23 +6,7 @@ import (
 	"wireflow/internal/config"
 	"wireflow/internal/core/infra"
 	"wireflow/pkg/cmd"
-
-	"github.com/spf13/cobra"
 )
-
-func versionCmd() *cobra.Command {
-	// versionCmd 代表 config 顶层命令
-	var versionCmd = &cobra.Command{
-		Use:     "version",
-		Short:   "wireflow version",
-		Example: "wireflow version",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return runVersion()
-		},
-	}
-
-	return versionCmd
-}
 
 func runVersion() error {
 	if config.GlobalConfig.SignalUrl == "" {

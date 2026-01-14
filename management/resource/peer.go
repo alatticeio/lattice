@@ -18,12 +18,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	v1alpha1 "wireflow/api/v1alpha1"
 	"wireflow/internal/core/infra"
 	"wireflow/management/dto"
 	"wireflow/management/entity"
-	"wireflow/pkg/utils"
-
-	wireflowv1alpha1 "wireflow/api/v1alpha1"
 
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 	corev1 "k8s.io/api/core/v1"
@@ -38,7 +36,7 @@ func (c *Client) Register(ctx context.Context, namespace string, e *dto.PeerDto)
 	log := logf.FromContext(ctx)
 	log.Info("Register node", "node", e)
 	var (
-		node wireflowv1alpha1.WireflowPeer
+		node v1alpha1.WireflowPeer
 		err  error
 		key  wgtypes.Key
 	)
@@ -61,7 +59,7 @@ func (c *Client) Register(ctx context.Context, namespace string, e *dto.PeerDto)
 	manager := client.FieldOwner("wireflow-controller-manager")
 
 	defaultNet := "wireflow-default-net"
-	node = wireflowv1alpha1.WireflowPeer{
+	node = v1alpha1.WireflowPeer{
 		TypeMeta: v1.TypeMeta{
 			Kind:       "WireflowPeer",
 			APIVersion: "wireflowcontroller.wireflow.run/v1alpha1",
@@ -69,8 +67,11 @@ func (c *Client) Register(ctx context.Context, namespace string, e *dto.PeerDto)
 		ObjectMeta: v1.ObjectMeta{
 			Namespace: namespace,
 			Name:      e.AppID,
+			Labels: map[string]string{
+				"app.kubernetes.io/managed-by": "wireflow-controller",
+			},
 		},
-		Spec: wireflowv1alpha1.WireflowPeerSpec{
+		Spec: v1alpha1.WireflowPeerSpec{
 			Network:       &defaultNet,
 			AppId:         e.AppID,
 			Platform:      e.Platform,
@@ -79,7 +80,7 @@ func (c *Client) Register(ctx context.Context, namespace string, e *dto.PeerDto)
 			PublicKey:     key.PublicKey().String(),
 		},
 
-		Status: wireflowv1alpha1.WireflowPeerStatus{
+		Status: v1alpha1.WireflowPeerStatus{
 			Status: "Inactive",
 		},
 	}
@@ -97,11 +98,11 @@ func (c *Client) Register(ctx context.Context, namespace string, e *dto.PeerDto)
 }
 
 // UpdateNodeStatus used to update node status
-func (c *Client) UpdateNodeStatus(ctx context.Context, namespace, name string, updateFunc func(status *wireflowv1alpha1.WireflowPeerStatus)) error {
+func (c *Client) UpdateNodeStatus(ctx context.Context, namespace, name string, updateFunc func(status *v1alpha1.WireflowPeerStatus)) error {
 	logger := logf.FromContext(ctx)
 	logger.Info("Update node status", "namespace", namespace, "name", name)
 
-	var node wireflowv1alpha1.WireflowPeer
+	var node v1alpha1.WireflowPeer
 	if err := c.Get(ctx, types.NamespacedName{Namespace: namespace, Name: name}, &node); err != nil {
 		return err
 	}
@@ -111,10 +112,10 @@ func (c *Client) UpdateNodeStatus(ctx context.Context, namespace, name string, u
 	return c.Status().Update(ctx, &node)
 }
 
-func (c *Client) UpdateNodeSepc(ctx context.Context, namespace, name string, updateFunc func(node *wireflowv1alpha1.WireflowPeer)) error {
+func (c *Client) UpdateNodeSepc(ctx context.Context, namespace, name string, updateFunc func(node *v1alpha1.WireflowPeer)) error {
 	logger := logf.FromContext(ctx)
 	logger.Info("Update node spec", "namespace", namespace, "name", name)
-	var node wireflowv1alpha1.WireflowPeer
+	var node v1alpha1.WireflowPeer
 	if err := c.Get(ctx, types.NamespacedName{Namespace: namespace, Name: name}, &node); err != nil {
 		return err
 	}
@@ -123,13 +124,36 @@ func (c *Client) UpdateNodeSepc(ctx context.Context, namespace, name string, upd
 }
 
 // GetNetworkMap get network map when node init
-func (c *Client) GetNetworkMap(ctx context.Context, token, name string) (*infra.Message, error) {
+func (c *Client) GetNetworkMap(ctx context.Context, tokenStr, name string) (*infra.Message, error) {
 	logger := c.log
-	logger.Info("Get node", "token", token, "name", name)
+	logger.Info("Get node", "tokenStr", tokenStr, "name", name)
 
-	nsName := utils.DeriveNamespace(token)
-	var node wireflowv1alpha1.WireflowPeer
-	if err := c.GetAPIReader().Get(ctx, types.NamespacedName{Namespace: nsName, Name: name}, &node); err != nil {
+	if tokenStr == "" {
+		return nil, fmt.Errorf("token is empty")
+	}
+	var list v1alpha1.WireflowEnrollmentTokenList
+	err := c.List(ctx, &list, client.MatchingFields{"status.token": tokenStr})
+	if err != nil {
+		return nil, fmt.Errorf("get token failed: %v", err)
+	}
+
+	if len(list.Items) == 0 {
+		return nil, fmt.Errorf("Token not exists")
+	}
+
+	var token *v1alpha1.WireflowEnrollmentToken
+	for _, t := range list.Items {
+		if t.Status.Token == tokenStr {
+			token = &t
+		}
+	}
+
+	if token == nil {
+		return nil, fmt.Errorf("Token not exists")
+	}
+
+	var node v1alpha1.WireflowPeer
+	if err := c.Get(ctx, types.NamespacedName{Namespace: token.Namespace, Name: name}, &node); err != nil {
 		return nil, err
 	}
 
@@ -144,12 +168,12 @@ func (c *Client) GetNetworkMap(ctx context.Context, token, name string) (*infra.
 
 	data := nodeConfig.Data["config.json"]
 	var message *infra.Message
-	err := json.Unmarshal([]byte(data), &message)
+	err = json.Unmarshal([]byte(data), &message)
 	if err != nil {
 		return nil, err
 	}
 
-	logger.Info("Get network map success", "namespace", nsName, "name", name, "message", message)
+	logger.Info("Get network map success", "namespace", token.Namespace, "name", name, "message", message)
 	return message, nil
 }
 
@@ -158,10 +182,10 @@ func (c *Client) GetByAppId(ctx context.Context, appId string) (*entity.Node, er
 }
 
 // CreateNetwork create a network
-func (c *Client) CreateNetwork(ctx context.Context, networkId, cidr string) (*wireflowv1alpha1.WireflowNetwork, error) {
+func (c *Client) CreateNetwork(ctx context.Context, networkId, cidr string) (*v1alpha1.WireflowNetwork, error) {
 	var (
 		err     error
-		network wireflowv1alpha1.WireflowNetwork
+		network v1alpha1.WireflowNetwork
 	)
 	err = c.Get(ctx, types.NamespacedName{
 		Namespace: "default",
@@ -172,7 +196,7 @@ func (c *Client) CreateNetwork(ctx context.Context, networkId, cidr string) (*wi
 		// 使用SSA模式
 		manager := client.FieldOwner("wireflow-controller-manager")
 
-		if err = c.Patch(ctx, &wireflowv1alpha1.WireflowNetwork{
+		if err = c.Patch(ctx, &v1alpha1.WireflowNetwork{
 			TypeMeta: v1.TypeMeta{
 				Kind:       "WireflowNetwork",
 				APIVersion: "wireflowcontroller.wireflow.run/v1alpha1",
@@ -181,7 +205,7 @@ func (c *Client) CreateNetwork(ctx context.Context, networkId, cidr string) (*wi
 				Namespace: "default",
 				Name:      networkId,
 			},
-			Spec: wireflowv1alpha1.WireflowNetworkSpec{
+			Spec: v1alpha1.WireflowNetworkSpec{
 				Name: networkId,
 				CIDR: cidr,
 			},

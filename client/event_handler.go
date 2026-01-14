@@ -139,9 +139,7 @@ func (h *EventHandler) ApplyFullConfig(ctx context.Context, msg *infra.Message) 
 
 func (h *EventHandler) applyRemotePeers(ctx context.Context, msg *infra.Message) error {
 	for _, peer := range msg.ComputedPeers {
-		// add peer to peers cached
-		//h.deviceManager.GetDeviceConfiger().GetPeersManager().AddPeer(peer.PublicKey, peer)
-		h.deviceManager.AddPeer(peer)
+		// add peer to peers cached and probe start
 		if err := h.deviceManager.AddPeer(peer); err != nil {
 			return err
 		}

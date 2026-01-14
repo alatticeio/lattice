@@ -85,7 +85,7 @@ func (r *NetworkReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	if network.Status.ActiveCIDR == "" {
 		//get subnet
 		var pool v1alpha1.WireflowGlobalIPPool
-		poolKey := client.ObjectKey{Name: "wireflow-ip-pool"}
+		poolKey := client.ObjectKey{Name: "wireflow-ippool"}
 		if err = r.Get(ctx, poolKey, &pool); err != nil {
 			return ctrl.Result{}, err
 		}

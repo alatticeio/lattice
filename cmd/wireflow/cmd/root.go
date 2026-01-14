@@ -17,6 +17,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"wireflow/cmd/wireflow/cmd/token"
 	"wireflow/internal/core/infra"
 
 	"github.com/spf13/cobra"
@@ -44,8 +45,9 @@ func Execute() {
 func init() {
 	fs := rootCmd.PersistentFlags()
 	fs.StringVarP(&infra.ServerUrl, "server-url", "", "", "management server url")
-	fs.StringVarP(&infra.SignalUrl, "signal-url", "", "", "signaling server url")
+	fs.StringVarP(&infra.SignalUrl, "signaling-url", "", "", "signaling server url")
 	fs.BoolP("version", "v", false, "Print version information")
 	rootCmd.AddCommand(upCmd())
 	rootCmd.AddCommand(configCmd)
+	rootCmd.AddCommand(token.NewTokenCommand())
 }

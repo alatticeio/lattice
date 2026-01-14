@@ -29,5 +29,4 @@ steps: # 定义流水线执行步骤，这些步骤将顺序执行
       script:
         - kubectl rollout restart deployment/wireflow-control -n wireflow
         - kubectl rollout restart deployment/wireflow-turn -n wireflow
-        - kubectl rollout restart deployment/wireflow-signaling -n wireflow
         - kubectl rollout restart deployment/wireflow-controller-manager -n wireflow-system

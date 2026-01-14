@@ -13,9 +13,9 @@ LDFLAGS = -X 'github.com/your-org/wireflow/pkg/version.Version=$(WIREFLOW_VERSIO
           -X 'github.com/your-org/wireflow/pkg/version.GoVersion=$(GO_VERSION)'
 
 
-IMG ?= registry.cn-hangzhou.aliyuncs.com/wireflow-io/manager:dev
+IMG ?= ghcr.io/wireflowio/manager:dev
 
-REGISTRY ?= registry.cn-hangzhou.aliyuncs.com/wireflow-io
+REGISTRY ?= ghcr.io/wireflowio
 SERVICES := manager wireflow
 TARGETOS ?= linux
 TARGETARCH ?=amd64

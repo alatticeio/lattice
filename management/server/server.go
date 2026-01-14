@@ -59,7 +59,7 @@ func NewServer(cfg *ServerConfig) (*Server, error) {
 	logger := log.GetLogger("management")
 	if config.GlobalConfig.SignalUrl == "" {
 		config.GlobalConfig.SignalUrl = fmt.Sprintf("nats://%s:%d", infra.SignalingDomain, infra.DefaultSignalingPort)
-		config.WriteConfig("signal-url", config.GlobalConfig.SignalUrl)
+		config.WriteConfig("signaling-url", config.GlobalConfig.SignalUrl)
 	}
 
 	signal, err := nats.NewNatsService(config.GlobalConfig.SignalUrl)
@@ -90,9 +90,10 @@ func NewServer(cfg *ServerConfig) (*Server, error) {
 	}
 
 	routes := map[string]Handler{
-		"wireflow.signals.peer.register":  s.Register,
-		"wireflow.signals.peer.GetNetMap": s.GetNetMap,
-		"wireflow.signals.service.info":   s.Info,
+		"wireflow.signals.peer.register":       s.Register,
+		"wireflow.signals.peer.GetNetMap":      s.GetNetMap,
+		"wireflow.signals.service.info":        s.Info,
+		"wireflow.signals.service.createToken": s.CreateToken,
 	}
 
 	for route, handler := range routes {
@@ -104,6 +105,10 @@ func NewServer(cfg *ServerConfig) (*Server, error) {
 
 func (s *Server) Start(ctx context.Context) error {
 	return s.manager.Start(ctx)
+}
+
+func (s *Server) GetManager() manager.Manager {
+	return s.manager
 }
 
 func (s *Server) Register(content []byte) ([]byte, error) {
@@ -118,4 +123,8 @@ func (s *Server) Info(content []byte) ([]byte, error) {
 	serverInfo := version.Get()
 	data, err := json.Marshal(serverInfo)
 	return data, err
+}
+
+func (s *Server) CreateToken(content []byte) ([]byte, error) {
+	return s.peerController.CreateToken(context.Background(), content)
 }

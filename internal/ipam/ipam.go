@@ -32,14 +32,12 @@ func (m *IPAM) AllocateSubnet(ctx context.Context, networkName string, pool *v1a
 	}
 
 	subnetCIDR := fmt.Sprintf("%s/%d", ip.String(), pool.Spec.SubnetMask)
-	allocationName := fmt.Sprintf("subnet-%s", ipToHex(ip))
+	subnetName := fmt.Sprintf("subnet-%s", ipToHex(ip))
 
 	// 3. 尝试原子创建索引对象
 	alloc := &v1alpha1.WireflowSubnetAllocation{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: allocationName,
-			// 设置 OwnerReference 指向 Network，这样 Network 删除时子网自动回收
-			OwnerReferences: []metav1.OwnerReference{},
+			Name: subnetName,
 		},
 		Spec: struct {
 			NetworkName string `json:"networkName"`
@@ -48,6 +46,10 @@ func (m *IPAM) AllocateSubnet(ctx context.Context, networkName string, pool *v1a
 			NetworkName: networkName,
 			CIDR:        subnetCIDR,
 		},
+	}
+
+	if err = controllerutil.SetControllerReference(pool, alloc, m.client.Scheme()); err != nil {
+		return "", err
 	}
 
 	err = m.client.Create(ctx, alloc)

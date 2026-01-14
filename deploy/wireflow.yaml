@@ -12,17 +12,708 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.18.0
-  name: networkpolicies.wireflowcontroller.wireflow.run
+  name: wireflowendpoints.wireflowcontroller.wireflow.run
 spec:
   group: wireflowcontroller.wireflow.run
   names:
-    kind: NetworkPolicy
-    listKind: NetworkPolicyList
-    plural: networkpolicies
+    kind: WireflowEndpoint
+    listKind: WireflowEndpointList
+    plural: wireflowendpoints
+    shortNames:
+    - wfe
+    singular: wireflowendpoint
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - description: The current address of the peer
+      jsonPath: .status.address
+      name: ADDRESS
+      type: string
+    - description: the endpoint's peer reference
+      jsonPath: .spec.peerref
+      name: PEER-REF
+      type: string
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            properties:
+              address:
+                type: string
+              networkRef:
+                type: string
+              peerRef:
+                type: string
+            required:
+            - address
+            - networkRef
+            - peerRef
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources: {}
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.18.0
+  name: wireflowglobalippools.wireflowcontroller.wireflow.run
+spec:
+  group: wireflowcontroller.wireflow.run
+  names:
+    kind: WireflowGlobalIPPool
+    listKind: WireflowGlobalIPPoolList
+    plural: wireflowglobalippools
+    shortNames:
+    - wfpool
+    singular: wireflowglobalippool
+  scope: Cluster
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .status.totalSubnets
+      name: TOTAL
+      type: integer
+    - jsonPath: .status.allocatedSubnets
+      name: ALLOCATED
+      type: integer
+    - jsonPath: .status.availableSubnets
+      name: AVAILABLE
+      type: integer
+    - jsonPath: .status.usagePercentage
+      name: USAGE
+      type: string
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: WireflowGlobalIPPoolSpec define global ip pool
+            properties:
+              cidr:
+                type: string
+              subnetMask:
+                type: integer
+            required:
+            - cidr
+            - subnetMask
+            type: object
+          status:
+            description: WireflowGlobalIPPoolStatus =
+            properties:
+              allocatedSubnets:
+                description: AllocatedSubnets
+                type: integer
+              availableSubnets:
+                description: AvailableSubnets
+                type: integer
+              conditions:
+                description: Conditions
+                items:
+                  description: Condition contains details for one aspect of the current
+                    state of this API Resource.
+                  properties:
+                    lastTransitionTime:
+                      description: |-
+                        lastTransitionTime is the last time the condition transitioned from one status to another.
+                        This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.
+                      format: date-time
+                      type: string
+                    message:
+                      description: |-
+                        message is a human readable message indicating details about the transition.
+                        This may be an empty string.
+                      maxLength: 32768
+                      type: string
+                    observedGeneration:
+                      description: |-
+                        observedGeneration represents the .metadata.generation that the condition was set based upon.
+                        For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date
+                        with respect to the current state of the instance.
+                      format: int64
+                      minimum: 0
+                      type: integer
+                    reason:
+                      description: |-
+                        reason contains a programmatic identifier indicating the reason for the condition's last transition.
+                        Producers of specific condition types may define expected values and meanings for this field,
+                        and whether the values are considered a guaranteed API.
+                        The value should be a CamelCase string.
+                        This field may not be empty.
+                      maxLength: 1024
+                      minLength: 1
+                      pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
+                      type: string
+                    status:
+                      description: status of the condition, one of True, False, Unknown.
+                      enum:
+                      - "True"
+                      - "False"
+                      - Unknown
+                      type: string
+                    type:
+                      description: type of condition in CamelCase or in foo.example.com/CamelCase.
+                      maxLength: 316
+                      pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - message
+                  - reason
+                  - status
+                  - type
+                  type: object
+                type: array
+              totalSubnets:
+                description: TotalSubnets total subnets
+                type: integer
+              usagePercentage:
+                description: UsagePercentage
+                type: string
+            required:
+            - allocatedSubnets
+            - availableSubnets
+            - totalSubnets
+            - usagePercentage
+            type: object
+        required:
+        - spec
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.18.0
+  name: wireflowinvitations.wireflowcontroller.wireflow.run
+spec:
+  group: wireflowcontroller.wireflow.run
+  names:
+    kind: WireflowInvitation
+    listKind: WireflowInvitationList
+    plural: wireflowinvitations
+    shortNames:
+    - wfinv
+    singular: wireflowinvitation
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - description: Joined Network
+      jsonPath: .spec.network
+      name: NETWORK
+      type: string
+    - description: Joined namespace
+      jsonPath: .spec.namespace
+      name: NAMESPACE
+      type: string
+    - description: Added labels when joined
+      jsonPath: .spec.peerLabels
+      name: LABELS
+      type: string
+    - description: Expires time
+      jsonPath: .spec.expiresAt
+      name: ExpiresAt
+      type: string
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: WireflowInvitation is the Schema for the networks API.
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            properties:
+              expiresAt:
+                format: date-time
+                type: string
+              network:
+                description: Invite a peer join to a network
+                type: string
+              peerLabels:
+                additionalProperties:
+                  type: string
+                description: '预设给新 Peer 的标签（例如 role: developer）'
+                type: object
+              targetNamespace:
+                description: join to special namespace
+                type: string
+            required:
+            - expiresAt
+            - network
+            - targetNamespace
+            type: object
+          status:
+            properties:
+              expiresAt:
+                format: date-time
+                type: string
+              token:
+                description: 生成给客户端的token
+                type: string
+              usedCount:
+                description: 已使用的次数
+                type: integer
+              usedPeers:
+                items:
+                  type: string
+                type: array
+            required:
+            - expiresAt
+            - token
+            - usedCount
+            - usedPeers
+            type: object
+        required:
+        - spec
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.18.0
+  name: wireflownetworks.wireflowcontroller.wireflow.run
+spec:
+  group: wireflowcontroller.wireflow.run
+  names:
+    kind: WireflowNetwork
+    listKind: WireflowNetworkList
+    plural: wireflownetworks
+    shortNames:
+    - wfnet
+    - wfnetwork
+    singular: wireflownetwork
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - description: The current phase of the network
+      jsonPath: .status.phase
+      name: PHASE
+      type: string
+    - description: The CIDR block of the network
+      jsonPath: .spec.cidr
+      name: CIDR
+      type: string
+    - description: Number of nodes in the network
+      jsonPath: .status.addedNodes
+      name: NODES
+      type: integer
+    - description: Number of available IP addresses
+      jsonPath: .status.availableIPs
+      name: IPS-AVAIL
+      type: integer
+    - jsonPath: .metadata.creationTimestamp
+      name: AGE
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: WireflowNetwork is the Schema for the networks API.
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: WireflowNetworkSpec defines the desired state of WireflowNetwork.
+            properties:
+              cidr:
+                type: string
+              dns:
+                properties:
+                  enabled:
+                    type: boolean
+                  servers:
+                    items:
+                      type: string
+                    type: array
+                required:
+                - enabled
+                type: object
+              mtu:
+                type: integer
+              name:
+                description: name of network
+                type: string
+              networkId:
+                type: string
+              owner:
+                type: string
+              peerSelector:
+                additionalProperties:
+                  type: string
+                type: object
+              policies:
+                items:
+                  type: string
+                type: array
+            type: object
+          status:
+            description: WireflowNetworkStatus defines the observed state of WireflowNetwork.
+            properties:
+              activeCIDR:
+                type: string
+              allocatedCount:
+                description: 已分配的 IP 列表
+                type: integer
+              availableIPs:
+                description: 可用 IP 数量
+                type: integer
+              conditions:
+                items:
+                  description: Condition contains details for one aspect of the current
+                    state of this API Resource.
+                  properties:
+                    lastTransitionTime:
+                      description: |-
+                        lastTransitionTime is the last time the condition transitioned from one status to another.
+                        This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.
+                      format: date-time
+                      type: string
+                    message:
+                      description: |-
+                        message is a human readable message indicating details about the transition.
+                        This may be an empty string.
+                      maxLength: 32768
+                      type: string
+                    observedGeneration:
+                      description: |-
+                        observedGeneration represents the .metadata.generation that the condition was set based upon.
+                        For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date
+                        with respect to the current state of the instance.
+                      format: int64
+                      minimum: 0
+                      type: integer
+                    reason:
+                      description: |-
+                        reason contains a programmatic identifier indicating the reason for the condition's last transition.
+                        Producers of specific condition types may define expected values and meanings for this field,
+                        and whether the values are considered a guaranteed API.
+                        The value should be a CamelCase string.
+                        This field may not be empty.
+                      maxLength: 1024
+                      minLength: 1
+                      pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
+                      type: string
+                    status:
+                      description: status of the condition, one of True, False, Unknown.
+                      enum:
+                      - "True"
+                      - "False"
+                      - Unknown
+                      type: string
+                    type:
+                      description: type of condition in CamelCase or in foo.example.com/CamelCase.
+                      maxLength: 316
+                      pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - message
+                  - reason
+                  - status
+                  - type
+                  type: object
+                type: array
+              observedGeneration:
+                format: int64
+                type: integer
+              phase:
+                type: string
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.18.0
+  name: wireflowpeers.wireflowcontroller.wireflow.run
+spec:
+  group: wireflowcontroller.wireflow.run
+  names:
+    kind: WireflowPeer
+    listKind: WireflowPeerList
+    plural: wireflowpeers
+    shortNames:
+    - wfpeer
+    singular: wireflowpeer
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - description: The current status of the node
+      jsonPath: .status.status
+      name: STATUS
+      type: string
+    - description: The current phase of the node
+      jsonPath: .status.phase
+      name: PHASE
+      type: string
+    - description: The IP address allocated to the node
+      jsonPath: .status.allocatedAddress
+      name: IP
+      type: string
+    - description: The network the node belongs to
+      jsonPath: .spec.network
+      name: NETWORK
+      type: string
+    - description: Number of active connections
+      jsonPath: .status.connectionSummary.connected
+      name: CONNECTED
+      type: integer
+    - jsonPath: .metadata.creationTimestamp
+      name: AGE
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: WireflowPeer is the Schema for the nodes API.
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: WireflowPeerSpec defines the desired state of WireflowPeer.
+            properties:
+              allowedIPs:
+                items:
+                  type: string
+                type: array
+              appId:
+                type: string
+              dnsServers:
+                items:
+                  type: string
+                type: array
+              interfaceName:
+                description: Interface for the node
+                type: string
+              mtu:
+                type: integer
+              network:
+                type: string
+              networkPolicies:
+                items:
+                  type: string
+                type: array
+              platform:
+                description: platform which node runs on
+                type: string
+              privateKey:
+                type: string
+              publicKey:
+                type: string
+            type: object
+          status:
+            description: WireflowPeerStatus defines the observed state of WireflowPeer.
+            properties:
+              activeKey:
+                description: Active key
+                type: string
+              activeNetwork:
+                description: Active networks, record the network the node joined
+                type: string
+              activeNetworkPolicies:
+                items:
+                  type: string
+                type: array
+              allocatedAddress:
+                description: Allocated IP address, auto allocated by controller
+                type: string
+              conditions:
+                items:
+                  description: Condition contains details for one aspect of the current
+                    state of this API Resource.
+                  properties:
+                    lastTransitionTime:
+                      description: |-
+                        lastTransitionTime is the last time the condition transitioned from one status to another.
+                        This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.
+                      format: date-time
+                      type: string
+                    message:
+                      description: |-
+                        message is a human readable message indicating details about the transition.
+                        This may be an empty string.
+                      maxLength: 32768
+                      type: string
+                    observedGeneration:
+                      description: |-
+                        observedGeneration represents the .metadata.generation that the condition was set based upon.
+                        For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date
+                        with respect to the current state of the instance.
+                      format: int64
+                      minimum: 0
+                      type: integer
+                    reason:
+                      description: |-
+                        reason contains a programmatic identifier indicating the reason for the condition's last transition.
+                        Producers of specific condition types may define expected values and meanings for this field,
+                        and whether the values are considered a guaranteed API.
+                        The value should be a CamelCase string.
+                        This field may not be empty.
+                      maxLength: 1024
+                      minLength: 1
+                      pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
+                      type: string
+                    status:
+                      description: status of the condition, one of True, False, Unknown.
+                      enum:
+                      - "True"
+                      - "False"
+                      - Unknown
+                      type: string
+                    type:
+                      description: type of condition in CamelCase or in foo.example.com/CamelCase.
+                      maxLength: 316
+                      pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - message
+                  - reason
+                  - status
+                  - type
+                  type: object
+                type: array
+              connectionSummary:
+                description: Connection summary
+                properties:
+                  connected:
+                    type: integer
+                  disconnected:
+                    type: integer
+                  total:
+                    type: integer
+                required:
+                - connected
+                - disconnected
+                - total
+                type: object
+              lastSyncTime:
+                format: date-time
+                type: string
+              observedGeneration:
+                description: ObserveGeneration is the generation observed by the controller.
+                format: int64
+                type: integer
+              phase:
+                type: string
+              status:
+                description: WireflowPeer status
+                type: string
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.18.0
+  name: wireflowpolicies.wireflowcontroller.wireflow.run
+spec:
+  group: wireflowcontroller.wireflow.run
+  names:
+    kind: WireflowPolicy
+    listKind: WireflowPolicyList
+    plural: wireflowpolicies
     shortNames:
     - wfpolicy
-    - wfp
-    singular: networkpolicy
+    singular: wireflowpolicy
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
@@ -48,7 +739,7 @@ spec:
     name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: NetworkPolicy is the Schema for the networkpolicies API.
+        description: WireflowPolicy is the Schema for the networkpolicies API.
         properties:
           apiVersion:
             description: |-
@@ -68,9 +759,12 @@ spec:
           metadata:
             type: object
           spec:
-            description: NetworkPolicySpec defines the desired state of NetworkPolicy.
+            description: WireflowPolicySpec defines the desired state of WireflowPolicy.
               which used to control the wireflow's traffic flow.
             properties:
+              action:
+                description: default DENY
+                type: string
               egressRule:
                 items:
                   properties:
@@ -221,8 +915,10 @@ spec:
                       type: array
                   type: object
                 type: array
-              nodeSelector:
-                description: NodeSelector is a label query over node that should be
+              network:
+                type: string
+              peerSelector:
+                description: PeerSelector is a label query over node that should be
                   applied to the wireflow policy.
                 properties:
                   matchExpressions:
@@ -270,9 +966,11 @@ spec:
                 x-kubernetes-map-type: atomic
               policyType:
                 type: string
+            required:
+            - network
             type: object
           status:
-            description: NetworkPolicyStatus defines the observed state of NetworkPolicy.
+            description: NetworkPolicyStatus defines the observed state of WireflowPolicy.
             properties:
               ruleCount:
                 description: 规则条数（Ingress + Egress）
@@ -295,43 +993,24 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.18.0
-  name: networks.wireflowcontroller.wireflow.run
+  name: wireflowsubnetallocations.wireflowcontroller.wireflow.run
 spec:
   group: wireflowcontroller.wireflow.run
   names:
-    kind: Network
-    listKind: NetworkList
-    plural: networks
+    kind: WireflowSubnetAllocation
+    listKind: WireflowSubnetAllocationList
+    plural: wireflowsubnetallocations
     shortNames:
-    - wfnet
-    - wfnetwork
-    singular: network
-  scope: Namespaced
+    - wfsubnet
+    singular: wireflowsubnetallocation
+  scope: Cluster
   versions:
-  - additionalPrinterColumns:
-    - description: The current phase of the network
-      jsonPath: .status.phase
-      name: PHASE
-      type: string
-    - description: The CIDR block of the network
-      jsonPath: .spec.cidr
-      name: CIDR
-      type: string
-    - description: Number of nodes in the network
-      jsonPath: .status.addedNodes
-      name: NODES
-      type: integer
-    - description: Number of available IP addresses
-      jsonPath: .status.availableIPs
-      name: IPS-AVAIL
-      type: integer
-    - jsonPath: .metadata.creationTimestamp
-      name: AGE
-      type: date
-    name: v1alpha1
+  - name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: Network is the Schema for the networks API.
+        description: |-
+          WireflowSubnetAllocation for store / search a network's cidr
+          它的 Name 格式定为: subnet-<hex-ip> (例如 subnet-0a0a0100)
         properties:
           apiVersion:
             description: |-
@@ -351,343 +1030,20 @@ spec:
           metadata:
             type: object
           spec:
-            description: NetworkSpec defines the desired state of Network.
             properties:
               cidr:
-                pattern: ^([0-9]{1,3}\.){3}[0-9]{1,3}/[0-9]{1,2}$
                 type: string
-              dns:
-                properties:
-                  enabled:
-                    type: boolean
-                  servers:
-                    items:
-                      type: string
-                    type: array
-                required:
-                - enabled
-                type: object
-              mtu:
-                type: integer
-              name:
-                description: name of network
+              networkName:
                 type: string
-              networkId:
-                type: string
-              nodeSelector:
-                additionalProperties:
-                  type: string
-                type: object
-              nodes:
-                items:
-                  type: string
-                type: array
-              owner:
-                type: string
-              policies:
-                items:
-                  type: string
-                type: array
             required:
             - cidr
+            - networkName
             type: object
-          status:
-            description: NetworkStatus defines the observed state of Network.
-            properties:
-              activeCIDR:
-                type: string
-              addedNodes:
-                description: 加入的节点数量
-                type: integer
-              allocatedIPs:
-                description: 已分配的 IP 列表
-                items:
-                  description: IPAllocation IP 分配记录
-                  properties:
-                    allocatedAt:
-                      format: date-time
-                      type: string
-                    ip:
-                      type: string
-                    node:
-                      type: string
-                  required:
-                  - allocatedAt
-                  - ip
-                  - node
-                  type: object
-                type: array
-              availableIPs:
-                description: 可用 IP 数量
-                type: integer
-              conditions:
-                items:
-                  description: Condition contains details for one aspect of the current
-                    state of this API Resource.
-                  properties:
-                    lastTransitionTime:
-                      description: |-
-                        lastTransitionTime is the last time the condition transitioned from one status to another.
-                        This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.
-                      format: date-time
-                      type: string
-                    message:
-                      description: |-
-                        message is a human readable message indicating details about the transition.
-                        This may be an empty string.
-                      maxLength: 32768
-                      type: string
-                    observedGeneration:
-                      description: |-
-                        observedGeneration represents the .metadata.generation that the condition was set based upon.
-                        For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date
-                        with respect to the current state of the instance.
-                      format: int64
-                      minimum: 0
-                      type: integer
-                    reason:
-                      description: |-
-                        reason contains a programmatic identifier indicating the reason for the condition's last transition.
-                        Producers of specific condition types may define expected values and meanings for this field,
-                        and whether the values are considered a guaranteed API.
-                        The value should be a CamelCase string.
-                        This field may not be empty.
-                      maxLength: 1024
-                      minLength: 1
-                      pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
-                      type: string
-                    status:
-                      description: status of the condition, one of True, False, Unknown.
-                      enum:
-                      - "True"
-                      - "False"
-                      - Unknown
-                      type: string
-                    type:
-                      description: type of condition in CamelCase or in foo.example.com/CamelCase.
-                      maxLength: 316
-                      pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
-                      type: string
-                  required:
-                  - lastTransitionTime
-                  - message
-                  - reason
-                  - status
-                  - type
-                  type: object
-                type: array
-              observedGeneration:
-                format: int64
-                type: integer
-              phase:
-                type: string
-            type: object
+        required:
+        - spec
         type: object
     served: true
     storage: true
-    subresources:
-      status: {}
----
-apiVersion: apiextensions.k8s.io/v1
-kind: CustomResourceDefinition
-metadata:
-  annotations:
-    controller-gen.kubebuilder.io/version: v0.18.0
-  name: nodes.wireflowcontroller.wireflow.run
-spec:
-  group: wireflowcontroller.wireflow.run
-  names:
-    kind: Node
-    listKind: NodeList
-    plural: nodes
-    shortNames:
-    - wfnode
-    - wfn
-    singular: node
-  scope: Namespaced
-  versions:
-  - additionalPrinterColumns:
-    - description: The current status of the node
-      jsonPath: .status.status
-      name: STATUS
-      type: string
-    - description: The current phase of the node
-      jsonPath: .status.phase
-      name: PHASE
-      type: string
-    - description: The IP address allocated to the node
-      jsonPath: .status.allocatedAddress
-      name: IP
-      type: string
-    - description: The network the node belongs to
-      jsonPath: .spec.network
-      name: NETWORK
-      type: string
-    - description: Number of active connections
-      jsonPath: .status.connectionSummary.connected
-      name: CONNECTED
-      type: integer
-    - jsonPath: .metadata.creationTimestamp
-      name: AGE
-      type: date
-    name: v1alpha1
-    schema:
-      openAPIV3Schema:
-        description: Node is the Schema for the nodes API.
-        properties:
-          apiVersion:
-            description: |-
-              APIVersion defines the versioned schema of this representation of an object.
-              Servers should convert recognized schemas to the latest internal value, and
-              may reject unrecognized values.
-              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
-            type: string
-          kind:
-            description: |-
-              Kind is a string value representing the REST resource this object represents.
-              Servers may infer this from the endpoint the client submits requests to.
-              Cannot be updated.
-              In CamelCase.
-              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
-            type: string
-          metadata:
-            type: object
-          spec:
-            description: NodeSpec defines the desired state of Node.
-            properties:
-              allowedIPs:
-                items:
-                  type: string
-                type: array
-              appId:
-                type: string
-              dnsServers:
-                items:
-                  type: string
-                type: array
-              interfaceName:
-                description: Interface for the node
-                type: string
-              mtu:
-                type: integer
-              network:
-                type: string
-              networkPolicies:
-                items:
-                  type: string
-                type: array
-              platform:
-                description: platform which node runs on
-                type: string
-              privateKey:
-                type: string
-              publicKey:
-                type: string
-            type: object
-          status:
-            description: NodeStatus defines the observed state of Node.
-            properties:
-              activeKey:
-                description: Active key
-                type: string
-              activeNetwork:
-                description: Active networks, record the network the node joined
-                type: string
-              activeNetworkPolicies:
-                items:
-                  type: string
-                type: array
-              allocatedAddress:
-                description: Allocated IP address, auto allocated by controller
-                type: string
-              conditions:
-                items:
-                  description: Condition contains details for one aspect of the current
-                    state of this API Resource.
-                  properties:
-                    lastTransitionTime:
-                      description: |-
-                        lastTransitionTime is the last time the condition transitioned from one status to another.
-                        This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.
-                      format: date-time
-                      type: string
-                    message:
-                      description: |-
-                        message is a human readable message indicating details about the transition.
-                        This may be an empty string.
-                      maxLength: 32768
-                      type: string
-                    observedGeneration:
-                      description: |-
-                        observedGeneration represents the .metadata.generation that the condition was set based upon.
-                        For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date
-                        with respect to the current state of the instance.
-                      format: int64
-                      minimum: 0
-                      type: integer
-                    reason:
-                      description: |-
-                        reason contains a programmatic identifier indicating the reason for the condition's last transition.
-                        Producers of specific condition types may define expected values and meanings for this field,
-                        and whether the values are considered a guaranteed API.
-                        The value should be a CamelCase string.
-                        This field may not be empty.
-                      maxLength: 1024
-                      minLength: 1
-                      pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
-                      type: string
-                    status:
-                      description: status of the condition, one of True, False, Unknown.
-                      enum:
-                      - "True"
-                      - "False"
-                      - Unknown
-                      type: string
-                    type:
-                      description: type of condition in CamelCase or in foo.example.com/CamelCase.
-                      maxLength: 316
-                      pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
-                      type: string
-                  required:
-                  - lastTransitionTime
-                  - message
-                  - reason
-                  - status
-                  - type
-                  type: object
-                type: array
-              connectionSummary:
-                description: Connection summary
-                properties:
-                  connected:
-                    type: integer
-                  disconnected:
-                    type: integer
-                  total:
-                    type: integer
-                required:
-                - connected
-                - disconnected
-                - total
-                type: object
-              lastSyncTime:
-                format: date-time
-                type: string
-              observedGeneration:
-                description: ObserveGeneration is the generation observed by the controller.
-                format: int64
-                type: integer
-              phase:
-                type: string
-              status:
-                description: Node status
-                type: string
-            type: object
-        type: object
-    served: true
-    storage: true
-    subresources:
-      status: {}
 ---
 apiVersion: v1
 kind: ServiceAccount
@@ -748,6 +1104,54 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
+  name: wireflow-manager-extra-role
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - namespaces
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - wireflowcontroller.wireflow.run
+  resources:
+  - wireflowendpoints
+  - wireflowglobalippools
+  - wireflowsubnetallocations
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - wireflowcontroller.wireflow.run
+  resources:
+  - wireflowendpoints/finalizers
+  - wireflowglobalippools/finalizers
+  - wireflowsubnetallocations/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - wireflowcontroller.wireflow.run
+  resources:
+  - wireflowglobalippools/status
+  verbs:
+  - get
+  - patch
+  - update
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
   name: wireflow-manager-role
 rules:
 - apiGroups:
@@ -765,9 +1169,9 @@ rules:
 - apiGroups:
   - wireflowcontroller.wireflow.run
   resources:
-  - networkpolicies
-  - networks
-  - nodes
+  - wireflownetworks
+  - wireflowpeers
+  - wireflowpolicies
   verbs:
   - create
   - delete
@@ -779,262 +1183,21 @@ rules:
 - apiGroups:
   - wireflowcontroller.wireflow.run
   resources:
-  - networkpolicies/finalizers
-  - networks/finalizers
-  - nodes/finalizers
+  - wireflownetworks/finalizers
+  - wireflowpeers/finalizers
+  - wireflowpolicies/finalizers
   verbs:
   - update
 - apiGroups:
   - wireflowcontroller.wireflow.run
   resources:
-  - networkpolicies/status
-  - networks/status
-  - nodes/status
+  - wireflownetworks/status
+  - wireflowpeers/status
+  - wireflowpolicies/status
   verbs:
   - get
   - patch
   - update
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  name: wireflow-metrics-auth-role
-rules:
-- apiGroups:
-  - authentication.k8s.io
-  resources:
-  - tokenreviews
-  verbs:
-  - create
-- apiGroups:
-  - authorization.k8s.io
-  resources:
-  - subjectaccessreviews
-  verbs:
-  - create
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  name: wireflow-metrics-reader
-rules:
-- nonResourceURLs:
-  - /metrics
-  verbs:
-  - get
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  labels:
-    app.kubernetes.io/managed-by: kustomize
-    app.kubernetes.io/name: wireflow-controller
-  name: wireflow-network-admin-role
-rules:
-- apiGroups:
-  - wireflowcontroller.wireflow.run
-  resources:
-  - networks
-  verbs:
-  - '*'
-- apiGroups:
-  - wireflowcontroller.wireflow.run
-  resources:
-  - networks/status
-  verbs:
-  - get
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  labels:
-    app.kubernetes.io/managed-by: kustomize
-    app.kubernetes.io/name: wireflow-controller
-  name: wireflow-network-editor-role
-rules:
-- apiGroups:
-  - wireflowcontroller.wireflow.run
-  resources:
-  - networks
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - wireflowcontroller.wireflow.run
-  resources:
-  - networks/status
-  verbs:
-  - get
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  labels:
-    app.kubernetes.io/managed-by: kustomize
-    app.kubernetes.io/name: wireflow-controller
-  name: wireflow-network-viewer-role
-rules:
-- apiGroups:
-  - wireflowcontroller.wireflow.run
-  resources:
-  - networks
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - wireflowcontroller.wireflow.run
-  resources:
-  - networks/status
-  verbs:
-  - get
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  labels:
-    app.kubernetes.io/managed-by: kustomize
-    app.kubernetes.io/name: wireflow-controller
-  name: wireflow-networkpolicy-admin-role
-rules:
-- apiGroups:
-  - wireflowcontroller.wireflow.run
-  resources:
-  - networkpolicies
-  verbs:
-  - '*'
-- apiGroups:
-  - wireflowcontroller.wireflow.run
-  resources:
-  - networkpolicies/status
-  verbs:
-  - get
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  labels:
-    app.kubernetes.io/managed-by: kustomize
-    app.kubernetes.io/name: wireflow-controller
-  name: wireflow-networkpolicy-editor-role
-rules:
-- apiGroups:
-  - wireflowcontroller.wireflow.run
-  resources:
-  - networkpolicies
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - wireflowcontroller.wireflow.run
-  resources:
-  - networkpolicies/status
-  verbs:
-  - get
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  labels:
-    app.kubernetes.io/managed-by: kustomize
-    app.kubernetes.io/name: wireflow-controller
-  name: wireflow-networkpolicy-viewer-role
-rules:
-- apiGroups:
-  - wireflowcontroller.wireflow.run
-  resources:
-  - networkpolicies
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - wireflowcontroller.wireflow.run
-  resources:
-  - networkpolicies/status
-  verbs:
-  - get
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  labels:
-    app.kubernetes.io/managed-by: kustomize
-    app.kubernetes.io/name: wireflow-controller
-  name: wireflow-node-admin-role
-rules:
-- apiGroups:
-  - wireflowcontroller.wireflow.run
-  resources:
-  - nodes
-  verbs:
-  - '*'
-- apiGroups:
-  - wireflowcontroller.wireflow.run
-  resources:
-  - nodes/status
-  verbs:
-  - get
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  labels:
-    app.kubernetes.io/managed-by: kustomize
-    app.kubernetes.io/name: wireflow-controller
-  name: wireflow-node-editor-role
-rules:
-- apiGroups:
-  - wireflowcontroller.wireflow.run
-  resources:
-  - nodes
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - wireflowcontroller.wireflow.run
-  resources:
-  - nodes/status
-  verbs:
-  - get
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  labels:
-    app.kubernetes.io/managed-by: kustomize
-    app.kubernetes.io/name: wireflow-controller
-  name: wireflow-node-viewer-role
-rules:
-- apiGroups:
-  - wireflowcontroller.wireflow.run
-  resources:
-  - nodes
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - wireflowcontroller.wireflow.run
-  resources:
-  - nodes/status
-  verbs:
-  - get
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
@@ -1059,11 +1222,11 @@ metadata:
   labels:
     app.kubernetes.io/managed-by: kustomize
     app.kubernetes.io/name: wireflow-controller
-  name: wireflow-manager-rolebinding
+  name: wireflow-manager-extra-rolebinding
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: wireflow-manager-role
+  name: wireflow-manager-extra-role
 subjects:
 - kind: ServiceAccount
   name: wireflow-controller-manager
@@ -1072,11 +1235,14 @@ subjects:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: wireflow-metrics-auth-rolebinding
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: wireflow-controller
+  name: wireflow-manager-rolebinding
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: wireflow-metrics-auth-role
+  name: wireflow-manager-role
 subjects:
 - kind: ServiceAccount
   name: wireflow-controller-manager
@@ -1170,7 +1336,7 @@ spec:
         - start
         - manager
         - --log-level=INFO
-        image: registry.cn-hangzhou.aliyuncs.com/wireflow-io/manager:dev
+        image: ghcr.io/wireflowio/manager:dev
         imagePullPolicy: Always
         name: wireflow-control
         volumeMounts:
@@ -1231,7 +1397,7 @@ spec:
         - controller
         - --leader-elect
         - --health-probe-bind-address=:8081
-        image: registry.cn-hangzhou.aliyuncs.com/wireflow-io/manager:dev
+        image: ghcr.io/wireflowio/manager:dev
         livenessProbe:
           httpGet:
             path: /healthz
@@ -1320,7 +1486,7 @@ spec:
         - turn
         - --log-level=verbose
         - --public-ip=81.68.109.143
-        image: registry.cn-hangzhou.aliyuncs.com/wireflow-io/manager:dev
+        image: ghcr.io/wireflowio/manager:dev
         imagePullPolicy: Always
         name: wireflow-turn
         ports:

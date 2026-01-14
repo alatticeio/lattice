@@ -15,6 +15,9 @@
 package utils
 
 import (
+	"crypto/rand"
+	"math/big"
+
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -29,4 +32,22 @@ func EncryptPassword(password string) (string, error) {
 
 func ComparePassword(hashedPassword, password string) error {
 	return bcrypt.CompareHashAndPassword([]byte(hashedPassword), []byte(password))
+}
+
+func GenerateSecureToken() (string, error) {
+	// 定义 Token 可能包含的字符（去掉了容易混淆的字符如 0, O, I, l）
+	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ123456789"
+	length := 16
+	result := make([]byte, length)
+
+	for i := 0; i < length; i++ {
+		// 生成一个随机索引
+		num, err := rand.Int(rand.Reader, big.NewInt(int64(len(charset))))
+		if err != nil {
+			return "", err
+		}
+		result[i] = charset[num.Int64()]
+	}
+
+	return string(result), nil
 }

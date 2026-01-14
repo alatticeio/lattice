@@ -32,6 +32,7 @@ var (
 type PeerController interface {
 	Register(ctx context.Context, request []byte) ([]byte, error)
 	GetNetmap(ctx context.Context, request []byte) ([]byte, error)
+	CreateToken(ctx context.Context, request []byte) ([]byte, error)
 	UpdateStatus(ctx context.Context, status int) error
 }
 
@@ -43,6 +44,17 @@ func NewPeerController(client *resource.Client) PeerController {
 
 type peerController struct {
 	peerService service.PeerService
+}
+
+func (p *peerController) CreateToken(ctx context.Context, request []byte) ([]byte, error) {
+	var (
+		tokenDto dto.TokenDto
+		err      error
+	)
+	if err = json.Unmarshal(request, &tokenDto); err != nil {
+		return nil, err
+	}
+	return p.peerService.CreateToken(ctx, &tokenDto)
 }
 
 func (p *peerController) UpdateStatus(ctx context.Context, status int) error {

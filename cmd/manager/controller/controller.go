@@ -230,6 +230,14 @@ func runController(flags *ControllerFlags) error {
 		return err
 	}
 
+	if err := (&controller.TokenReconciler{
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "WireflowEnrollmentToken")
+		return err
+	}
+
 	if err := (&controller.PeerReconciler{
 		Client:        mgr.GetClient(),
 		Scheme:        mgr.GetScheme(),

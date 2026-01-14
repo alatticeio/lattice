@@ -4,3 +4,4 @@ resources:
   - configmap.yaml
   - service_account.yaml
   - wireflow-role-binding.yaml
+  - wireflow_ippool.yaml

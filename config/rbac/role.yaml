@@ -19,6 +19,7 @@ rules:
 - apiGroups:
   - wireflowcontroller.wireflow.run
   resources:
+  - wireflowenrollmenttokens
   - wireflownetworks
   - wireflowpeers
   - wireflowpolicies
@@ -33,6 +34,7 @@ rules:
 - apiGroups:
   - wireflowcontroller.wireflow.run
   resources:
+  - wireflowenrollmenttokens/finalizers
   - wireflownetworks/finalizers
   - wireflowpeers/finalizers
   - wireflowpolicies/finalizers
@@ -41,6 +43,7 @@ rules:
 - apiGroups:
   - wireflowcontroller.wireflow.run
   resources:
+  - wireflowenrollmenttokens/status
   - wireflownetworks/status
   - wireflowpeers/status
   - wireflowpolicies/status

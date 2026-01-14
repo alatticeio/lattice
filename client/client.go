@@ -321,6 +321,9 @@ func (c *Client) close() {
 
 func (c *Client) AddPeer(peer *infra.Peer) error {
 	c.manager.peerManager.AddPeer(peer.PublicKey, peer)
+	if peer.PublicKey == c.current.PublicKey {
+		return nil
+	}
 	return c.ctrClient.AddPeer(peer)
 }
 

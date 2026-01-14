@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"wireflow/internal/core/infra"
+	"wireflow/management/dto"
 	"wireflow/management/nats"
 	"wireflow/pkg/version"
 )
@@ -44,4 +45,27 @@ func (c *Client) printInfo() {
 	clientInfo := version.Get()
 	fmt.Printf("Client Version: %s\n", clientInfo.Version)
 	fmt.Printf("Client GitCommit: %s\n", clientInfo.GitCommit)
+}
+
+func (c *Client) CreateToken(namespace, name, expiry string) error {
+	tokenDto := &dto.TokenDto{
+		Namespace: namespace,
+		Name:      name,
+		Expiry:    expiry,
+	}
+
+	bs, err := json.Marshal(tokenDto)
+	if err != nil {
+		return err
+	}
+
+	data, err := c.client.Request(context.Background(), "wireflow.signals.service", "createToken", bs)
+
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("Token Created: %s\n", string(data))
+
+	return nil
 }

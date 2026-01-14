@@ -39,7 +39,7 @@ type Config struct {
 	AppId      string `mapstructure:"app-id,omitempty"`
 	Debug      bool   `mapstructure:"debug,omitempty"`
 	Token      string `mapstructure:"token,omitempty"`
-	SignalUrl  string `mapstructure:"signal-url,omitempty"`
+	SignalUrl  string `mapstructure:"signaling-url,omitempty"`
 	ServerUrl  string `mapstructure:"server-url,omitempty"`
 	PrivateKey string `mapstructure:"private-key,omitempty"`
 	StunUrl    string `mapstructure:"stun-url,omitempty"`

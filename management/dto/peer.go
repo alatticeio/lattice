@@ -43,3 +43,10 @@ type PeerDto struct {
 	LastUpdatedAt       time.Time `json:"lastUpdatedAt"`
 	Token               string    `json:"token,omitempty"`
 }
+
+type TokenDto struct {
+	Namespace string `json:"namespace"`
+	Name      string `json:"name"`
+	Expiry    string `json:"expiry"`
+	Limit     int    `json:"limit"`
+}

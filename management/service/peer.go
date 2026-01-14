@@ -16,9 +16,8 @@ package service
 
 import (
 	"context"
-	"crypto/rand"
 	"fmt"
-	"math/big"
+	"time"
 	"wireflow/internal/core/infra"
 	"wireflow/internal/log"
 	"wireflow/management/dto"
@@ -28,6 +27,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"wireflow/api/v1alpha1"
@@ -41,12 +41,58 @@ type PeerService interface {
 	Register(ctx context.Context, dto *dto.PeerDto) (*infra.Peer, error)
 	UpdateStatus(ctx context.Context, status int) error
 	GetNetmap(ctx context.Context, namespace string, appId string) (*infra.Message, error)
-	bootstrap(ctx context.Context, provideToken string) (string, string, error)
+	CreateToken(ctx context.Context, tokenDto *dto.TokenDto) ([]byte, error)
+	bootstrap(ctx context.Context, provideToken string) error
 }
 
 type peerService struct {
 	logger *log.Logger
 	client *resource.Client
+}
+
+func (p *peerService) CreateToken(ctx context.Context, tokenDto *dto.TokenDto) ([]byte, error) {
+	var token v1alpha1.WireflowEnrollmentToken
+	if err := p.client.Get(ctx, client.ObjectKey{Namespace: tokenDto.Namespace, Name: tokenDto.Name}, &token); err != nil {
+		if errors.IsNotFound(err) {
+			duration, err := time.ParseDuration(tokenDto.Expiry)
+			if err != nil {
+				return nil, err
+			}
+
+			if err = p.bootstrap(ctx, tokenDto.Namespace); err != nil {
+				return nil, err
+			}
+
+			// 计算过期时间点（Unix 秒）
+			expiryTimestamp := time.Now().Add(duration).Unix()
+			tokenStr, err := utils.GenerateSecureToken()
+			if err != nil {
+				return nil, err
+			}
+			token = v1alpha1.WireflowEnrollmentToken{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      tokenDto.Name,
+					Namespace: tokenDto.Namespace,
+					Labels: map[string]string{
+						"app.kubernetes.io/managed-by": "wireflow-controller",
+					},
+				},
+				Spec: v1alpha1.WireflowEnrollmentTokenSpec{
+					Token:      tokenStr,
+					Namespace:  tokenDto.Namespace,
+					Expiry:     metav1.NewTime(time.Unix(expiryTimestamp, 0)),
+					UsageLimit: tokenDto.Limit,
+				},
+			}
+
+			if err = p.client.Create(ctx, &token); err != nil {
+				return nil, err
+			}
+		}
+
+	}
+
+	return []byte(token.Spec.Token), nil
 }
 
 func (p *peerService) Join(ctx context.Context, dto *dto.PeerDto) (*infra.Peer, error) {
@@ -72,130 +118,125 @@ func (p *peerService) UpdateStatus(ctx context.Context, status int) error {
 func (p *peerService) Register(ctx context.Context, dto *dto.PeerDto) (*infra.Peer, error) {
 	p.logger.Info("Received peer", "info", dto)
 
-	//handle bootstrap
-	ns, token, err := p.bootstrap(ctx, dto.Token)
+	tokenValid, token, err := p.checkToken(ctx, dto.Token)
 	if err != nil {
 		return nil, err
 	}
 
-	node, err := p.client.Register(ctx, ns, dto)
+	if !tokenValid {
+		return nil, fmt.Errorf("token is invalid")
+	}
+
+	node, err := p.client.Register(ctx, token.Namespace, dto)
 
 	if err != nil {
 		return nil, err
 	}
 
 	// setToken if bootstrap success
-	node.Token = token
+	node.Token = token.Status.Token
 	return node, nil
 }
 
-func (p *peerService) bootstrap(ctx context.Context, providedToken string) (string, string, error) {
-	var err error
-	if providedToken == "" {
-		providedToken, err = GenerateSecureToken()
-		if err != nil {
-			return "", "", err
+func (p *peerService) checkToken(ctx context.Context, tokenStr string) (bool, *v1alpha1.WireflowEnrollmentToken, error) {
+	if tokenStr == "" {
+		return false, nil, fmt.Errorf("token is empty")
+	}
+	var list v1alpha1.WireflowEnrollmentTokenList
+	err := p.client.List(ctx, &list, client.MatchingFields{"status.token": tokenStr})
+	if err != nil {
+		return false, nil, fmt.Errorf("get token failed: %v", err)
+	}
+
+	if len(list.Items) == 0 {
+		return false, nil, fmt.Errorf("Token not exists")
+	}
+
+	var token *v1alpha1.WireflowEnrollmentToken
+	for _, t := range list.Items {
+		if t.Status.Token == tokenStr {
+			token = &t
 		}
 	}
 
-	nsName := utils.DeriveNamespace(providedToken)
-	secretName := "wireflow-auth"
+	if token == nil {
+		return false, nil, fmt.Errorf("Token not exists")
+	}
 
-	// 1. 获取或创建 Namespace
+	// 2. 校验逻辑（同步返回错误）
+	//if time.Now().After(token.Spec.Expiry) {
+	//	return false, nil, fmt.Errorf("Token 已过期")
+	//}
+
+	//更新
+	if err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		// 重新拉取最新版本进行更新
+		latestToken := &v1alpha1.WireflowEnrollmentToken{}
+		if err = p.client.GetCache().Get(ctx, client.ObjectKeyFromObject(token), latestToken); err != nil {
+			return err
+		}
+
+		latestToken.Status.UsedCount++
+		return p.client.Status().Update(ctx, latestToken)
+	}); err != nil {
+		return false, nil, err
+	}
+
+	return true, token, nil
+}
+
+func (p *peerService) bootstrap(ctx context.Context, nsName string) error {
+	if err := p.ensureNamespace(ctx, nsName); err != nil {
+		return err
+	}
+	return p.ensureDefaultNetwork(ctx, nsName)
+}
+
+func (p *peerService) ensureNamespace(ctx context.Context, nsName string) error {
 	var ns corev1.Namespace
-	err = p.client.GetAPIReader().Get(ctx, client.ObjectKey{Name: nsName}, &ns)
-
-	if errors.IsNotFound(err) {
-		p.logger.Info("Creating namespace", "name", nsName, "token", providedToken)
-		// 创建 Namespace
-		if err = p.client.Create(ctx, &corev1.Namespace{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: nsName,
-				Labels: map[string]string{
-					"app.kubernetes.io/managed-by": "wireflow-controller",
+	if err := p.client.Get(ctx, client.ObjectKey{Name: nsName}, &ns); err != nil {
+		if errors.IsNotFound(err) {
+			p.logger.Info("Creating namespace", "name", nsName)
+			// 创建 Namespace
+			if err = p.client.Create(ctx, &corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: nsName,
+					Labels: map[string]string{
+						"app.kubernetes.io/managed-by": "wireflow-controller",
+					},
 				},
-			},
-		}); err != nil {
-			return "", "", err
+			}); err != nil {
+				return err
+			}
 		}
-
-		// 创建 Secret 存储 Token
-		secret := &corev1.Secret{
-			ObjectMeta: metav1.ObjectMeta{Name: secretName, Namespace: nsName},
-			Data:       map[string][]byte{"token": []byte(providedToken)},
-		}
-		if err = p.client.Create(ctx, secret); err != nil {
-			return "", "", err
-		}
-
-		p.logger.Info("Namespace created", "name", nsName, "secret", secretName, "token", providedToken, "separator", "")
-
-		// 初始化网络资源 (WireflowNetwork)
-		var defaultNet string
-		if defaultNet, err = p.ensureDefaultNetwork(ctx, nsName); err != nil {
-			p.logger.Error("ensure default network failed", err)
-			return "", "", err
-		} else {
-			p.logger.Info("default network created", "defaultNetwork", defaultNet, "separator", "")
-		}
-
-		p.logger.Info("Bootstrap success", "name", nsName, "secret", secretName, "token", providedToken, "defaultNet", defaultNet, "separator", "")
-		// 返回给 Agent：你是创建者，这是你的新 Token
-		return nsName, providedToken, nil
 	}
 
-	// --- 房客模式：验证已有空间 ---
-	var authSecret corev1.Secret
-	if err = p.client.GetAPIReader().Get(ctx, client.ObjectKey{Namespace: nsName, Name: secretName}, &authSecret); err != nil {
-		return "", "", err
-	}
-
-	storedToken := string(authSecret.Data["token"])
-	if providedToken != storedToken {
-		return "", "", fmt.Errorf("invalid token")
-	}
-
-	return nsName, storedToken, nil
+	return nil
 }
 
 // EnsureNamespaceForPeer 为新接入的节点确保环境就绪
-// token: 节点生成的唯一标识（可以是 hash 后的公钥）
-func (p *peerService) ensureDefaultNetwork(ctx context.Context, nsName string) (string, error) {
+func (p *peerService) ensureDefaultNetwork(ctx context.Context, nsName string) error {
+	var defaultNet v1alpha1.WireflowNetwork
+	if err := p.client.Get(ctx, client.ObjectKey{Namespace: nsName, Name: "wireflow-default-net"}, &defaultNet); err != nil {
+		if errors.IsNotFound(err) {
+			defaultNet = v1alpha1.WireflowNetwork{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "wireflow-default-net",
+					Namespace: nsName,
+					Labels: map[string]string{
+						"app.kubernetes.io/managed-by": "wireflow-controller", // 必须对应
+					},
+				},
+				Spec: v1alpha1.WireflowNetworkSpec{
+					Name: fmt.Sprintf("%s-net", nsName),
+				},
+			}
 
-	defaultNet := &v1alpha1.WireflowNetwork{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "wireflow-default-net",
-			Namespace: nsName,
-			Labels: map[string]string{
-				"app.kubernetes.io/managed-by": "wireflow-controller", // 必须对应
-			},
-		},
-		Spec: v1alpha1.WireflowNetworkSpec{
-			Name: fmt.Sprintf("%s-net", nsName),
-		},
-	}
-
-	if err := p.client.Create(ctx, defaultNet); err != nil {
-		return "", fmt.Errorf("failed to create default network: %v", err)
-	}
-
-	return defaultNet.Name, nil
-}
-
-func GenerateSecureToken() (string, error) {
-	// 定义 Token 可能包含的字符（去掉了容易混淆的字符如 0, O, I, l）
-	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ123456789"
-	length := 16
-	result := make([]byte, length)
-
-	for i := 0; i < length; i++ {
-		// 生成一个随机索引
-		num, err := rand.Int(rand.Reader, big.NewInt(int64(len(charset))))
-		if err != nil {
-			return "", err
+			if err := p.client.Create(ctx, &defaultNet); err != nil {
+				return fmt.Errorf("failed to create default network: %v", err)
+			}
 		}
-		result[i] = charset[num.Int64()]
 	}
 
-	return string(result), nil
+	return nil
 }

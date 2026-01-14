@@ -223,7 +223,7 @@ func (r *PeerReconciler) reconcileConfigmap(ctx context.Context, peer *v1alpha1.
 	logger := logf.FromContext(ctx)
 
 	oldNodeCtx := r.SnapshotCache[request.NamespacedName]
-	snapshot := r.getNodeContext(ctx, peer, request)
+	snapshot := r.getPeerStateSnapshot(ctx, peer, request)
 	// 1. 定义期望状态 (Desired State)
 	configMapName := fmt.Sprintf("%s-config", peer.Name)
 	// 2. 获取当前状态 (Current State)
@@ -612,7 +612,7 @@ func (r *PeerReconciler) getNetwork(ctx context.Context, peer *v1alpha1.Wireflow
 	return &network, nil
 }
 
-func (r *PeerReconciler) getNodeContext(ctx context.Context, current *v1alpha1.WireflowPeer, req ctrl.Request) *PeerStateSnapshot {
+func (r *PeerReconciler) getPeerStateSnapshot(ctx context.Context, current *v1alpha1.WireflowPeer, req ctrl.Request) *PeerStateSnapshot {
 	if current == nil {
 		return &PeerStateSnapshot{}
 	}

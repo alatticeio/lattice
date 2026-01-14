@@ -19,23 +19,19 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
-	"os"
-	"path/filepath"
 	"sync"
 	"wireflow/internal/core/infra"
 	"wireflow/internal/grpc"
 	"wireflow/internal/log"
 
-	wireflowv1alpha1 "wireflow/api/v1alpha1"
+	v1alpha1 "wireflow/api/v1alpha1"
 
 	"google.golang.org/protobuf/proto"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
-	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
-	"k8s.io/client-go/tools/clientcmd"
 	ctrl "sigs.k8s.io/controller-runtime"
 	cache2 "sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -59,18 +55,7 @@ var scheme = runtime.NewScheme()
 
 func init() {
 	_ = clientgoscheme.AddToScheme(scheme)
-	_ = wireflowv1alpha1.AddToScheme(scheme)
-}
-
-func init() {
-	// 注册 Kubernetes 内置资源 Scheme（例如 Pod, Deployment）
-	_ = clientgoscheme.AddToScheme(scheme)
-
-	// 🚨 注册你的 CRD Scheme（必须！）
-	// 这使得 client.Client 知道如何序列化和反序列化你的 WireflowNetwork 资源
-	_ = wireflowv1alpha1.AddToScheme(scheme)
-
-	// 如果有其他自定义资源，也需在此注册
+	_ = v1alpha1.AddToScheme(scheme)
 }
 
 func NewClient(signal infra.SignalService, mgr manager.Manager) (*Client, error) {
@@ -90,18 +75,6 @@ func NewClient(signal infra.SignalService, mgr manager.Manager) (*Client, error)
 
 	// 3. Set the initialized log for controller-runtime
 	logf.SetLogger(zapLogger)
-
-	// 2. 获取 Kubernetes 配置
-	//config, err := loadKubeConfig()
-	//if err != nil {
-	//	return nil, err
-	//}
-
-	// 3. 创建 client-runtime 的通用 Client
-	//crdClient, err := client.New(config, client.Options{Scheme: scheme})
-	//if err != nil {
-	//	logger.Error("Error creating client", err)
-	//}
 
 	client := &Client{
 		Client:         mgr.GetClient(),
@@ -139,23 +112,6 @@ func NewClient(signal infra.SignalService, mgr manager.Manager) (*Client, error)
 	return client, nil
 }
 
-// loadKubeConfig 尝试加载集群内配置或本地 kubeconfig
-func loadKubeConfig() (*rest.Config, error) {
-	// 尝试加载集群内配置（如果在 Pod 中运行）
-	config, err := rest.InClusterConfig()
-	if err == nil {
-		return config, nil
-	}
-
-	// 尝试加载本地 kubeconfig
-	kubeconfig := filepath.Join(os.Getenv("HOME"), ".kube", "config")
-	if _, err := os.Stat(kubeconfig); os.IsNotExist(err) {
-		return nil, fmt.Errorf("kubeconfig file not found at %s", kubeconfig)
-	}
-
-	return clientcmd.BuildConfigFromFlags("", kubeconfig)
-}
-
 // 核心事件处理函数
 func (c *Client) handleConfigMapEvent(ctx context.Context, obj interface{}, eventType string) {
 	cm, ok := obj.(*corev1.ConfigMap)
@@ -180,8 +136,10 @@ func (c *Client) handleConfigMapEvent(ctx context.Context, obj interface{}, even
 		return
 	}
 
-	c.pushToNode(ctx, message.Current.PublicKey, &message)
-	c.log.Info(">>> Message pushed to node success <<<", "namespace", cm.Namespace, "appId", message.Current.PublicKey, "version", cm.ResourceVersion)
+	if message.Current != nil {
+		c.pushToNode(ctx, message.Current.PublicKey, &message)
+		c.log.Info(">>> Message pushed to node success <<<", "namespace", cm.Namespace, "appId", message.Current.PublicKey, "version", cm.ResourceVersion)
+	}
 }
 
 func (c *Client) pushToNode(ctx context.Context, peerId string, msg *infra.Message) error {
@@ -250,5 +208,28 @@ func NewManager() (manager.Manager, error) {
 			}),
 		},
 	})
+
+	ctx := context.Background()
+	// 注册索引： status.token
+	if err := mgr.GetFieldIndexer().IndexField(ctx, &v1alpha1.WireflowEnrollmentToken{}, "status.token", func(rawObj client.Object) []string {
+		// 1. 断言对象类型
+		token, ok := rawObj.(*v1alpha1.WireflowEnrollmentToken)
+		if !ok {
+			return nil
+		}
+		// 2. 返回需要索引的字段值
+		if token.Status.Token == "" {
+			return nil
+		}
+		return []string{token.Status.Token}
+	}); err != nil {
+		return nil, err
+	}
+
+	// 只要你调用了 GetInformer，Manager 就会在 Start 时去同步它
+	_, err = mgr.GetCache().GetInformer(ctx, &v1alpha1.WireflowEnrollmentToken{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to start informer: %w", err)
+	}
 	return mgr, err
 }
