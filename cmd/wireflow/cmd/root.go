@@ -47,6 +47,7 @@ func init() {
 	fs.StringVarP(&infra.ServerUrl, "server-url", "", "", "management server url")
 	fs.StringVarP(&infra.SignalUrl, "signaling-url", "", "", "signaling server url")
 	fs.BoolP("version", "v", false, "Print version information")
+	fs.BoolVarP(&infra.ShowNetLog, "show-system-log", "s", false, "whether show (wireguard/ice) detail log")
 	rootCmd.AddCommand(upCmd())
 	rootCmd.AddCommand(configCmd)
 	rootCmd.AddCommand(token.NewTokenCommand())

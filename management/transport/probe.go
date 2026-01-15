@@ -16,6 +16,7 @@ package transport
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 	"wireflow/internal/grpc"
@@ -51,12 +52,18 @@ type Probe struct {
 
 func (p *Probe) OnConnectionStateChange(state ice.ConnectionState) {
 	p.updateState(state)
+	p.log.Info("Setting new connection status", "state", state)
 }
 
 func (p *Probe) Probe(ctx context.Context, remoteId string) error {
+	if p.state == ice.ConnectionStateUnknown {
+		return fmt.Errorf("invalid state.")
+	}
+
 	if p.state != ice.ConnectionStateNew {
 		return nil
 	}
+
 	p.updateState(ice.ConnectionStateChecking)
 	// 1. first prepare candidate then send to remoteId
 	go func() {
@@ -95,15 +102,15 @@ func (p *Probe) Prepare(ctx context.Context, remoteId string, send func(ctx cont
 	}
 
 	//waiting probe ack
-	p.log.Info("waiting for preProbe ACK...", "remoteId", remoteId)
+	p.log.Debug("waiting for preProbe ACK...", "remoteId", remoteId)
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
 	case <-p.probeAckChan:
 		cancel()
 		// send offer
-		p.log.Info("preProbe ACK received, will sending offer", "remoteId", remoteId)
-		return p.transport.Prepare(p)
+		p.log.Debug("preProbe ACK received, will sending offer", "remoteId", remoteId)
+		return p.transport.Prepare()
 	}
 }
 

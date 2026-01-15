@@ -47,20 +47,22 @@ func Start(ctx context.Context, flags *config.Flags) error {
 
 	logger := log.GetLogger("wireflow")
 
-	engineCfg := &AgentConfig{
-		Logger: logger,
-		//Conf:          conf,
+	agentCfg := &AgentConfig{
+		Logger:        logger,
 		Port:          51820,
 		InterfaceName: flags.InterfaceName,
 		ManagementUrl: flags.ManagementUrl,
 		SignalingUrl:  flags.SignalingUrl,
 		TurnServerUrl: flags.TurnServerUrl,
-		WgLogger: wg.NewLogger(
-			wg.LogLevelError,
-			fmt.Sprintf("(%s) ", flags.InterfaceName),
-		),
-		ForceRelay: flags.ForceRelay,
-		Token:      flags.Token,
+		ForceRelay:    flags.ForceRelay,
+		Token:         flags.Token,
+		ShowLog:       flags.ShowLog,
+	}
+
+	if flags.ShowLog {
+		agentCfg.WgLogger = wg.NewLogger(wg.LogLevelVerbose, fmt.Sprintf("[%s] ", "wireguard"))
+	} else {
+		agentCfg.WgLogger = wg.NewLogger(wg.LogLevelSilent, fmt.Sprintf("[%s] ", "wireguard"))
 	}
 
 	// set appId
@@ -75,11 +77,11 @@ func Start(ctx context.Context, flags *config.Flags) error {
 	}
 
 	if flags.SignalingUrl == "" {
-		engineCfg.SignalingUrl = fmt.Sprintf("nats://%s:%d", infra.SignalingDomain, infra.DefaultSignalingPort)
+		agentCfg.SignalingUrl = fmt.Sprintf("nats://%s:%d", infra.SignalingDomain, infra.DefaultSignalingPort)
 	}
 
 	if flags.TurnServerUrl == "" {
-		engineCfg.TurnServerUrl = fmt.Sprintf("%s:%d", infra.TurnServerDomain, infra.DefaultTurnServerPort)
+		agentCfg.TurnServerUrl = fmt.Sprintf("%s:%d", infra.TurnServerDomain, infra.DefaultTurnServerPort)
 	}
 
 	if flags.DaemonGround {
@@ -191,7 +193,7 @@ func Start(ctx context.Context, flags *config.Flags) error {
 		}()
 	}
 
-	c, err := NewAgent(ctx, engineCfg)
+	c, err := NewAgent(ctx, agentCfg)
 	if err != nil {
 		return err
 	}
@@ -204,7 +206,7 @@ func Start(ctx context.Context, flags *config.Flags) error {
 			return nil, err
 		}
 
-		logger.Info("Success get net map")
+		logger.Debug("Success get net map")
 
 		return msg, err
 	}
@@ -212,7 +214,7 @@ func Start(ctx context.Context, flags *config.Flags) error {
 	err = c.Start(ctx)
 
 	// open UAPI file
-	logger.Info("Interface name", "name", c.Name)
+	logger.Debug("Interface name", "name", c.Name)
 	fileUAPI, err := func() (*os.File, error) {
 		return ipc.UAPIOpen(c.Name)
 	}()
@@ -238,7 +240,7 @@ func Start(ctx context.Context, flags *config.Flags) error {
 	uapi.Close()
 
 	c.close()
-	logger.Info("wireflow shutting down")
+	logger.Warn("wireflow shutting down")
 	return err
 }
 
@@ -281,7 +283,7 @@ func Status(flags *config.Flags) error {
 		}
 
 		if len(devices) == 0 {
-			return fmt.Errorf("没有找到任何 WireFlow 设备")
+			return fmt.Errorf("Could not found WireFlow Devices")
 		}
 
 		interfaceName = devices[0].Name

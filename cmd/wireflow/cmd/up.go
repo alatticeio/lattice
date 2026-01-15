@@ -31,6 +31,8 @@ func upCmd() *cobra.Command {
 		Example: "wireflow up --token <token> --server-url <server-url> --signaling-url <signaling-url>",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := infra.SetupSignalHandler()
+			showLog, _ := cmd.Flags().GetBool("show-net-log")
+			flags.ShowLog = showLog
 			return agent.Start(ctx, &flags)
 		},
 	}

@@ -15,6 +15,7 @@
 package turn
 
 import (
+	"context"
 	"fmt"
 	"wireflow/internal/config"
 	"wireflow/internal/infra"
@@ -64,7 +65,7 @@ func runTurn(opts turnOptions) error {
 		config.GlobalConfig.SignalUrl = fmt.Sprintf("nats://%s:%d", infra.SignalingDomain, infra.DefaultSignalingPort)
 		config.WriteConfig("signaling-url", config.GlobalConfig.SignalUrl)
 	}
-	signalService, err := nats.NewNatsService(config.GlobalConfig.SignalUrl)
+	signalService, err := nats.NewNatsService(context.Background(), config.GlobalConfig.SignalUrl)
 	if err != nil {
 		return err
 	}

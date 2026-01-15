@@ -37,18 +37,13 @@ type SignalService interface {
 // Transport for transfer wireguard packets
 type Transport interface {
 	// Init and gather candidates send to peerId
-	Prepare(probe Probe) error
+	Prepare() error
 
 	HandleOffer(ctx context.Context, peerId string, packet *grpc.SignalPacket) error
-
-	OnConnectionStateChange(state ice.ConnectionState) error
 
 	Start(ctx context.Context, peerId string) error
 
 	RawConn() (net.Conn, error)
-
-	State() ice.ConnectionState
-
 	// 6. 销毁资源
 	Close() error
 }

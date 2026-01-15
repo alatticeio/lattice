@@ -35,14 +35,15 @@ func GetConfigFilePath() string {
 }
 
 type Config struct {
-	Auth       string `mapstructure:"auth,omitempty"`
-	AppId      string `mapstructure:"app-id,omitempty"`
-	Debug      bool   `mapstructure:"debug,omitempty"`
-	Token      string `mapstructure:"token,omitempty"`
-	SignalUrl  string `mapstructure:"signaling-url,omitempty"`
-	ServerUrl  string `mapstructure:"server-url,omitempty"`
-	PrivateKey string `mapstructure:"private-key,omitempty"`
-	StunUrl    string `mapstructure:"stun-url,omitempty"`
+	Auth          string `mapstructure:"auth,omitempty"`
+	AppId         string `mapstructure:"app-id,omitempty"`
+	Debug         bool   `mapstructure:"debug,omitempty"`
+	Token         string `mapstructure:"token,omitempty"`
+	SignalUrl     string `mapstructure:"signaling-url,omitempty"`
+	ServerUrl     string `mapstructure:"server-url,omitempty"`
+	PrivateKey    string `mapstructure:"private-key,omitempty"`
+	StunUrl       string `mapstructure:"stun-url,omitempty"`
+	ShowSystemLog bool   `mapstructure:"show-system-log,omitempty"`
 }
 
 var GlobalConfig *Config

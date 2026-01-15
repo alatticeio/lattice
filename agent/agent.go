@@ -76,7 +76,7 @@ type AgentConfig struct {
 	ForceRelay    bool
 	ManagementUrl string
 	SignalingUrl  string
-	ShowWgLog     bool
+	ShowLog       bool
 	Token         string
 }
 
@@ -107,14 +107,14 @@ func NewAgent(ctx context.Context, cfg *AgentConfig) (*Agent, error) {
 		return nil, err
 	}
 
-	universalUdpMuxDefault := infra.NewUdpMux(v4conn)
+	universalUdpMuxDefault := infra.NewUdpMux(v4conn, cfg.ShowLog)
 
 	natsSignalService, err := nats.NewNatsService(ctx, config.GlobalConfig.SignalUrl)
 	if err != nil {
 		return nil, err
 	}
 
-	factory := transport.NewTransportFactory(natsSignalService, universalUdpMuxDefault)
+	factory := transport.NewTransportFactory(natsSignalService, cfg.ShowLog, universalUdpMuxDefault)
 
 	agent.ctrClient, err = ctrclient.NewClient(natsSignalService, factory)
 	if err != nil {
@@ -230,7 +230,7 @@ func (c *Agent) SetConfig(conf *infra.DeviceConf) error {
 	}
 
 	if conf.String() == nowConf {
-		c.logger.Info("config is same, no need to update", "conf", conf)
+		c.logger.Debug("config is same, no need to update", "conf", conf)
 		return nil
 	}
 
@@ -240,7 +240,7 @@ func (c *Agent) SetConfig(conf *infra.DeviceConf) error {
 }
 
 func (c *Agent) close() {
-	c.logger.Info("deviceManager closed")
+	c.logger.Debug("deviceManager closed")
 }
 
 func (c *Agent) AddPeer(peer *infra.Peer) error {

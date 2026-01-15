@@ -51,10 +51,10 @@ func (h *MessageHandler) HandleEvent(ctx context.Context, msg *infra.Message) er
 	if msg.Changes == nil {
 		return nil
 	}
-	h.logger.Info("Received config update", "version", msg.ConfigVersion, "summary", msg.Changes.Summary())
+	h.logger.Debug("Received config update", "version", msg.ConfigVersion, "summary", msg.Changes.Summary())
 
 	if msg.Changes.HasChanges() {
-		h.logger.Info("Received remote changes", "message", msg)
+		h.logger.Debug("Received remote changes", "message", msg)
 
 		// 地址变化
 		if msg.Changes.AddressChanged {
@@ -78,18 +78,11 @@ func (h *MessageHandler) HandleEvent(ctx context.Context, msg *infra.Message) er
 
 		//reconfigure
 		if msg.Changes.KeyChanged {
-			//if err := h.deviceManager.SetupInterface(&infra.DeviceConfig{
-			//	PrivateKey: msg.Current.PrivateKey,
-			//}); err != nil {
-			//	return err
-			//}
-
-			// TODO 重新连接所有的节点，基本不会发生，这要remove掉所有已连接的Peer, 然后重新连接
 		}
 
 		//
 		if len(msg.Changes.PeersAdded) > 0 {
-			h.logger.Info("peers added", "peers", msg.Changes.PeersAdded)
+			h.logger.Debug("peers added", "peers", msg.Changes.PeersAdded)
 			for _, peer := range msg.Changes.PeersAdded {
 				// add peer to peers cached
 				if peer.PublicKey == msg.Current.PublicKey {
@@ -104,7 +97,7 @@ func (h *MessageHandler) HandleEvent(ctx context.Context, msg *infra.Message) er
 
 		// handle peer removed
 		if len(msg.Changes.PeersRemoved) > 0 {
-			h.logger.Info("peers removed", "peers", msg.Changes.PeersRemoved)
+			h.logger.Debug("peers removed", "peers", msg.Changes.PeersRemoved)
 			for _, peer := range msg.Changes.PeersRemoved {
 				if err := h.deviceManager.RemovePeer(peer); err != nil {
 					return err
@@ -119,7 +112,7 @@ func (h *MessageHandler) HandleEvent(ctx context.Context, msg *infra.Message) er
 
 // ApplyFullConfig when wireflow start, apply full config
 func (h *MessageHandler) ApplyFullConfig(ctx context.Context, msg *infra.Message) error {
-	h.logger.Info("ApplyFullConfig start", "message", msg)
+	h.logger.Debug("ApplyFullConfig start", "message", msg)
 	var err error
 
 	//设置Peers
@@ -133,7 +126,7 @@ func (h *MessageHandler) ApplyFullConfig(ctx context.Context, msg *infra.Message
 		return err
 	}
 
-	h.logger.Info("ApplyFullConfig done", "version", msg.ConfigVersion)
+	h.logger.Debug("ApplyFullConfig done", "version", msg.ConfigVersion)
 	return nil
 }
 

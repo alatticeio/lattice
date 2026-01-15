@@ -46,7 +46,7 @@ type networkManager struct {
 }
 
 func NewNetworkManager(signalUrl string) (NetworkManager, error) {
-	natsClient, err := nats.NewNatsService(signalUrl)
+	natsClient, err := nats.NewNatsService(context.Background(), signalUrl)
 	if err != nil {
 		return nil, err
 	}

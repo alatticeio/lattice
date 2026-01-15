@@ -222,13 +222,14 @@ func (r *PeerReconciler) reconcileConfigmap(ctx context.Context, peer *v1alpha1.
 	)
 	logger := logf.FromContext(ctx)
 
+	logger.Info("Reconciling configmap", "name", request.NamespacedName)
 	oldNodeCtx := r.SnapshotCache[request.NamespacedName]
 	snapshot := r.getPeerStateSnapshot(ctx, peer, request)
 	// 1. 定义期望状态 (Desired State)
 	configMapName := fmt.Sprintf("%s-config", peer.Name)
 	// 2. 获取当前状态 (Current State)
-	foundConfigMap := &corev1.ConfigMap{}
-	err = r.Get(ctx, types.NamespacedName{Name: configMapName, Namespace: peer.Namespace}, foundConfigMap)
+	var foundConfigMap corev1.ConfigMap
+	err = r.Get(ctx, types.NamespacedName{Name: configMapName, Namespace: peer.Namespace}, &foundConfigMap)
 	if err != nil {
 		if errors.IsNotFound(err) {
 			logger.Info("Creating configmap", "name", configMapName)
@@ -241,7 +242,7 @@ func (r *PeerReconciler) reconcileConfigmap(ctx context.Context, peer *v1alpha1.
 				logger.Error(err, "Failed to set owner reference on configmap")
 				return ctrl.Result{}, err
 			}
-			// --- A. 不存在：执行创建操作 ---
+			//cache snapshot
 			r.SnapshotCache[request.NamespacedName] = snapshot
 			// 使用SSA模式
 			manager := client.FieldOwner("wireflow-controller-manager")

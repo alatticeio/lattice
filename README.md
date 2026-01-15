@@ -85,19 +85,21 @@ curl -sSL https://raw.githubusercontent.com/wireflowio/wireflow/master/install.s
 ```
 
 ### Check the installation
+> - Note: After installation, you can use the wireflow command to check the version. Before doing so, you must set the signaling server address. The default is nats://signaling.wireflow.run:4222.
+> - If you are using a custom NATS server (e.g., your Kubernetes node IP), use the following command:
+> ```bash
+> wireflow --signaling-url=nats://your-nats-ip:4222 --version
+> ```
+> To make this change permanent so you don't have to type it every time, use the config command:
+> ```bash
+> wireflow config set signaling-url nats://your-nats-ip:4222
+> ```
 
-using wireflow-cli to check whether both components have installed successfuly:
+Now you can use `wireflow` to check whether both components have installed successfuly:
 
 ```bash
 wireflow --version
 ```
-
-> - Note: After installation, you can also use 'wireflow' command to check the version. before check, you should set the signal server address, default is 'nats://signaling.wireflow.run:4222'
-> - As **your-nats-ip** is your k8s server ip
-> ```bash
-> wireflow --signaling-url=nats://your-nats-ip:4222 --version
-> ```
-> you can persist the signaling server address by using 'wireflow config set signaling-url nats://signaling.wireflow.run:4222'
 
 ### Start The Wireflow Agent
 
@@ -124,16 +126,19 @@ wireflow up --level=debug --token=PEER_TOKEN
 ```
 
 ### Check the network status
-
-wireflow current also support wireguard's command, using 'wg' to show the connected info:
+1. View WireGuard Statistics
+wireflow integrates seamlessly with the standard WireGuard toolset. Use the wg command to inspect connection details, such as public keys, endpoints, and data transfer volumes:
 
 ```bash
+# Display the status of all wireflow-managed interfaces
 wg
 ```
 
-check network:
+2. Test Peer Connectivity
+To ensure the encrypted tunnel is passing traffic correctly, use ping to reach a remote peer by its internal IP defined in your wireflow network:
 
 ```bash
+# Ping a remote peer (replace 'peer1' with your peer's name or IP)
 ping -c 3 peer1
 ```
 

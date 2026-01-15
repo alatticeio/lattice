@@ -43,7 +43,6 @@ type PionTransport struct {
 	provisioner   infra.Provisioner
 	remoteId      string
 	agent         *AgentWrapper
-	state         ice.ConnectionState
 	probeAckChan  chan struct{}
 	closeOnce     sync.Once
 	ackClose      sync.Once
@@ -51,32 +50,39 @@ type PionTransport struct {
 
 	universalUdpMuxDefault *ice.UniversalUDPMuxDefault
 
-	peers *infra.PeerManager
-	probe infra.Probe
+	peers   *infra.PeerManager
+	showLog bool
+
+	// notify when ice connection state changed
+	onConnectionStateChange func(state ice.ConnectionState)
 }
 
 type ICETransportConfig struct {
-	Sender                 func(ctx context.Context, peerId string, data []byte) error
-	RemoteId               string
-	LocalId                string
-	OnClose                func(peerId string)
-	UniversalUdpMuxDefault *ice.UniversalUDPMuxDefault
-	Configurer             infra.Provisioner
-	PeerManager            *infra.PeerManager
+	Sender                  func(ctx context.Context, peerId string, data []byte) error
+	RemoteId                string
+	LocalId                 string
+	OnClose                 func(peerId string)
+	UniversalUdpMuxDefault  *ice.UniversalUDPMuxDefault
+	Configurer              infra.Provisioner
+	PeerManager             *infra.PeerManager
+	ShowLog                 bool
+	OnConnectionStateChange func(state ice.ConnectionState)
 }
 
 func NewPionTransport(cfg *ICETransportConfig) (*PionTransport, error) {
 	t := &PionTransport{
-		log:                    log.GetLogger("transport"),
-		onClose:                cfg.OnClose,
-		sender:                 cfg.Sender,
-		localId:                cfg.LocalId,
-		remoteId:               cfg.RemoteId,
-		probeAckChan:           make(chan struct{}),
-		OfferRecvChan:          make(chan struct{}),
-		universalUdpMuxDefault: cfg.UniversalUdpMuxDefault,
-		provisioner:            cfg.Configurer,
-		peers:                  cfg.PeerManager,
+		log:                     log.GetLogger("transport"),
+		onClose:                 cfg.OnClose,
+		sender:                  cfg.Sender,
+		localId:                 cfg.LocalId,
+		remoteId:                cfg.RemoteId,
+		probeAckChan:            make(chan struct{}),
+		OfferRecvChan:           make(chan struct{}),
+		universalUdpMuxDefault:  cfg.UniversalUdpMuxDefault,
+		provisioner:             cfg.Configurer,
+		peers:                   cfg.PeerManager,
+		showLog:                 cfg.ShowLog,
+		onConnectionStateChange: cfg.OnConnectionStateChange,
 	}
 	var err error
 	t.agent, err = t.getAgent(cfg.RemoteId)
@@ -89,7 +95,11 @@ func NewPionTransport(cfg *ICETransportConfig) (*PionTransport, error) {
 
 func (t *PionTransport) getAgent(remoteId string) (*AgentWrapper, error) {
 	f := logging.NewDefaultLoggerFactory()
-	f.DefaultLogLevel = logging.LogLevelDebug
+	if t.showLog {
+		f.DefaultLogLevel = logging.LogLevelDebug
+	} else {
+		f.DefaultLogLevel = logging.LogLevelError
+	}
 	// 创建新 Agent
 	iceAgent, err := ice.NewAgent(&ice.AgentConfig{
 		UDPMux:         t.universalUdpMuxDefault.UDPMuxDefault,
@@ -108,9 +118,8 @@ func (t *PionTransport) getAgent(remoteId string) (*AgentWrapper, error) {
 		}
 		// 绑定状态监听，成功后更新 WireGuard
 		agent.OnConnectionStateChange(func(s ice.ConnectionState) {
-			t.updateTransportState(s)
+			t.onConnectionStateChange(s)
 			if s == ice.ConnectionStateConnected {
-				t.log.Info("Setting new connection", "state", "connected")
 				pair, err := agent.GetSelectedCandidatePair()
 				if err != nil {
 					t.log.Error("Get selected candidate pair", err)
@@ -145,8 +154,7 @@ func (t *PionTransport) getAgent(remoteId string) (*AgentWrapper, error) {
 	return agent, err
 }
 
-func (t *PionTransport) Prepare(probe infra.Probe) error {
-	t.probe = probe
+func (t *PionTransport) Prepare() error {
 	return t.agent.GatherCandidates()
 }
 
@@ -183,10 +191,6 @@ func (t *PionTransport) HandleOffer(ctx context.Context, remoteId string, packet
 	return nil
 }
 
-func (t *PionTransport) OnConnectionStateChange(state ice.ConnectionState) error {
-	return nil
-}
-
 func (t *PionTransport) Start(ctx context.Context, remoteId string) (err error) {
 	if t.agent.GetTieBreaker() > t.agent.RTieBreaker {
 		_, err = t.agent.Dial(ctx, t.agent.RUfrag, t.agent.RPwd)
@@ -199,10 +203,6 @@ func (t *PionTransport) Start(ctx context.Context, remoteId string) (err error) 
 
 func (t *PionTransport) RawConn() (net.Conn, error) {
 	return nil, nil
-}
-
-func (t *PionTransport) State() ice.ConnectionState {
-	return t.state
 }
 
 func (t *PionTransport) Close() error {
@@ -224,9 +224,6 @@ func (t *PionTransport) Close() error {
 }
 
 func (t *PionTransport) sendCandidate(ctx context.Context, agent *AgentWrapper, remoteId string, candidate ice.Candidate) error {
-	//if !t.isShouldSendOffer(t.localId, remoteId) {
-	//	return nil
-	//}
 	current := t.peers.GetPeer(t.localId)
 	currentData, err := json.Marshal(current)
 	if err != nil {
@@ -266,14 +263,6 @@ func (t *PionTransport) sendCandidate(ctx context.Context, agent *AgentWrapper, 
 
 func (t *PionTransport) isShouldSendOffer(localId, remoteId string) bool {
 	return localId > remoteId
-}
-
-func (t *PionTransport) updateTransportState(newState ice.ConnectionState) {
-	t.su.Lock()
-	defer t.su.Unlock()
-	t.log.Info("Setting new connection state", "remoteId", t.remoteId, "newState", newState)
-	t.probe.OnConnectionStateChange(newState)
-	t.OnConnectionStateChange(newState)
 }
 
 func (t *PionTransport) AddPeer(remoteId, addr string) error {

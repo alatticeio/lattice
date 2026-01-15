@@ -21,6 +21,8 @@ import (
 	"wireflow/internal/grpc"
 	"wireflow/internal/infra"
 	"wireflow/internal/log"
+
+	"github.com/wireflowio/ice"
 )
 
 type ProbeFactory struct {
@@ -97,10 +99,6 @@ func (f *ProbeFactory) Remove(remoteId string) {
 }
 
 func (p *ProbeFactory) NewProbe(remoteId string) (*Probe, error) {
-	transport, err := p.factory.GetTransport(remoteId)
-	if err != nil {
-		return nil, err
-	}
 	probe := &Probe{
 		log:             p.log,
 		localId:         p.localId,
@@ -109,10 +107,16 @@ func (p *ProbeFactory) NewProbe(remoteId string) (*Probe, error) {
 		signal:          p.signal,
 		probeAckChan:    make(chan struct{}),
 		remoteOfferChan: make(chan struct{}),
-		transport:       transport,
+		state:           ice.ConnectionStateNew,
 	}
 
-	transport.probe = probe
+	transport, err := p.factory.GetTransport(remoteId, probe.OnConnectionStateChange)
+	if err != nil {
+		return nil, err
+	}
+
+	// give transport probe access
+	probe.transport = transport
 
 	p.Register(remoteId, probe)
 	return probe, nil
@@ -137,7 +141,7 @@ func (p *ProbeFactory) HandleSignal(ctx context.Context, remoteId string, packet
 	if err != nil {
 		return err
 	}
-	p.log.Info("handle signal packet from", "remoteId", remoteId, "packetType", packet.Type)
+	p.log.Debug("handle signal packet from", "remoteId", remoteId, "packetType", packet.Type)
 	switch packet.Type {
 	case grpc.PacketType_MESSAGE:
 		var msg infra.Message
@@ -146,7 +150,7 @@ func (p *ProbeFactory) HandleSignal(ctx context.Context, remoteId string, packet
 		}
 		p.onMessage(ctx, &msg)
 	case grpc.PacketType_HANDSHAKE_SYN:
-		p.log.Info("receive syn packet from: %s, will sending ack", "remoteId", remoteId)
+		p.log.Debug("receive syn packet from: %s, will sending ack", "remoteId", remoteId)
 		// send ack
 		if err = probe.probePacket(ctx, remoteId, grpc.PacketType_HANDSHAKE_ACK); err != nil {
 			return err

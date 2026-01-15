@@ -33,6 +33,8 @@ type Flags struct {
 	SignalingUrl  string
 	TurnServerUrl string
 
+	ShowLog bool
+
 	Token string
 }
 

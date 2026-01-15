@@ -62,7 +62,7 @@ func NewServer(cfg *ServerConfig) (*Server, error) {
 		config.WriteConfig("signaling-url", config.GlobalConfig.SignalUrl)
 	}
 
-	signal, err := nats.NewNatsService(config.GlobalConfig.SignalUrl)
+	signal, err := nats.NewNatsService(context.Background(), config.GlobalConfig.SignalUrl)
 	if err != nil {
 		logger.Error("init signal failed", err)
 		return nil, err

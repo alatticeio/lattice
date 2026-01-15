@@ -15,7 +15,7 @@
 package cmd
 
 import (
-	"wireflow/client"
+	"wireflow/agent"
 	"wireflow/internal/config"
 	"wireflow/internal/log"
 

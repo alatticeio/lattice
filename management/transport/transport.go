@@ -33,15 +33,17 @@ type TransportFactory struct {
 	log                    *log.Logger
 	onClose                func(remoteId string) error
 
-	probe infra.Probe
+	probe   infra.Probe
+	showLog bool
 }
 
-func NewTransportFactory(sender infra.SignalService, universalUdpMuxDefault *ice.UniversalUDPMuxDefault) *TransportFactory {
+func NewTransportFactory(sender infra.SignalService, showLog bool, universalUdpMuxDefault *ice.UniversalUDPMuxDefault) *TransportFactory {
 	return &TransportFactory{
 		transports:             make(map[string]infra.Transport),
 		sender:                 sender,
 		universalUdpMuxDefault: universalUdpMuxDefault,
-		log:                    log.GetLogger("wireflow"),
+		log:                    log.GetLogger("transport-factory"),
+		showLog:                showLog,
 	}
 }
 
@@ -77,14 +79,16 @@ func (t *TransportFactory) Configure(opts ...FactoryOptions) {
 	}
 }
 
-func (t *TransportFactory) MakeTransport(localId, remoteId string) (infra.Transport, error) {
+func (t *TransportFactory) MakeTransport(localId, remoteId string, onConnectionStateChange func(state ice.ConnectionState)) (infra.Transport, error) {
 	transport, err := NewPionTransport(&ICETransportConfig{
-		Sender:                 t.sender.Send,
-		RemoteId:               remoteId,
-		LocalId:                localId,
-		UniversalUdpMuxDefault: t.universalUdpMuxDefault,
-		Configurer:             t.provisioner,
-		PeerManager:            t.peerManager,
+		Sender:                  t.sender.Send,
+		RemoteId:                remoteId,
+		LocalId:                 localId,
+		UniversalUdpMuxDefault:  t.universalUdpMuxDefault,
+		Configurer:              t.provisioner,
+		PeerManager:             t.peerManager,
+		ShowLog:                 t.showLog,
+		OnConnectionStateChange: onConnectionStateChange,
 	})
 
 	if err != nil {
@@ -99,19 +103,19 @@ func (t *TransportFactory) MakeTransport(localId, remoteId string) (infra.Transp
 		t.mu.Lock()
 		defer t.mu.Unlock()
 		delete(t.transports, remoteId)
-		t.log.Info("transport: peer %s closed and removed from factory", "remoteId", remoteId)
+		t.log.Debug("transport: probe closed and removed from factory", "remoteId", remoteId)
 	}
 	t.transports[remoteId] = transport
 	return transport, nil
 }
 
-func (t *TransportFactory) GetTransport(remoteId string) (infra.Transport, error) {
+func (t *TransportFactory) GetTransport(remoteId string, onConnectionStateChange func(state ice.ConnectionState)) (infra.Transport, error) {
 	var err error
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	transport, ok := t.transports[remoteId]
 	if !ok {
-		transport, err = t.MakeTransport(t.keyManager.GetPublicKey(), remoteId)
+		transport, err = t.MakeTransport(t.keyManager.GetPublicKey(), remoteId, onConnectionStateChange)
 		if err != nil {
 			return nil, err
 		}
