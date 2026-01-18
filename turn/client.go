@@ -29,29 +29,33 @@ var (
 	_ internal.Client = (*Client)(nil)
 )
 
+// Client is a TURN client.
 type Client struct {
 	logger     *log.Logger
 	lock       sync.Mutex
 	realm      string
-	conf       *config.Config
+	conf       *config.Flags
 	turnClient *turn.Client
 	relayConn  net.PacketConn
 	mappedAddr net.Addr
 	relayInfo  *internal.RelayInfo
 }
 
+// ClientConfig is the configuration for a TURN client.
 type ClientConfig struct {
 	Logger    *log.Logger
 	ServerUrl string // stun.wireflow.run:3478
 	Realm     string
 }
 
+// NewClient creates a new TURN client.
 func NewClient(cfg *ClientConfig) (internal.Client, error) {
 	//Dial TURN Server
 	conn, err := net.Dial("udp", cfg.ServerUrl)
 	if err != nil {
 		return nil, err
 	}
+
 	//var username, password string
 	//username, password, err = config.DecodeAuth(config.GlobalConfig.Auth)
 	//if err != nil {
@@ -75,15 +79,16 @@ func NewClient(cfg *ClientConfig) (internal.Client, error) {
 	}
 
 	c := &Client{realm: turnCfg.Realm, turnClient: client, logger: cfg.Logger}
+
 	return c, nil
 }
 
+// GetRelayInfo returns the relay info.
 func (c *Client) GetRelayInfo(allocated bool) (*internal.RelayInfo, error) {
-
+	var err error
 	if c.relayInfo != nil {
 		return c.relayInfo, nil
 	}
-	var err error
 	err = c.turnClient.Listen()
 	if err != nil {
 		return nil, err

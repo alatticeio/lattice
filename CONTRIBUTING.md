@@ -4,6 +4,16 @@
 
 Thank you for considering contributing to Wireflow!
 
+## Developer Certificate of Origin (DCO)
+To track ownership of contributions, we use the DCO. All commits must be signed off.
+This means you should use the -s or --signoff flag when committing:
+
+```bash
+git commit -s -m "Your commit message"
+```
+
+This will append a line to your commit message: Signed-off-by: Your Name <your.email@example.com>
+
 ## Quick Start
 
 ### Prerequisites

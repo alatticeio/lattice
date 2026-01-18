@@ -30,9 +30,7 @@ import (
 	"wireflow/internal/log"
 	"wireflow/monitor"
 	"wireflow/monitor/collector"
-	"wireflow/pkg/utils"
 
-	wg "golang.zx2c4.com/wireguard/device"
 	"golang.zx2c4.com/wireguard/ipc"
 	"golang.zx2c4.com/wireguard/wgctrl"
 )
@@ -51,38 +49,20 @@ func Start(ctx context.Context, flags *config.Flags) error {
 		Logger:        logger,
 		Port:          51820,
 		InterfaceName: flags.InterfaceName,
-		ManagementUrl: flags.ManagementUrl,
-		SignalingUrl:  flags.SignalingUrl,
-		TurnServerUrl: flags.TurnServerUrl,
-		ForceRelay:    flags.ForceRelay,
 		Token:         flags.Token,
-		ShowLog:       flags.ShowLog,
+		ShowLog:       flags.ShowSystemLog,
 	}
 
-	if flags.ShowLog {
-		agentCfg.WgLogger = wg.NewLogger(wg.LogLevelVerbose, fmt.Sprintf("[%s] ", "wireguard"))
-	} else {
-		agentCfg.WgLogger = wg.NewLogger(wg.LogLevelSilent, fmt.Sprintf("[%s] ", "wireguard"))
-	}
-
-	// set appId
-	if config.GlobalConfig.AppId == "" {
-		hostName, err := os.Hostname()
-		if err != nil {
-			return err
-		}
-		config.GlobalConfig.AppId = utils.StringFormatter(hostName)
-		//更新到.wireflow.yaml
-		config.WriteConfig("app-id", config.GlobalConfig.AppId)
-	}
-
-	if flags.SignalingUrl == "" {
-		agentCfg.SignalingUrl = fmt.Sprintf("nats://%s:%d", infra.SignalingDomain, infra.DefaultSignalingPort)
-	}
-
-	if flags.TurnServerUrl == "" {
-		agentCfg.TurnServerUrl = fmt.Sprintf("%s:%d", infra.TurnServerDomain, infra.DefaultTurnServerPort)
-	}
+	//// set appId
+	//if config.GlobalConfig.AppId == "" {
+	//	hostName, err := os.Hostname()
+	//	if err != nil {
+	//		return err
+	//	}
+	//	config.GlobalConfig.AppId = utils.StringFormatter(hostName)
+	//	//更新到.wireflow.yaml
+	//	config.WriteConfig("app-id", config.GlobalConfig.AppId)
+	//}
 
 	if flags.DaemonGround {
 		fmt.Println("Run wireflow in daemon mode")

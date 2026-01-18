@@ -17,15 +17,21 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"wireflow/internal/config"
 
 	"github.com/spf13/cobra"
 )
+
+var cfgManager = config.NewConfigManager()
 
 var rootCmd = &cobra.Command{
 	Use:   "wfctl",
 	Short: "wfctl: High-performance WireGuard proxy tunneling\n A tool for creating fast and secure network proxies using WireGuard protocol.",
 	Long: `wfctl: High-performance WireGuard proxy tunneling
 A tool for creating fast and secure network proxies using WireGuard protocol.`,
+	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+		return cfgManager.LoadConf(cmd)
+	},
 }
 
 func Execute() {

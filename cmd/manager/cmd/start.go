@@ -1,11 +1,6 @@
 package cmd
 
 import (
-	"wireflow/cmd/manager/controller"
-	"wireflow/cmd/manager/drp"
-	"wireflow/cmd/manager/management"
-	"wireflow/cmd/manager/turn"
-
 	"github.com/spf13/cobra"
 )
 
@@ -17,10 +12,10 @@ func newStartCommand() *cobra.Command {
 		Args:  cobra.MinimumNArgs(1),
 	}
 
-	cmd.AddCommand(controller.NewControllerCmd())
-	cmd.AddCommand(drp.NewDrpCmd())
-	cmd.AddCommand(turn.NewTurnCmd())
-	cmd.AddCommand(management.NewManagementCmd())
+	cmd.AddCommand(NewControllerCmd())
+	cmd.AddCommand(NewDrpCmd())
+	cmd.AddCommand(NewTurnCmd())
+	cmd.AddCommand(NewManagementCmd())
 
 	return cmd
 }

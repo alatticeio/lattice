@@ -17,7 +17,6 @@ package server
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"wireflow/internal/config"
 	"wireflow/internal/infra"
 	"wireflow/internal/log"
@@ -30,13 +29,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 )
 
-const (
-	PREFIX = "/api/v1/"
-)
-
 type Handler func(data []byte) ([]byte, error)
 
-// Server is the main server struct
+// Server is the main server struct.
 type Server struct {
 	logger *log.Logger
 	listen string
@@ -47,22 +42,18 @@ type Server struct {
 	networkController controller.NetworkController
 }
 
-// ServerConfig is the server configuration
+// ServerConfig is the server configuration.
 type ServerConfig struct {
 	Listen          string
 	DatabaseService *gorm.DB
 	Nats            infra.SignalService
 }
 
-// NewServer creates a new server
+// NewServer creates a new server.
 func NewServer(cfg *ServerConfig) (*Server, error) {
 	logger := log.GetLogger("management")
-	if config.GlobalConfig.SignalUrl == "" {
-		config.GlobalConfig.SignalUrl = fmt.Sprintf("nats://%s:%d", infra.SignalingDomain, infra.DefaultSignalingPort)
-		config.WriteConfig("signaling-url", config.GlobalConfig.SignalUrl)
-	}
 
-	signal, err := nats.NewNatsService(context.Background(), config.GlobalConfig.SignalUrl)
+	signal, err := nats.NewNatsService(context.Background(), config.Conf.SignalingURL)
 	if err != nil {
 		logger.Error("init signal failed", err)
 		return nil, err

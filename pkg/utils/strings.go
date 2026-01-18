@@ -16,8 +16,12 @@ package utils
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
+	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -63,4 +67,18 @@ func GetUserIdFromCtx(ctx context.Context) uint64 {
 
 func StringFormatter(a string) string {
 	return strings.ToLower(a)
+}
+
+// generateAppId 生成一个唯一的程序 ID
+// 格式类似于: wire-20260116-a3f2
+func GenerateAppId() string {
+	// 1. 取得日期部分
+	date := time.Now().Format("20060102")
+
+	// 2. 生成 2 字节（4位十六进制）的随机数
+	b := make([]byte, 2)
+	rand.Read(b)
+	randomPart := hex.EncodeToString(b)
+
+	return fmt.Sprintf("wireflow-%s-%s", date, randomPart)
 }

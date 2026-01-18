@@ -13,7 +13,9 @@
 // limitations under the License.
 
 //go:build !windows
+// +build !windows
 
+// agent for wireflow
 package agent
 
 import (
@@ -27,7 +29,6 @@ import (
 	"wireflow/internal/infra"
 	"wireflow/internal/log"
 	ctrclient "wireflow/management/client"
-	mgtclient "wireflow/management/client"
 	"wireflow/management/nats"
 	"wireflow/management/transport"
 
@@ -64,29 +65,24 @@ type Agent struct {
 	DeviceManager *DeviceManager
 }
 
+// AgentConfig agent config.
 type AgentConfig struct {
 	Logger        *log.Logger
 	Port          int
-	UdpConn       *net.UDPConn
 	InterfaceName string
-	client        *mgtclient.Client
 	WgLogger      *wg.Logger
-	deviceManager *DeviceManager
-	TurnServerUrl string
 	ForceRelay    bool
-	ManagementUrl string
-	SignalingUrl  string
 	ShowLog       bool
 	Token         string
+	Flags         *config.Flags
 }
 
-// NewAgent create a new Agent instance
+// NewAgent create a new Agent instance.
 func NewAgent(ctx context.Context, cfg *AgentConfig) (*Agent, error) {
 	var (
-		iface tun.Device
-		err   error
-		agent *Agent
-		//turnClient internal.Agent
+		iface  tun.Device
+		err    error
+		agent  *Agent
 		v4conn *net.UDPConn
 		v6conn *net.UDPConn
 	)
@@ -109,7 +105,7 @@ func NewAgent(ctx context.Context, cfg *AgentConfig) (*Agent, error) {
 
 	universalUdpMuxDefault := infra.NewUdpMux(v4conn, cfg.ShowLog)
 
-	natsSignalService, err := nats.NewNatsService(ctx, config.GlobalConfig.SignalUrl)
+	natsSignalService, err := nats.NewNatsService(ctx, config.Conf.SignalingURL)
 	if err != nil {
 		return nil, err
 	}
@@ -122,13 +118,8 @@ func NewAgent(ctx context.Context, cfg *AgentConfig) (*Agent, error) {
 	}
 
 	var privateKey string
-	agent.current, err = agent.ctrClient.Register(context.Background(), cfg.Token, agent.Name)
+	agent.current, err = agent.ctrClient.Register(ctx, cfg.Token, agent.Name)
 	if err != nil {
-		return nil, err
-	}
-
-	// write token
-	if err = config.WriteConfig("token", agent.current.Token); err != nil {
 		return nil, err
 	}
 
@@ -145,7 +136,9 @@ func NewAgent(ctx context.Context, cfg *AgentConfig) (*Agent, error) {
 	})
 
 	//subscribe
-	natsSignalService.Subscribe(fmt.Sprintf("%s.%s", "wireflow.signals.peers", localId), probeFactory.HandleSignal)
+	if err = natsSignalService.Subscribe(fmt.Sprintf("%s.%s", "wireflow.signals.peers", localId), probeFactory.HandleSignal); err != nil {
+		return nil, err
+	}
 
 	agent.ctrClient.Configure(
 		ctrclient.WithSignalHandler(natsSignalService),
@@ -159,12 +152,6 @@ func NewAgent(ctx context.Context, cfg *AgentConfig) (*Agent, error) {
 		V6Conn:          v6conn,
 		KeyManager:      agent.manager.keyManager,
 	})
-
-	stunUrl := config.GlobalConfig.StunUrl
-	if stunUrl == "" {
-		stunUrl = "stun.wireflow.run"
-		config.WriteConfig("stun-url", stunUrl)
-	}
 
 	agent.iface = wg.NewDevice(iface, agent.bind, cfg.WgLogger)
 

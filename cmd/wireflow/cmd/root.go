@@ -18,25 +18,45 @@ import (
 	"fmt"
 	"os"
 	"wireflow/cmd/wireflow/cmd/token"
-	"wireflow/internal/infra"
+	"wireflow/internal/config"
 
 	"github.com/spf13/cobra"
 )
 
+var cfgManager = config.NewConfigManager()
+
 var rootCmd = &cobra.Command{
 	Use:   "wireflow",
 	Short: "wireflow: High-performance WireGuard proxy tunneling\n A tool for creating fast and secure network proxies using WireGuard protocol.",
+	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+		return cfgManager.LoadConf(cmd)
+	},
+	PersistentPostRun: func(cmd *cobra.Command, args []string) {
+		// 检查 --save 是否被触发
+		save, _ := cmd.Flags().GetBool("save")
+		if save {
+			if err := cfgManager.Viper().WriteConfigAs(".wireflow.yaml"); err != nil {
+				fmt.Printf("cann't save config: %v\n", err)
+			} else {
+				fmt.Println("save success to config")
+			}
+		}
+	},
 	Run: func(cmd *cobra.Command, args []string) {
 		isVersion, _ := cmd.Flags().GetBool("version")
 		if isVersion {
 			runVersion() // 在这里调用你联网获取 Server 版本的逻辑
 			return
 		}
+
+		cmd.Help()
 	},
 }
 
+// Execute executes the root command.
 func Execute() {
-	if err := rootCmd.Execute(); err != nil {
+	err := rootCmd.Execute()
+	if err != nil {
 		fmt.Fprintln(os.Stderr, err.Error())
 		os.Exit(1)
 	}
@@ -44,11 +64,11 @@ func Execute() {
 
 func init() {
 	fs := rootCmd.PersistentFlags()
-	fs.StringVarP(&infra.ServerUrl, "server-url", "", "", "management server url")
-	fs.StringVarP(&infra.SignalUrl, "signaling-url", "", "", "signaling server url")
-	fs.BoolP("version", "v", false, "Print version information")
-	fs.BoolVarP(&infra.ShowNetLog, "show-system-log", "s", false, "whether show (wireguard/ice) detail log")
+	fs.StringP("server-url", "", "", "management server url")
+	fs.StringP("signaling-url", "", "", "signaling server url")
+	fs.BoolP("version", "", false, "Print version information")
+	fs.BoolP("show-system-log", "", false, "whether show (wireguard/ice) detail log")
+	fs.BoolP("save", "", false, "whether save config to file")
 	rootCmd.AddCommand(upCmd())
-	rootCmd.AddCommand(configCmd)
 	rootCmd.AddCommand(token.NewTokenCommand())
 }

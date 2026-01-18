@@ -23,7 +23,7 @@ import (
 
 	"wireflow/internal/grpc"
 
-	"github.com/nats-io/nats.go"
+	natsgo "github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
 	"google.golang.org/protobuf/proto"
 )
@@ -36,14 +36,14 @@ type SignalHandler func(ctx context.Context, peerId string, packet *grpc.SignalP
 
 type NatsSignalService struct {
 	log       *log.Logger
-	nc        *nats.Conn
+	nc        *natsgo.Conn
 	localID   string // local  publickey
-	sub       *nats.Subscription
+	sub       *natsgo.Subscription
 	onMessage SignalHandler
 }
 
 func NewNatsService(ctx context.Context, url string) (*NatsSignalService, error) {
-	nc, err := nats.Connect(url)
+	nc, err := natsgo.Connect(url)
 	if err != nil {
 		return nil, err
 	}
@@ -93,7 +93,7 @@ func NewNatsService(ctx context.Context, url string) (*NatsSignalService, error)
 }
 
 func (s *NatsSignalService) Subscribe(subject string, onMessage SignalHandler) error {
-	sub, err := s.nc.Subscribe(subject, func(m *nats.Msg) {
+	sub, err := s.nc.Subscribe(subject, func(m *natsgo.Msg) {
 		var packet grpc.SignalPacket
 		if err := proto.Unmarshal(m.Data, &packet); err != nil {
 			s.log.Error("failed to unmarshal packet", err)
@@ -129,10 +129,14 @@ func (s *NatsSignalService) Request(ctx context.Context, subject, method string,
 }
 
 func (s *NatsSignalService) Service(subject, queue string, service func(data []byte) ([]byte, error)) {
-	s.nc.QueueSubscribe(subject, queue, func(msg *nats.Msg) {
+	s.nc.QueueSubscribe(subject, queue, func(msg *natsgo.Msg) {
 		data, err := service(msg.Data)
 		if err != nil {
-			msg.Respond([]byte(err.Error()))
+			resp := natsgo.NewMsg(msg.Reply)
+			resp.Header.Add("error", err.Error())
+			resp.Header.Add("status", "400")
+
+			msg.RespondMsg(resp)
 			return
 		}
 		msg.Respond(data)

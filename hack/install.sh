@@ -21,7 +21,7 @@ URL="https://github.com/wireflowio/wireflow/releases/download/${TAG}/${FILE_NAME
 echo "正在从 $URL 下载版本 $TAG..."
 
 curl -fSL "$URL" | tar -xz
-sudo mv wireflow wfctl /usr/local/bin/
-chmod +x /usr/local/bin/wireflow /usr/local/bin/wfctl
+sudo mv wireflow /usr/local/bin/
+chmod +x /usr/local/bin/wireflow
 
 echo "wireflow 安装成功"

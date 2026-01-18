@@ -12,47 +12,65 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package management
+package cmd
 
 import (
+	"context"
+	"wireflow/internal/config"
 	"wireflow/internal/log"
-	"wireflow/management"
+	"wireflow/management/client"
+	"wireflow/management/nats"
+	"wireflow/turn"
 
 	"github.com/spf13/cobra"
 )
 
-type managementOptions struct {
-	Listen   string
+type turnOptions struct {
+	PublicIP string
+	Port     int
 	LogLevel string
 }
 
-func NewManagementCmd() *cobra.Command {
-	var opts managementOptions
+func NewTurnCmd() *cobra.Command {
+	var opts turnOptions
 	var cmd = &cobra.Command{
-		Use:          "manager [command]",
+		Use:          "turn",
 		SilenceUsage: true,
-		Short:        "manager is control server",
-		Long:         `manager used for starting management server, management providing our all control plane features.`,
-
+		Short:        "start a turn server",
+		Long:         `start a turn serer will provided stun service for you, you can use it to get public IP and port, also you can deploy you own turn server when direct(P2P) unavailable.`,
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			return nil
 		},
 
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runManagement(opts)
+			return runTurn(opts)
 		},
 	}
 	fs := cmd.Flags()
-	fs.StringVarP(&opts.Listen, "", "l", "", "management server listen address")
+	fs.StringVarP(&opts.PublicIP, "public-ip", "u", "", "public ip for turn")
+	fs.IntVarP(&opts.Port, "port", "p", 3478, "port for turn")
 	fs.StringVarP(&opts.LogLevel, "log-level", "", "silent", "log level (silent, info, error, warn, verbose)")
 	return cmd
 }
 
-// run drp
-func runManagement(opts managementOptions) error {
+func runTurn(opts turnOptions) error {
 	if opts.LogLevel == "" {
 		opts.LogLevel = "error"
 	}
-	log.SetLevel(opts.LogLevel)
-	return management.Start(opts.Listen)
+
+	signalService, err := nats.NewNatsService(context.Background(), config.Conf.SignalingURL)
+	if err != nil {
+		return err
+	}
+	client, err := client.NewClient(signalService, nil)
+	if err != nil {
+		return err
+	}
+
+	return turn.Start(&turn.TurnServerConfig{
+		Logger:   log.GetLogger("turnserver"),
+		PublicIP: opts.PublicIP,
+		Port:     opts.Port,
+		Client:   client,
+	})
 }

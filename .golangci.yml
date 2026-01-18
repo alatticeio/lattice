@@ -1,0 +1,15 @@
+run:
+  timeout: 5m
+  # 新版本中使用 skip-dirs 依然有效（配置文件中尚未弃用）
+  # 但更现代的做法是在 issues 层面进行排除
+  skip-dirs:
+    - vendor
+    - third_party
+
+issues:
+  # 排除掉所有来自外部库或生成的代码的警告
+  exclude-rules:
+    - path: _test\.go
+      linters:
+        - gocyclo
+        - errcheck

@@ -12,12 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package controller
+package cmd
 
 import (
 	"crypto/tls"
+	"fmt"
 	"path/filepath"
 	"wireflow/api/v1alpha1"
+	"wireflow/internal/config"
 	"wireflow/internal/controller"
 	"wireflow/internal/ipam"
 
@@ -63,27 +65,40 @@ func NewControllerCmd() *cobra.Command {
 		SilenceUsage: true,
 		Long:         `wireflow core controller for CRDs reconcile`,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// 1. 检查用户是否传了 --save
+			save, _ := cmd.Flags().GetBool("save")
+			if save {
+				// 2. 执行保存
+				fmt.Println("Saving configuration...")
+
+				if err := cfgManager.Save(); err != nil {
+					return fmt.Errorf("failed to save config: %w", err)
+				}
+
+				fmt.Printf("Config saved to: %s\n", config.GetConfigFilePath())
+			}
+
 			return runController(flag)
 		},
 	}
 
 	fs := cmd.Flags()
-	fs.StringVarP(&flag.metricsAddr, "metrics-bind-address", "", "0", "The address the metrics endpoint binds to. "+
+	fs.StringP("metrics-bind-address", "", "0", "The address the metrics endpoint binds to. "+
 		"Use :8443 for HTTPS or :8080 for HTTP, or leave as 0 to disable the metrics service.")
-	fs.StringVarP(&flag.probeAddr, "health-probe-bind-address", "", ":8081", "The address the probe endpoint binds to.")
-	fs.BoolVarP(&flag.enableLeaderElection, "leader-elect", "", false,
+	fs.StringP("health-probe-bind-address", "", ":8081", "The address the probe endpoint binds to.")
+	fs.BoolP("leader-elect", "", false,
 		"Enable leader election for controller manager. "+
 			"Enabling this will ensure there is only one active controller manager.")
-	fs.BoolVarP(&flag.secureMetrics, "metrics-secure", "", true,
+	fs.BoolP("metrics-secure", "", true,
 		"If set, the metrics endpoint is served securely via HTTPS. Use --metrics-secure=false to use HTTP instead.")
-	fs.StringVarP(&flag.webhookCertPath, "webhook-cert-path", "", "", "The directory that contains the webhook certificate.")
-	fs.StringVarP(&flag.webhookCertName, "webhook-cert-name", "", "tls.crt", "The name of the webhook certificate file.")
-	fs.StringVarP(&flag.webhookCertKey, "webhook-cert-key", "", "tls.key", "The name of the webhook key file.")
-	fs.StringVarP(&flag.metricsCertPath, "metrics-cert-path", "", "",
+	fs.StringP("webhook-cert-path", "", "", "The directory that contains the webhook certificate.")
+	fs.StringP("webhook-cert-name", "", "tls.crt", "The name of the webhook certificate file.")
+	fs.StringP("webhook-cert-key", "", "tls.key", "The name of the webhook key file.")
+	fs.StringP("metrics-cert-path", "", "",
 		"The directory that contains the metrics server certificate.")
-	fs.StringVarP(&flag.metricsCertName, "metrics-cert-name", "", "tls.crt", "The name of the metrics server certificate file.")
-	fs.StringVarP(&flag.metricsCertKey, "metrics-cert-key", ",", "tls.key", "The name of the metrics server key file.")
-	fs.BoolVarP(&flag.enableHTTP2, "enable-http2", "", false,
+	fs.StringP("metrics-cert-name", "", "tls.crt", "The name of the metrics server certificate file.")
+	fs.StringP("metrics-cert-key", ",", "tls.key", "The name of the metrics server key file.")
+	fs.BoolP("enable-http2", "", false,
 		"If set, HTTP/2 will be enabled for the metrics and webhook servers")
 
 	return cmd

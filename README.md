@@ -169,6 +169,22 @@ cd wireflow
 make build-all
 ```
 
+## Badges
+
+![Build Status](https://github.com/wireflowio/wireflow/workflows/CI/badge.svg)
+[![License](https://img.shields.io/github/license/wireflowio/wireflow)](/LICENSE)
+[![Release](https://img.shields.io/github/release/wireflowio/wireflow.svg)](https://github.com/golangci/golangci-lint/releases/latest)
+[![Docker](https://img.shields.io/docker/pulls/wireflowio/wireflow)](https://hub.docker.com/r/wireflowio/wireflow)
+[![GitHub Releases Stats of wireflow](https://img.shields.io/github/downloads/wireflowio/wireflow/total.svg?logo=github)](https://somsubhra.github.io/github-release-stats/?username=wireflowio&repository=wireflow)
+
+## Contributors
+
+This project exists thanks to all the people who contribute. [How to contribute](https://wireflow.run).
+
+<a href="https://github.com/wireflowio/wireflow/graphs/contributors">
+  <img src="https://opencollective.com/wireflowio/contributors.svg?width=890&button=false&skip=golangcidev,CLAassistant,renovate,fossabot,golangcibot,kortschak,golangci-releaser,dependabot%5Bbot%5D" />
+</a>
+
 ## Wireflow Features, Roadmap, and Roadmap Progress
 
 **1. Core Features (Available)**

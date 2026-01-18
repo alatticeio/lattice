@@ -47,9 +47,9 @@ build-all: ## 构建所有服务
 	done
 
 .PHONY: build
-build: fmt vet ## 构建单个服务 (使用: make build SERVICE=wfctl)
+build: fmt vet ## 构建单个服务 (使用: make build SERVICE=wireflow)
 	@if [ -z "$(SERVICE)" ]; then \
-		echo "❌ Error: SERVICE is required. Usage: make build SERVICE=wfctl"; \
+		echo "❌ Error: SERVICE is required. Usage: make build SERVICE=wireflow"; \
 		exit 1; \
 	fi
 	@echo " Building $(SERVICE)..."
@@ -161,9 +161,9 @@ docker-build-all: ## 构建所有服务的 Docker 镜像
 	done
 
 .PHONY: docker-build
-docker-build: ## 构建单个服务的 Docker 镜像 (使用: make docker-build SERVICE=wfctl)
+docker-build: ## 构建单个服务的 Docker 镜像 (使用: make docker-build SERVICE=wireflow)
 	@if [ -z "$(SERVICE)" ]; then \
-		echo "❌ Error: SERVICE is required. Usage: make docker-build SERVICE=wfctl"; \
+		echo "❌ Error: SERVICE is required. Usage: make docker-build SERVICE=wireflow"; \
 		exit 1; \
 	fi
 	@echo " Building Docker image for $(SERVICE)..."

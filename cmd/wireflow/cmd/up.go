@@ -15,30 +15,67 @@
 package cmd
 
 import (
+	"fmt"
 	"wireflow/agent"
 	"wireflow/internal/config"
-	"wireflow/internal/infra"
+	"wireflow/pkg/utils"
 
 	"github.com/spf13/cobra"
+	"sigs.k8s.io/controller-runtime/pkg/manager/signals"
 )
 
 func upCmd() *cobra.Command {
-	var flags config.Flags
-	// upCmd 代表 config 顶层命令
-	var upCmd = &cobra.Command{
+	var cmd = &cobra.Command{
 		Use:     "up",
 		Short:   "wireflow startup command",
 		Example: "wireflow up --token <token> --server-url <server-url> --signaling-url <signaling-url>",
+		// 关键设置：报错后不显示帮助信息
+		SilenceUsage: true,
+		// 关键设置：报错后不重复打印错误（如果你已经在 RunE 里打印过了）
+		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			ctx := infra.SetupSignalHandler()
-			showLog, _ := cmd.Flags().GetBool("show-net-log")
-			flags.ShowLog = showLog
-			return agent.Start(ctx, &flags)
+			// check appId is empty
+			if config.Conf.AppId == "" {
+				fmt.Println("未检测到 AppId，正在生成...")
+
+				// create appId
+				newId := utils.GenerateAppId() // 你的生成逻辑
+
+				// set appId
+				cfgManager.Viper().Set("app-id", newId) // 注入 Viper，确保 WriteConfig 时能写进文件
+				config.Conf.AppId = newId               // 同步到内存结构体，方便本次运行后续逻辑使用
+
+				// save appId
+				err := cfgManager.Viper().WriteConfig()
+				if err != nil {
+					fmt.Printf("cann't save appId: %v\n", err)
+					return err
+				} else {
+					fmt.Println("save appId to file successfully")
+				}
+			}
+
+			// 1. 检查用户是否传了 --save
+			save, _ := cmd.Flags().GetBool("save")
+			if save {
+				// 2. 执行保存
+				fmt.Println("Saving configuration...")
+
+				if err := cfgManager.Save(); err != nil {
+					return fmt.Errorf("failed to save config: %w", err)
+				}
+
+				fmt.Printf("Config saved to: %s\n", config.GetConfigFilePath())
+			}
+
+			ctx := signals.SetupSignalHandler()
+
+			return agent.Start(ctx, config.Conf)
 		},
 	}
 
-	fs := upCmd.Flags()
-	fs.StringVarP(&flags.Token, "token", "", "", "token using for creating or joining network")
-	fs.StringVarP(&flags.LogLevel, "level", "", "", "log level (debug, info, warn, error)")
-	return upCmd
+	fs := cmd.Flags()
+	fs.StringP("token", "", "", "token using for creating or joining network")
+	fs.StringP("level", "", "", "log level (debug, info, warn, error)")
+	return cmd
 }

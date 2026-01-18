@@ -12,23 +12,23 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// token cmd using for manager token
 package token
 
 import (
-	"fmt"
 	"wireflow/internal/config"
-	"wireflow/internal/infra"
 	"wireflow/pkg/cmd"
 
 	"github.com/spf13/cobra"
 )
 
-// start cmd
+// NewTokenCommand create token cmd.
 func NewTokenCommand() *cobra.Command {
+
 	cmd := &cobra.Command{
 		Use:   "token <sub-command>",
 		Short: "",
-		Long:  `该命令创建一个token，Peer使用token能一键入网`,
+		Long:  `create a token, peer using token to join network`,
 		Args:  cobra.MinimumNArgs(1),
 	}
 
@@ -38,23 +38,23 @@ func NewTokenCommand() *cobra.Command {
 }
 
 func tokenCreateCmd() *cobra.Command {
-	var namespace, expiry string
-	var limit int
+	var (
+		limit             int
+		namespace, expiry string
+	)
 	cmd := &cobra.Command{
 		Use:   "create <token-name>",
-		Short: "用户创建Token",
-		// Long 字段可以用来详细解释这些参数是什么
-		Long: `该命令会创建一个Token。
+		Short: "create a token",
+		Long: `create a token for peer to join network。
     
-参数说明:
-  token-name    创建的token名称`,
+params description:
+  token-name    token name`,
 		Example: `   wireflow token create dev-team
   
-  # 指定限制 5 台设备，有效期 7 天
+  # set token limit and expiry time
 wireflow token create dev-team --limit 5 --expiry 168h -n wireflow-system`,
 		Args: cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// 参数获取
 			tokenName := args[0]
 
 			return runCreate(namespace, tokenName, expiry)
@@ -71,14 +71,15 @@ wireflow token create dev-team --limit 5 --expiry 168h -n wireflow-system`,
 }
 
 func runCreate(namespace, name, expiry string) error {
-	if config.GlobalConfig.SignalUrl == "" {
-		config.GlobalConfig.SignalUrl = fmt.Sprintf("nats://%s:%d", infra.SignalingDomain, infra.DefaultSignalingPort)
-		config.WriteConfig("siganl-url", config.GlobalConfig.SignalUrl)
-	}
-	client, err := cmd.NewClient(config.GlobalConfig.SignalUrl)
+	client, err := cmd.NewClient(config.Conf.SignalingURL)
 	if err != nil {
 		return err
 	}
 
-	return client.CreateToken(namespace, name, expiry)
+	err = client.CreateToken(namespace, name, expiry)
+
+	if err != nil {
+		return err
+	}
+	return nil
 }

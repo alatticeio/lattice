@@ -81,10 +81,10 @@ func (c *Client) GetNetMap(token string) (*infra.Message, error) {
 	var err error
 
 	if token == "" {
-		token = config.GlobalConfig.Token
+		token = config.Conf.Token
 	}
 	request := &dto.PeerDto{
-		AppID:     config.GlobalConfig.AppId,
+		AppID:     config.Conf.AppId,
 		PublicKey: c.keyManager.GetPublicKey(),
 		Token:     token,
 	}
@@ -108,6 +108,9 @@ func (c *Client) GetNetMap(token string) (*infra.Message, error) {
 
 // Register will register device to wireflow center
 func (c *Client) Register(ctx context.Context, token, interfaceName string) (*infra.Peer, error) {
+	if token == "" {
+		return nil, fmt.Errorf("token is empty")
+	}
 	var err error
 
 	hostname, err := os.Hostname()
@@ -116,16 +119,12 @@ func (c *Client) Register(ctx context.Context, token, interfaceName string) (*in
 		return nil, err
 	}
 
-	if token == "" {
-		token = config.GlobalConfig.Token
-	}
-
 	registryRequest := &dto.PeerDto{
-		Name:                config.GlobalConfig.AppId,
+		Name:                config.Conf.AppId,
 		Hostname:            hostname,
 		InterfaceName:       interfaceName,
 		Platform:            runtime.GOOS,
-		AppID:               config.GlobalConfig.AppId,
+		AppID:               config.Conf.AppId,
 		PersistentKeepalive: 25,
 		Port:                51820,
 		Token:               token,

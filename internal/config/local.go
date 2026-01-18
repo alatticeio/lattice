@@ -15,155 +15,143 @@
 package config
 
 import (
-	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
-	"strings"
+	"sync"
 
+	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
 
-type Local struct {
-	file *os.File
+var (
+	cm   *ConfigManager
+	once sync.Once
+	Conf *Flags
+)
+
+type ConfigManager struct {
+	v *viper.Viper
 }
 
+// NewConfigManager return ConfigManager instance.
+func NewConfigManager() *ConfigManager {
+	once.Do(func() {
+		cm = &ConfigManager{v: viper.New()}
+	})
+	return cm
+}
+
+// Viper return viper instance.
+func (cm *ConfigManager) Viper() *viper.Viper {
+	return cm.v
+}
+
+func (cm *ConfigManager) LoadConf(cmd *cobra.Command) error {
+	// 1. 设置配置文件名和类型
+	v := cm.v
+	v.SetConfigType("yaml")
+
+	// 2. 设置默认值 (这些值将成为初始配置文件的内容)
+	v.SetDefault("LogLevel", "info")
+	v.SetDefault("ManagementUrl", "http://wireflow.run")
+	v.SetDefault("SignalingURL", "nats://signaling.wireflow.run:4222")
+	v.SetDefault("TurnServerURL", "stun.wireflow.run:3478")
+
+	configName := GetConfigFilePath()
+	v.SetConfigFile(configName)
+	// 3. 检查文件是否存在，不存在则创建
+	if _, err := os.Stat(configName); os.IsNotExist(err) {
+		fmt.Printf("未找到配置文件，正在创建默认配置: %s\n", configName)
+		// SafeWriteConfig 会按照当前的默认值创建一个新文件
+		// 如果文件已存在则会报错（所以配合 os.IsNotExist 很安全）
+		if err := v.SafeWriteConfigAs(configName); err != nil {
+			return fmt.Errorf("创建配置文件失败: %v", err)
+		}
+	}
+
+	// 2. 尝试读取配置文件
+	if err := v.ReadInConfig(); err != nil {
+		// 如果没找到配置文件，可以忽略，继续使用默认值或 Flag
+	}
+
+	// 3. 开启环境变量支持
+	v.SetEnvPrefix("WIREFLOW")
+	v.AutomaticEnv()
+
+	// 4. 【高阶技巧】一次性绑定所有 Flag
+	// 这样你就不需要在 init 里手动一个个 BindPFlag 了
+	if err := v.BindPFlags(cmd.Flags()); err != nil {
+		return err
+	}
+
+	return v.Unmarshal(&Conf)
+}
+
+// GetConfigFilePath get config filepath.
 func GetConfigFilePath() string {
+	// 1. first get from env
+	if path := os.Getenv("WIREFLOW_CONFIG_DIR"); path != "" {
+		return path + "/.wireflow.yaml"
+	}
+	// 2. if home == '/' return etc
 	home, _ := os.UserHomeDir()
-	configPath := filepath.Join(home, ".wireflow.yaml") // 拼接完整路径
-	return configPath
+	if home == "/" {
+		return "/etc/wireflow/.wireflow.yaml"
+	}
+	// 3. using home dir
+	return home + "/.wireflow.yaml"
 }
 
-type Config struct {
+// Flags is a struct that contains the flags that are passed to the mgtClient.
+type Flags struct {
+	LogLevel      string `mapstructure:"log-level,omitempty"`
+	InterfaceName string `mapstructure:"interface-name,omitempty"`
 	Auth          string `mapstructure:"auth,omitempty"`
 	AppId         string `mapstructure:"app-id,omitempty"`
 	Debug         bool   `mapstructure:"debug,omitempty"`
 	Token         string `mapstructure:"token,omitempty"`
-	SignalUrl     string `mapstructure:"signaling-url,omitempty"`
+	SignalingURL  string `mapstructure:"signaling-url,omitempty"`
 	ServerUrl     string `mapstructure:"server-url,omitempty"`
-	PrivateKey    string `mapstructure:"private-key,omitempty"`
-	StunUrl       string `mapstructure:"stun-url,omitempty"`
+	TurnServerURL string `mapstructure:"stun-url,omitempty"`
 	ShowSystemLog bool   `mapstructure:"show-system-log,omitempty"`
+	DaemonGround  bool   `mapstructure:"daemon-ground,omitempty"`
+	MetricsEnable bool   `mapstructure:"metrics-enable,omitempty"`
+	DnsEnable     bool   `mapstructure:"dns-enable,omitempty"`
+
+	// for controller
+	MetricsAddr          string `mapstructure:"metrics-addr,omitempty"`
+	WebhookCertPath      string `mapstructure:"webhook-cert-path,omitempty"`
+	WebhookCertName      string `mapstructure:"webhook-cert-name,omitempty"`
+	WebhookCertKey       string `mapstructure:"webhook-cert-key,omitempty"`
+	MetricsCertPath      string `mapstructure:"metrics-cert-path,omitempty"`
+	MetricsCertName      string `mapstructure:"metrics-cert-name,omitempty"`
+	MetricsCertKey       string `mapstructure:"metrics-cert-key,omitempty"`
+	EnableLeaderElection bool   `mapstructure:"leader-elect,omitempty"`
+	ProbeAddr            string `mapstructure:"probe-addr,omitempty"`
+	SecureMetrics        bool   `mapstructure:"metrics-secure,omitempty"`
+	EnableHTTP2          bool   `mapstructure:"enable-http2,omitempty"`
+	Listen               string `mapstructure:"listen,omitempty"`
 }
 
-var GlobalConfig *Config
-
-func init() {
-	var err error
-	viper.SetConfigName(".wireflow") // 文件名（不含后缀）
-	viper.SetConfigType("yaml")      // 预期的后缀
-
-	viper.AddConfigPath("$HOME")                // 优先级 1
-	viper.AddConfigPath(".")                    // 优先级 2
-	if err = viper.ReadInConfig(); err != nil { // Handle errors reading the config file
-		var configFileNotFoundError viper.ConfigFileNotFoundError
-		if errors.As(err, &configFileNotFoundError) {
-			// using default configuration
-		}
-	}
-
-	if err = viper.UnmarshalExact(&GlobalConfig); err != nil {
-		panic(err)
-	}
-
+// NetworkOptions for network operations.
+type NetworkOptions struct {
+	AppId      string
+	Identifier string
+	Name       string
+	CIDR       string
+	ServerUrl  string
 }
 
-func WriteConfig(key, value string) error {
-	if viper.ConfigFileUsed() == "" {
-		viper.SetConfigFile(GetConfigFilePath())
-	}
-	// 将配置写入 viper 内存并持久化到文件
-	viper.Set(key, value)
-	err := viper.WriteConfig()
-	if err != nil {
-		// 如果文件不存在，则创建新文件
-		err = viper.SafeWriteConfig()
-	}
+// config/manager.go
 
-	if err != nil {
-		fmt.Printf(" >> 保存配置失败: %v\n", err)
-		return err
+// Save 将当前内存中的配置（包括 Flag、Env 和手动 Set 的值）写入文件
+func (cm *ConfigManager) Save() error {
+	path := GetConfigFilePath()
+
+	// WriteConfig 会覆盖当前指定的配置文件
+	if err := cm.v.WriteConfig(); err != nil {
+		// 如果文件不存在，WriteConfig 会报错，此时可以使用 WriteConfigAs
+		return cm.v.WriteConfigAs(path)
 	}
-	fmt.Printf(" >> 配置已更新: %s = %s\n", key, value)
 	return nil
-}
-
-//
-//func GetLocalConfig() (*Config, error) {
-//	local, err := getLocal(os.O_RDWR)
-//	defer local.Close()
-//	if err != nil {
-//		return nil, err
-//	}
-//	return local.ReadFile()
-//}
-//
-//// UpdateLocalConfig update json file
-//func UpdateLocalConfig(newCfg *Config) error {
-//	local, err := getLocal(os.O_RDWR | os.O_CREATE)
-//	defer local.Close()
-//	if err != nil {
-//		return err
-//	}
-//	defer local.Close()
-//
-//	err = local.WriteFile(newCfg)
-//	if err != nil {
-//		return err
-//	}
-//
-//	return nil
-//}
-//
-//// ReplaceLocalConfig update json file
-//func ReplaceLocalConfig(newCfg *Config) error {
-//	local, err := getLocal(os.O_RDWR | os.O_TRUNC)
-//	defer local.Close()
-//	if err != nil {
-//		return err
-//	}
-//	defer local.Close()
-//
-//	err = local.WriteFile(newCfg)
-//	if err != nil {
-//		return err
-//	}
-//
-//	return nil
-//}
-//
-//func GetLocalUserInfo() (info *LocalInfo, err error) {
-//	localCfg, err := GetLocalConfig()
-//	if err != nil {
-//		return nil, err
-//	}
-//
-//	if localCfg.Auth == "" {
-//		return nil, errors.New("please login first")
-//	}
-//	info = new(LocalInfo)
-//	values := strings.Split(localCfg.Auth, ":")
-//	info.Username = values[0]
-//	info.Password, err = Base64Decode(values[1])
-//	info.UserId = localCfg.UserId
-//	if err != nil {
-//		return nil, err
-//	}
-//
-//	return info, nil
-//}
-
-func DecodeAuth(auth string) (string, string, error) {
-	if auth == "" {
-		return "", "", errors.New("auth is empty")
-	}
-	values := strings.Split(auth, ":")
-	username := values[0]
-	password, err := Base64Decode(values[1])
-	if err != nil {
-		return "", "", err
-	}
-
-	return username, password, nil
-
 }
