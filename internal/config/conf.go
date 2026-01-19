@@ -51,15 +51,15 @@ func (cm *ConfigManager) LoadConf(cmd *cobra.Command) error {
 	v := cm.v
 	v.SetConfigType("yaml")
 
-	// 2. 设置默认值 (这些值将成为初始配置文件的内容)
-	v.SetDefault("LogLevel", "info")
+	v.SetDefault("Level", "info")
+	v.SetDefault("listen", ":8080")
 	v.SetDefault("ManagementUrl", "http://wireflow.run")
 	v.SetDefault("SignalingURL", "nats://signaling.wireflow.run:4222")
 	v.SetDefault("TurnServerURL", "stun.wireflow.run:3478")
 
 	configName := GetConfigFilePath()
 	v.SetConfigFile(configName)
-	// 3. 检查文件是否存在，不存在则创建
+	// check file exist, if not, create default config
 	if _, err := os.Stat(configName); os.IsNotExist(err) {
 		fmt.Printf("未找到配置文件，正在创建默认配置: %s\n", configName)
 		// SafeWriteConfig 会按照当前的默认值创建一个新文件
@@ -69,17 +69,12 @@ func (cm *ConfigManager) LoadConf(cmd *cobra.Command) error {
 		}
 	}
 
-	// 2. 尝试读取配置文件
 	if err := v.ReadInConfig(); err != nil {
-		// 如果没找到配置文件，可以忽略，继续使用默认值或 Flag
 	}
 
-	// 3. 开启环境变量支持
 	v.SetEnvPrefix("WIREFLOW")
 	v.AutomaticEnv()
 
-	// 4. 【高阶技巧】一次性绑定所有 Flag
-	// 这样你就不需要在 init 里手动一个个 BindPFlag 了
 	if err := v.BindPFlags(cmd.Flags()); err != nil {
 		return err
 	}
@@ -104,7 +99,8 @@ func GetConfigFilePath() string {
 
 // Flags is a struct that contains the flags that are passed to the mgtClient.
 type Flags struct {
-	LogLevel      string `mapstructure:"log-level,omitempty"`
+	Listen        string `mapstructure:"listen,omitempty"`
+	Level         string `mapstructure:"level,omitempty"`
 	InterfaceName string `mapstructure:"interface-name,omitempty"`
 	Auth          string `mapstructure:"auth,omitempty"`
 	AppId         string `mapstructure:"app-id,omitempty"`
@@ -113,10 +109,6 @@ type Flags struct {
 	SignalingURL  string `mapstructure:"signaling-url,omitempty"`
 	ServerUrl     string `mapstructure:"server-url,omitempty"`
 	TurnServerURL string `mapstructure:"stun-url,omitempty"`
-	ShowSystemLog bool   `mapstructure:"show-system-log,omitempty"`
-	DaemonGround  bool   `mapstructure:"daemon-ground,omitempty"`
-	MetricsEnable bool   `mapstructure:"metrics-enable,omitempty"`
-	DnsEnable     bool   `mapstructure:"dns-enable,omitempty"`
 
 	// for controller
 	MetricsAddr          string `mapstructure:"metrics-addr,omitempty"`
@@ -130,7 +122,12 @@ type Flags struct {
 	ProbeAddr            string `mapstructure:"probe-addr,omitempty"`
 	SecureMetrics        bool   `mapstructure:"metrics-secure,omitempty"`
 	EnableHTTP2          bool   `mapstructure:"enable-http2,omitempty"`
-	Listen               string `mapstructure:"listen,omitempty"`
+
+	EnableTLS    bool `mapstructure:"enable-tls,omitempty"`
+	EnableMetric bool `mapstructure:"enable-metric,omitempty"`
+	EnableDNS    bool `mapstructure:"enable-dns,omitempty"`
+	EnableSysLog bool `mapstructure:"enable-sys-log,omitempty"`
+	EnableDaemon bool `mapstructure:"enable-daemon,omitempty"`
 }
 
 // NetworkOptions for network operations.

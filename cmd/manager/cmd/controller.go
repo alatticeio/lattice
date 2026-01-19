@@ -57,7 +57,7 @@ func init() {
 	// +kubebuilder:scaffold:scheme
 }
 
-func NewControllerCmd() *cobra.Command {
+func newControllerCmd() *cobra.Command {
 	flag := new(ControllerFlags)
 	cmd := &cobra.Command{
 		Short:        "controller",

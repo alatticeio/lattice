@@ -12,22 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package infra
+package wrrp
 
-// used for cli flags
-var ServerUrl string
-var SignalUrl string
-var WrrpUrl string
-var ShowNetLog bool
+import "net"
 
-const (
-	DefaultMTU = 1420
-	// ConsoleDomain domain for service
-	ConsoleDomain         = "http://console.wireflow.run"
-	ManagementDomain      = "console.wireflow.run"
-	SignalingDomain       = "signaling.wireflow.run"
-	TurnServerDomain      = "stun.wireflow.run"
-	DefaultManagementPort = 6060
-	DefaultSignalingPort  = 4222
-	DefaultTurnServerPort = 3478
-)
+// Stream abstract the exact transport protocol
+type Stream interface {
+	Read(p []byte) (n int, err error)
+	Write(p []byte) (n int, err error)
+	Close() error
+	RemoteAddr() net.Addr
+}
+
+type Session struct {
+	ID     string
+	Stream Stream
+	Type   string // TCP / QUIC / KCP
+}

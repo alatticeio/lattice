@@ -25,14 +25,11 @@ import (
 )
 
 func upCmd() *cobra.Command {
+	// upCmd 代表 config 顶层命令
 	var cmd = &cobra.Command{
 		Use:     "up",
 		Short:   "wireflow startup command",
-		Example: "wireflow up --token <token> --server-url <server-url> --signaling-url <signaling-url>",
-		// 关键设置：报错后不显示帮助信息
-		SilenceUsage: true,
-		// 关键设置：报错后不重复打印错误（如果你已经在 RunE 里打印过了）
-		SilenceErrors: true,
+		Example: "wireflow up --token <token> --server-url <server-url> --signaling-url <signaling-url> --wrrp-url <wrrp-url>",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// check appId is empty
 			if config.Conf.AppId == "" {

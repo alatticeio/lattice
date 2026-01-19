@@ -50,7 +50,7 @@ func Start(ctx context.Context, flags *config.Flags) error {
 		Port:          51820,
 		InterfaceName: flags.InterfaceName,
 		Token:         flags.Token,
-		ShowLog:       flags.ShowSystemLog,
+		ShowLog:       flags.EnableSysLog,
 	}
 
 	//// set appId
@@ -64,7 +64,7 @@ func Start(ctx context.Context, flags *config.Flags) error {
 	//	config.WriteConfig("app-id", config.GlobalConfig.AppId)
 	//}
 
-	if flags.DaemonGround {
+	if flags.EnableDaemon {
 		fmt.Println("Run wireflow in daemon mode")
 		env := os.Environ()
 		env = append(env, "WIREFLOW_DAEMON=true")
@@ -103,7 +103,7 @@ func Start(ctx context.Context, flags *config.Flags) error {
 			}
 
 			files := [3]*os.File{}
-			if flags.LogLevel != "" && flags.LogLevel != "slient" {
+			if flags.Level != "" && flags.Level != "slient" {
 				files[0], _ = os.Open(os.DevNull)
 				files[1] = logFile
 				files[2] = logFile
@@ -152,7 +152,7 @@ func Start(ctx context.Context, flags *config.Flags) error {
 	}
 
 	// enable metrics
-	if flags.MetricsEnable {
+	if flags.EnableMetric {
 		go func() {
 			metric := monitor.NewNodeMonitor(10*time.Second, collector.NewPrometheusStorage(""), nil)
 			metric.AddCollector(&collector.CPUCollector{})
@@ -165,7 +165,7 @@ func Start(ctx context.Context, flags *config.Flags) error {
 	}
 
 	// enable DNS
-	if flags.DnsEnable {
+	if flags.EnableDNS {
 		go func() {
 			nativeDNS := dns.NewNativeDNS(&dns.DNSConfig{})
 			nativeDNS.Start()

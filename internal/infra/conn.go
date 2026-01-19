@@ -51,7 +51,7 @@ type DefaultBind struct {
 	keyManager      KeyManager
 
 	// used for turn relay
-	relayConn net.PacketConn
+	wrrperClient Wrrp
 
 	drpAddr net.TCPAddr // drp addr，drp created from console
 
@@ -78,7 +78,7 @@ type BindConfig struct {
 	V4Conn          *net.UDPConn
 	V6Conn          *net.UDPConn
 	UniversalUDPMux *ice.UniversalUDPMuxDefault
-	RelayConn       net.PacketConn // relay conn, used for relay endpoint
+	WrrpClient      Wrrp
 	KeyManager      KeyManager
 }
 
@@ -89,7 +89,6 @@ func NewBind(cfg *BindConfig) *DefaultBind {
 		v6conn:          cfg.V6Conn,
 		universalUdpMux: cfg.UniversalUDPMux,
 		keyManager:      cfg.KeyManager,
-		relayConn:       cfg.RelayConn,
 		udpAddrPool: sync.Pool{
 			New: func() any {
 				return &net.UDPAddr{
@@ -251,7 +250,7 @@ func (b *DefaultBind) Open(uport uint16) ([]conn.ReceiveFunc, uint16, error) {
 	var v4pc *ipv4.PacketConn
 	var v6pc *ipv6.PacketConn
 
-	// Listen on the same port as we're using for ipv4.
+	// ReceiveFunc on the same port as we're using for ipv4.
 	var fns []conn.ReceiveFunc
 	if b.v4conn != nil {
 		if runtime.GOOS == "linux" {
@@ -274,44 +273,10 @@ func (b *DefaultBind) Open(uport uint16) ([]conn.ReceiveFunc, uint16, error) {
 		return nil, 0, syscall.EAFNOSUPPORT
 	}
 
-	if b.relayConn != nil {
-		fns = append(fns, b.makeReceiveRelay())
-	}
+	// add wireflow wrrp
+	fns = append(fns, b.wrrperClient.ReceiveFunc())
 
 	return fns, uint16(port), nil
-}
-
-func (b *DefaultBind) makeReceiveRelay() conn.ReceiveFunc {
-	return func(bufs [][]byte, sizes []int, eps []conn.Endpoint) (n int, err error) {
-		n, addr, err := b.relayConn.ReadFrom(bufs[0])
-		if err != nil {
-			return 0, err
-		}
-		//	MessageInitiationType  = 1
-		//	MessageResponseType    = 2
-		//	MessageCookieReplyType = 3
-		//	MessageTransportType   = 4
-		//msgType := binary.LittleEndian.Uint32(bufs[0][:4])
-		//b.logger.Verbosef("receive msgType: %v, addr: %v, data: %v", msgType, addr, bufs[0][:n])
-		sizes[0] = n
-		addrPort, err := netip.ParseAddrPort(addr.String())
-		if err != nil {
-			b.logger.Error("make receive relay", err)
-			return 0, err
-		}
-
-		eps[0] = &MagicEndpoint{
-			Relay: &struct {
-				FromType EndpointType
-				Status   bool
-				From     string
-				To       string
-				Endpoint netip.AddrPort
-			}{FromType: Relay, Status: true, From: "", To: b.keyManager.GetPublicKey(), Endpoint: addrPort},
-		}
-
-		return 1, nil
-	}
 }
 
 func (b *DefaultBind) makeReceiveIPv4(pc *ipv4.PacketConn, udpConn *net.UDPConn) conn.ReceiveFunc {
@@ -444,31 +409,8 @@ func (b *DefaultBind) Close() error {
 
 func (b *DefaultBind) Send(bufs [][]byte, endpoint conn.Endpoint) error {
 	// add drp write
-	if v, ok := endpoint.(RelayEndpoint); ok {
-		switch v.FromType() {
-		case DRP:
-			return nil
-		case Relay:
-			if b.relayConn == nil {
-				return errors.New("relayConn is nil, please set relayConn first")
-			}
-
-			addr, err := net.ResolveUDPAddr("udp", endpoint.DstToString())
-			if err != nil {
-				return err
-			}
-
-			for _, buf := range bufs {
-				b.logger.Info("send data", "to", addr, "data", buf)
-				if _, err := b.relayConn.WriteTo(buf, addr); err != nil {
-					b.logger.Error("send relay message error", err)
-					return err
-				}
-			}
-
-			return nil
-		}
-
+	if e, ok := endpoint.(*WRRPEndpoint); ok {
+		return b.wrrperClient.Send(e.SessionID, bufs[0])
 	}
 
 	b.mu.Lock()

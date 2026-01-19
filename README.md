@@ -75,13 +75,13 @@ curl -sSL https://raw.githubusercontent.com/wireflowio/wireflow/master/deploy/wi
 - latest version
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/wireflowio/wireflow/master/install.sh | bash
+curl -sSL https://raw.githubusercontent.com/wireflowio/wireflow/master/hack/install.sh | bash
 ```
 
 - specific version: v0.1.0
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/wireflowio/wireflow/master/install.sh | bash -s -- v0.1.0
+curl -sSL https://raw.githubusercontent.com/wireflowio/wireflow/master/hack/install.sh | bash -s -- v0.1.0
 ```
 
 ### Check the installation

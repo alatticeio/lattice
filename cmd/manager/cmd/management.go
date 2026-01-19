@@ -26,7 +26,7 @@ type managementOptions struct {
 	LogLevel string
 }
 
-func NewManagementCmd() *cobra.Command {
+func newManagementCmd() *cobra.Command {
 	var opts managementOptions
 	var cmd = &cobra.Command{
 		Use:          "manager [command]",

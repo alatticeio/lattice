@@ -12,22 +12,28 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package infra
+package wrrper
 
-// used for cli flags
-var ServerUrl string
-var SignalUrl string
-var WrrpUrl string
-var ShowNetLog bool
-
-const (
-	DefaultMTU = 1420
-	// ConsoleDomain domain for service
-	ConsoleDomain         = "http://console.wireflow.run"
-	ManagementDomain      = "console.wireflow.run"
-	SignalingDomain       = "signaling.wireflow.run"
-	TurnServerDomain      = "stun.wireflow.run"
-	DefaultManagementPort = 6060
-	DefaultSignalingPort  = 4222
-	DefaultTurnServerPort = 3478
+import (
+	"bufio"
+	"net"
 )
+
+// ReadWriterConn wrapper for missed data when hijack occur， for using Read/Write fn
+type ReadWriterConn struct {
+	net.Conn
+	*bufio.ReadWriter
+}
+
+func (c *ReadWriterConn) Read(p []byte) (int, error) {
+	return c.ReadWriter.Read(p)
+}
+
+func (c *ReadWriterConn) Write(p []byte) (int, error) {
+	n, err := c.ReadWriter.Write(p)
+	if err != nil {
+		return n, err
+	}
+	// 确保数据立即发出，而不是留在 bufio 的写缓存里
+	return n, c.ReadWriter.Flush()
+}

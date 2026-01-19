@@ -37,8 +37,8 @@ func newRemoveCmd() *cobra.Command {
 		},
 	}
 	//fs := cmd.Flags()
-	//fs.StringVarP(&opts.Listen, "", "l", "", "http port for drp over http")
-	//fs.StringVarP(&opts.LogLevel, "log-level", "", "silent", "log level (silent, info, error, warn, verbose)")
+	//fs.StringVarP(&opts.ReceiveFunc, "", "l", "", "http port for drp over http")
+	//fs.StringVarP(&opts.Level, "log-level", "", "silent", "log level (silent, info, error, warn, verbose)")
 	return cmd
 }
 

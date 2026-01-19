@@ -31,7 +31,7 @@ type turnOptions struct {
 	LogLevel string
 }
 
-func NewTurnCmd() *cobra.Command {
+func newTurnCmd() *cobra.Command {
 	var opts turnOptions
 	var cmd = &cobra.Command{
 		Use:          "turn",

@@ -155,6 +155,7 @@ type Peer struct {
 	Version             uint64  `json:"version"`
 	LastUpdatedAt       string  `json:"lastUpdatedAt"`
 	Token               string  `json:"token,omitempty"`
+	WrrpUrl             string  `json:"wrrpUrl,omitempty"`
 }
 
 // Network is the network information, contains all peers/policies in the network

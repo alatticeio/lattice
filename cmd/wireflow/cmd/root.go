@@ -69,6 +69,7 @@ func init() {
 	fs.BoolP("version", "", false, "Print version information")
 	fs.BoolP("show-system-log", "", false, "whether show (wireguard/ice) detail log")
 	fs.BoolP("save", "", false, "whether save config to file")
+
 	rootCmd.AddCommand(upCmd())
 	rootCmd.AddCommand(token.NewTokenCommand())
 }

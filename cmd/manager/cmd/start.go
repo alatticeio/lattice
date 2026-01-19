@@ -12,10 +12,10 @@ func newStartCommand() *cobra.Command {
 		Args:  cobra.MinimumNArgs(1),
 	}
 
-	cmd.AddCommand(NewControllerCmd())
-	cmd.AddCommand(NewDrpCmd())
-	cmd.AddCommand(NewTurnCmd())
-	cmd.AddCommand(NewManagementCmd())
+	cmd.AddCommand(newControllerCmd())
+	cmd.AddCommand(newWrrpCmd())
+	cmd.AddCommand(newTurnCmd())
+	cmd.AddCommand(newManagementCmd())
 
 	return cmd
 }

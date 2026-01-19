@@ -41,9 +41,9 @@ func status() *cobra.Command {
 }
 
 func wireflowInfo(flags *config.Flags) error {
-	if flags.LogLevel == "" {
-		flags.LogLevel = "error"
+	if flags.Level == "" {
+		flags.Level = "error"
 	}
-	log.SetLevel(flags.LogLevel)
+	log.SetLevel(flags.Level)
 	return agent.Status(flags)
 }
