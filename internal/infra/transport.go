@@ -16,16 +16,13 @@ package infra
 
 import (
 	"context"
-	"net"
 	"wireflow/internal/grpc"
-
-	"github.com/wireflowio/ice"
 )
 
 // SignalService only used for sending signal byte packet
 type SignalService interface {
 	// pub/sub
-	Send(ctx context.Context, peerId string, data []byte) error
+	Send(ctx context.Context, peerId PeerID, data []byte) error
 
 	//req/resp
 	Request(ctx context.Context, subject, method string, data []byte) ([]byte, error)
@@ -34,33 +31,11 @@ type SignalService interface {
 	Service(subject, queue string, service func(data []byte) ([]byte, error))
 }
 
-// Transport for transfer wireguard packets
-type Transport interface {
-	// Init and gather candidates send to peerId
-	Prepare() error
-
-	HandleOffer(ctx context.Context, peerId string, packet *grpc.SignalPacket) error
-
-	Start(ctx context.Context, peerId string) error
-
-	RawConn() (net.Conn, error)
-	// 6. 销毁资源
-	Close() error
-}
-
 type Probe interface {
-	// 1. 核心控制循环：驱动 Transport 进行打洞
-	Probe(ctx context.Context, remoteId string) error
+	Start(ctx context.Context, remoteId PeerID) error
 
-	HandleOffer(ctx context.Context, remoteId string, packet *grpc.SignalPacket) error
+	Handle(ctx context.Context, remoteId PeerID, packet *grpc.SignalPacket) error
 
 	// 2. 健康检查：在链路 Connected 后，定时发送探测包
-	// 记录 RTT、抖动、丢包率等
 	Ping(ctx context.Context) error
-
-	// 3. 策略回调：当 Transport 报告 Failed 时被调用
-	// 内部实现：是立即重试，还是退避 5 秒后再重试
-	OnTransportFail(err error)
-
-	OnConnectionStateChange(state ice.ConnectionState)
 }

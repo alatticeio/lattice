@@ -40,4 +40,4 @@ ENV WIREFLOW_CONFIG_DIR=/etc/wireflow
 ENV HOME=/app
 COPY --from=builder /workspace/$TARGETSERVICE .//wireflow
 
-ENTRYPOINT ["/wireflow"]
+ENTRYPOINT ["/app/wireflow"]

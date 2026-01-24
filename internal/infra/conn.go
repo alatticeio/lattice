@@ -25,6 +25,7 @@ import (
 	"sync"
 	"syscall"
 	"wireflow/internal/log"
+	"wireflow/pkg/wrrp"
 
 	"github.com/wireflowio/ice"
 	"golang.org/x/net/ipv4"
@@ -410,7 +411,7 @@ func (b *DefaultBind) Close() error {
 func (b *DefaultBind) Send(bufs [][]byte, endpoint conn.Endpoint) error {
 	// add drp write
 	if e, ok := endpoint.(*WRRPEndpoint); ok {
-		return b.wrrperClient.Send(e.SessionID, bufs[0])
+		return b.wrrperClient.Send(context.Background(), e.RemoteId, wrrp.Forward, bufs[0])
 	}
 
 	b.mu.Lock()

@@ -31,7 +31,7 @@ var rootCmd = &cobra.Command{
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 		return cfgManager.LoadConf(cmd)
 	},
-	PersistentPostRun: func(cmd *cobra.Command, args []string) {
+	PersistentPostRunE: func(cmd *cobra.Command, args []string) error {
 		// 检查 --save 是否被触发
 		save, _ := cmd.Flags().GetBool("save")
 		if save {
@@ -41,6 +41,7 @@ var rootCmd = &cobra.Command{
 				fmt.Println("save success to config")
 			}
 		}
+		return nil
 	},
 	Run: func(cmd *cobra.Command, args []string) {
 		isVersion, _ := cmd.Flags().GetBool("version")

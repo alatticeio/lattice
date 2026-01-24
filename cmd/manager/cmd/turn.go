@@ -47,29 +47,26 @@ func newTurnCmd() *cobra.Command {
 		},
 	}
 	fs := cmd.Flags()
-	fs.StringVarP(&opts.PublicIP, "public-ip", "u", "", "public ip for turn")
-	fs.IntVarP(&opts.Port, "port", "p", 3478, "port for turn")
-	fs.StringVarP(&opts.LogLevel, "log-level", "", "silent", "log level (silent, info, error, warn, verbose)")
+	fs.StringP("public-ip", "u", "", "public ip for turn")
+	fs.IntP("port", "p", 3478, "port for turn")
+	fs.StringP("level", "", "silent", "log level (debug, info, warn, error)")
 	return cmd
 }
 
 func runTurn(opts turnOptions) error {
-	if opts.LogLevel == "" {
-		opts.LogLevel = "error"
-	}
-
 	signalService, err := nats.NewNatsService(context.Background(), config.Conf.SignalingURL)
 	if err != nil {
 		return err
 	}
-	client, err := client.NewClient(signalService, nil)
+	client, err := client.NewClient(signalService)
 	if err != nil {
 		return err
 	}
 
+	log.SetLevel(config.Conf.Level)
 	return turn.Start(&turn.TurnServerConfig{
 		Logger:   log.GetLogger("turnserver"),
-		PublicIP: opts.PublicIP,
+		PublicIP: config.Conf.PublicIP,
 		Port:     opts.Port,
 		Client:   client,
 	})

@@ -74,5 +74,6 @@ func upCmd() *cobra.Command {
 	fs := cmd.Flags()
 	fs.StringP("token", "", "", "token using for creating or joining network")
 	fs.StringP("level", "", "", "log level (debug, info, warn, error)")
+	fs.StringP("wrrper-url", "", "", "wrrper server url connect to")
 	return cmd
 }

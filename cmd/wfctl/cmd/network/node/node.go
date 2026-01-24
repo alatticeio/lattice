@@ -81,12 +81,8 @@ func newNodeAddCommand() *cobra.Command {
 }
 
 func addNodeToNetwork(networkId string, nodeIds []string) error {
-	if config.GlobalConfig.SignalUrl == "" {
-		config.GlobalConfig.SignalUrl = fmt.Sprintf("nats://%s:%d", infra.SignalingDomain, infra.DefaultSignalingPort)
-		config.WriteConfig("siganl-url", config.GlobalConfig.SignalUrl)
-	}
 
-	manager, err := network.NewNetworkManager(config.GlobalConfig.SignalUrl)
+	manager, err := network.NewNetworkManager(config.Conf.SignalingURL)
 	if err != nil {
 		return err
 	}
@@ -133,7 +129,7 @@ func newNodeRemoveCommand() *cobra.Command {
 
 func rmNodeToNetwork(networkId string, nodeIds []string) error {
 	if infra.ServerUrl == "" {
-		infra.ServerUrl = config.GlobalConfig.ServerUrl
+		infra.ServerUrl = config.Conf.ServerUrl
 	}
 	manager, err := network.NewNetworkManager(infra.ServerUrl)
 	if err != nil {

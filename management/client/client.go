@@ -36,15 +36,13 @@ type Client struct {
 	natsUrl      string
 	nats         infra.SignalService
 	keyManager   infra.KeyManager
-	factory      *transport.TransportFactory
 	probeFactory *transport.ProbeFactory
 }
 
-func NewClient(nats infra.SignalService, factory *transport.TransportFactory) (*Client, error) {
+func NewClient(nats infra.SignalService) (*Client, error) {
 	client := &Client{
-		logger:  log.GetLogger("ctrl-client"),
-		factory: factory,
-		nats:    nats,
+		logger: log.GetLogger("ctrl-client"),
+		nats:   nats,
 	}
 
 	return client, nil
@@ -164,19 +162,17 @@ func (c *Client) AddPeer(p *infra.Peer) error {
 		probe *transport.Probe
 	)
 
-	remoteId := p.PublicKey
+	//remoteId := p.PublicKey
 
-	onClose := func(remoteId string) error {
-		c.probeFactory.Remove(remoteId)
-		c.logger.Info("remote prober for peer", "peerId", remoteId)
-		return nil
-	}
+	//onClose := func(remoteId string) error {
+	//	c.probeFactory.Remove(remoteId)
+	//	c.logger.Info("remote prober for peer", "peerId", remoteId)
+	//	return nil
+	//}
 
-	c.factory.Configure(transport.WithOnClose(onClose))
-
-	probe, err = c.probeFactory.Get(remoteId)
+	probe, err = c.probeFactory.Get(p.PeerID)
 	if err != nil {
 		return err
 	}
-	return probe.Probe(context.Background(), remoteId)
+	return probe.Start(context.Background(), p.PeerID)
 }

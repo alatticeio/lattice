@@ -15,8 +15,9 @@
 package infra
 
 import (
-	"crypto/sha256"
-	"encoding/base32"
+	"context"
+	"fmt"
+	"net"
 	"net/netip"
 
 	"golang.zx2c4.com/wireguard/conn"
@@ -25,27 +26,26 @@ import (
 
 type Wrrp interface {
 	ReceiveFunc() conn.ReceiveFunc
-	Send(sessionId [28]byte, data []byte) error
+	Send(ctx context.Context, remoteId uint64, wrrpType uint8, data []byte) error
 	Connect() error
+	RemoteAddr() net.Addr
 }
 
 var (
 	_ conn.Endpoint = (*WRRPEndpoint)(nil)
 )
 
-func IDFromPublicKey(pubKey string) ([28]byte, error) {
+func IDFromPublicKey(pubKey string) ([32]byte, error) {
 	key, err := wgtypes.ParseKey(pubKey)
 	if err != nil {
-		return [28]byte{}, err
+		return [32]byte{}, err
 	}
-	pub := key.PublicKey()
-	// SHA-224 的输出固定为 28 字节
-	return sha256.Sum224(pub[:]), nil
+	return key, nil
 }
 
 // 1. 自定义一个极简的 Endpoint
 type WRRPEndpoint struct {
-	SessionID [28]byte // 使用 WRRP 的 SessionID 作为唯一标识
+	RemoteId uint64 // 使用 WRRP 的 RemoteId 作为唯一标识
 }
 
 func (e *WRRPEndpoint) ClearSrc() {
@@ -55,9 +55,9 @@ func (e *WRRPEndpoint) ClearSrc() {
 
 func (e *WRRPEndpoint) Clear() {}
 func (e *WRRPEndpoint) DstToString() string {
-	return "wrrp://" + base32.StdEncoding.EncodeToString(e.SessionID[:])
+	return fmt.Sprintf("wrrp://%d", e.RemoteId)
 }
-func (e *WRRPEndpoint) DstToBytes() []byte  { return e.SessionID[:] }
+func (e *WRRPEndpoint) DstToBytes() []byte  { return nil }
 func (e *WRRPEndpoint) DstIP() netip.Addr   { return netip.Addr{} } // WRRP 隧道不需要真实 IP
 func (e *WRRPEndpoint) SrcIP() netip.Addr   { return netip.Addr{} }
 func (e *WRRPEndpoint) SrcToString() string { return "" }

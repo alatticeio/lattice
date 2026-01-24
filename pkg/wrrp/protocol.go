@@ -20,7 +20,7 @@ import (
 )
 
 const (
-	HeaderSize = 40
+	HeaderSize = 28
 	// WRRP 的幻数 (4字节)
 	MagicNumber uint32 = 0x57525250 // ASCII: 'W' 'R' 'R' 'P'
 )
@@ -30,29 +30,31 @@ const (
 	Register uint8 = 0x01 // 客户端注册/握手
 	Forward  uint8 = 0x02 // 数据转发
 	Ping     uint8 = 0x03 // 心跳检测
+	Probe    uint8 = 0x04 // 交换机sessionId信息包
 )
 
-// Header WRRP 协议头 (共 40 字节)
+// Header WRRP 协议头 (共 28 字节)
 type Header struct {
+	FromID     uint64 // 0-7  (起始就是 0，天然对齐)
+	ToID       uint64
 	Magic      uint32
-	Version    uint16
-	Cmd        uint8
-	Reserved   uint8
 	PayloadLen uint32
-	SessionID  [28]byte
+	Version    uint8
+	Cmd        uint8
+	Reserved   uint16
 }
 
-// Marshal 将 Header 序列化为字节流
 func (h *Header) Marshal() []byte {
 	bufp := headerPool.Get().(*[]byte)
 	defer headerPool.Put(bufp)
 	buf := *bufp
-	binary.BigEndian.PutUint32(buf[0:4], h.Magic)
-	binary.BigEndian.PutUint16(buf[4:6], h.Version)
-	buf[6] = h.Cmd
-	buf[7] = h.Reserved
-	binary.BigEndian.PutUint32(buf[8:12], h.PayloadLen)
-	copy(buf[12:40], h.SessionID[:])
+	binary.BigEndian.PutUint64(buf[0:8], h.FromID)
+	binary.BigEndian.PutUint64(buf[8:16], h.ToID)
+	binary.BigEndian.PutUint32(buf[16:20], h.Magic)
+	binary.BigEndian.PutUint32(buf[20:24], h.PayloadLen)
+	buf[24] = h.Version
+	buf[25] = h.Cmd
+	binary.BigEndian.PutUint16(buf[26:28], h.Reserved)
 	return buf
 }
 
@@ -62,14 +64,16 @@ func Unmarshal(data []byte) (*Header, error) {
 		return nil, errors.New("header too short")
 	}
 	h := &Header{}
-	h.Magic = binary.BigEndian.Uint32(data[0:4])
+	h.FromID = binary.BigEndian.Uint64(data[0:8])
+	h.ToID = binary.BigEndian.Uint64(data[8:16])
+	h.Magic = binary.BigEndian.Uint32(data[16:20])
 	if h.Magic != MagicNumber {
 		return nil, errors.New("invalid magic number")
 	}
-	h.Version = binary.BigEndian.Uint16(data[4:6])
-	h.Cmd = data[6]
-	h.Reserved = data[7]
-	h.PayloadLen = binary.BigEndian.Uint32(data[8:12])
-	copy(h.SessionID[:], data[12:40])
+	h.PayloadLen = binary.BigEndian.Uint32(data[20:24])
+
+	h.Version = data[24]
+	h.Cmd = data[25]
+	h.Reserved = binary.BigEndian.Uint16(data[26:28])
 	return h, nil
 }

@@ -36,7 +36,7 @@ func SetLevel(logLevel string) {
 
 func init() {
 	// 默认设置为 Info
-	level.Set(slog.LevelInfo)
+	level.Set(slog.LevelDebug)
 }
 
 type Logger struct {

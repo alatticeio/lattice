@@ -58,7 +58,6 @@ func init() {
 }
 
 func newControllerCmd() *cobra.Command {
-	flag := new(ControllerFlags)
 	cmd := &cobra.Command{
 		Short:        "controller",
 		Use:          "controller [command]",
@@ -78,7 +77,7 @@ func newControllerCmd() *cobra.Command {
 				fmt.Printf("Config saved to: %s\n", config.GetConfigFilePath())
 			}
 
-			return runController(flag)
+			return runController(config.Conf)
 		},
 	}
 
@@ -119,7 +118,7 @@ type ControllerFlags struct {
 }
 
 // nolint:gocyclo
-func runController(flags *ControllerFlags) error {
+func runController(flags *config.Flags) error {
 	var tlsOpts []func(*tls.Config)
 
 	opts := zap.Options{
@@ -143,7 +142,7 @@ func runController(flags *ControllerFlags) error {
 		c.NextProtos = []string{"http/1.1"}
 	}
 
-	if !flags.enableHTTP2 {
+	if !flags.EnableHTTP2 {
 		tlsOpts = append(tlsOpts, disableHTTP2)
 	}
 
@@ -153,14 +152,14 @@ func runController(flags *ControllerFlags) error {
 	// Initial webhook TLS options
 	webhookTLSOpts := tlsOpts
 
-	if len(flags.webhookCertPath) > 0 {
+	if len(flags.WebhookCertPath) > 0 {
 		setupLog.Info("Initializing webhook certificate watcher using provided certificates",
-			"webhook-cert-path", flags.webhookCertPath, "webhook-cert-name", flags.webhookCertName, "webhook-cert-key", flags.webhookCertKey)
+			"webhook-cert-path", flags.WebhookCertPath, "webhook-cert-name", flags.WebhookCertName, "webhook-cert-key", flags.WebhookCertKey)
 
 		var err error
 		webhookCertWatcher, err = certwatcher.New(
-			filepath.Join(flags.webhookCertPath, flags.webhookCertName),
-			filepath.Join(flags.webhookCertPath, flags.webhookCertKey),
+			filepath.Join(flags.WebhookCertPath, flags.WebhookCertName),
+			filepath.Join(flags.WebhookCertPath, flags.WebhookCertKey),
 		)
 		if err != nil {
 			setupLog.Error(err, "Failed to initialize webhook certificate watcher")
@@ -181,12 +180,12 @@ func runController(flags *ControllerFlags) error {
 	// - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.21.0/pkg/metrics/server
 	// - https://book.kubebuilder.io/reference/metrics.html
 	metricsServerOptions := metricsserver.Options{
-		BindAddress:   flags.metricsAddr,
-		SecureServing: flags.secureMetrics,
+		BindAddress:   flags.MetricsAddr,
+		SecureServing: flags.SecureMetrics,
 		TLSOpts:       tlsOpts,
 	}
 
-	if flags.secureMetrics {
+	if flags.SecureMetrics {
 		// FilterProvider is used to protect the metrics endpoint with authn/authz.
 		// These configurations ensure that only authorized users and service accounts
 		// can access the metrics endpoint. The RBAC are configured in 'config/rbac/kustomization.yaml'. More info:
@@ -202,14 +201,14 @@ func runController(flags *ControllerFlags) error {
 	// - [METRICS-WITH-CERTS] at config/default/kustomization.yaml to generate and use certificates
 	// managed by cert-manager for the metrics server.
 	// - [PROMETHEUS-WITH-CERTS] at config/prometheus/kustomization.yaml for TLS certification.
-	if len(flags.metricsCertPath) > 0 {
+	if len(flags.MetricsCertPath) > 0 {
 		setupLog.Info("Initializing metrics certificate watcher using provided certificates",
-			"metrics-cert-path", flags.metricsCertPath, "metrics-cert-name", flags.metricsCertName, "metrics-cert-key", flags.metricsCertKey)
+			"metrics-cert-path", flags.MetricsCertPath, "metrics-cert-name", flags.MetricsCertName, "metrics-cert-key", flags.MetricsCertKey)
 
 		var err error
 		metricsCertWatcher, err = certwatcher.New(
-			filepath.Join(flags.metricsCertPath, flags.metricsCertName),
-			filepath.Join(flags.metricsCertPath, flags.metricsCertKey),
+			filepath.Join(flags.MetricsCertPath, flags.MetricsCertName),
+			filepath.Join(flags.MetricsCertPath, flags.MetricsCertKey),
 		)
 		if err != nil {
 			setupLog.Error(err, "to initialize metrics certificate watcher", err)
@@ -225,8 +224,8 @@ func runController(flags *ControllerFlags) error {
 		Scheme:                 scheme,
 		Metrics:                metricsServerOptions,
 		WebhookServer:          webhookServer,
-		HealthProbeBindAddress: flags.probeAddr,
-		LeaderElection:         flags.enableLeaderElection,
+		HealthProbeBindAddress: flags.ProbeAddr,
+		LeaderElection:         flags.EnableLeaderElection,
 		LeaderElectionID:       "05657094.wireflow.run",
 		// LeaderElectionReleaseOnCancel defines if the leader should step down voluntarily
 		// when the Manager ends. This requires the binary to immediately end when the

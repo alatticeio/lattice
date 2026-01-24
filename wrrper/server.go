@@ -31,30 +31,30 @@ import (
 
 type WRRPManager struct {
 	mu      sync.Mutex
-	streams map[string]*wrrp.Session
+	streams map[uint64]*wrrp.Session
 }
 
-func (w *WRRPManager) Register(sessionId string, stream wrrp.Stream) {
+func (w *WRRPManager) Register(streamId uint64, stream wrrp.Stream) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	w.streams[sessionId] = &wrrp.Session{
-		ID:     sessionId,
+	w.streams[streamId] = &wrrp.Session{
+		ID:     streamId,
 		Stream: stream,
 		Type:   "WRRP",
 	}
 
 }
 
-func (w *WRRPManager) Unregister(sessionId string) {
+func (w *WRRPManager) Unregister(streamId uint64) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	delete(w.streams, sessionId)
+	delete(w.streams, streamId)
 }
 
-func (w *WRRPManager) Get(sessionId string) *wrrp.Session {
+func (w *WRRPManager) Get(id uint64) *wrrp.Session {
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	return w.streams[sessionId]
+	return w.streams[id]
 }
 
 type Server struct {
@@ -67,7 +67,7 @@ func NewServer(flags *config.Flags) *Server {
 	s := &Server{
 		log: internallog.GetLogger("wrrp"),
 		wrrpManager: &WRRPManager{
-			streams: make(map[string]*wrrp.Session),
+			streams: make(map[uint64]*wrrp.Session),
 		},
 	}
 	mux := http.NewServeMux()
@@ -156,16 +156,16 @@ func (s *Server) handleWRRPSession(conn net.Conn, bufrw *bufio.ReadWriter) {
 		return
 	}
 
-	sessionID := string(header.SessionID[:])
+	fromId := header.FromID
 	// 4. 注册到全局管理器
 	// 假设你有一个全局的 wrrpManager
-	s.wrrpManager.Register(sessionID, stream)
-	defer s.wrrpManager.Unregister(sessionID)
+	s.wrrpManager.Register(fromId, stream)
+	defer s.wrrpManager.Unregister(fromId)
 
 	// 5. 握手成功，重置超时（进入长连接模式）
 	conn.SetReadDeadline(time.Time{})
 
-	s.log.Info("[WRRP] New session registered", "sessionID", sessionID)
+	s.log.Info("[WRRP] New session registered", "fromId", header.FromID, "toId", header.ToID)
 
 	// 6. 进入指令处理循环
 	for {
@@ -185,31 +185,37 @@ func (s *Server) handleWRRPSession(conn net.Conn, bufrw *bufio.ReadWriter) {
 		case wrrp.Ping:
 			// 收到 Ping，什么都不用做，上面的 SetReadDeadline 已经完成了“续租”
 			// 如果你想让客户端计算 RTT，也可以回发一个 CmdPong
-			s.log.Debug("[WRRP] Receive Ping", "sessionID", sessionID)
-			keepaliveAck(s.wrrpManager.Get(sessionID))
+			s.log.Debug("[WRRP] Receive Ping", "fromId", fromId)
+			keepaliveAck(s.wrrpManager.Get(fromId))
 			continue
 
-		case wrrp.Forward:
+		case wrrp.Forward, wrrp.Probe:
+			s.log.Info("[WRRP] Receive Forward", "fromId", fromId, "toId", h.ToID, "payloadLen", h.PayloadLen)
 			// 处理转发逻辑
-			targetID := string(h.SessionID[:])
-
-			// 限制 Payload 大小以防 OOM
-			if h.PayloadLen > 1024*1024 {
-				continue
-			}
+			targetID := h.ToID
 
 			target := s.wrrpManager.Get(targetID)
+			if target == nil {
+				s.log.Warn("[WRRP] Target not found", "targetId", targetID)
+				io.CopyN(io.Discard, stream, int64(h.PayloadLen)) //
+				continue
+			}
 			// send header
 			_, err = target.Stream.Write(headBuf)
 			if err != nil {
 				s.log.Error("relay packet failed", err)
+				io.CopyN(io.Discard, stream, int64(h.PayloadLen))
 				continue
 			}
 			_, err = io.CopyN(target.Stream, stream, int64(h.PayloadLen))
 			if err != nil {
 				s.log.Error("relay packet failed", err)
+				if err = target.Stream.Close(); err != nil {
+					s.log.Error("close target stream failed", err)
+				}
 			}
 
+			s.log.Info("[WRRP] Receive Forward success", "fromId", fromId, "toId", targetID)
 		}
 	}
 }

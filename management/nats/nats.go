@@ -32,7 +32,7 @@ var (
 	_ infra.SignalService = (*NatsSignalService)(nil)
 )
 
-type SignalHandler func(ctx context.Context, peerId string, packet *grpc.SignalPacket) error
+type SignalHandler func(ctx context.Context, peerId infra.PeerID, packet *grpc.SignalPacket) error
 
 type NatsSignalService struct {
 	log       *log.Logger
@@ -99,7 +99,8 @@ func (s *NatsSignalService) Subscribe(subject string, onMessage SignalHandler) e
 			s.log.Error("failed to unmarshal packet", err)
 			return
 		}
-		err := onMessage(context.Background(), packet.SenderId, &packet)
+
+		err := onMessage(context.Background(), infra.FromUint64(packet.SenderId), &packet)
 		if err == nil {
 			m.Ack()
 		}
@@ -113,7 +114,7 @@ func (s *NatsSignalService) Subscribe(subject string, onMessage SignalHandler) e
 	return nil
 }
 
-func (s *NatsSignalService) Send(ctx context.Context, peerId string, data []byte) error {
+func (s *NatsSignalService) Send(ctx context.Context, peerId infra.PeerID, data []byte) error {
 	subject := fmt.Sprintf("wireflow.signals.peers.%s", peerId)
 	return s.nc.Publish(subject, data)
 }

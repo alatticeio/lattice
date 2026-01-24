@@ -43,8 +43,8 @@ func newManagementCmd() *cobra.Command {
 		},
 	}
 	fs := cmd.Flags()
-	fs.StringP("", "l", "", "management server listen address")
-	fs.StringP("log-level", "", "silent", "log level (silent, info, error, warn, verbose)")
+	fs.StringP("listen", "l", "", "management server listen address")
+	fs.StringP("level", "", "silent", "log level (silent, info, error, warn, verbose)")
 	return cmd
 }
 

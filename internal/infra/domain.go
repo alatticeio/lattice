@@ -29,5 +29,6 @@ const (
 	TurnServerDomain      = "stun.wireflow.run"
 	DefaultManagementPort = 6060
 	DefaultSignalingPort  = 4222
+	DEFAULT_WRRP_PORT     = 6266
 	DefaultTurnServerPort = 3478
 )

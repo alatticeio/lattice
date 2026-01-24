@@ -54,7 +54,7 @@ func newCreateCmd() *cobra.Command {
 
 func runCreate(opts *config.NetworkOptions) error {
 	if infra.ServerUrl == "" {
-		infra.ServerUrl = config.GlobalConfig.ServerUrl
+		infra.ServerUrl = config.Conf.ServerUrl
 	}
 	manager, err := network.NewNetworkManager(infra.ServerUrl)
 	if err != nil {

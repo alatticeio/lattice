@@ -37,7 +37,7 @@ spec:
           args:
             - "start"
             - "manager"
-            - "--log-level=INFO"
+            - "--level=INFO"
           volumeMounts:
             - mountPath: /app/control.yaml
               name: conf
@@ -92,5 +92,61 @@ spec:
           args:
             - "start"
             - "turn"
-            - "--log-level=verbose"
+            - "--level=debug"
             - "--public-ip=81.68.109.143"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: wrrper
+  labels:
+    k8s-app: wireflow-wrrper
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      k8s-app: wireflow-wrrper
+  template:
+    metadata:
+      labels:
+        k8s-app: wireflow-wrrper
+    spec:
+      hostAliases:
+        - ip: "81.68.109.143"
+          hostnames:
+            - "signaling.wireflow.run"
+      serviceAccountName: wireflow-controller-admin
+      initContainers:
+        - name: wait-for-nats
+          image: curlimages/curl:latest
+          command:
+            - '/bin/sh'
+            - '-c'
+            - |
+              until curl -f http://wireflow-nats-service:8222/varz; do
+                echo "Waiting for nats server..."
+                sleep 2
+              done
+      containers:
+        - name: wireflow-wrrper
+          image: controller:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 6266
+              hostPort: 6266
+          args:
+            - "start"
+            - "wrrper"
+            - "--listen=:6266"
+            - "--level=INFO"
+          volumeMounts:
+            - mountPath: /app/control.yaml
+              name: conf
+              subPath: control.yaml
+      volumes:
+        - name: conf
+          configMap:
+            name: wireflow-control-config
+            items:
+              - key: control.yaml
+                path: control.yaml

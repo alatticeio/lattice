@@ -50,13 +50,14 @@ spec:
       #             operator: In
       #             values:
       #               - linux
-      securityContext:
+#      securityContext:
         # Projects are configured by default to adhere to the "restricted" Pod Security Standards.
         # This ensures that deployments meet the highest security requirements for Kubernetes.
         # For more details, see: https://kubernetes.io/docs/concepts/security/pod-security-standards/#restricted
-        runAsNonRoot: true
-        seccompProfile:
-          type: RuntimeDefault
+#        runAsNonRoot: true
+#        runAsUser: 1000
+#        seccompProfile:
+#          type: RuntimeDefault
       containers:
       - name: manager
         args:

@@ -16,7 +16,6 @@ package transport
 
 import (
 	"context"
-	"encoding/json"
 	"sync"
 	"wireflow/internal/grpc"
 	"wireflow/internal/infra"
@@ -26,31 +25,32 @@ import (
 )
 
 type ProbeFactory struct {
-	localId string
-	mu      sync.RWMutex
-	probes  map[string]*Probe
-	signal  infra.SignalService
-	factory *TransportFactory
+	localId infra.PeerID
+
+	mu     sync.RWMutex
+	probes map[uint64]*Probe
+
+	wrrpMu     sync.RWMutex
+	wrrpProbes map[string]*Probe
+
+	signal infra.SignalService
 
 	log *log.Logger
 
-	onMessage func(context.Context, *infra.Message) error
+	onMessage   func(context.Context, *infra.Message) error
+	peerManager *infra.PeerManager
+	wrrp        infra.Wrrp
 }
 
 type ProbeFactoryConfig struct {
-	LocalId   string
-	Signal    infra.SignalService
-	Factory   *TransportFactory
-	OnMessage func(context.Context, *infra.Message)
+	LocalId     infra.PeerID
+	Signal      infra.SignalService
+	OnMessage   func(context.Context, *infra.Message)
+	PeerManager *infra.PeerManager
+	Wrrp        infra.Wrrp
 }
 
 type ProbeFactoryOptions func(*ProbeFactory)
-
-func WithSignal(signal infra.SignalService) ProbeFactoryOptions {
-	return func(p *ProbeFactory) {
-		p.signal = signal
-	}
-}
 
 func WithOnMessage(onMessage func(context.Context, *infra.Message) error) ProbeFactoryOptions {
 	return func(p *ProbeFactory) {
@@ -66,23 +66,24 @@ func (t *ProbeFactory) Configure(opts ...ProbeFactoryOptions) {
 
 func NewProbeFactory(cfg *ProbeFactoryConfig) *ProbeFactory {
 	return &ProbeFactory{
-		log:     log.GetLogger("probe-factory"),
-		localId: cfg.LocalId,
-		signal:  cfg.Signal,
-		factory: cfg.Factory,
-		probes:  make(map[string]*Probe),
+		log:         log.GetLogger("probe-factory"),
+		localId:     cfg.LocalId,
+		signal:      cfg.Signal,
+		probes:      make(map[uint64]*Probe),
+		peerManager: cfg.PeerManager,
+		wrrp:        cfg.Wrrp,
 	}
 }
 
-func (f *ProbeFactory) Register(remoteId string, probe *Probe) {
-	f.probes[remoteId] = probe
+func (f *ProbeFactory) Register(remoteId infra.PeerID, probe *Probe) {
+	f.probes[remoteId.ToUint64()] = probe
 }
 
-func (f *ProbeFactory) Get(remoteId string) (*Probe, error) {
+func (f *ProbeFactory) Get(remoteId infra.PeerID) (*Probe, error) {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
 	var err error
-	probe := f.probes[remoteId]
+	probe := f.probes[remoteId.ToUint64()]
 	if probe == nil {
 		probe, err = f.NewProbe(remoteId)
 		if err != nil {
@@ -92,79 +93,56 @@ func (f *ProbeFactory) Get(remoteId string) (*Probe, error) {
 	return probe, err
 }
 
-func (f *ProbeFactory) Remove(remoteId string) {
+func (f *ProbeFactory) Remove(remoteId uint64) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	delete(f.probes, remoteId)
 }
 
-func (p *ProbeFactory) NewProbe(remoteId string) (*Probe, error) {
-	probe := &Probe{
-		log:             p.log,
-		localId:         p.localId,
-		peerId:          remoteId,
-		factory:         p.factory,
-		signal:          p.signal,
-		probeAckChan:    make(chan struct{}),
-		remoteOfferChan: make(chan struct{}),
-		state:           ice.ConnectionStateNew,
-	}
-
-	transport, err := p.factory.GetTransport(remoteId, probe.OnConnectionStateChange)
+func (p *ProbeFactory) NewProbe(remoteId infra.PeerID) (*Probe, error) {
+	wrrpDialer, err := NewWrrpDialer(&WrrpDialerConfig{
+		LocalId:  p.localId,
+		RemoteId: remoteId,
+		Wrrp:     p.wrrp,
+		Sender:   p.signal.Send,
+	})
 	if err != nil {
 		return nil, err
 	}
-
-	// give transport probe access
-	probe.transport = transport
+	probe := &Probe{
+		log:             p.log,
+		localId:         p.localId,
+		remoteId:        remoteId,
+		signal:          p.signal,
+		remoteOfferChan: make(chan struct{}),
+		state:           ice.ConnectionStateNew,
+		onSuccess: func(transport infra.Transport) error {
+			p.log.Info("connection established", "transportTypoe", transport.Type(), "remoteAddr", transport.RemoteAddr())
+			return nil
+		},
+		iceDialer: NewIceDialer(&ICEDialerConfig{
+			LocalId:     p.localId,
+			RemoteId:    remoteId,
+			Sender:      p.signal.Send,
+			PeerManager: p.peerManager,
+		}),
+		wrrpDialer: wrrpDialer,
+	}
 
 	p.Register(remoteId, probe)
 	return probe, nil
 }
 
-func (f *ProbeFactory) Probe(ctx context.Context, remoteId string) error {
-	var err error
-	probe, err := f.Get(remoteId)
+func (p *ProbeFactory) Handle(ctx context.Context, remoteId infra.PeerID, packet *grpc.SignalPacket) error {
+	p.log.Info("Handle packet", "remoteId", remoteId, "packet", packet)
+	probe, err := p.Get(remoteId)
 	if err != nil {
 		return err
 	}
-	return probe.Probe(ctx, remoteId)
+	return probe.Handle(ctx, remoteId, packet)
 }
 
-func (p *ProbeFactory) HandleSignal(ctx context.Context, remoteId string, packet *grpc.SignalPacket) error {
-	var (
-		err   error
-		probe *Probe
-	)
-
-	probe, err = p.Get(remoteId)
-	if err != nil {
-		return err
-	}
-	p.log.Debug("handle signal packet from", "remoteId", remoteId, "packetType", packet.Type)
-	switch packet.Type {
-	case grpc.PacketType_MESSAGE:
-		var msg infra.Message
-		if err := json.Unmarshal(packet.GetMessage().Content, &msg); err != nil {
-			return err
-		}
-		p.onMessage(ctx, &msg)
-	case grpc.PacketType_HANDSHAKE_SYN:
-		p.log.Debug("receive syn packet from: %s, will sending ack", "remoteId", remoteId)
-		// send ack
-		if err = probe.probePacket(ctx, remoteId, grpc.PacketType_HANDSHAKE_ACK); err != nil {
-			return err
-		}
-		// TODO add allows check
-		if p.Allows(remoteId) {
-			return probe.Probe(ctx, remoteId)
-		}
-	case grpc.PacketType_HANDSHAKE_ACK:
-		return probe.HandleAck(ctx, remoteId, packet)
-	case grpc.PacketType_OFFER:
-		return probe.HandleOffer(ctx, remoteId, packet)
-	}
-
+func (p *ProbeFactory) OnReceive(sessionId [28]byte, data []byte) error {
 	return nil
 }
 

@@ -53,9 +53,9 @@ func (cm *ConfigManager) LoadConf(cmd *cobra.Command) error {
 
 	v.SetDefault("Level", "info")
 	v.SetDefault("listen", ":8080")
-	v.SetDefault("ManagementUrl", "http://wireflow.run")
-	v.SetDefault("SignalingURL", "nats://signaling.wireflow.run:4222")
-	v.SetDefault("TurnServerURL", "stun.wireflow.run:3478")
+	v.SetDefault("management-url", "http://wireflow.run")
+	v.SetDefault("signaling-url", "nats://signaling.wireflow.run:4222")
+	v.SetDefault("turnserver-url", "stun.wireflow.run:3478")
 
 	configName := GetConfigFilePath()
 	v.SetConfigFile(configName)
@@ -79,7 +79,11 @@ func (cm *ConfigManager) LoadConf(cmd *cobra.Command) error {
 		return err
 	}
 
-	return v.Unmarshal(&Conf)
+	err := v.Unmarshal(&Conf)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 // GetConfigFilePath get config filepath.
@@ -108,6 +112,7 @@ type Flags struct {
 	Token         string `mapstructure:"token,omitempty"`
 	SignalingURL  string `mapstructure:"signaling-url,omitempty"`
 	ServerUrl     string `mapstructure:"server-url,omitempty"`
+	WrrperURL     string `mapstructure:"wrrper-url,omitempty"`
 	TurnServerURL string `mapstructure:"stun-url,omitempty"`
 
 	// for controller
@@ -119,7 +124,7 @@ type Flags struct {
 	MetricsCertName      string `mapstructure:"metrics-cert-name,omitempty"`
 	MetricsCertKey       string `mapstructure:"metrics-cert-key,omitempty"`
 	EnableLeaderElection bool   `mapstructure:"leader-elect,omitempty"`
-	ProbeAddr            string `mapstructure:"probe-addr,omitempty"`
+	ProbeAddr            string `mapstructure:"health-probe-bind-address,omitempty"`
 	SecureMetrics        bool   `mapstructure:"metrics-secure,omitempty"`
 	EnableHTTP2          bool   `mapstructure:"enable-http2,omitempty"`
 
@@ -128,6 +133,9 @@ type Flags struct {
 	EnableDNS    bool `mapstructure:"enable-dns,omitempty"`
 	EnableSysLog bool `mapstructure:"enable-sys-log,omitempty"`
 	EnableDaemon bool `mapstructure:"enable-daemon,omitempty"`
+
+	PublicIP string `mapstructure:"public-ip,omitempty"`
+	Port     int    `mapstructure:"port,omitempty"`
 }
 
 // NetworkOptions for network operations.

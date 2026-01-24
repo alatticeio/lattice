@@ -148,14 +148,15 @@ type Peer struct {
 	PersistentKeepalive int     `json:"persistentKeepalive,omitempty"`
 	PrivateKey          string  `json:"privateKey,omitempty"`
 	PublicKey           string  `json:"publicKey,omitempty"`
-	AllowedIPs          string  `json:"allowedIps,omitempty"`
-	ReplacePeers        bool    `json:"replacePeers,omitempty"` // whether to replace peers when updating node
-	Port                int     `json:"port"`
-	GroupName           string  `json:"groupName"`
-	Version             uint64  `json:"version"`
-	LastUpdatedAt       string  `json:"lastUpdatedAt"`
-	Token               string  `json:"token,omitempty"`
-	WrrpUrl             string  `json:"wrrpUrl,omitempty"`
+	PeerID              PeerID
+	AllowedIPs          string `json:"allowedIps,omitempty"`
+	ReplacePeers        bool   `json:"replacePeers,omitempty"` // whether to replace peers when updating node
+	Port                int    `json:"port"`
+	GroupName           string `json:"groupName"`
+	Version             uint64 `json:"version"`
+	LastUpdatedAt       string `json:"lastUpdatedAt"`
+	Token               string `json:"token,omitempty"`
+	WrrpUrl             string `json:"wrrpUrl,omitempty"`
 }
 
 // Network is the network information, contains all peers/policies in the network

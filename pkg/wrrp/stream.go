@@ -25,7 +25,7 @@ type Stream interface {
 }
 
 type Session struct {
-	ID     string
+	ID     uint64
 	Stream Stream
 	Type   string // TCP / QUIC / KCP
 }

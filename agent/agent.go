@@ -111,9 +111,7 @@ func NewAgent(ctx context.Context, cfg *AgentConfig) (*Agent, error) {
 		return nil, err
 	}
 
-	factory := transport.NewTransportFactory(natsSignalService, cfg.ShowLog, universalUdpMuxDefault)
-
-	agent.ctrClient, err = ctrclient.NewClient(natsSignalService, factory)
+	agent.ctrClient, err = ctrclient.NewClient(natsSignalService)
 	if err != nil {
 		return nil, err
 	}
@@ -127,17 +125,14 @@ func NewAgent(ctx context.Context, cfg *AgentConfig) (*Agent, error) {
 	privateKey = agent.current.PrivateKey
 	agent.manager.keyManager = infra.NewKeyManager(privateKey)
 
-	factory.Configure(transport.WithPeerManager(agent.manager.peerManager), transport.WithKeyManager(agent.manager.keyManager))
-
 	localId := agent.manager.keyManager.GetPublicKey()
 	probeFactory := transport.NewProbeFactory(&transport.ProbeFactoryConfig{
-		Factory: factory,
 		LocalId: localId,
 		Signal:  natsSignalService,
 	})
 
 	//subscribe
-	if err = natsSignalService.Subscribe(fmt.Sprintf("%s.%s", "wireflow.signals.peers", localId), probeFactory.HandleSignal); err != nil {
+	if err = natsSignalService.Subscribe(fmt.Sprintf("%s.%s", "wireflow.signals.peers", localId), probeFactory.Handle); err != nil {
 		return nil, err
 	}
 
@@ -146,7 +141,11 @@ func NewAgent(ctx context.Context, cfg *AgentConfig) (*Agent, error) {
 		ctrclient.WithKeyManager(agent.manager.keyManager),
 		ctrclient.WithProbeFactory(probeFactory))
 
-	wrrpUrl := agent.current.WrrpUrl
+	wrrpUrl := cfg.Flags.WrrperURL
+	if wrrpUrl == "" {
+		wrrpUrl = agent.current.WrrpUrl
+	}
+
 	var wrrp infra.Wrrp
 	if wrrpUrl != "" {
 		sessionId, err := infra.IDFromPublicKey(agent.current.PublicKey)
@@ -174,9 +173,6 @@ func NewAgent(ctx context.Context, cfg *AgentConfig) (*Agent, error) {
 		})
 	// init event handler
 	agent.eventHandler = NewMessageHandler(agent, log.GetLogger("event-handler"), agent.provisioner)
-	// set configurer
-	factory.Configure(transport.WithProvisioner(agent.provisioner))
-
 	probeFactory.Configure(transport.WithOnMessage(agent.eventHandler.HandleEvent))
 
 	agent.DeviceManager = NewDeviceManager(log.GetLogger("device-manager"), agent.iface)

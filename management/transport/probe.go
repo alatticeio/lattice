@@ -16,7 +16,6 @@ package transport
 
 import (
 	"context"
-	"fmt"
 	"sync"
 	"time"
 	"wireflow/internal/grpc"
@@ -24,30 +23,48 @@ import (
 	"wireflow/internal/log"
 
 	"github.com/wireflowio/ice"
-	"google.golang.org/protobuf/proto"
 )
 
 var (
 	_ infra.Probe = (*Probe)(nil)
 )
 
-// Probe for probe connection from two peers.
+// Probe for probe connection from two peerManager.
 type Probe struct {
-	localId         string
-	peerId          string
-	factory         *TransportFactory
-	transport       infra.Transport
+	mu              sync.RWMutex
+	localId         infra.PeerID
+	remoteId        infra.PeerID
+	iceDialer       infra.Dialer
 	state           ice.ConnectionState
 	signal          infra.SignalService
 	ctx             context.Context
 	cancel          context.CancelFunc
 	closeAckOnce    sync.Once
 	closeOnce       sync.Once
-	probeAckChan    chan struct{}
+	answerChan      chan struct{}
 	remoteOfferChan chan struct{}
 	log             *log.Logger
 	lastSeen        time.Time
 	rtt             time.Duration
+	handShackAck    chan struct{}
+
+	// Add wrrp
+	wrrpDialer infra.Dialer
+
+	onSuccess        func(transport infra.Transport) error
+	onFailure        func(error) error
+	currentTransport infra.Transport
+}
+
+func (p *Probe) Handle(ctx context.Context, remoteId infra.PeerID, packet *grpc.SignalPacket) error {
+	switch packet.Dialer {
+	case grpc.DialerType_ICE:
+		return p.iceDialer.Handle(ctx, p.remoteId, packet)
+	case grpc.DialerType_WRRP:
+		return p.wrrpDialer.Handle(ctx, p.remoteId, packet)
+	}
+
+	return nil
 }
 
 func (p *Probe) OnConnectionStateChange(state ice.ConnectionState) {
@@ -55,133 +72,39 @@ func (p *Probe) OnConnectionStateChange(state ice.ConnectionState) {
 	p.log.Info("Setting new connection status", "state", state)
 }
 
-func (p *Probe) Probe(ctx context.Context, remoteId string) error {
-	if p.state == ice.ConnectionStateUnknown {
-		return fmt.Errorf("invalid state.")
-	}
+func (p *Probe) probeWrrpPacket(ctx context.Context, remoteId string, packetType grpc.PacketType) error {
+	//packet := &grpc.SignalPacket{
+	//	SenderId: p.localId,
+	//	Type:     packetType,
+	//	Payload: &grpc.SignalPacket_Handshake{
+	//		Handshake: &grpc.Handshake{
+	//			Timestamp: time.Now().Unix(),
+	//		},
+	//	},
+	//}
 
-	if p.state != ice.ConnectionStateNew {
-		return nil
-	}
-
-	p.updateState(ice.ConnectionStateChecking)
-	// 1. first prepare candidate then send to remoteId
-	go func() {
-		if err := p.Prepare(ctx, remoteId, p.signal.Send); err != nil {
-			p.OnTransportFail(err)
-		}
-	}()
-
+	//data, err := proto.Marshal(packet)
+	//if err != nil {
+	//	return err
+	//}
+	//
+	//sessionId, err := infra.IDFromPublicKey(remoteId)
+	//if err != nil {
+	//	return err
+	//}
 	return nil
 }
 
-func (p *Probe) Prepare(ctx context.Context, remoteId string, send func(ctx context.Context, remoteId string, data []byte) error) error {
-	p.log.Info("Prepare probe peer", "remoteId", remoteId)
-	probeCtx, cancel := context.WithCancel(ctx)
-	defer cancel()
-	//1. start handshake syn
-	go func() {
-		ticker := time.NewTicker(2 * time.Second)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-probeCtx.Done():
-				p.log.Error("stop send syn packet", ctx.Err())
-				return
-			case <-ticker.C:
-				// send syn
-				p.probePacket(ctx, remoteId, grpc.PacketType_HANDSHAKE_SYN)
-			}
-		}
+func (p *Probe) Start(ctx context.Context, remoteId infra.PeerID) error {
+	p.log.Info("Start probe peer", "localId", p.localId, "remoteId", remoteId)
 
-	}()
-
-	// start to connect
-	if err := p.Start(ctx, remoteId); err != nil {
-		p.OnTransportFail(err)
-	}
-
-	//waiting probe ack
-	p.log.Debug("waiting for preProbe ACK...", "remoteId", remoteId)
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	case <-p.probeAckChan:
-		cancel()
-		// send offer
-		p.log.Debug("preProbe ACK received, will sending offer", "remoteId", remoteId)
-		return p.transport.Prepare()
-	}
-}
-
-func (p *Probe) probePacket(ctx context.Context, remoteId string, packetType grpc.PacketType) error {
-	packet := &grpc.SignalPacket{
-		SenderId: p.localId,
-		Type:     packetType,
-		Payload: &grpc.SignalPacket_Handshake{
-			Handshake: &grpc.Handshake{
-				Timestamp: time.Now().Unix(),
-			},
-		},
-	}
-
-	data, err := proto.Marshal(packet)
+	t, err := p.discover(ctx)
 	if err != nil {
+		p.updateState(ice.ConnectionStateFailed)
 		return err
 	}
 
-	return p.signal.Send(ctx, remoteId, data)
-}
-
-func (p *Probe) HandleAck(ctx context.Context, remoteId string, packet *grpc.SignalPacket) error {
-	defer func() {
-		p.closeAckOnce.Do(func() {
-			close(p.probeAckChan)
-		})
-	}()
-	p.updateState(ice.ConnectionStateChecking)
-	return nil
-}
-
-func (p *Probe) HandleOffer(ctx context.Context, remoteId string, packet *grpc.SignalPacket) error {
-	defer func() {
-		p.closeOnce.Do(func() {
-			close(p.remoteOfferChan)
-		})
-	}()
-
-	return p.transport.HandleOffer(ctx, remoteId, packet)
-}
-
-func (p *Probe) Start(ctx context.Context, remoteId string) error {
-	p.log.Info("Start probe pee", "remoteId", remoteId)
-	sendReady, recvReady := false, false
-	ctx, cancel := context.WithCancel(ctx)
-	p.cancel = cancel
-	go func() {
-		for {
-			select {
-			case <-ctx.Done():
-				p.log.Error("stop send ready ack", ctx.Err())
-				return
-			case <-p.probeAckChan:
-				sendReady = true
-
-			case <-p.remoteOfferChan:
-				recvReady = true
-			}
-
-			//
-			if sendReady && recvReady {
-				p.log.Info("send ready and recv ready, will dial or accept connection")
-				break
-			}
-		}
-
-		if err := p.transport.Start(ctx, remoteId); err != nil {
-			p.OnTransportFail(err)
-		}
-	}()
+	p.onSuccess(t)
 
 	return nil
 }
@@ -190,10 +113,94 @@ func (p *Probe) Ping(ctx context.Context) error {
 	return nil
 }
 
-func (p *Probe) OnTransportFail(err error) {
-	p.log.Error("OnTransportFail", err)
-}
-
 func (p *Probe) updateState(state ice.ConnectionState) {
 	p.state = state
+}
+
+// discover 实现了“谁快用谁”的竞速逻辑
+func (p *Probe) discover(ctx context.Context) (infra.Transport, error) {
+	// 用于接收第一个成功的 Transport
+	result := make(chan infra.Transport, 2)
+	// 用于接收所有的错误，只有全部失败才报错
+	errs := make(chan error, 2)
+
+	go func() {
+		p.log.Info("Starting ice dialer", "remoteId", p.remoteId)
+		if err := p.iceDialer.Prepare(ctx, p.remoteId); err != nil {
+			errs <- err
+			return
+		}
+		t, err := p.iceDialer.Dial(ctx)
+		if err != nil {
+			errs <- err
+			return
+		}
+		result <- t
+		if err = p.handleUpgradeTransport(t); err != nil {
+			errs <- err
+			p.log.Error("Upgrade transport failed", err)
+			return
+		}
+	}()
+
+	// 2. 启动 WRRP 连接 (保底，通常秒通)
+	go func() {
+		p.log.Info("Starting wrrp dialer", "remoteId", p.remoteId)
+		err := p.wrrpDialer.Prepare(ctx, p.remoteId)
+		if err != nil {
+			errs <- err
+			return
+		}
+		// 内部包含：向中转服务器注册 -> 建立隧道
+		t, err := p.wrrpDialer.Dial(ctx)
+		if err != nil {
+			errs <- err
+			return
+		}
+		result <- t
+	}()
+
+	// 3. 竞速决策逻辑
+	var best infra.Transport
+	select {
+	case t := <-result:
+		best = t
+		// 特殊优化：如果 WRRP 先到了，我们可以额外等一小会儿（如 500ms）给 ICE 机会
+		if t.Type() == infra.WRRP {
+			select {
+			case iceT := <-result:
+				t.Close()
+				best = iceT
+			case <-time.After(500 * time.Millisecond):
+			}
+		}
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+
+	return best, nil
+}
+
+func (p *Probe) handleUpgradeTransport(newTransport infra.Transport) error {
+	p.log.Info("Upgrade transport....", "newTransport", newTransport)
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.currentTransport == nil {
+		p.currentTransport = newTransport
+		return nil
+	}
+
+	// 权重比较：直连优于中转
+	if newTransport.Priority() > p.currentTransport.Priority() {
+		old := p.currentTransport
+		p.currentTransport = newTransport
+
+		// 延迟关闭旧连接，确保缓冲区数据发完
+		go func() {
+			time.Sleep(2 * time.Second)
+			old.Close()
+		}()
+	}
+
+	return nil
 }

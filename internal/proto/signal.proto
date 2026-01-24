@@ -13,13 +13,18 @@ enum PacketType {
   MESSAGE = 5;
 }
 
+enum DialerType {
+  ICE = 0;
+  WRRP = 1;
+}
+
 message SignalPacket {
   PacketType type = 1;
-  string sender_id = 2;
+  DialerType dialer = 2;
+  uint64 sender_id = 3;
   oneof payload {
-    Handshake handshake = 3;
-    Offer offer = 4;
-    Offer answer = 5;
+    Handshake handshake = 4;
+    Offer offer = 5;
     Message message = 6;
   }
 }
@@ -31,7 +36,9 @@ message Offer {
   string candidate = 4;
   string vip = 5;
   bytes current = 6;
+  string srcPeerID = 7 ;
 }
+
 
 // for wrapper Message from api server
 message Message {
@@ -40,4 +47,5 @@ message Message {
 
 message Handshake {
   int64 timestamp = 1;
+  uint64 sid = 2;
 }

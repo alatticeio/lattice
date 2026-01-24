@@ -47,7 +47,7 @@ type Client struct {
 	log *log.Logger
 
 	hashMu         sync.RWMutex
-	lastPushedHash map[string]string
+	lastPushedHash map[infra.PeerID]string
 	sender         infra.SignalService
 }
 
@@ -78,7 +78,7 @@ func NewClient(signal infra.SignalService, mgr manager.Manager) (*Client, error)
 
 	client := &Client{
 		Client:         mgr.GetClient(),
-		lastPushedHash: make(map[string]string),
+		lastPushedHash: make(map[infra.PeerID]string),
 		log:            logger,
 		sender:         signal,
 		Manager:        mgr,
@@ -137,12 +137,12 @@ func (c *Client) handleConfigMapEvent(ctx context.Context, obj interface{}, even
 	}
 
 	if message.Current != nil {
-		c.pushToNode(ctx, message.Current.PublicKey, &message)
+		c.pushToNode(ctx, message.Current.PeerID, &message)
 		c.log.Info(">>> Message pushed to node success <<<", "namespace", cm.Namespace, "appId", message.Current.PublicKey, "version", cm.ResourceVersion)
 	}
 }
 
-func (c *Client) pushToNode(ctx context.Context, peerId string, msg *infra.Message) error {
+func (c *Client) pushToNode(ctx context.Context, peerId infra.PeerID, msg *infra.Message) error {
 	// 1. 计算消息哈希
 	msgHash := c.computeMessageHash(msg)
 
@@ -163,7 +163,8 @@ func (c *Client) pushToNode(ctx context.Context, peerId string, msg *infra.Messa
 	}
 
 	packet := &grpc.SignalPacket{
-		SenderId: "manager",
+		// TODO
+		SenderId: 0,
 		Type:     grpc.PacketType_MESSAGE,
 		Payload: &grpc.SignalPacket_Message{
 			Message: &grpc.Message{

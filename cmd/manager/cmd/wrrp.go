@@ -16,6 +16,7 @@ package cmd
 
 import (
 	"wireflow/internal/config"
+	"wireflow/internal/log"
 	"wireflow/wrrper"
 
 	"github.com/spf13/cobra"
@@ -23,7 +24,7 @@ import (
 
 func newWrrpCmd() *cobra.Command {
 	var cmd = &cobra.Command{
-		Use:          "wrrp [command]",
+		Use:          "wrrper",
 		SilenceUsage: true,
 		Short:        "wrrp using as relay server for wireflow",
 		Long:         `wrrp using as relay server for wireflow`,
@@ -39,11 +40,13 @@ func newWrrpCmd() *cobra.Command {
 	fs := cmd.Flags()
 	fs.StringP("listen", "l", "", "port for wrrp server")
 	fs.BoolP("enable-tls", "", false, "using tls")
+	fs.StringP("level", "", "silent", "log level (debug, info, warn, error)")
 	return cmd
 }
 
 // run signaling server
 func runWrrp(flags *config.Flags) error {
+	log.SetLevel(flags.Level)
 	server := wrrper.NewServer(flags)
 	return server.Start()
 }
