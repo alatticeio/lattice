@@ -28,7 +28,7 @@ type AgentInterface interface {
 
 	GetDeviceName() string
 
-	Configure(peerId string) error
+	//Configure(peerId string) error
 
 	// Stop the engine
 	Stop() error
@@ -45,11 +45,11 @@ type AgentInterface interface {
 // KeyManager manage the device keys
 type KeyManager interface {
 	// UpdateKey updates the private key used for encryption.
-	UpdateKey(privateKey string)
+	UpdateKey(privateKey wgtypes.Key)
 	// GetKey retrieves the current private key.
-	GetKey() string
+	GetKey() wgtypes.Key
 	// GetPublicKey retrieves the public key derived from the current private key.
-	GetPublicKey() string
+	GetPublicKey() wgtypes.Key
 }
 
 type ManagementClient interface {
@@ -60,31 +60,27 @@ type ManagementClient interface {
 
 type keyManager struct {
 	lock       sync.Mutex
-	privateKey string
+	privateKey wgtypes.Key
 }
 
-func NewKeyManager(privateKey string) KeyManager {
+func NewKeyManager(privateKey wgtypes.Key) KeyManager {
 	return &keyManager{privateKey: privateKey}
 }
 
-func (km *keyManager) UpdateKey(privateKey string) {
+func (km *keyManager) UpdateKey(privateKey wgtypes.Key) {
 	km.lock.Lock()
 	defer km.lock.Unlock()
 	km.privateKey = privateKey
 }
 
-func (km *keyManager) GetKey() string {
+func (km *keyManager) GetKey() wgtypes.Key {
 	km.lock.Lock()
 	defer km.lock.Unlock()
 	return km.privateKey
 }
 
-func (km *keyManager) GetPublicKey() string {
+func (km *keyManager) GetPublicKey() wgtypes.Key {
 	km.lock.Lock()
 	defer km.lock.Unlock()
-	key, err := wgtypes.ParseKey(km.privateKey)
-	if err != nil {
-		return ""
-	}
-	return key.PublicKey().String()
+	return km.privateKey.PublicKey()
 }

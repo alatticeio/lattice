@@ -16,12 +16,15 @@ package transport
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"net"
 	"sync"
 	"time"
 	"wireflow/internal/grpc"
 	"wireflow/internal/infra"
 	"wireflow/internal/log"
+	"wireflow/pkg/utils"
 	"wireflow/pkg/wrrp"
 
 	"github.com/wireflowio/ice"
@@ -33,38 +36,43 @@ var (
 )
 
 type wrrpDialer struct {
-	mu        sync.Mutex
-	log       *log.Logger
-	localId   infra.PeerID
-	remoteId  infra.PeerID
-	wrrp      infra.Wrrp
-	readyChan chan struct{}
-	closeOnce sync.Once
-	cancel    context.CancelFunc
-	sender    func(ctx context.Context, peerId infra.PeerID, data []byte) error
-
-	sm *SessionManager
+	mu          sync.Mutex
+	log         *log.Logger
+	localId     infra.PeerID
+	remoteId    infra.PeerID
+	wrrp        infra.Wrrp
+	readyChan   chan struct{}
+	closeOnce   sync.Once
+	cancel      context.CancelFunc
+	sender      func(ctx context.Context, peerId infra.PeerID, data []byte) error
+	peerStore   *infra.PeerStore
+	peerManager *infra.PeerManager
+	sm          *SessionManager
 }
 
 type WrrpDialerConfig struct {
-	LocalId   infra.PeerID
-	RemoteId  infra.PeerID
-	Wrrp      infra.Wrrp
-	SM        *SessionManager
-	SessionId uint64
+	LocalId     infra.PeerID
+	RemoteId    infra.PeerID
+	Wrrp        infra.Wrrp
+	SM          *SessionManager
+	SessionId   uint64
+	PeerManager *infra.PeerManager
+	PeerStore   *infra.PeerStore
 
 	Sender func(ctx context.Context, peerId infra.PeerID, data []byte) error
 }
 
 func NewWrrpDialer(cfg *WrrpDialerConfig) (infra.Dialer, error) {
 	dialer := &wrrpDialer{
-		log:       log.GetLogger("wrrp-dialer"),
-		localId:   cfg.LocalId,
-		remoteId:  cfg.RemoteId,
-		wrrp:      cfg.Wrrp,
-		readyChan: make(chan struct{}),
-		sm:        cfg.SM,
-		sender:    cfg.Sender,
+		log:         log.GetLogger("wrrp-dialer"),
+		localId:     cfg.LocalId,
+		remoteId:    cfg.RemoteId,
+		wrrp:        cfg.Wrrp,
+		readyChan:   make(chan struct{}),
+		sm:          cfg.SM,
+		sender:      cfg.Sender,
+		peerStore:   cfg.PeerStore,
+		peerManager: cfg.PeerManager,
 	}
 
 	return dialer, nil
@@ -73,7 +81,7 @@ func NewWrrpDialer(cfg *WrrpDialerConfig) (infra.Dialer, error) {
 func (w *wrrpDialer) Prepare(ctx context.Context, remoteId infra.PeerID) error {
 	// only send syn when localId > remoteId
 	if w.localId.String() < remoteId.String() {
-		w.log.Info("localId < remoteId, ignore prepare")
+		w.log.Debug("localId < remoteId, ignore prepare")
 		return nil
 	}
 
@@ -87,15 +95,18 @@ func (w *wrrpDialer) Prepare(ctx context.Context, remoteId infra.PeerID) error {
 
 		// safe
 		w.mu.Lock()
+		if w.cancel != nil {
+			w.cancel()
+		}
 		w.cancel = cancel
 		w.mu.Unlock()
 		for {
 			select {
 			case <-ctx.Done():
-				w.log.Warn("send syn canceled", "err", ctx.Err())
+				w.log.Warn("send syn canceled", "err", ctx.Err(), "ctx", fmt.Sprintf("%p", ctx))
 				return
 			case <-ticker.C:
-				w.log.Info("send syn")
+				w.log.Debug("send syn", "ctx", fmt.Sprintf("%p", ctx))
 				err := w.sendPacket(ctx, remoteId, grpc.PacketType_HANDSHAKE_SYN, nil)
 				if err != nil {
 					w.log.Error("send syn failed", err)
@@ -119,7 +130,6 @@ func (w *wrrpDialer) sendPacket(ctx context.Context, remoteId infra.PeerID, pack
 		p.Payload = &grpc.SignalPacket_Handshake{
 			Handshake: &grpc.Handshake{
 				Timestamp: time.Now().Unix(),
-				Sid:       w.localId.ToUint64(),
 			},
 		}
 	}
@@ -129,28 +139,38 @@ func (w *wrrpDialer) sendPacket(ctx context.Context, remoteId infra.PeerID, pack
 		return err
 	}
 
-	w.log.Info("send packet", "localId", w.localId, "remoteId", remoteId, "packetType", packetType)
+	w.log.Debug("send packet", "localId", w.localId, "remoteId", remoteId, "packetType", packetType)
 	return w.sender(ctx, remoteId, data)
 }
 
-func (w *wrrpDialer) sendOfferFromWrrp(ctx context.Context) error {
+func (w *wrrpDialer) sendOfferFromWrrp(ctx context.Context, offerType grpc.PacketType) error {
+	currentKey, b := w.peerStore.GetKeyByID(w.localId)
+	if !b {
+		return fmt.Errorf("peer not found: %s", w.localId)
+	}
+
+	peer := w.peerManager.GetPeer(w.localId.ToUint64())
+	data, err := json.Marshal(peer)
+	if err != nil {
+		return err
+	}
 	p := &grpc.SignalPacket{
-		Type:     grpc.PacketType_OFFER,
+		Type:     offerType,
 		Dialer:   grpc.DialerType_WRRP,
 		SenderId: w.localId.ToUint64(),
 		Payload: &grpc.SignalPacket_Offer{
 			Offer: &grpc.Offer{
-				SrcPeerID: w.localId.String(),
-				// TODO add ufrag pwd
+				PublicKey: currentKey.String(),
+				Current:   data,
 			},
 		},
 	}
 
-	data, err := proto.Marshal(p)
+	offerData, err := proto.Marshal(p)
 	if err != nil {
 		return err
 	}
-	return w.wrrp.Send(ctx, w.remoteId.ToUint64(), wrrp.Probe, data)
+	return w.wrrp.Send(ctx, w.remoteId.ToUint64(), wrrp.Probe, offerData)
 }
 
 func (w *wrrpDialer) Handle(ctx context.Context, remoteId infra.PeerID, packet *grpc.SignalPacket) error {
@@ -162,15 +182,42 @@ func (w *wrrpDialer) Handle(ctx context.Context, remoteId infra.PeerID, packet *
 		return w.sendPacket(ctx, remoteId, grpc.PacketType_HANDSHAKE_ACK, nil)
 	case grpc.PacketType_HANDSHAKE_ACK:
 		w.cancel()
-		// send offer
-		w.closeOnce.Do(func() {
-			close(w.readyChan)
-		})
-		return w.sendOfferFromWrrp(ctx)
+		return w.sendOfferFromWrrp(ctx, grpc.PacketType_OFFER)
 	case grpc.PacketType_OFFER:
+		offer := packet.GetOffer()
+		var peer infra.Peer
+		if err := json.Unmarshal(offer.Current, &peer); err != nil {
+			return err
+		}
+
+		remoteKey, err := utils.ParseKey(offer.PublicKey)
+		if err != nil {
+			return err
+		}
+		w.peerStore.AddPeer(remoteKey)
+		w.peerManager.AddPeer(w.remoteId.ToUint64(), &peer)
 		w.closeOnce.Do(func() {
 			close(w.readyChan)
 		})
+
+		return w.sendOfferFromWrrp(ctx, grpc.PacketType_ANSWER)
+	case grpc.PacketType_ANSWER:
+		offer := packet.GetOffer()
+		var peer infra.Peer
+		if err := json.Unmarshal(offer.Current, &peer); err != nil {
+			return err
+		}
+
+		remoteKey, err := utils.ParseKey(offer.PublicKey)
+		if err != nil {
+			return err
+		}
+		w.peerStore.AddPeer(remoteKey)
+		w.peerManager.AddPeer(w.remoteId.ToUint64(), &peer)
+		w.closeOnce.Do(func() {
+			close(w.readyChan)
+		})
+		return nil
 	}
 	return nil
 }
@@ -198,7 +245,7 @@ func (w WrrpTransport) Priority() uint8 {
 }
 
 func (w WrrpTransport) Close() error {
-	return nil
+	return w.conn.Close()
 }
 
 func (w WrrpTransport) Write(data []byte) error {

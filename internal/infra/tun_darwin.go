@@ -87,7 +87,7 @@ func CreateTUN(mtu int, logger *log.Logger) (string, tun.Device, error) {
 	if err != nil {
 		return "", nil, err
 	}
-	logger.Info("create tun success", "name", name)
+	logger.Debug("create tun success", "name", name)
 	return name, tun, nil
 }
 

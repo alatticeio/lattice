@@ -72,6 +72,10 @@ func NewWrrpClient(localID infra.PeerID, url string) (*WRRPClient, error) {
 		go c.probeWorker()
 	}
 
+	if err := c.Connect(); err != nil {
+		return nil, err
+	}
+
 	return c, nil
 }
 

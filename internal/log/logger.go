@@ -58,23 +58,23 @@ type AutoErrHandler struct {
 }
 
 func (h *AutoErrHandler) Handle(ctx context.Context, r slog.Record) error {
-	// 检查参数中是否有直接传入的 error 类型
+	// 创建一个新的 Record 用于修改
+	newR := slog.NewRecord(r.Time, r.Level, r.Message, r.PC)
+
 	r.Attrs(func(a slog.Attr) bool {
-		// 如果发现某个 Value 是 error 类型，且它的 Key 为空（或者是我们约定的特殊占位符）
-		// 或者直接检测 Value 类型并修正其 Key
+		// 处理 bad key 的逻辑
 		if err, ok := a.Value.Any().(error); ok && (a.Key == "!BADKEY" || a.Key == "") {
-			a.Key = "err"
-			a.Value = slog.StringValue(err.Error())
+			newR.AddAttrs(slog.Any("err", err.Error()))
+		} else {
+			newR.AddAttrs(a)
 		}
 		return true
 	})
-
-	return h.Handler.Handle(ctx, r)
+	return h.Handler.Handle(ctx, newR)
 }
 
 func getHandler() slog.Handler {
 	once.Do(func() {
-		level.Set(slog.LevelInfo)
 		// 所有的 Logger 共享这一个 Handler 实例
 		rootHandler = tint.NewHandler(os.Stdout, &tint.Options{
 			AddSource:  true,

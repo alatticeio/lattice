@@ -16,6 +16,7 @@ package cmd
 
 import (
 	"fmt"
+	"os"
 	"wireflow/agent"
 	"wireflow/internal/config"
 	"wireflow/pkg/utils"
@@ -36,14 +37,18 @@ func upCmd() *cobra.Command {
 				fmt.Println("未检测到 AppId，正在生成...")
 
 				// create appId
-				newId := utils.GenerateAppId() // 你的生成逻辑
+				hostName, err := os.Hostname()
+				if err != nil {
+					return err
+				}
+				newId := utils.StringFormatter(hostName)
 
 				// set appId
 				cfgManager.Viper().Set("app-id", newId) // 注入 Viper，确保 WriteConfig 时能写进文件
 				config.Conf.AppId = newId               // 同步到内存结构体，方便本次运行后续逻辑使用
 
 				// save appId
-				err := cfgManager.Viper().WriteConfig()
+				err = cfgManager.Viper().WriteConfig()
 				if err != nil {
 					fmt.Printf("cann't save appId: %v\n", err)
 					return err

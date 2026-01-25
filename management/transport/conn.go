@@ -31,8 +31,7 @@ func (conn *WrrpRawConn) Write(b []byte) (n int, err error) {
 }
 
 func (conn *WrrpRawConn) Close() error {
-	//TODO implement me
-	panic("implement me")
+	return nil
 }
 
 func (conn *WrrpRawConn) LocalAddr() net.Addr {

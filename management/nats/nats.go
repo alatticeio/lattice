@@ -69,7 +69,7 @@ func NewNatsService(ctx context.Context, url string) (*NatsSignalService, error)
 	_, err = js.Stream(ctx, streamName)
 	if err != nil {
 		if err == jetstream.ErrStreamNotFound {
-			s.log.Info("Stream not found, creating", "stream", streamName)
+			s.log.Debug("Stream not found, creating", "stream", streamName)
 
 			// 创建 Stream 的配置
 			_, err = js.CreateStream(ctx, jetstream.StreamConfig{

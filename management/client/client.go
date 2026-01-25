@@ -25,6 +25,7 @@ import (
 	"wireflow/internal/log"
 	"wireflow/management/dto"
 	"wireflow/management/transport"
+	"wireflow/pkg/utils"
 )
 
 var (
@@ -83,7 +84,7 @@ func (c *Client) GetNetMap(token string) (*infra.Message, error) {
 	}
 	request := &dto.PeerDto{
 		AppID:     config.Conf.AppId,
-		PublicKey: c.keyManager.GetPublicKey(),
+		PublicKey: c.keyManager.GetPublicKey().String(),
 		Token:     token,
 	}
 
@@ -163,16 +164,22 @@ func (c *Client) AddPeer(p *infra.Peer) error {
 	)
 
 	//remoteId := p.PublicKey
-
+	//
 	//onClose := func(remoteId string) error {
 	//	c.probeFactory.Remove(remoteId)
 	//	c.logger.Info("remote prober for peer", "peerId", remoteId)
 	//	return nil
 	//}
 
-	probe, err = c.probeFactory.Get(p.PeerID)
+	key, err := utils.ParseKey(p.PublicKey)
 	if err != nil {
 		return err
 	}
-	return probe.Start(context.Background(), p.PeerID)
+	peerId := infra.FromKey(key)
+
+	probe, err = c.probeFactory.Get(peerId)
+	if err != nil {
+		return err
+	}
+	return probe.Start(context.Background(), peerId)
 }

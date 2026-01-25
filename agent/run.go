@@ -31,6 +31,7 @@ import (
 	"wireflow/monitor"
 	"wireflow/monitor/collector"
 
+	wg "golang.zx2c4.com/wireguard/device"
 	"golang.zx2c4.com/wireguard/ipc"
 	"golang.zx2c4.com/wireguard/wgctrl"
 )
@@ -43,6 +44,8 @@ func Start(ctx context.Context, flags *config.Flags) error {
 		err     error
 	)
 
+	log.SetLevel(flags.Level)
+
 	logger := log.GetLogger("wireflow")
 
 	agentCfg := &AgentConfig{
@@ -51,6 +54,11 @@ func Start(ctx context.Context, flags *config.Flags) error {
 		InterfaceName: flags.InterfaceName,
 		Token:         flags.Token,
 		ShowLog:       flags.EnableSysLog,
+		WgLogger: wg.NewLogger(
+			wg.LogLevelError,
+			fmt.Sprintf("(%s) ", flags.InterfaceName),
+		),
+		Flags: flags,
 	}
 
 	//// set appId

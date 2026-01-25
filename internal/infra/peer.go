@@ -24,28 +24,28 @@ import (
 
 type PeerManager struct {
 	mu    sync.RWMutex
-	peers map[string]*Peer
+	peers map[uint64]*Peer
 }
 
 func NewPeerManager() *PeerManager {
 	return &PeerManager{
-		peers: make(map[string]*Peer),
+		peers: make(map[uint64]*Peer),
 	}
 }
 
-func (p *PeerManager) AddPeer(peerId string, peer *Peer) {
+func (p *PeerManager) AddPeer(peerId uint64, peer *Peer) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.peers[peerId] = peer
 }
 
-func (p *PeerManager) RemovePeer(peerId string) {
+func (p *PeerManager) RemovePeer(peerId uint64) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	delete(p.peers, peerId)
 }
 
-func (p *PeerManager) GetPeer(peerId string) *Peer {
+func (p *PeerManager) GetPeer(peerId uint64) *Peer {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 	return p.peers[peerId]

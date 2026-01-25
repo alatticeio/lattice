@@ -17,6 +17,7 @@ package transport
 import (
 	"context"
 	"sync"
+	"sync/atomic"
 	"time"
 	"wireflow/internal/grpc"
 	"wireflow/internal/infra"
@@ -31,22 +32,20 @@ var (
 
 // Probe for probe connection from two peerManager.
 type Probe struct {
-	mu              sync.RWMutex
-	localId         infra.PeerID
-	remoteId        infra.PeerID
-	iceDialer       infra.Dialer
-	state           ice.ConnectionState
-	signal          infra.SignalService
-	ctx             context.Context
-	cancel          context.CancelFunc
-	closeAckOnce    sync.Once
-	closeOnce       sync.Once
-	answerChan      chan struct{}
-	remoteOfferChan chan struct{}
-	log             *log.Logger
-	lastSeen        time.Time
-	rtt             time.Duration
-	handShackAck    chan struct{}
+	mu           sync.RWMutex
+	localId      infra.PeerID
+	remoteId     infra.PeerID
+	iceDialer    infra.Dialer
+	state        ice.ConnectionState
+	signal       infra.SignalService
+	ctx          context.Context
+	cancel       context.CancelFunc
+	log          *log.Logger
+	lastSeen     time.Time
+	rtt          time.Duration
+	handShackAck chan struct{}
+
+	started atomic.Bool
 
 	// Add wrrp
 	wrrpDialer infra.Dialer
@@ -69,7 +68,7 @@ func (p *Probe) Handle(ctx context.Context, remoteId infra.PeerID, packet *grpc.
 
 func (p *Probe) OnConnectionStateChange(state ice.ConnectionState) {
 	p.updateState(state)
-	p.log.Info("Setting new connection status", "state", state)
+	p.log.Debug("Setting new connection status", "state", state)
 }
 
 func (p *Probe) probeWrrpPacket(ctx context.Context, remoteId string, packetType grpc.PacketType) error {
@@ -96,15 +95,26 @@ func (p *Probe) probeWrrpPacket(ctx context.Context, remoteId string, packetType
 }
 
 func (p *Probe) Start(ctx context.Context, remoteId infra.PeerID) error {
-	p.log.Info("Start probe peer", "localId", p.localId, "remoteId", remoteId)
-
-	t, err := p.discover(ctx)
-	if err != nil {
-		p.updateState(ice.ConnectionStateFailed)
-		return err
+	if p.started.Load() {
+		p.log.Warn("Probe already started")
+		return nil
 	}
 
-	p.onSuccess(t)
+	p.started.Store(true)
+	p.log.Debug("Start probe peer", "localId", p.localId, "remoteId", remoteId)
+
+	go func() {
+		t, err := p.discover(ctx)
+		if err != nil {
+			p.updateState(ice.ConnectionStateFailed)
+			p.log.Error("Discover transport failed", err)
+			p.onFailure(err)
+			return
+		}
+
+		p.currentTransport = t
+		p.onSuccess(t)
+	}()
 
 	return nil
 }
@@ -125,7 +135,7 @@ func (p *Probe) discover(ctx context.Context) (infra.Transport, error) {
 	errs := make(chan error, 2)
 
 	go func() {
-		p.log.Info("Starting ice dialer", "remoteId", p.remoteId)
+		p.log.Debug("Starting ice dialer", "remoteId", p.remoteId)
 		if err := p.iceDialer.Prepare(ctx, p.remoteId); err != nil {
 			errs <- err
 			return
@@ -145,7 +155,7 @@ func (p *Probe) discover(ctx context.Context) (infra.Transport, error) {
 
 	// 2. 启动 WRRP 连接 (保底，通常秒通)
 	go func() {
-		p.log.Info("Starting wrrp dialer", "remoteId", p.remoteId)
+		p.log.Debug("Starting wrrp dialer", "remoteId", p.remoteId)
 		err := p.wrrpDialer.Prepare(ctx, p.remoteId)
 		if err != nil {
 			errs <- err
@@ -182,13 +192,9 @@ func (p *Probe) discover(ctx context.Context) (infra.Transport, error) {
 }
 
 func (p *Probe) handleUpgradeTransport(newTransport infra.Transport) error {
-	p.log.Info("Upgrade transport....", "newTransport", newTransport)
+	p.log.Debug("Upgrade transport....", "newTransport", newTransport)
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	if p.currentTransport == nil {
-		p.currentTransport = newTransport
-		return nil
-	}
 
 	// 权重比较：直连优于中转
 	if newTransport.Priority() > p.currentTransport.Priority() {
@@ -202,5 +208,6 @@ func (p *Probe) handleUpgradeTransport(newTransport infra.Transport) error {
 		}()
 	}
 
-	return nil
+	// reset endpoint
+	return p.onSuccess(p.currentTransport)
 }

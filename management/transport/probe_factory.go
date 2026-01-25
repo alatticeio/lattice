@@ -16,6 +16,7 @@ package transport
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"wireflow/internal/grpc"
 	"wireflow/internal/infra"
@@ -33,21 +34,28 @@ type ProbeFactory struct {
 	wrrpMu     sync.RWMutex
 	wrrpProbes map[string]*Probe
 
-	signal infra.SignalService
+	signal      infra.SignalService
+	provisioner infra.Provisioner
 
 	log *log.Logger
 
 	onMessage   func(context.Context, *infra.Message) error
 	peerManager *infra.PeerManager
 	wrrp        infra.Wrrp
+	peerStore   *infra.PeerStore
+
+	UniversalUdpMuxDefault *ice.UniversalUDPMuxDefault
 }
 
 type ProbeFactoryConfig struct {
-	LocalId     infra.PeerID
-	Signal      infra.SignalService
-	OnMessage   func(context.Context, *infra.Message)
-	PeerManager *infra.PeerManager
-	Wrrp        infra.Wrrp
+	LocalId                infra.PeerID
+	Signal                 infra.SignalService
+	OnMessage              func(context.Context, *infra.Message)
+	PeerManager            *infra.PeerManager
+	PeerStore              *infra.PeerStore
+	Wrrp                   infra.Wrrp
+	UniversalUdpMuxDefault *ice.UniversalUDPMuxDefault
+	Provisioner            infra.Provisioner
 }
 
 type ProbeFactoryOptions func(*ProbeFactory)
@@ -55,6 +63,18 @@ type ProbeFactoryOptions func(*ProbeFactory)
 func WithOnMessage(onMessage func(context.Context, *infra.Message) error) ProbeFactoryOptions {
 	return func(p *ProbeFactory) {
 		p.onMessage = onMessage
+	}
+}
+
+func WithProvisioner(provisioner infra.Provisioner) ProbeFactoryOptions {
+	return func(p *ProbeFactory) {
+		p.provisioner = provisioner
+	}
+}
+
+func WithWrrp(wrrp infra.Wrrp) ProbeFactoryOptions {
+	return func(p *ProbeFactory) {
+		p.wrrp = wrrp
 	}
 }
 
@@ -66,12 +86,14 @@ func (t *ProbeFactory) Configure(opts ...ProbeFactoryOptions) {
 
 func NewProbeFactory(cfg *ProbeFactoryConfig) *ProbeFactory {
 	return &ProbeFactory{
-		log:         log.GetLogger("probe-factory"),
-		localId:     cfg.LocalId,
-		signal:      cfg.Signal,
-		probes:      make(map[uint64]*Probe),
-		peerManager: cfg.PeerManager,
-		wrrp:        cfg.Wrrp,
+		log:                    log.GetLogger("probe-factory"),
+		localId:                cfg.LocalId,
+		signal:                 cfg.Signal,
+		probes:                 make(map[uint64]*Probe),
+		peerManager:            cfg.PeerManager,
+		wrrp:                   cfg.Wrrp,
+		peerStore:              cfg.PeerStore,
+		UniversalUdpMuxDefault: cfg.UniversalUdpMuxDefault,
 	}
 }
 
@@ -101,30 +123,45 @@ func (f *ProbeFactory) Remove(remoteId uint64) {
 
 func (p *ProbeFactory) NewProbe(remoteId infra.PeerID) (*Probe, error) {
 	wrrpDialer, err := NewWrrpDialer(&WrrpDialerConfig{
-		LocalId:  p.localId,
-		RemoteId: remoteId,
-		Wrrp:     p.wrrp,
-		Sender:   p.signal.Send,
+		LocalId:     p.localId,
+		RemoteId:    remoteId,
+		Wrrp:        p.wrrp,
+		Sender:      p.signal.Send,
+		PeerStore:   p.peerStore,
+		PeerManager: p.peerManager,
 	})
 	if err != nil {
 		return nil, err
 	}
+
+	remoteKey, b := p.peerStore.GetKeyByID(remoteId)
+	if !b {
+		return nil, fmt.Errorf("peer not found: %s", remoteId)
+	}
+
+	peer := p.peerManager.GetPeer(remoteId.ToUint64())
 	probe := &Probe{
-		log:             p.log,
-		localId:         p.localId,
-		remoteId:        remoteId,
-		signal:          p.signal,
-		remoteOfferChan: make(chan struct{}),
-		state:           ice.ConnectionStateNew,
+		log:      p.log,
+		localId:  p.localId,
+		remoteId: remoteId,
+		signal:   p.signal,
+		state:    ice.ConnectionStateNew,
 		onSuccess: func(transport infra.Transport) error {
 			p.log.Info("connection established", "transportTypoe", transport.Type(), "remoteAddr", transport.RemoteAddr())
-			return nil
+			return p.provisioner.AddPeer(&infra.SetPeer{
+				Endpoint:             transport.RemoteAddr(),
+				PublicKey:            remoteKey.String(),
+				PersistentKeepalived: infra.PersistentKeepalive,
+				AllowedIPs:           peer.AllowedIPs,
+			})
 		},
 		iceDialer: NewIceDialer(&ICEDialerConfig{
-			LocalId:     p.localId,
-			RemoteId:    remoteId,
-			Sender:      p.signal.Send,
-			PeerManager: p.peerManager,
+			LocalId:                p.localId,
+			RemoteId:               remoteId,
+			Sender:                 p.signal.Send,
+			PeerManager:            p.peerManager,
+			PeerStore:              p.peerStore,
+			UniversalUdpMuxDefault: p.UniversalUdpMuxDefault,
 		}),
 		wrrpDialer: wrrpDialer,
 	}

@@ -163,8 +163,7 @@ func (c *Client) pushToNode(ctx context.Context, peerId infra.PeerID, msg *infra
 	}
 
 	packet := &grpc.SignalPacket{
-		// TODO
-		SenderId: 0,
+		SenderId: peerId.ToUint64(),
 		Type:     grpc.PacketType_MESSAGE,
 		Payload: &grpc.SignalPacket_Message{
 			Message: &grpc.Message{

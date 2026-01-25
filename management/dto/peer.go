@@ -32,6 +32,7 @@ type PeerDto struct {
 	Endpoint            string    `json:"endpoint,omitempty"`
 	PersistentKeepalive int       `json:"persistentKeepalive,omitempty"`
 	PublicKey           string    `json:"publicKey,omitempty"`
+	PeerID              uint64    `json:"peerId,omitempty"`
 	AllowedIPs          string    `json:"allowedIps,omitempty"`
 	RelayIP             string    `json:"relayIp,omitempty"`
 	TieBreaker          uint32    `json:"tieBreaker"`

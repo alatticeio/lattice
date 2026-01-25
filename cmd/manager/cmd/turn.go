@@ -25,14 +25,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-type turnOptions struct {
-	PublicIP string
-	Port     int
-	LogLevel string
-}
-
 func newTurnCmd() *cobra.Command {
-	var opts turnOptions
 	var cmd = &cobra.Command{
 		Use:          "turn",
 		SilenceUsage: true,
@@ -43,7 +36,7 @@ func newTurnCmd() *cobra.Command {
 		},
 
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runTurn(opts)
+			return runTurn()
 		},
 	}
 	fs := cmd.Flags()
@@ -53,7 +46,7 @@ func newTurnCmd() *cobra.Command {
 	return cmd
 }
 
-func runTurn(opts turnOptions) error {
+func runTurn() error {
 	signalService, err := nats.NewNatsService(context.Background(), config.Conf.SignalingURL)
 	if err != nil {
 		return err
@@ -67,7 +60,7 @@ func runTurn(opts turnOptions) error {
 	return turn.Start(&turn.TurnServerConfig{
 		Logger:   log.GetLogger("turnserver"),
 		PublicIP: config.Conf.PublicIP,
-		Port:     opts.Port,
+		Port:     config.Conf.Port,
 		Client:   client,
 	})
 }

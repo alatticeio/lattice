@@ -53,9 +53,9 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: wireflow-turn
+  name: turn
   labels:
-    k8s-app: wireflow-turn
+    k8s-app: turn
 spec:
   replicas: 1
   selector:

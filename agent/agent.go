@@ -20,7 +20,6 @@ package agent
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net"
 	"strings"
@@ -31,10 +30,12 @@ import (
 	ctrclient "wireflow/management/client"
 	"wireflow/management/nats"
 	"wireflow/management/transport"
+	"wireflow/pkg/utils"
 	"wireflow/wrrper"
 
 	wg "golang.zx2c4.com/wireguard/device"
 	"golang.zx2c4.com/wireguard/tun"
+	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 )
 
 var (
@@ -58,10 +59,12 @@ type Agent struct {
 		peerManager *infra.PeerManager
 	}
 
+	peerStore *infra.PeerStore
+
 	current *infra.Peer
 
-	callback     func(message *infra.Message) error
-	eventHandler Handler
+	callback       func(message *infra.Message) error
+	messageHandler Handler
 
 	DeviceManager *DeviceManager
 }
@@ -81,11 +84,13 @@ type AgentConfig struct {
 // NewAgent create a new Agent instance.
 func NewAgent(ctx context.Context, cfg *AgentConfig) (*Agent, error) {
 	var (
-		iface  tun.Device
-		err    error
-		agent  *Agent
-		v4conn *net.UDPConn
-		v6conn *net.UDPConn
+		iface      tun.Device
+		err        error
+		agent      *Agent
+		v4conn     *net.UDPConn
+		v6conn     *net.UDPConn
+		wrrp       *wrrper.WRRPClient
+		privateKey wgtypes.Key
 	)
 	agent = new(Agent)
 	agent.manager.peerManager = infra.NewPeerManager()
@@ -116,19 +121,31 @@ func NewAgent(ctx context.Context, cfg *AgentConfig) (*Agent, error) {
 		return nil, err
 	}
 
-	var privateKey string
 	agent.current, err = agent.ctrClient.Register(ctx, cfg.Token, agent.Name)
 	if err != nil {
 		return nil, err
 	}
 
-	privateKey = agent.current.PrivateKey
+	privateKey, err = utils.ParseKey(agent.current.PrivateKey)
+	if err != nil {
+		return nil, err
+	}
 	agent.manager.keyManager = infra.NewKeyManager(privateKey)
 
-	localId := agent.manager.keyManager.GetPublicKey()
+	localId := infra.FromKey(agent.manager.keyManager.GetPublicKey())
+
+	// add self to peerManager
+	agent.manager.peerManager.AddPeer(localId.ToUint64(), agent.current)
+	agent.peerStore = infra.NewPeerStore()
+	agent.peerStore.AddPeer(privateKey.PublicKey())
+
 	probeFactory := transport.NewProbeFactory(&transport.ProbeFactoryConfig{
-		LocalId: localId,
-		Signal:  natsSignalService,
+		LocalId:                localId,
+		Signal:                 natsSignalService,
+		PeerManager:            agent.manager.peerManager,
+		PeerStore:              agent.peerStore,
+		UniversalUdpMuxDefault: universalUdpMuxDefault,
+		Provisioner:            agent.provisioner,
 	})
 
 	//subscribe
@@ -146,13 +163,13 @@ func NewAgent(ctx context.Context, cfg *AgentConfig) (*Agent, error) {
 		wrrpUrl = agent.current.WrrpUrl
 	}
 
-	var wrrp infra.Wrrp
 	if wrrpUrl != "" {
-		sessionId, err := infra.IDFromPublicKey(agent.current.PublicKey)
+		wrrp, err = wrrper.NewWrrpClient(localId, wrrpUrl)
 		if err != nil {
 			return nil, err
 		}
-		wrrp = wrrper.NewWrrpClient(sessionId, wrrpUrl)
+
+		wrrp.Configure(wrrper.WithOnMessage(probeFactory.Handle))
 	}
 
 	agent.bind = infra.NewBind(&infra.BindConfig{
@@ -172,8 +189,8 @@ func NewAgent(ctx context.Context, cfg *AgentConfig) (*Agent, error) {
 			IfaceName: agent.Name,
 		})
 	// init event handler
-	agent.eventHandler = NewMessageHandler(agent, log.GetLogger("event-handler"), agent.provisioner)
-	probeFactory.Configure(transport.WithOnMessage(agent.eventHandler.HandleEvent))
+	agent.messageHandler = NewMessageHandler(agent, log.GetLogger("event-handler"), agent.provisioner)
+	probeFactory.Configure(transport.WithOnMessage(agent.messageHandler.HandleEvent), transport.WithWrrp(wrrp), transport.WithProvisioner(agent.provisioner))
 
 	agent.DeviceManager = NewDeviceManager(log.GetLogger("device-manager"), agent.iface)
 	return agent, err
@@ -193,12 +210,10 @@ func (c *Agent) Start(ctx context.Context) error {
 		}
 	}
 
-	if c.manager.keyManager.GetKey() != "" {
-		if err := c.provisioner.SetupInterface(&infra.DeviceConfig{
-			PrivateKey: c.current.PrivateKey,
-		}); err != nil {
-			return err
-		}
+	if err := c.provisioner.SetupInterface(&infra.DeviceConfig{
+		PrivateKey: c.current.PrivateKey,
+	}); err != nil {
+		return err
 	}
 
 	// get network map
@@ -207,7 +222,7 @@ func (c *Agent) Start(ctx context.Context) error {
 		return err
 	}
 
-	c.eventHandler.ApplyFullConfig(ctx, remoteCfg)
+	c.messageHandler.ApplyFullConfig(ctx, remoteCfg)
 
 	return nil
 }
@@ -239,25 +254,31 @@ func (c *Agent) close() {
 }
 
 func (c *Agent) AddPeer(peer *infra.Peer) error {
-	c.manager.peerManager.AddPeer(peer.PublicKey, peer)
+	publicKey, err := utils.ParseKey(peer.PublicKey)
+	if err != nil {
+		return err
+	}
+	remoteId := infra.FromKey(publicKey)
+	c.manager.peerManager.AddPeer(remoteId.ToUint64(), peer)
+	c.peerStore.AddPeer(publicKey)
 	if peer.PublicKey == c.current.PublicKey {
 		return nil
 	}
 	return c.ctrClient.AddPeer(peer)
 }
 
-func (c *Agent) Configure(peerId string) error {
-	//conf *infra.DeviceConfig
-	peer := c.manager.peerManager.GetPeer(peerId)
-	if peer == nil {
-		return errors.New("peer not found")
-	}
-
-	conf := &infra.DeviceConfig{
-		PrivateKey: peer.PrivateKey,
-	}
-	return c.provisioner.SetupInterface(conf)
-}
+//func (c *Agent) Configure(peerId string) error {
+//	//conf *infra.DeviceConfig
+//	peer := c.manager.peerManager.GetPeer(peerId.ToUint64())
+//	if peer == nil {
+//		return errors.New("peer not found")
+//	}
+//
+//	conf := &infra.DeviceConfig{
+//		PrivateKey: peer.PrivateKey,
+//	}
+//	return c.provisioner.SetupInterface(conf)
+//}
 
 func (c *Agent) RemovePeer(peer *infra.Peer) error {
 	return c.provisioner.RemovePeer(&infra.SetPeer{

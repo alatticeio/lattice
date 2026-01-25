@@ -19,7 +19,6 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
-
 	"wireflow/internal/log"
 
 	wg "golang.zx2c4.com/wireguard/device"
@@ -58,6 +57,10 @@ type RouteProvisioner interface {
 type RuleProvisioner interface {
 	ApplyRule(action, rule string) error
 }
+
+const (
+	PersistentKeepalive int = 25
+)
 
 type SetPeer struct {
 	PrivateKey           string

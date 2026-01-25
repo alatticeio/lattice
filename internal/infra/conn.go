@@ -90,6 +90,7 @@ func NewBind(cfg *BindConfig) *DefaultBind {
 		v6conn:          cfg.V6Conn,
 		universalUdpMux: cfg.UniversalUDPMux,
 		keyManager:      cfg.KeyManager,
+		wrrperClient:    cfg.WrrpClient,
 		udpAddrPool: sync.Pool{
 			New: func() any {
 				return &net.UDPAddr{
@@ -131,71 +132,18 @@ func (b *DefaultBind) GetPackectConn6() net.PacketConn {
 	return b.ipv6
 }
 
-// ParseEndpoint there is throw kind of endpoint now, direct、drp and relay endpoint
-// when it is direct, s can be parse to netip.AddrPort like 'xx.xx.xx.xx:port'
-// when it is drp, s like 'drp:to=xxx//xx.xx.xx.xx:port'
-// when it is relay, like 'relay://xx.xx.xx.xx:port'
 func (b *DefaultBind) ParseEndpoint(s string) (conn.Endpoint, error) {
-	if strings.HasPrefix(s, "drp:") {
-		prefix, after, isExists := strings.Cut(s, "//")
-		if !isExists {
-			return nil, errors.New("invalid drp endpoint format, missing '//'")
+	if strings.HasPrefix(s, "wrrp:") {
+		_, after, b := strings.Cut(s, "wrrp://")
+		if !b {
+			return nil, errors.New("invalid endpoint")
 		}
-
-		e, err := netip.ParseAddrPort(after)
+		remoteId, err := strconv.ParseUint(after, 10, 64)
 		if err != nil {
 			return nil, err
 		}
-
-		// get To
-		_, to, isExists := strings.Cut(prefix, "=")
-		if !isExists {
-			return nil, errors.New("invalid drp endpoint format, missing 'to='")
-		}
-		return &MagicEndpoint{
-			Relay: &struct {
-				FromType EndpointType
-				Status   bool
-				From     string
-				To       string
-				Endpoint netip.AddrPort
-			}{FromType: DRP, Status: true, From: b.keyManager.GetPublicKey(), To: to, Endpoint: e},
-		}, nil
-	} else if strings.HasPrefix(s, "relay:") {
-		// relay endpoint
-		var (
-			isExists bool
-			prefix   string
-			after    string
-		)
-		pos := strings.LastIndex(s, "//")
-		if pos == -1 {
-			isExists = false
-		} else {
-			isExists = true
-			prefix = s[:pos]
-			after = s[pos+2:]
-		}
-		if !isExists {
-			return nil, errors.New("invalid drp endpoint format, missing '//'")
-		}
-
-		e, err := netip.ParseAddrPort(after)
-		if err != nil {
-			return nil, err
-		}
-		_, to, isExists := strings.Cut(prefix, "=")
-		if !isExists {
-			return nil, errors.New("invalid drp endpoint format, missing 'to='")
-		}
-		return &MagicEndpoint{
-			Relay: &struct {
-				FromType EndpointType
-				Status   bool
-				From     string
-				To       string
-				Endpoint netip.AddrPort
-			}{FromType: Relay, Status: true, From: b.keyManager.GetPublicKey(), To: to, Endpoint: e},
+		return &WRRPEndpoint{
+			RemoteId: remoteId,
 		}, nil
 	}
 	e, err := netip.ParseAddrPort(s)
@@ -411,7 +359,9 @@ func (b *DefaultBind) Close() error {
 func (b *DefaultBind) Send(bufs [][]byte, endpoint conn.Endpoint) error {
 	// add drp write
 	if e, ok := endpoint.(*WRRPEndpoint); ok {
-		return b.wrrperClient.Send(context.Background(), e.RemoteId, wrrp.Forward, bufs[0])
+		for _, buf := range bufs {
+			b.wrrperClient.Send(context.Background(), e.RemoteId, wrrp.Forward, buf)
+		}
 	}
 
 	b.mu.Lock()

@@ -25,7 +25,8 @@ message SignalPacket {
   oneof payload {
     Handshake handshake = 4;
     Offer offer = 5;
-    Message message = 6;
+    Offer answer = 6;
+    Message message = 7;
   }
 }
 
@@ -36,7 +37,8 @@ message Offer {
   string candidate = 4;
   string vip = 5;
   bytes current = 6;
-  string srcPeerID = 7 ;
+
+  string publicKey = 7;
 }
 
 
@@ -47,5 +49,4 @@ message Message {
 
 message Handshake {
   int64 timestamp = 1;
-  uint64 sid = 2;
 }
