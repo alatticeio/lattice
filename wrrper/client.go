@@ -213,11 +213,13 @@ func (c *WRRPClient) ReceiveFunc() conn.ReceiveFunc {
 				return 0, err
 			}
 
+			sizes[0] = int(header.PayloadLen)
+
 			eps[0] = &infra.WRRPEndpoint{
 				RemoteId: header.FromID,
 			}
 
-			return int(header.PayloadLen), nil
+			return 1, nil
 		default:
 			// must discard unknown command
 			payloadLen := int64(header.PayloadLen)

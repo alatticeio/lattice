@@ -128,6 +128,7 @@ type Flags struct {
 	SecureMetrics        bool   `mapstructure:"metrics-secure,omitempty"`
 	EnableHTTP2          bool   `mapstructure:"enable-http2,omitempty"`
 
+	EnableWrrp   bool `mapstructure:"enable-wrrp,omitempty"`
 	EnableTLS    bool `mapstructure:"enable-tls,omitempty"`
 	EnableMetric bool `mapstructure:"enable-metric,omitempty"`
 	EnableDNS    bool `mapstructure:"enable-dns,omitempty"`

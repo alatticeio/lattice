@@ -19,12 +19,12 @@ package infra
 
 // getSrcFromControl parses the control for PKTINFO and if found updates ep with
 // the source information found.
-func getSrcFromControl(control []byte, wep *MagicEndpoint) {
+func getSrcFromControl(control []byte, wep *WRRPEndpoint) {
 }
 
 // setSrcControl parses the control for PKTINFO and if found updates ep with
 // the source information found.
-func setSrcControl(control *[]byte, ep *MagicEndpoint) {
+func setSrcControl(control *[]byte, ep *WRRPEndpoint) {
 }
 
 // srcControlSize returns the recommended buffer size for pooling sticky control
