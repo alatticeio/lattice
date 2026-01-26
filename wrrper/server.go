@@ -190,7 +190,6 @@ func (s *Server) handleWRRPSession(conn net.Conn, bufrw *bufio.ReadWriter) {
 			continue
 
 		case wrrp.Forward, wrrp.Probe:
-			s.log.Info("[WRRP] Receive Forward", "fromId", fromId, "toId", h.ToID, "payloadLen", h.PayloadLen)
 			// 处理转发逻辑
 			targetID := h.ToID
 
@@ -215,7 +214,7 @@ func (s *Server) handleWRRPSession(conn net.Conn, bufrw *bufio.ReadWriter) {
 				}
 			}
 
-			s.log.Info("[WRRP] Receive Forward success", "fromId", fromId, "toId", targetID)
+			s.log.Debug("[WRRP] Forward successfully", "fromId", fromId, "toId", targetID, "payloadLen", h.PayloadLen)
 		}
 	}
 }

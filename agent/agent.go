@@ -158,18 +158,20 @@ func NewAgent(ctx context.Context, cfg *AgentConfig) (*Agent, error) {
 		ctrclient.WithKeyManager(agent.manager.keyManager),
 		ctrclient.WithProbeFactory(probeFactory))
 
-	wrrpUrl := cfg.Flags.WrrperURL
-	if wrrpUrl == "" {
-		wrrpUrl = agent.current.WrrpUrl
-	}
-
-	if wrrpUrl != "" {
-		wrrp, err = wrrper.NewWrrpClient(localId, wrrpUrl)
-		if err != nil {
-			return nil, err
+	if cfg.Flags.EnableWrrp {
+		wrrpUrl := cfg.Flags.WrrperURL
+		if wrrpUrl == "" {
+			wrrpUrl = agent.current.WrrpUrl
 		}
 
-		wrrp.Configure(wrrper.WithOnMessage(probeFactory.Handle))
+		if wrrpUrl != "" {
+			wrrp, err = wrrper.NewWrrpClient(localId, wrrpUrl)
+			if err != nil {
+				return nil, err
+			}
+
+			wrrp.Configure(wrrper.WithOnMessage(probeFactory.Handle))
+		}
 	}
 
 	agent.bind = infra.NewBind(&infra.BindConfig{

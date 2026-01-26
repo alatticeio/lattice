@@ -19,6 +19,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+	"wireflow/internal/config"
 	"wireflow/internal/grpc"
 	"wireflow/internal/infra"
 	"wireflow/internal/log"
@@ -153,22 +154,24 @@ func (p *Probe) discover(ctx context.Context) (infra.Transport, error) {
 		}
 	}()
 
-	// 2. 启动 WRRP 连接 (保底，通常秒通)
-	go func() {
-		p.log.Debug("Starting wrrp dialer", "remoteId", p.remoteId)
-		err := p.wrrpDialer.Prepare(ctx, p.remoteId)
-		if err != nil {
-			errs <- err
-			return
-		}
-		// 内部包含：向中转服务器注册 -> 建立隧道
-		t, err := p.wrrpDialer.Dial(ctx)
-		if err != nil {
-			errs <- err
-			return
-		}
-		result <- t
-	}()
+	// do not enable default
+	if config.Conf.EnableWrrp {
+		go func() {
+			p.log.Debug("Starting wrrp dialer", "remoteId", p.remoteId)
+			err := p.wrrpDialer.Prepare(ctx, p.remoteId)
+			if err != nil {
+				errs <- err
+				return
+			}
+			// 内部包含：向中转服务器注册 -> 建立隧道
+			t, err := p.wrrpDialer.Dial(ctx)
+			if err != nil {
+				errs <- err
+				return
+			}
+			result <- t
+		}()
+	}
 
 	// 3. 竞速决策逻辑
 	var best infra.Transport

@@ -17,6 +17,7 @@ package infra
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net"
 	"net/netip"
 	"runtime"
@@ -24,6 +25,7 @@ import (
 	"strings"
 	"sync"
 	"syscall"
+	"wireflow/internal/config"
 	"wireflow/internal/log"
 	"wireflow/pkg/wrrp"
 
@@ -142,7 +144,12 @@ func (b *DefaultBind) ParseEndpoint(s string) (conn.Endpoint, error) {
 		if err != nil {
 			return nil, err
 		}
+		e, err := netip.ParseAddrPort(config.Conf.WrrperURL)
+		if err != nil {
+			return nil, err
+		}
 		return &WRRPEndpoint{
+			Addr:          e,
 			RemoteId:      remoteId,
 			TransportType: WRRP,
 		}, nil
@@ -224,7 +231,9 @@ func (b *DefaultBind) Open(uport uint16) ([]conn.ReceiveFunc, uint16, error) {
 	}
 
 	// add wireflow wrrp
-	fns = append(fns, b.wrrperClient.ReceiveFunc())
+	if config.Conf.EnableWrrp {
+		fns = append(fns, b.wrrperClient.ReceiveFunc())
+	}
 
 	return fns, uint16(port), nil
 }
@@ -363,7 +372,13 @@ func (b *DefaultBind) Close() error {
 
 func (b *DefaultBind) Send(bufs [][]byte, endpoint conn.Endpoint) error {
 	// add drp write
-	if e, ok := endpoint.(*WRRPEndpoint); ok {
+	var e *WRRPEndpoint
+	var ok bool
+	if e, ok = endpoint.(*WRRPEndpoint); !ok {
+		return fmt.Errorf("endpoint is not WRRPEndpoint")
+	}
+
+	if e.TransportType == WRRP {
 		for _, buf := range bufs {
 			b.wrrperClient.Send(context.Background(), e.RemoteId, wrrp.Forward, buf)
 		}

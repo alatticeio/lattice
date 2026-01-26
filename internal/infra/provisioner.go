@@ -56,6 +56,8 @@ type RouteProvisioner interface {
 
 type RuleProvisioner interface {
 	ApplyRule(action, rule string) error
+	// for docker setup nat and other iptables rules
+	SetupNAT(interfaceName string) error
 }
 
 const (

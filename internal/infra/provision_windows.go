@@ -41,3 +41,7 @@ func (r *routeProvisioner) ApplyIP(action, address, name string) error {
 func (r *ruleProvisioner) ApplyRule(action, rule string) error {
 	return nil
 }
+
+func (r *ruleProvisioner) SetupNAT(interfaceName string) error {
+	return nil
+}

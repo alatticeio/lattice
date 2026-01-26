@@ -189,7 +189,7 @@ func (c *WRRPClient) ReceiveFunc() conn.ReceiveFunc {
 			c.log.Error("invalid wrrp header", err)
 			return 0, err
 		}
-		c.log.Info("Receiving from wrrp server", "type", header.Cmd, "payloadLen", header.PayloadLen)
+		c.log.Debug("Receiving from wrrp server", "type", header.Cmd, "payloadLen", header.PayloadLen)
 		switch header.Cmd {
 		case wrrp.Probe:
 			// 1. 读取 Probe 数据到临时缓冲区（不要占用 WireGuard 的 packets[0]）
@@ -216,7 +216,8 @@ func (c *WRRPClient) ReceiveFunc() conn.ReceiveFunc {
 			sizes[0] = int(header.PayloadLen)
 
 			eps[0] = &infra.WRRPEndpoint{
-				RemoteId: header.FromID,
+				RemoteId:      header.FromID,
+				TransportType: infra.WRRP,
 			}
 
 			return 1, nil

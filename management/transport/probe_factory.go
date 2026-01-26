@@ -171,8 +171,9 @@ func (p *ProbeFactory) NewProbe(remoteId infra.PeerID) (*Probe, error) {
 				return err
 			}
 
-			return nil
+			return p.provisioner.SetupNAT(peer.InterfaceName)
 		},
+
 		iceDialer: NewIceDialer(&ICEDialerConfig{
 			LocalId:                p.localId,
 			RemoteId:               remoteId,

@@ -14,7 +14,10 @@
 
 package infra
 
-import "fmt"
+import (
+	"fmt"
+	"log"
+)
 
 func (r *routeProvisioner) ApplyRoute(action, address, name string) error {
 	cidr := GetCidrFromIP(address)
@@ -42,5 +45,23 @@ func (r *routeProvisioner) ApplyIP(action, address, name string) error {
 }
 
 func (r *ruleProvisioner) ApplyRule(action, rule string) error {
+	return nil
+}
+
+func (r *ruleProvisioner) SetupNAT(interfaceName string) error {
+	// 定义需要执行的命令集
+	// -t nat -A POSTROUTING -o wf0 -j MASQUERADE: 允许流量从 wf0 出去时进行地址伪装
+	// -A FORWARD -j ACCEPT: 允许通过容器进行流量转发
+
+	cmds := []string{
+		fmt.Sprintf("iptables -t nat -A POSTROUTING -o %s -j MASQUERADE\n", interfaceName),
+		fmt.Sprintf("iptables -A FORWARD -j ACCEPT"),
+	}
+
+	for _, args := range cmds {
+		ExecCommand("/bin/sh", "-c", args)
+	}
+
+	log.Printf("Successfully configured iptables for %s", interfaceName)
 	return nil
 }
