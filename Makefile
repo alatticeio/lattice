@@ -13,13 +13,12 @@ LDFLAGS = -X 'github.com/your-org/wireflow/pkg/version.Version=$(WIREFLOW_VERSIO
           -X 'github.com/your-org/wireflow/pkg/version.GoVersion=$(GO_VERSION)'
 
 
-IMG ?= ghcr.io/wireflowio/manager:dev
-
 REGISTRY ?= ghcr.io/wireflowio
 SERVICES := manager wireflow
 TARGETOS ?= linux
 TARGETARCH ?=amd64
-VERSION ?= dev
+VERSION ?= latest
+IMG ?= ghcr.io/wireflowio/manager:$(VERSION)
 
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
 ifeq (,$(shell go env GOBIN))
@@ -245,8 +244,12 @@ uninstall: manifests kustomize ## Uninstall CRDs from the K8s cluster specified 
 
 .PHONY: deploy
 deploy: manifests kustomize ## Deploy controller to the K8s cluster specified in ~/.kube/config.
-	cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG}
+	cd config/default && $(KUSTOMIZE) edit set image manager=${IMG}
 	$(KUSTOMIZE) build config/default | $(KUBECTL) apply -f -
+
+.PHONY: Yaml
+yaml:
+	$(KUSTOMIZE) build config/default > config/wireflow.yaml
 
 .PHONY: undeploy
 undeploy: kustomize ## Undeploy controller from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.

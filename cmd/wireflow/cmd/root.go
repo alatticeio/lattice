@@ -26,8 +26,10 @@ import (
 var cfgManager = config.NewConfigManager()
 
 var rootCmd = &cobra.Command{
-	Use:   "wireflow",
-	Short: "wireflow: High-performance WireGuard proxy tunneling\n A tool for creating fast and secure network proxies using WireGuard protocol.",
+	Use:           "wireflow",
+	Short:         "wireflow: High-performance WireGuard proxy tunneling\n A tool for creating fast and secure network proxies using WireGuard protocol.",
+	SilenceUsage:  true,
+	SilenceErrors: true,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 		return cfgManager.LoadConf(cmd)
 	},

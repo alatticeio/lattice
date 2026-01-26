@@ -32,7 +32,7 @@ spec:
               done
       containers:
         - name: wireflow-control
-          image: controller:latest
+          image: manager:latest
           imagePullPolicy: Always
           args:
             - "start"
@@ -83,7 +83,7 @@ spec:
               done
       containers:
         - name: wireflow-turn
-          image: controller:latest
+          image: manager:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 3478
@@ -129,7 +129,7 @@ spec:
               done
       containers:
         - name: wireflow-wrrper
-          image: controller:latest
+          image: manager:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 6266

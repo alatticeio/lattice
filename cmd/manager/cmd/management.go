@@ -50,9 +50,6 @@ func newManagementCmd() *cobra.Command {
 
 // run drp
 func runManagement(opts managementOptions) error {
-	if opts.LogLevel == "" {
-		opts.LogLevel = "error"
-	}
 	log.SetLevel(opts.LogLevel)
 	return management.Start(opts.Listen)
 }

@@ -54,8 +54,9 @@ func (r *ruleProvisioner) SetupNAT(interfaceName string) error {
 	// -A FORWARD -j ACCEPT: 允许通过容器进行流量转发
 
 	cmds := []string{
-		fmt.Sprintf("iptables -t nat -A POSTROUTING -o %s -j MASQUERADE\n", interfaceName),
-		fmt.Sprintf("iptables -A FORWARD -j ACCEPT"),
+		fmt.Sprintf("iptables -t nat -A POSTROUTING -o wf0 -j MASQUERADE\n"),
+		fmt.Sprintf("iptables -A FORWARD -j ACCEPT\n"),
+		fmt.Sprintf("iptables -A FORWARD -i wf0 -o eth0 -m state --state RELATED,ESTABLISHED -j ACCEPT"),
 	}
 
 	for _, args := range cmds {
