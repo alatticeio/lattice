@@ -1,112 +1,134 @@
-# Wireflow
+# Wireflow - 云原生 WireGuard 网络管理平台
 
-[![Go Version](https://img.shields.io/badge/go-1.25%2B-00ADD8?logo=go&logoColor=white)](https://go.dev/)
-[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
-[![Docker Pulls](https://img.shields.io/docker/pulls/wireflow/wireflow.svg?logo=docker&logoColor=white)](https://hub.docker.com/r/wireflow/wireflow)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Go Report Card](https://goreportcard.com/badge/github.com/wireflowio/wireflow)](https://goreportcard.com/report/github.com/wireflowio/wireflow)
-![Platforms](https://img.shields.io/badge/platforms-windows%20%7C%20linux%20%7C%20macos%20%7C%20android%20%7C%20ios-informational)
-[![English](https://img.shields.io/badge/lang-English-informational)](README.md) [![中文](https://img.shields.io/badge/语言-中文-informational)](README_zh.md)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
-## 介绍
+## 项目简介
 
-Wireflow：您的零配置安全私有网络解决方案。
+**Wireflow：基于 Kubernetes CRDS 设计的云原生网络编排方案。**
 
-借助 WireGuard 的高性能加密能力，Wireflow 帮助您轻松构建一个跨平台的安全覆盖网络。
+Wireflow 旨在简化跨云、跨数据中心以及边缘设备的 覆盖网络 (Overlay Network) 构建。它通过 Kubernetes 原生方式，自动化管理 WireGuard 隧道的建立与配置。
 
-Wireflow 的独特之处在于其 Kubernetes 原生的控制平面：wireflow-controller 通过监听 CRD 自动完成网络编排和访问控制。用户可以通过直观的 Web UI 或声明式配置，集中管理设备连接、访问策略和整个网络状态。
+* **控制面 (Control Plane)**：基于 Kubernetes Operator 模式，通过自定义资源 (CRD) 声明式地定义网络拓扑，是集群状态的“大脑”。
+* **数据面 (Data Plane)**：轻量级 Agent 部署，实现设备间的高性能 P2P 隧道连接。它具备强大的 NAT 穿透能力，确保护网状态的最终一致性。
 
-核心价值： 告别复杂的 VPN 配置，实现企业级零信任网络自动化。
+了解更多信息，请访问官方网站：[wireflow.run](https://wireflow.run)
 
-了解更多详情，请访问官网：[The Wireflow Authors](https://wireflow.run)
+---
 
-## 技术架构
+## 核心特性
 
-- 控制平面 / 数据平面分离
-- WireGuard 加密隧道（ChaCha20‑Poly1305）
-- 通过控制平面进行密钥自动分发与轮换
-- NAT 穿透：优先直连 P2P，不通时回退至中继（TURN）
-- 节点发现与连接编排引擎
-- 叠加网络内的私有 DNS 名称解析
-- 指标与监控（兼容 Prometheus）
-- 管理 API 与 Web UI，支持 RBAC 访问策略
-- 支持 Docker 部署；`conf/` 目录提供 Kubernetes 示例与清单
-- 跨平台 Agent（Linux、macOS、Windows；移动端开发中）
+### 架构与核心安全
 
-## 网络拓扑（高层）
+* **解耦架构**：控制平面负责决策，数据平面负责转发，确保单点故障不影响已有隧道的连通性。
+* **高性能隧道**：强制使用 WireGuard (ChaCha20-Poly1305) 协议，提供极致的传输性能与安全性。
+* **零接触密钥管理**：自动化的密钥分发与轮换，所有配置由控制面完成，实现零接触配置（Zero-Touch Provisioning）。
 
-- 设备通过 WireGuard 形成网状叠加网络。
-- 优先进行直连 P2P；当直连不可达时，经由中继/TURN 转发流量。
-- 控制平面负责设备成员、密钥与策略的管理。
+### Kubernetes 原生集成
 
-## 快速开始
+* **声明式 API**：像管理 Pod 一样管理你的私有网络。
+* **自动化 IPAM**：内置 IP 地址管理系统，自动为租户和节点分配互不冲突的私有 IP。
+* **智能拓扑编排**：利用 Kubernetes Label 自动发现节点并编排 Mesh 或 Star 型网络拓扑。
 
-1. 在 Wireflow 上注册并登录。
-2. 在 Web UI 中创建网络，并按向导添加设备。
-3. 在每台设备上安装并运行 Wireflow 应用/Agent，使用你的账户登录并加入网络。
+---
 
-完成后，你应能根据所配置的访问规则，在私有网络中互相访问设备。
+## 快速上手
 
-## 安装方式
+### 安装控制面 (Control Plane)
 
-根据你的环境选择合适的安装方式。
-
-### Docker
+你需要一个配置好 `kubectl` 的 Kubernetes 集群。我们推荐使用 k3d 来部署你自己的 Wireflow 控制面：
 
 ```bash
-docker run -d \
-  --name wireflow \
-  --cap-add NET_ADMIN \
-  --device /dev/net/tun \
-  -p 51820:51820/udp \
-  wireflow/wireflow:latest
+curl -sSL https://raw.githubusercontent.com/wireflowio/wireflow/master/hack/install-k3d.sh | bash
 ```
 
-### 二进制（一键脚本）
+### 安装数据面 (Data Plane)
 
 ```bash
-bash <(curl -fsSL https://wireflow.run/install.sh)
+curl -sSL https://raw.githubusercontent.com/wireflowio/wireflow/master/hack/install.sh | bash
 ```
+
+#### 使用Docker运行数据面
+```bash
+docker run -d --name wireflow --restart=always ghcr.io/wireflowio/wireflow:latest up
+```
+## 令牌(Token)管理
+Wireflow 使用基于 Token 的认证系统来安全地管理节点和访问策略。Token 用于对控制面 API 的请求进行身份验证和授权。如果还没有 Token，可以创建一个：
+```bash
+wireflow token create dev-team -n test --limit 5 --expiry 168h
+```
+
+说明： 
+- dev-team: 令牌所属的团队名称
+- test: 令牌使用的命名空间名称 
+- 5: 该令牌允许的最大并发连接数 
+- 168h: 令牌的最长有效期 
+
+现在你可以使用该令牌运行：
+```bash
+wireflow up --token <token>
+```
+在docker里: 
+```bash
+docker run -d --name wireflow --restart=always ghcr.io/wireflowio/wireflow:latest up --token <token>
+```
+
+然后可以在控制面查看节点注册以及分配的IP:
+```bash
+kubectl get wfpeer -n test
+```
+当另一个节点加入网络时，它会自动与网络中的其他节点建立连接, 节点之间自动组网成功。
+
+## 卸载
+移除控制面并清理环境：
+
+```bash
+curl -sSL -f https://raw.githubusercontent.com/wireflowio/wireflow/master/hack/uninstall-k3d.sh | bash
+```
+
+## 开发指南
+
+### 环境
+参照上边创建一个k3d的环境
 
 ### 从源码构建
 
 ```bash
-git clone https://github.com/wireflowio/wireflow.git
+git clone [https://github.com/wireflowio/wireflow.git](https://github.com/wireflowio/wireflow.git)
 cd wireflow
-make build
-# 然后按需安装或运行构建产物
+make build-all
 ```
 
-### 桌面/移动端应用
+## 徽章 (Badges)
 
-从官网获取安装包：[wireflow.run](https://wireflow.run)
+### 贡献者
 
-## 中继（TURN）概览
+## Wireflow特性与愿景
 
-当直连 P2P 失败（例如受限的 NAT 环境），Wireflow 可自动通过中继转发流量。我们提供便捷的公共中继，也支持你自建：可以使用提供的中继镜像，或运行兼容的 TURN 服务器（如 `coturn`）。
+Wireflow 的架构专注于 自动化 (Automation) 与 零信任安全 (Zero-Trust Security)。
 
-## 自建中继（示例步骤）
+### 核心特性 (已实现)
+- 零接触组网 (Zero-Touch Networking)：自动设备注册与配置，无需手动维护 WireGuard 隧道。
+- K8s 原生编排：基于 CRD 设计，利用 Kubernetes 节点标签 (Labels) 实现自动化的设备发现与连接调度。
+- 安全加固：基于 WireGuard 内核加密，控制面中心化管理密钥分发与轮换。
+- 灵活的网络能力：内置 IPAM 自动分配地址，提供声明式的访问策略模型 (ACL)。
 
-1. 准备一台具有公网 IP 的服务器，并开放 UDP 端口（默认 3478/5349，或你的自定义端口）。
-2. 部署 Wireflow 中继镜像，或配置 `coturn`。
-3. 在 Wireflow 控制平面中添加你的中继地址，便于客户端发现与使用。
+### 未来里程碑 (计划中)
 
-更多部署示例与清单，请参考本仓库的 `conf/` 与 `turn/` 目录。
+- 我们致力于构建全球规模的云原生加密网络。
+- 跨云与多地域：支持混合云部署，打通不同云厂商与物理区域的网络孤岛。
+- 多租户与权限：支持多租户隔离，并集成 RBAC 与中心化 Web 管理界面。
+- 运维可视化：内置 Prometheus 指标导出器，提供流量监控与告警功能。
+- 智能服务发现：集成内置 DNS，为私有网络提供安全的服务发现机制。
 
-## 功能特性
+## 免责声明 (Disclaimer)
 
-- [x] 零配置上手：注册、登录、创建网络
-- [x] 安全性：WireGuard 加密与密钥管理
-- [x] 访问控制：定义规则策略，精确控制访问范围
-- [x] Web UI：统一管理设备、规则与可见性
-- [x] 中继回退：直连不可达时自动回退至中继
-- [x] 跨平台：Windows、Linux、macOS、Android、iOS、NAS
-- [ ] 指标：流量、连接与健康度可观测
-- [ ] 多网络：统一管理多个隔离的叠加网络
-- [ ] Docker UI：无需桌面应用即可管理网络
-- [ ] DNS：内置服务与自定义域名支持
+- 本工具仅限于技术研究、企业内网互联、合规的远程办公等合法场景。
+- 用户在使用本软件时，必须遵守当地法律法规。
+- 严禁将本工具用于任何违反《中华人民共和国网络安全法》及相关法律的行为（包括但不限于建立非法跨境信道）。
+- 作者不对用户利用本工具进行的任何违法行为承担法律责任。
 
-## 许可证
+## 开源协议
 
-Apache License 2.0
-
-
+基于 Apache License 2.0 协议。

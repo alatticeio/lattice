@@ -4,142 +4,82 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/wireflowio/wireflow)](https://goreportcard.com/report/github.com/wireflowio/wireflow)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
-> ⚠️ **Early Alpha**: This project is under active development.
-> APIs may change. Not production-ready yet.
-
 ## Introduction
 
-**Wireflow: Kubernetes-Native Network Orchestration using WireGuard.**
+**Wireflow: A Cloud-Native Network Orchestration Solution based on Kubernetes CRDs.**
 
-Wireflow provides a complete solution for creating and managing a secure, encrypted overlay network powered by
-WireGuard.
+Wireflow is designed to simplify the construction of Overlay Networks across multi-cloud, cross-datacenter, and edge environments. 
+It leverages Kubernetes-native primitives to automate the establishment and configuration of WireGuard tunnels.
 
-- Control Plane: The wireflow-controller is the Kubernetes-native component. It continuously watches and reconciles
-  Wireflow CRDs (Custom Resource Definitions), serving as the single source of truth for the virtual network state.
-- Data Plane: The Wireflow data plane establishes secure, zero-config P2P tunnels across all devices and platforms. It
-  receives the desired state from the controller, enabling automated orchestration of connectivity and granular access
-  policies.
+* **Control Plane**: Based on the Kubernetes Operator pattern, it declaratively defines network topologies via Custom Resource Definitions (CRDs), serving as the "brain" of the cluster state.
+* **Data Plane**: Deployed as a lightweight Agent, it establishes high-performance P2P tunnel connections between devices. It features robust NAT traversal capabilities to ensure the eventual consistency of the network state.
 
-For more information, please visit our official website: [wireflow.run](https://wireflow.run)
+For more information, please visit our [official website](https://wireflow.run)
 
-## Wireflow Technical Capabilities
+## Core Features
 
-**1. Architecture & Core Security**
+**Architecture & Core Security**
 
-- Decoupled Architecture: Clear Control Plane / Data Plane separation for enhanced scalability, performance, and
-  security.
-- High-Performance Tunnels: Utilizes WireGuard for secure, high-speed encrypted tunnels (ChaCha20-Poly1305).
-- Zero-Touch Key Management: Automatic key distribution and rotation, with zero-touch provisioning handled entirely by
-  the Control Plane.
+- Decoupled Architecture: The Control Plane handles decision-making while the Data Plane manages forwarding, ensuring that a single point of failure does not affect existing tunnel connectivity.
+- High-Performance Tunnels: Enforces the use of the WireGuard (ChaCha20-Poly1305) protocol to provide extreme transmission performance and security.
+- Zero-Touch Key Management: Automated key distribution and rotation. All configurations are managed by the Control Plane, enabling Zero-Touch Provisioning (ZTP).
 
-**2.Kubernetes & Networking Automation**
+**Kubernetes Native Integration**
 
-- Kubernetes-Native Orchestration: Peer discovery and connection orchestration are managed directly through a
-  Kubernetes-native CRDs controller.
-- Seamless NAT Traversal: Achieves resilient connectivity by prioritizing direct P2P connection attempts, in future with
-  an
-  automated relay (TURN) fallback when required.
-
-Broad Platform Support: Cross-platform agents supporting Linux, macOS, and Windows (with mobile support currently in
-progress).
-
-## Network Topology (High-Level Overview)
-
-- [x] P2P Mesh Overlay: Devices automatically form a full mesh overlay network utilizing the WireGuard protocol for
-  secure, low-latency communication.
-- [] Intelligent NAT Traversal: Connectivity prioritizes direct P2P tunnels; if direct connection fails, traffic
-  seamlessly relays via a dedicated TURN/relay server.
-- [x] Centralized Orchestration: A Kubernetes-native control plane manages device lifecycle, cryptographic keys, and
-  access policies, ensuring zero-touch configuration across the entire network.
-
-**Key Features:**
-
-- [x] Kubernetes CRD-based configuration
-- [x] Automatic IP allocation (IPAM)
-- [] Multi-cloud/hybrid-cloud support
-- [x] Built on WireGuard (fast & secure)
-- [] GitOps ready
+* **Declarative API**: Manage your private network just like you manage Pods.
+* **Automated IPAM**: Built-in IP Address Management to automatically allocate non-conflicting private IPs for tenants and nodes.
+* **Intelligent Topology Orchestration**: Uses Kubernetes Labels to automatically discover nodes and orchestrate Mesh or Star network topologies.
 
 ## Quick Start
 
-### Install control-plane
+### Install Control Plane
 
-you should have a kubernetes cluster with kubectl configured:
+You need a Kubernetes cluster with kubectl configured. We recommend using k3d for local deployment:
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/wireflowio/wireflow/master/deploy/wireflow.yaml | kubectl apply -f - 
+curl -sSL https://raw.githubusercontent.com/wireflowio/wireflow/master/hack/install-k3d.yaml | bash
 ```
 
-### Install data-plane
+### Install Data Plane
 
 - latest version
 
 ```bash
 curl -sSL https://raw.githubusercontent.com/wireflowio/wireflow/master/hack/install.sh | bash
+
+# view the pod status
+kubectl get pods -n wireflow-system
 ```
 
-- specific version: v0.1.0
+Run via Docker:
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/wireflowio/wireflow/master/hack/install.sh | bash -s -- v0.1.0
+docker run -d --name wireflow --restart=always ghcr.io/wireflowio/wireflow:latest up
 ```
 
-### Check the installation
-> - Note: After installation, you can use the wireflow command to check the version. Before doing so, you must set the signaling server address. The default is nats://signaling.wireflow.run:4222.
-> - If you are using a custom NATS server (e.g., your Kubernetes node IP), use the following command:
-> ```bash
-> wireflow --signaling-url=nats://your-nats-ip:4222 --version
-> ```
-> To make this change permanent so you don't have to type it every time, use the config command:
-> ```bash
-> wireflow config set signaling-url nats://your-nats-ip:4222
-> ```
+## Token Management
 
-Now you can use `wireflow` to check whether both components have installed successfuly:
+Wireflow uses a token-based authentication system. Tokens are required to authorize requests to the Control Plane API.
 
 ```bash
-wireflow --version
+wireflow token create dev-team -n test --limit 5 --expiry 168h
 ```
 
-### Start The Wireflow Agent
+Note: 
+- dev-team: the name of the team that the token belongs to
+- test: the name of the namespace that the token will be used for
+- 5: the maximum number of concurrent connections allowed for the token
+- 168h: the maximum lifetime of the token
 
-Run the following command to start the Wireflow agent on your local machine.
-
+### Run With Token:
 ```bash
-wireflow up --level=debug --token=YOUR_TOKEN
+wireflow up --token <token>
 ```
 
-### Token Management:
+### Show Info In Control Plane
 
-- **Automatic Generation**: If no token is provided during the first connection, the Control Plane will automatically
-  generate one for your peer.
-- **Persistence**: The token will be returned to your peer and saved automatically to ~/.wireflow.yaml.
-- **Auto-load**: On subsequent restarts, the agent will automatically load the token from the configuration file if the
-  --token flag is omitted.
-- **Manual Override**: You can also manually specify the token using the --token flag.
-
-when another peer want to join the network that first peer created, just run below command:
-> Note: PEER_TOKEN is the token of first peer
-
-```bash
-wireflow up --level=debug --token=PEER_TOKEN
-```
-
-### Check the network status
-1. View WireGuard Statistics
-wireflow integrates seamlessly with the standard WireGuard toolset. Use the wg command to inspect connection details, such as public keys, endpoints, and data transfer volumes:
-
-```bash
-# Display the status of all wireflow-managed interfaces
-wg
-```
-
-2. Test Peer Connectivity
-To ensure the encrypted tunnel is passing traffic correctly, use ping to reach a remote peer by its internal IP defined in your wireflow network:
-
-```bash
-# Ping a remote peer (replace 'peer1' with your peer's name or IP)
-ping -c 3 peer1
+```aiignore
+kubectl get wfpeer -n test
 ```
 
 ### Uninstall
@@ -147,10 +87,8 @@ ping -c 3 peer1
 To remove the Control Plane and cleanup:
 
 ```bash
-curl -sSL -f https://raw.githubusercontent.com/wireflowio/wireflow/master/deploy/wireflow.yaml | kubectl delete -f -
+curl -sSL -f https://raw.githubusercontent.com/wireflowio/wireflow/master/hack/uinstall-k3d.sh | bash
 `````
-
-For more information, visit [wireflow](https://wireflow.run)
 
 ## Development
 
@@ -185,47 +123,29 @@ This project exists thanks to all the people who contribute. [How to contribute]
   <img src="https://opencollective.com/wireflowio/contributors.svg?width=890&button=false&skip=golangcidev,CLAassistant,renovate,fossabot,golangcibot,kortschak,golangci-releaser,dependabot%5Bbot%5D" />
 </a>
 
-## Wireflow Features, Roadmap, and Roadmap Progress
+## Features & Roadmap
 
-**1. Core Features (Available)**
-These features represent the foundational, working architecture of Wireflow, focusing on security and automation.
+### **Implemented**
+- Zero-Touch Networking: Automated device registration and configuration.
+- K8s Native Orchestration: CRD-based node discovery and connection scheduling.
+- Security Hardening: Centralized key management with WireGuard kernel encryption.
+- Flexible Networking: Built-in IPAM and declarative Access Control Lists (ACL).
 
-- [x] Zero-Touch Onboarding: Users instantly and easily create an encrypted private network without
-  requiring any manual tunnel configuration.
-- [x] Automatic Enrollment & Autoplay: Devices automatically enroll and configure themselves upon joining, ensuring the
-  tunnel is established without manual intervention.
-- [x] Security Foundation: Utilizes WireGuard encryption (ChaCha20-Poly1305) with all cryptographic key management
-  centralized within the Control Plane.
-- [x] Kubernetes-Native Orchestration: Peer discovery and connection orchestration are managed directly through a
-  Kubernetes-native CRDs controller.
-- [x] Native Kubernetes Support: Wireflow is designed to run natively within Kubernetes, eliminating the need for
-  additional orchestration layers.
-- [x] Native Networking Support: Wireflow leverages Kubernetes networking primitives to provide a seamless,
-  transparent overlay network.
-- [x] Native Access Control: Wireflow provides a simple, declarative access policy model for controlling peer access.
-- [x] Native Device Discovery: Wireflow leverages Kubernetes node labels to automatically discover and connect to
-  devices.
-- [x] Native Device Management: Wireflow provides a simple, declarative device management model for managing peer
-  lifecycle.
-- [x] IPAM Support: Wireflow Create an IPAM to automatically allocate network for tenant and allocate IP addresses for each peer.
+### **Future Milestones (Planned)**
 
+- Multi-Cloud & Multi-Region: Bridge network silos across different cloud providers and physical regions.
+- Multi-Tenancy & RBAC: Tenant isolation with a centralized Web UI for management.
+- Operational Visibility: Prometheus exporters for traffic monitoring and alerting.
+- Smart Service Discovery: Integrated DNS for secure internal service naming.
 
-**2. Future Milestones (Planned)**
+## Disclaimer
 
-- [] Multi-Cloud Support: Wireflow supports hybrid cloud deployments, allowing users to connect to their devices from
-  multiple cloud providers.
-- [] Multi-Region Support: Wireflow supports multi-region deployments, allowing users to connect to their devices from
-  multiple regions.
-- [] Multi-Tenant Support: Wireflow supports multi-tenant deployments, allowing users to connect to their devices from
-  multiple tenants.
-- [] Centralized Management: Features a powerful Management API and Web UI with built-in RBAC-ready (Role-Based Access
-  Control) access policies.
-- [] Operational Visibility: Provides Prometheus-friendly exporters for robust metrics and monitoring integration.
-- [] Native DNS: Provides a secure and simplified service discovery mechanism for internal services.
+This tool is intended for technical research, enterprise internal networking, and compliant remote access only.
+- Users must comply with all local laws and regulations.
+- Strictly prohibited for any activities violating the Cybersecurity Law of the People's Republic of China (including unauthorized cross-border channels).
+- The authors assume no liability for any illegal use of this tool.
 
 ## License
 
 Apache License 2.0
-
-
 
