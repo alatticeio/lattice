@@ -86,6 +86,9 @@ spec:
                 items:
                   type: string
                 type: array
+              peerId:
+                format: int64
+                type: integer
               platform:
                 description: platform which node runs on
                 type: string

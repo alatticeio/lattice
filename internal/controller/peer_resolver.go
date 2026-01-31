@@ -16,14 +16,17 @@ package controller
 
 import (
 	"context"
+	"wireflow/api/v1alpha1"
 	"wireflow/internal/infra"
-	"wireflow/pkg/utils"
+
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 )
 
 // PeerResolver 根据network与policies来计算当前node的最后要连接peers
 // PeerResolver 只关注要连接的对象， 更细粒度的防火墙规则由FileWallResolver来实现
 type PeerResolver interface {
-	ResolvePeers(ctx context.Context, network *infra.Network, policies []*infra.Policy) ([]*infra.Peer, error)
+	ResolvePeers(ctx context.Context, network *infra.Message, policies []*v1alpha1.WireflowPolicy) ([]*infra.Peer, error)
 }
 
 type peerResolver struct {
@@ -33,53 +36,79 @@ func NewPeerResolver() PeerResolver {
 	return &peerResolver{}
 }
 
-// ResolvePeers 只计算egress，表示当前节点该连接谁，然后与Network中的Peers做过滤
-func (p *peerResolver) ResolvePeers(ctx context.Context, network *infra.Network, policies []*infra.Policy) ([]*infra.Peer, error) {
-	//加入到该网络中的所有Peers
-	peerSet := peerToSet(network.Peers)
+// ResolvePeers zero trust, add when labeled peer matched
+func (p *peerResolver) ResolvePeers(ctx context.Context, msg *infra.Message, policies []*v1alpha1.WireflowPolicy) ([]*infra.Peer, error) {
+	return GetComputedPeers(msg.Current, msg.Network, policies), nil
+}
 
-	var (
-		peers  []*infra.Peer
-		result []*infra.Peer
-	)
+// 假设我们要为当前节点 currPeer 生成连接列表
+func GetComputedPeers(current *infra.Peer, network *infra.Network, policies []*v1alpha1.WireflowPolicy) []*infra.Peer {
+	allPeers := network.Peers
+	finalPeersMap := make(map[string]*infra.Peer)
 
-	peers = network.Peers
-	//过滤出站
 	for _, policy := range policies {
-		egresses := policy.Egress
-		for _, egress := range egresses {
-			peers = append(peers, egress.Peers...)
+		if !matchLabels(current, &policy.Spec.PeerSelector) {
+			continue
 		}
 
-		peerSetTmp := peerStringSet(peers)
-		if len(peers) > 0 {
-			peers = utils.Filter(peers, func(peer *infra.Peer) bool {
-				if _, ok := peerSetTmp[peer.Name]; !ok {
-					return false
+		// 2. 处理出站 (Egress): 这些是当前节点主动要连接的目标
+		for _, egress := range policy.Spec.EgressRule {
+			for _, peerSelection := range egress.To {
+				matchedPeers := resolveSelectionToPeers(peerSelection, allPeers)
+				for _, peer := range matchedPeers {
+					if peer.Name != current.Name {
+						finalPeersMap[peer.Name] = peer
+					}
 				}
-				return true
-			})
+			}
+		}
+
+		// 3. 处理入站 (Ingress):
+		// 注意：在对等网络中，如果 A 允许 B 入站，通常意味着 B 需要连接 A。
+		// 如果你的逻辑是生成“被动允许列表”，则记录在别处；
+		// 如果是生成“全双工连接”，则也需要把 Ingress 节点加入。
+		for _, ingress := range policy.Spec.IngressRule {
+			for _, p := range ingress.From {
+				matchedPeers := resolveSelectionToPeers(p, allPeers)
+				for _, peer := range matchedPeers {
+					if peer.Name != current.Name {
+						finalPeersMap[peer.Name] = peer
+					}
+				}
+			}
 		}
 	}
 
-	//build computed peers
-	for _, peer := range peers {
-		if _, ok := peerSet[peer.Name]; ok {
-			result = append(result, peerSet[peer.Name])
-		}
+	// 转换为 Slice 返回
+	result := make([]*infra.Peer, 0, len(finalPeersMap))
+	for _, p := range finalPeersMap {
+		result = append(result, p)
 	}
 
-	set := make(map[string]struct{})
-	result = utils.Filter(result, func(peer *infra.Peer) bool {
-		if _, ok := set[peer.Name]; ok {
-			return false
+	return result
+}
+
+func matchLabels(current *infra.Peer, peerSelector *metav1.LabelSelector) bool {
+	selector, _ := metav1.LabelSelectorAsSelector(peerSelector)
+	// 1. 检查当前 Policy 是否适用于当前节点 (Selector 匹配)
+	if !selector.Matches(labels.Set(current.Labels)) {
+		return false
+	}
+
+	return true
+}
+
+// resolveSelectionToPeers 是核心：根据选择器规则（Labels 等）在全量池中查找
+func resolveSelectionToPeers(selection v1alpha1.PeerSelection, allPeers []*infra.Peer) []*infra.Peer {
+	var result []*infra.Peer
+	for _, p := range allPeers {
+		// 这里是关键逻辑：判断节点的 Labels 是否匹配选择器定义
+		selector, _ := metav1.LabelSelectorAsSelector(selection.PeerSelector)
+		if selector.Matches(labels.Set(p.Labels)) {
+			result = append(result, p)
 		}
-
-		set[peer.Name] = struct{}{}
-		return true
-	})
-
-	return result, nil
+	}
+	return result
 }
 
 func peerStringSet(peers []*infra.Peer) map[string]struct{} {

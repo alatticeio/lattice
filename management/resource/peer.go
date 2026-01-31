@@ -46,6 +46,7 @@ func (c *Client) Register(ctx context.Context, namespace string, e *dto.PeerDto)
 		Name:      e.AppID,
 	}, &node)
 
+	var peerId infra.PeerID
 	if err != nil && errors.IsNotFound(err) {
 		key, err = wgtypes.GeneratePrivateKey()
 		if err != nil {
@@ -54,6 +55,8 @@ func (c *Client) Register(ctx context.Context, namespace string, e *dto.PeerDto)
 	} else {
 		key, err = wgtypes.ParseKey(node.Spec.PrivateKey)
 	}
+
+	peerId = infra.FromKey(key.PublicKey())
 
 	// 使用SSA模式
 	manager := client.FieldOwner("wireflow-controller-manager")
@@ -78,6 +81,7 @@ func (c *Client) Register(ctx context.Context, namespace string, e *dto.PeerDto)
 			InterfaceName: e.InterfaceName,
 			PrivateKey:    key.String(),
 			PublicKey:     key.PublicKey().String(),
+			PeerId: int64(peerId.ToUint64()),
 		},
 
 		Status: v1alpha1.WireflowPeerStatus{

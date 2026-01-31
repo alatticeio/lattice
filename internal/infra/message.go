@@ -27,15 +27,16 @@ import (
 
 // Message is the message which is sent to connected peers
 type Message struct {
-	EventType     EventType      `json:"eventType"`               //主事件类型
-	ConfigVersion string         `json:"configVersion"`           //版本号
-	Timestamp     int64          `json:"timestamp"`               //时间戳
-	Changes       *ChangeDetails `json:"changes"`                 // 配置变化详情
-	Current       *Peer          `json:"peer"`                    //当前节点信息
-	Network       *Network       `json:"network"`                 //当前节点网络信息
-	Policies      []*Policy      `json:"policies,omitempty"`      //当前节点的策略
-	ComputedPeers []*Peer        `json:"computedpeers,omitempty"` //当前要连接的节点, 由controller计算完成返回给wireflow
-	ComputedRules *FirewallRule  `json:"computedrules,omitempty"`
+	EventType     EventType         `json:"eventType"`               //主事件类型
+	ConfigVersion string            `json:"configVersion"`           //版本号
+	Timestamp     int64             `json:"timestamp"`               //时间戳
+	Changes       *DetailsInfo      `json:"changes"`                 // 配置变化详情
+	Current       *Peer             `json:"peer"`                    //当前节点信息
+	Network       *Network          `json:"network"`                 //当前节点网络信息
+	Policies      []*Policy         `json:"policies,omitempty"`      //当前节点的策略
+	ComputedPeers []*Peer           `json:"computedpeers,omitempty"` //当前要连接的节点, 由controller计算完成返回给wireflow
+	ComputedRules *FirewallRule     `json:"computedrules,omitempty"`
+	Labels        map[string]string `json:"labels,omitempty"`
 }
 
 func (m *Message) Equal(b *Message) bool {
@@ -66,7 +67,13 @@ func (m *Message) Equal(b *Message) bool {
 	return true
 }
 
-type ChangeDetails struct {
+type Entry struct {
+	Type    string `json:"type"`
+	Action  string `json:"action"`
+	Message string `json:"message"`
+}
+
+type DetailsInfo struct {
 	//节点信息变化
 	AddressChanged  bool `json:"addressChanged,omitempty"`  //IP地址变化
 	KeyChanged      bool `json:"keyChanged,omitempty"`      //密钥变化
@@ -87,76 +94,56 @@ type ChangeDetails struct {
 	NetworkLeft          []string `json:"networkLeft,omitempty"`
 	NetworkConfigChanged bool     `json:"networkConfigChanged,omitempty"`
 
-	Reason       string `json:"reason,omitempty"`       //变更原因描述
-	TotalChanges int    `json:"totalChanges,omitempty"` // 变更总数
+	Reason       []*Entry `json:"reason,omitempty"`       //变更原因描述
+	TotalChanges int      `json:"totalChanges,omitempty"` // 变更总数
 }
 
-func (c *ChangeDetails) HasChanges() bool {
+func (c *DetailsInfo) HasChanges() bool {
 	return c.TotalChanges > 0
 }
 
-func (c *ChangeDetails) String() string {
+func (c *DetailsInfo) String() string {
 	data, _ := json.Marshal(c)
 	return string(data)
 }
 
 // Summary returns a summary of the changes
-func (c *ChangeDetails) Summary() string {
-	parts := make([]string, 0)
-
-	if c.AddressChanged {
-		parts = append(parts, "address")
+func (c *DetailsInfo) Summary() string {
+	var result []string
+	for _, r := range c.Reason {
+		result = append(result, fmt.Sprintf("type: %s, action: %s, message: %s", r.Type, r.Message, r.Action))
 	}
-	if c.KeyChanged {
-		parts = append(parts, "key")
-	}
-	if len(c.PeersAdded) > 0 {
-		parts = append(parts, fmt.Sprintf("+%d peers", len(c.PeersAdded)))
-	}
-	if len(c.PeersRemoved) > 0 {
-		parts = append(parts, fmt.Sprintf("-%d peers", len(c.PeersRemoved)))
-	}
-	if len(c.PoliciesAdded) > 0 {
-		parts = append(parts, fmt.Sprintf("+%d policies", len(c.PoliciesAdded)))
-	}
-	if len(c.PoliciesUpdated) > 0 {
-		parts = append(parts, fmt.Sprintf("~%d policies", len(c.PoliciesUpdated)))
-	}
-
-	if len(parts) == 0 {
-		return "no changes"
-	}
-
-	return strings.Join(parts, ", ")
+	return strings.Join(result, "\n")
 }
 
 // Peer is the information of a wireflow peer, contains all the information of a peer
 type Peer struct {
-	Name                string  `json:"name,omitempty"`
-	InterfaceName       string  `json:"interfaceName,omitempty"`
-	Platform            string  `json:"platform,omitempty"`
-	Description         string  `json:"description,omitempty"`
-	NetworkId           string  `json:"NetworkId,omitempty"` // belong to which group
-	CreatedBy           string  `json:"createdBy,omitempty"` // ownerID
-	UserId              uint64  `json:"userId,omitempty"`
-	Hostname            string  `json:"hostname,omitempty"`
-	AppID               string  `json:"appId,omitempty"`
-	Address             *string `json:"address,omitempty"`
-	Endpoint            string  `json:"endpoint,omitempty"`
-	Remove              bool    `json:"remove,omitempty"` // whether to remove node
-	PresharedKey        string  `json:"presharedKey,omitempty"`
-	PersistentKeepalive int     `json:"persistentKeepalive,omitempty"`
-	PrivateKey          string  `json:"privateKey,omitempty"`
-	PublicKey           string  `json:"publicKey,omitempty"`
-	PeerID              PeerID
-	AllowedIPs          string `json:"allowedIps,omitempty"`
-	ReplacePeers        bool   `json:"replacePeers,omitempty"` // whether to replace peers when updating node
-	Port                int    `json:"port"`
-	GroupName           string `json:"groupName"`
-	Version             uint64 `json:"version"`
-	LastUpdatedAt       string `json:"lastUpdatedAt"`
-	Token               string `json:"token,omitempty"`
-	WrrpUrl             string `json:"wrrpUrl,omitempty"`
+	Name                string            `json:"name,omitempty"`
+	InterfaceName       string            `json:"interfaceName,omitempty"`
+	Platform            string            `json:"platform,omitempty"`
+	Description         string            `json:"description,omitempty"`
+	NetworkId           string            `json:"NetworkId,omitempty"` // belong to which group
+	CreatedBy           string            `json:"createdBy,omitempty"` // ownerID
+	UserId              uint64            `json:"userId,omitempty"`
+	Hostname            string            `json:"hostname,omitempty"`
+	AppID               string            `json:"appId,omitempty"`
+	Address             *string           `json:"address,omitempty"`
+	Endpoint            string            `json:"endpoint,omitempty"`
+	Remove              bool              `json:"remove,omitempty"` // whether to remove node
+	PresharedKey        string            `json:"presharedKey,omitempty"`
+	PersistentKeepalive int               `json:"persistentKeepalive,omitempty"`
+	PrivateKey          string            `json:"privateKey,omitempty"`
+	PublicKey           string            `json:"publicKey,omitempty"`
+	PeerID              uint64            `json:"peerId,omitempty"`
+	AllowedIPs          string            `json:"allowedIps,omitempty"`
+	ReplacePeers        bool              `json:"replacePeers,omitempty"` // whether to replace peers when updating node
+	Port                int               `json:"port"`
+	GroupName           string            `json:"groupName"`
+	Version             uint64            `json:"version"`
+	LastUpdatedAt       string            `json:"lastUpdatedAt"`
+	Token               string            `json:"token,omitempty"`
+	WrrpUrl             string            `json:"wrrpUrl,omitempty"`
+	Labels              map[string]string `json:"labels,omitempty"`
 }
 
 // Network is the network information, contains all peers/policies in the network

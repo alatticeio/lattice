@@ -14,6 +14,9 @@ It leverages Kubernetes-native primitives to automate the establishment and conf
 * **Control Plane**: Based on the Kubernetes Operator pattern, it declaratively defines network topologies via Custom Resource Definitions (CRDs), serving as the "brain" of the cluster state.
 * **Data Plane**: Deployed as a lightweight Agent, it establishes high-performance P2P tunnel connections between devices. It features robust NAT traversal capabilities to ensure the eventual consistency of the network state.
 
+## Architecture
+![Architecture](docs/images/architecture.png)
+
 For more information, please visit our [official website](https://wireflow.run)
 
 ## Core Features

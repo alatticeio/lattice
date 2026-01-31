@@ -30,6 +30,7 @@ type NetworkController interface {
 
 type networkController struct {
 	networkService service.NetworkService
+	policyService  service.PolicyService
 }
 
 func (n *networkController) CreateNetwork(ctx context.Context, request []byte) ([]byte, error) {
@@ -91,5 +92,6 @@ func (n networkController) LeaveNetwork(ctx context.Context, req []byte) error {
 func NewNetworkController(client *resource.Client) NetworkController {
 	return &networkController{
 		networkService: service.NewNetworkService(client),
+		policyService:  service.NewPolicyService(client),
 	}
 }

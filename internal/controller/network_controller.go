@@ -85,14 +85,14 @@ func (r *NetworkReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	if network.Status.ActiveCIDR == "" {
 		//get subnet
 		var pool v1alpha1.WireflowGlobalIPPool
-		poolKey := client.ObjectKey{Name: "wireflow-ippool"}
+		poolKey := client.ObjectKey{Name: "wireflow-ip-pool"}
 		if err = r.Get(ctx, poolKey, &pool); err != nil {
 			return ctrl.Result{}, err
 		}
 
 		cidr, err = r.IPAM.AllocateSubnet(ctx, network.Name, &pool)
 		if err != nil {
-			log.Error(err, "Failed to allocate subnet from ippool")
+			log.Error(err, "Failed to allocate subnet from wireflow-ip-pool")
 			return ctrl.Result{RequeueAfter: time.Second * 10}, err
 		}
 

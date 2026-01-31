@@ -255,7 +255,6 @@ func runController(flags *config.Flags) error {
 	if err := (&controller.PeerReconciler{
 		Client:        mgr.GetClient(),
 		Scheme:        mgr.GetScheme(),
-		Detector:      controller.NewChangeDetector(mgr.GetClient()),
 		SnapshotCache: make(map[types.NamespacedName]*controller.PeerStateSnapshot),
 		IPAM:          ipam.NewIPAM(mgr.GetClient()),
 	}).SetupWithManager(mgr); err != nil {

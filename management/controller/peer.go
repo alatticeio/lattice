@@ -38,12 +38,14 @@ type PeerController interface {
 
 func NewPeerController(client *resource.Client) PeerController {
 	return &peerController{
-		peerService: service.NewPeerService(client),
+		peerService:   service.NewPeerService(client),
+		policyService: service.NewPolicyService(client),
 	}
 }
 
 type peerController struct {
-	peerService service.PeerService
+	peerService   service.PeerService
+	policyService service.PolicyService
 }
 
 func (p *peerController) CreateToken(ctx context.Context, request []byte) ([]byte, error) {
@@ -54,7 +56,17 @@ func (p *peerController) CreateToken(ctx context.Context, request []byte) ([]byt
 	if err = json.Unmarshal(request, &tokenDto); err != nil {
 		return nil, err
 	}
-	return p.peerService.CreateToken(ctx, &tokenDto)
+	res, err := p.peerService.CreateToken(ctx, &tokenDto)
+	if err != nil {
+		return nil, err
+	}
+
+	// create default deny
+	if err := p.policyService.CreatePolicy(ctx, tokenDto.Namespace, "default-deny-all", "deny", nil, nil, nil); err != nil {
+		return nil, err
+	}
+
+	return res, nil
 }
 
 func (p *peerController) UpdateStatus(ctx context.Context, status int) error {

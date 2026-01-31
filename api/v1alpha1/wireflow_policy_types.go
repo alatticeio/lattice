@@ -30,14 +30,16 @@ const (
 
 // WireflowPolicySpec defines the desired state of WireflowPolicy. which used to control the wireflow's traffic flow.
 type WireflowPolicySpec struct {
+	//
 	Network string `json:"network"`
+
 	// PeerSelector is a label query over node that should be applied to the wireflow policy.
 	PeerSelector metav1.LabelSelector `json:"peerSelector,omitempty"`
 
-	PolicyType PolicyType `json:"policyType,omitempty"`
-
 	IngressRule []IngressRule `json:"ingressRule,omitempty"`
-	EgressRule  []EgressRule  `json:"egressRule,omitempty"`
+
+	EgressRule []EgressRule `json:"egressRule,omitempty"`
+
 	// default DENY
 	Action string `json:"action,omitempty"` // DENY / ALLOW
 }

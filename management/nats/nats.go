@@ -121,7 +121,7 @@ func (s *NatsSignalService) Send(ctx context.Context, peerId infra.PeerID, data 
 
 // Request req/resp
 func (s *NatsSignalService) Request(ctx context.Context, subject, method string, data []byte) ([]byte, error) {
-	resp, err := s.nc.Request(fmt.Sprintf("%s.%s", subject, method), data, 10*time.Second)
+	resp, err := s.nc.Request(fmt.Sprintf("%s.%s", subject, method), data, 30*time.Second)
 	if err != nil {
 		return nil, err
 	}

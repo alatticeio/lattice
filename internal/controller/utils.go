@@ -98,6 +98,7 @@ func transferToPeer(peer *wireflowv1alpha1.WireflowPeer) *infra.Peer {
 		InterfaceName: peer.Spec.InterfaceName,
 		Address:       peer.Status.AllocatedAddress,
 		PublicKey:     peer.Spec.PublicKey,
+		Labels:        peer.GetLabels(),
 	}
 
 	if peer.Status.AllocatedAddress != nil {

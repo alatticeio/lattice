@@ -1663,7 +1663,7 @@ metadata:
   labels:
     app.kubernetes.io/managed-by: kustomize
     app.kubernetes.io/name: wireflow-controller
-  name: wireflow-ippool
+  name: wireflow-ip-pool
   namespace: wireflow-system
 spec:
   cidr: 10.0.0.0/8
