@@ -231,7 +231,7 @@ const (
 //		})
 //		policies := make([]*infra.Policy, 0)
 //		for _, p := range newPolicies {
-//			policies = append(policies, d.transferToPolicy(ctx, p))
+//			policies = append(policies, d.buildPolicy(ctx, p))
 //		}
 //		changes.PoliciesAdded = append(changes.PoliciesAdded, policies...)
 //		changes.TotalChanges++
@@ -242,7 +242,7 @@ const (
 //		})
 //		policies := make([]*infra.Policy, 0)
 //		for _, p := range oldPolicies {
-//			policies = append(policies, d.transferToPolicy(ctx, p))
+//			policies = append(policies, d.buildPolicy(ctx, p))
 //		}
 //
 //		changes.PoliciesRemoved = append(changes.PoliciesRemoved, policies...)
@@ -265,7 +265,7 @@ func (d *Generator) findPolicy(ctx context.Context, node *v1alpha1.WireflowPeer,
 		selector, _ := metav1.LabelSelectorAsSelector(&policy.Spec.PeerSelector)
 		matched := selector.Matches(labels.Set(node.Labels))
 		if matched {
-			p := d.transferToPolicy(ctx, &policy)
+			p := d.buildPolicy(ctx, &policy)
 			policies = append(policies, p)
 		}
 	}
@@ -329,6 +329,13 @@ func (d *Generator) generate(ctx context.Context, current *v1alpha1.WireflowPeer
 		return nil, err
 	}
 
+	if snapshot.Policies != nil {
+		msg.Policies = make([]*infra.Policy, 0)
+		for _, p := range snapshot.Policies {
+			msg.Policies = append(msg.Policies, d.buildPolicy(ctx, p))
+		}
+	}
+
 	msg.ComputedRules, err = d.firewallResolver.ResolveRules(ctx, msg.Current, msg.Network, msg.Policies)
 	if err != nil {
 		return nil, err
@@ -355,9 +362,9 @@ func (d *Generator) generateConfigVersion() string {
 	return fmt.Sprintf("v%d", d.versionCounter)
 }
 
-func (d *Generator) transferToPolicy(ctx context.Context, src *v1alpha1.WireflowPolicy) *infra.Policy {
+func (d *Generator) buildPolicy(ctx context.Context, src *v1alpha1.WireflowPolicy) *infra.Policy {
 	log := logf.FromContext(ctx)
-	log.Info("transferToPolicy", "policy", src.Name)
+	log.Info("buildPolicy", "policy", src.Name)
 	policy := &infra.Policy{
 		PolicyName: src.Name,
 	}
@@ -367,33 +374,33 @@ func (d *Generator) transferToPolicy(ctx context.Context, src *v1alpha1.Wireflow
 	srcEgresses := src.Spec.EgressRule
 	for _, ingress := range srcIngresses {
 		rule := &infra.Rule{}
-		nodes, err := d.getPeerFromLabels(ctx, ingress.From)
+		peers, err := d.getPeerFromLabels(ctx, ingress.From)
 		if err != nil {
-			log.Error(err, "failed to get nodes from labels", "labels", ingress.From)
+			log.Error(err, "failed to get peers from labels", "labels", ingress.From)
 			continue
 		}
 
-		rule.Peers = nodes
+		rule.Peers = peers
 
 		if len(ingress.Ports) > 0 {
 			rule.Protocol = ingress.Ports[0].Protocol
-			rule.Port = fmt.Sprintf("%d", ingress.Ports[0].Port)
+			rule.Port = int(ingress.Ports[0].Port)
 		}
 		ingresses = append(ingresses, rule)
 	}
 
 	for _, egress := range srcEgresses {
 		rule := &infra.Rule{}
-		nodes, err := d.getPeerFromLabels(ctx, egress.To)
+		peers, err := d.getPeerFromLabels(ctx, egress.To)
 		if err != nil {
-			log.Error(err, "failed to get nodes from labels", "labels", egress.To)
+			log.Error(err, "failed to get peers from labels", "labels", egress.To)
 			continue
 		}
 
-		rule.Peers = nodes
+		rule.Peers = peers
 		if len(egress.Ports) > 0 {
 			rule.Protocol = egress.Ports[0].Protocol
-			rule.Port = fmt.Sprintf("%d", egress.Ports[0].Port)
+			rule.Port = int(egress.Ports[0].Port)
 		}
 		egresses = append(egresses, rule)
 	}

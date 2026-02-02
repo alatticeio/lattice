@@ -18,6 +18,11 @@ import (
 	"time"
 )
 
+type SearchParams struct {
+	Namespace string `json:"namespace,omitempty"`
+	Search    string `json:"search,omitempty"`
+}
+
 type PeerDto struct {
 	Name                string    `json:"name,omitempty"`
 	Description         string    `json:"description,omitempty"`
@@ -43,6 +48,9 @@ type PeerDto struct {
 	Version             uint64    `json:"version"`
 	LastUpdatedAt       time.Time `json:"lastUpdatedAt"`
 	Token               string    `json:"token,omitempty"`
+
+	Namespace string            `json:"namespace,omitempty"`
+	Labels    map[string]string `json:"labels,omitempty"`
 }
 
 type TokenDto struct {

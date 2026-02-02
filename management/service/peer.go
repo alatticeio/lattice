@@ -17,16 +17,20 @@ package service
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 	"wireflow/internal/infra"
 	"wireflow/internal/log"
 	"wireflow/management/dto"
+	"wireflow/management/model"
 	"wireflow/management/resource"
+	"wireflow/management/vo"
 	"wireflow/pkg/utils"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -43,11 +47,139 @@ type PeerService interface {
 	GetNetmap(ctx context.Context, namespace string, appId string) (*infra.Message, error)
 	CreateToken(ctx context.Context, tokenDto *dto.TokenDto) ([]byte, error)
 	bootstrap(ctx context.Context, provideToken string) error
+
+	//Peer
+	ListPeers(ctx context.Context, pageParam *dto.PageRequest) (*dto.PageResult[vo.PeerVO], error)
+	UpdatePeer(ctx context.Context, peerDto *dto.PeerDto) (*vo.PeerVO, error)
 }
 
 type peerService struct {
 	logger *log.Logger
 	client *resource.Client
+}
+
+func (p *peerService) UpdatePeer(ctx context.Context, peerDto *dto.PeerDto) (*vo.PeerVO, error) {
+	var peer v1alpha1.WireflowPeer
+	if err := p.client.GetAPIReader().Get(ctx, types.NamespacedName{Namespace: peerDto.Namespace, Name: peerDto.Name}, &peer); err != nil {
+		return nil, err
+	}
+
+	peerLabels := peer.GetLabels()
+
+	// 1. 安全检查：如果 labels 为 nil，必须初始化才能进行添加操作
+	if peerLabels == nil {
+		peerLabels = make(map[string]string)
+	}
+
+	if peerDto.Labels != nil {
+		// 逻辑：以 peerDto.Labels 为准更新 peerLabels
+		for k, v := range peerDto.Labels {
+			if v == "" {
+				// 约定俗成：如果值为空字符串，则删除该 Label
+				delete(peerLabels, k)
+			} else {
+				// 否则，添加或覆盖 Label
+				peerLabels[k] = v
+			}
+		}
+	}
+
+	// 2. 将修改后的 labels 写回对象
+	peer.SetLabels(peerLabels)
+
+	err := p.client.Update(ctx, &peer)
+	if err != nil {
+		return nil, err
+	}
+
+	return &vo.PeerVO{
+		Name:      peer.Name,
+		AppID:     peer.Spec.AppId,
+		Labels:    peerLabels,
+		PublicKey: peer.Spec.PublicKey,
+		Platform:  peer.Spec.Platform,
+		Address:   peer.Status.AllocatedAddress,
+	}, nil
+}
+
+func (p *peerService) ListPeers(ctx context.Context, pageParam *dto.PageRequest) (*dto.PageResult[vo.PeerVO], error) {
+	var (
+		peerList v1alpha1.WireflowPeerList
+		err      error
+	)
+	err = p.client.GetAPIReader().List(ctx, &peerList, client.InNamespace(pageParam.Namespace))
+
+	if err != nil {
+		return nil, err
+	}
+
+	// 2. 获取全量数据（模拟）
+	allPeers := []*model.Peer{ /* ... 很多数据 ... */ }
+
+	for _, n := range peerList.Items {
+		allPeers = append(allPeers, &model.Peer{
+			Name:       n.Name,
+			PublicKey:  n.Spec.PublicKey,
+			AppID:      n.Spec.AppId,
+			PrivateKey: n.Spec.PrivateKey,
+			Labels:     n.GetLabels(),
+		})
+	}
+
+	// 3. 逻辑过滤（搜索）
+	var filteredNodes []*model.Peer
+	if pageParam.Search != "" {
+		for _, n := range allPeers {
+			if strings.Contains(n.Name, pageParam.Search) || (n.Address != nil && strings.Contains(*n.Address, pageParam.Search)) {
+				filteredNodes = append(filteredNodes, n)
+			}
+		}
+	} else {
+		filteredNodes = allPeers
+	}
+
+	// 4. 执行内存切片分页
+	total := len(filteredNodes)
+	start := (pageParam.Page - 1) * pageParam.PageSize
+	end := start + pageParam.PageSize
+
+	// 防止切片越界越界
+	if start > total {
+		start = total
+	}
+	if end > total {
+		end = total
+	}
+
+	// 截取
+	data := filteredNodes[start:end]
+	var res []*vo.PeerVO
+	for _, n := range data {
+		res = append(res, &vo.PeerVO{
+			Name:      n.Name,
+			PublicKey: n.PublicKey,
+			AppID:     n.AppID,
+			Labels:    n.Labels,
+		})
+	}
+
+	var vos []vo.PeerVO
+	for _, n := range res {
+		evin := vo.PeerVO{
+			Name:      n.Name,
+			PublicKey: n.PublicKey,
+			AppID:     n.AppID,
+			Labels:    n.Labels,
+		}
+		vos = append(vos, evin)
+	}
+
+	return &dto.PageResult[vo.PeerVO]{
+		Page:     pageParam.Page,
+		PageSize: pageParam.PageSize,
+		Total:    int64(len(allPeers)),
+		List:     vos,
+	}, nil
 }
 
 func (p *peerService) CreateToken(ctx context.Context, tokenDto *dto.TokenDto) ([]byte, error) {

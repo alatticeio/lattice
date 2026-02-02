@@ -21,10 +21,12 @@ import (
 	"wireflow/internal/infra"
 	"wireflow/internal/log"
 	"wireflow/management/controller"
+	"wireflow/management/database"
 	"wireflow/management/nats"
 	"wireflow/management/resource"
 	"wireflow/pkg/version"
 
+	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 )
@@ -33,6 +35,7 @@ type Handler func(data []byte) ([]byte, error)
 
 // Server is the main server struct.
 type Server struct {
+	*gin.Engine
 	logger *log.Logger
 	listen string
 	nats   infra.SignalService
@@ -40,6 +43,7 @@ type Server struct {
 	manager           manager.Manager
 	peerController    controller.PeerController
 	networkController controller.NetworkController
+	userController    controller.UserController
 }
 
 // ServerConfig is the server configuration.
@@ -71,6 +75,8 @@ func NewServer(cfg *ServerConfig) (*Server, error) {
 		return nil, err
 	}
 
+	database.InitDB("wireflow.db")
+
 	s := &Server{
 		logger:            logger,
 		listen:            cfg.Listen,
@@ -78,6 +84,7 @@ func NewServer(cfg *ServerConfig) (*Server, error) {
 		manager:           mgr,
 		peerController:    controller.NewPeerController(client),
 		networkController: controller.NewNetworkController(client),
+		userController:    controller.NewUserController(),
 	}
 
 	routes := map[string]Handler{
@@ -90,6 +97,11 @@ func NewServer(cfg *ServerConfig) (*Server, error) {
 	for route, handler := range routes {
 		s.nats.Service(route, "wireflow_queue", handler)
 	}
+
+	// http
+	s.Engine = gin.Default()
+
+	s.apiRouter()
 
 	return s, nil
 }
@@ -118,4 +130,8 @@ func (s *Server) Info(content []byte) ([]byte, error) {
 
 func (s *Server) CreateToken(content []byte) ([]byte, error) {
 	return s.peerController.CreateToken(context.Background(), content)
+}
+
+func (s *Server) Shutdown(ctx context.Context) error {
+	return nil
 }

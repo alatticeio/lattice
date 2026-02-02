@@ -144,20 +144,5 @@ func (h *MessageHandler) applyFirewallRules(ctx context.Context, msg *infra.Mess
 	if msg.ComputedRules == nil {
 		return nil
 	}
-	var err error
-	ingress := msg.ComputedRules.IngressRules
-	egress := msg.ComputedRules.EgressRules
-
-	for _, rule := range ingress {
-		if err = h.provisioner.ApplyRule("add", rule); err != nil {
-			return err
-		}
-	}
-
-	for _, rule := range egress {
-		if err = h.provisioner.ApplyRule("add", rule); err != nil {
-			return err
-		}
-	}
-	return nil
+	return h.provisioner.Provision(msg.ComputedRules)
 }

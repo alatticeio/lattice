@@ -35,11 +35,11 @@ func TestPeerResolver_ResolvePeers(t *testing.T) {
 
 		var policies []*infra.Policy
 		for i := 0; i < 3; i++ {
-			rule := &infra.Rule{
+			rule := &infra.TrafficRule{
 				Peers: []*infra.Peer{peer},
 			}
 
-			rules := []*infra.Rule{rule}
+			rules := []*infra.TrafficRule{rule}
 			policy := &infra.Policy{
 				Ingress: rules,
 			}

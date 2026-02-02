@@ -1,7 +1,7 @@
 apiVersion: wireflowcontroller.wireflow.run/v1alpha1
 kind: WireflowPeer
 metadata:
-  name: 30a589e950
+  name: 30a589e957
   namespace: wf-test
 spec:
   appId: 30a589e950

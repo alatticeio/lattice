@@ -2,5 +2,5 @@
 resources:
 - wireflowcontroller_v1alpha1_node.yaml
 - wireflowcontroller_v1alpha1_wireflownetwork.yaml
-- wireflowcontroller_v1alpha1_networkpolicy.yaml
+- label1-policy.yaml
 # +kubebuilder:scaffold:manifestskustomizesamples

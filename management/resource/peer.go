@@ -21,7 +21,7 @@ import (
 	v1alpha1 "wireflow/api/v1alpha1"
 	"wireflow/internal/infra"
 	"wireflow/management/dto"
-	"wireflow/management/entity"
+	"wireflow/management/model"
 
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 	corev1 "k8s.io/api/core/v1"
@@ -81,7 +81,7 @@ func (c *Client) Register(ctx context.Context, namespace string, e *dto.PeerDto)
 			InterfaceName: e.InterfaceName,
 			PrivateKey:    key.String(),
 			PublicKey:     key.PublicKey().String(),
-			PeerId: int64(peerId.ToUint64()),
+			PeerId:        int64(peerId.ToUint64()),
 		},
 
 		Status: v1alpha1.WireflowPeerStatus{
@@ -181,7 +181,7 @@ func (c *Client) GetNetworkMap(ctx context.Context, tokenStr, name string) (*inf
 	return message, nil
 }
 
-func (c *Client) GetByAppId(ctx context.Context, appId string) (*entity.Node, error) {
+func (c *Client) GetByAppId(ctx context.Context, appId string) (*model.Peer, error) {
 	return nil, nil
 }
 

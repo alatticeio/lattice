@@ -163,15 +163,24 @@ type Policy struct {
 }
 
 type FirewallRule struct {
-	Platform     string   `json:"platform"`
-	IngressRules []string `json:"ingressRules"`
-	EgressRules  []string `json:"egressRules"`
+	Platform   string        `json:"platform"`
+	PolicyName string        `json:"policyName"`
+	Ingress    []TrafficRule `json:"ingress,omitempty"`
+	Egress     []TrafficRule `json:"egress,omitempty"`
 }
 
 type Rule struct {
 	Peers    []*Peer `json:"peers"`
 	Protocol string  `json:"protocol"`
-	Port     string  `json:"port"`
+	Port     int     `json:"port"`
+}
+
+type TrafficRule struct {
+	ChainName string   `json:"chainName"`
+	Peers     []string `json:"peers,omitempty"` // ip list
+	Protocol  string   `json:"protocol,omitempty"`
+	Port      int      `json:"port,omitempty"`
+	Action    string   `json:"action,omitempty"` // Accept or drop
 }
 
 func NewMessage() *Message {

@@ -18,6 +18,7 @@ import (
 	"context"
 	wireflowv1alpha1 "wireflow/api/v1alpha1"
 	"wireflow/internal/infra"
+	"wireflow/management/model"
 	"wireflow/management/resource"
 )
 
@@ -25,10 +26,30 @@ type NetworkService interface {
 	CreateNetwork(ctx context.Context, networkId, cidr string) (*infra.Network, error)
 	JoinNetwork(ctx context.Context, appIds []string, networkId string) error
 	LeaveNetwork(ctx context.Context, appIds []string, networkId string) error
+	ListTokens(ctx context.Context) ([]model.Token, error)
 }
 
 type networkService struct {
 	client *resource.Client
+}
+
+func (s *networkService) ListTokens(ctx context.Context) ([]model.Token, error) {
+	var tokenList wireflowv1alpha1.WireflowEnrollmentTokenList
+	if err := s.client.List(ctx, &tokenList); err != nil {
+		return nil, err
+	}
+
+	var tokens []model.Token
+	for _, token := range tokenList.Items {
+		tokens = append(tokens, model.Token{
+			Namespace:  token.Namespace,
+			Token:      token.Spec.Token,
+			Expiry:     token.Spec.Expiry,
+			UsageLimit: token.Spec.UsageLimit,
+		})
+	}
+
+	return tokens, nil
 }
 
 func NewNetworkService(client *resource.Client) NetworkService {

@@ -38,6 +38,47 @@ func (r *routeProvisioner) ApplyIP(action, address, name string) error {
 	return nil
 }
 
+func (r *ruleProvisioner) Name() string { return "windows-fw" }
+
+func (r *ruleProvisioner) Provision(rule *FirewallRule) error {
+	// 1. 清理旧规则 (基于 Name 前缀)
+	p.execPS("Remove-NetFirewallRule -DisplayName 'Wireflow-*'")
+
+	// 2. 处理 Ingress
+	for i, tr := range rule.Ingress {
+		ips := strings.Join(tr.Peers, ",")
+		cmd := fmt.Sprintf(
+			"New-NetFirewallRule -DisplayName 'Wireflow-In-%d' -Direction Inbound -Action Allow -Protocol %s -LocalPort %d -RemoteAddress %s",
+			i, strings.ToUpper(tr.Protocol), tr.Port, ips,
+		)
+		if err := p.execPS(cmd); err != nil {
+			return err
+		}
+	}
+
+	// 3. 处理 Egress
+	for i, tr := range rule.Egress {
+		ips := strings.Join(tr.Peers, ",")
+		cmd := fmt.Sprintf(
+			"New-NetFirewallRule -DisplayName 'Wireflow-Out-%d' -Direction Outbound -Action Allow -Protocol %s -RemotePort %d -RemoteAddress %s",
+			i, strings.ToUpper(tr.Protocol), tr.Port, ips,
+		)
+		if err := p.execPS(cmd); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (p *WindowsProvisioner) execPS(command string) error {
+	cmd := exec.Command("powershell", "-Command", command)
+	return cmd.Run()
+}
+
+func (p *WindowsProvisioner) Cleanup() error {
+	return p.execPS("Remove-NetFirewallRule -DisplayName 'Wireflow-*'")
+}
+
 func (r *ruleProvisioner) ApplyRule(action, rule string) error {
 	return nil
 }

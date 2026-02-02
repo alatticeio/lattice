@@ -20,6 +20,7 @@ import (
 	"wireflow/management/dto"
 	"wireflow/management/resource"
 	"wireflow/management/service"
+	"wireflow/management/vo"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -34,6 +35,9 @@ type PeerController interface {
 	GetNetmap(ctx context.Context, request []byte) ([]byte, error)
 	CreateToken(ctx context.Context, request []byte) ([]byte, error)
 	UpdateStatus(ctx context.Context, status int) error
+
+	ListPeers(ctx context.Context, pageParam *dto.PageRequest) (*dto.PageResult[vo.PeerVO], error)
+	UpdatePeer(ctx context.Context, peerDto *dto.PeerDto) (*vo.PeerVO, error)
 }
 
 func NewPeerController(client *resource.Client) PeerController {
@@ -46,6 +50,14 @@ func NewPeerController(client *resource.Client) PeerController {
 type peerController struct {
 	peerService   service.PeerService
 	policyService service.PolicyService
+}
+
+func (p *peerController) UpdatePeer(ctx context.Context, peerDto *dto.PeerDto) (*vo.PeerVO, error) {
+	return p.peerService.UpdatePeer(ctx, peerDto)
+}
+
+func (p *peerController) ListPeers(ctx context.Context, pageParam *dto.PageRequest) (*dto.PageResult[vo.PeerVO], error) {
+	return p.peerService.ListPeers(ctx, pageParam)
 }
 
 func (p *peerController) CreateToken(ctx context.Context, request []byte) ([]byte, error) {

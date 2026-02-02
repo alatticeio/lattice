@@ -30,7 +30,6 @@ type FirewallRuleResolver interface {
 }
 
 type firewallRuleResolver struct {
-	ruleGenerator RuleGenerator
 }
 
 func NewFirewallResolver() FirewallRuleResolver {
@@ -39,40 +38,19 @@ func NewFirewallResolver() FirewallRuleResolver {
 
 func (r *firewallRuleResolver) ResolveRules(ctx context.Context, currentPeer *infra.Peer, network *infra.Network, allPolicies []*infra.Policy) (*infra.FirewallRule, error) {
 	log := logf.FromContext(ctx)
-	log.Info("Resolving firewall rules")
+	log.Info("Resolving firewall rules", "currentPeer", currentPeer, "network", network)
 	if currentPeer == nil || network == nil {
 		return nil, fmt.Errorf("currentPeer or network cannot be nil")
 	}
 
 	result := &infra.FirewallRule{
-		Platform:     currentPeer.Platform,
-		IngressRules: make([]string, 0),
-		EgressRules:  make([]string, 0),
+		Platform: currentPeer.Platform,
+		Ingress:  make([]infra.TrafficRule, 0),
+		Egress:   make([]infra.TrafficRule, 0),
 	}
-
-	generator, err := NewRuleGenerator(currentPeer.Platform)
-	if err != nil {
-		log.Error(err, "Error generating firewall rule generator")
-		return nil, err
-	}
-
-	// [Step 0] 状态检测规则 (Stateful Inspection) - 必须放在最前面
-	// 允许已建立连接的流量通过（RELATED,ESTABLISHED）。
-	statefulRule := fmt.Sprintf("-m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT")
-	result.IngressRules = append(result.IngressRules, fmt.Sprintf("-A INPUT -i %s %s", currentPeer.InterfaceName, statefulRule))
-	result.EgressRules = append(result.EgressRules, fmt.Sprintf("-A OUTPUT -o %s %s", currentPeer.InterfaceName, statefulRule))
 
 	// [Step 1] 筛选出适用于当前 Peer 的策略
 	appliedPolicies := allPolicies
-	//appliedPolicies := make([]*infra.Policy, 0)
-	//for _, policy := range allPolicies {
-	//	for _, appliedID := range policy.AppliedToPeerIDs {
-	//		if appliedID == currentPeer.Name {
-	//			appliedPolicies = append(appliedPolicies, policy)
-	//			break
-	//		}
-	//	}
-	//}
 
 	// [Step 2] 处理 Ingress 规则 (INPUT 链：别人 -> 我)
 	for _, policy := range appliedPolicies {
@@ -83,17 +61,15 @@ func (r *firewallRuleResolver) ResolveRules(ctx context.Context, currentPeer *in
 				}
 
 				srcIP := cleanIP(sourcePeer.Address)
-				baseCmd := fmt.Sprintf("-s %s", srcIP)
-
-				// 命令格式: -A INPUT -i wg0 -s <IP> ... -j ACCEPT
-				// 调用平台策略生成最终命令
-				fullCmd, err := generator.GenerateRule("INPUT", baseCmd, rule, sourcePeer)
-				if err != nil {
-					return nil, err
+				trafficRule := infra.TrafficRule{
+					ChainName: "WIREFLOW-INGRESS",
+					Peers:     make([]string, 0),
+					Port:      rule.Port,
+					Protocol:  rule.Protocol,
+					Action:    "ACCEPT",
 				}
-				result.IngressRules = append(result.IngressRules, fullCmd)
-
-				result.IngressRules = append(result.IngressRules, fullCmd)
+				trafficRule.Peers = append(trafficRule.Peers, srcIP)
+				result.Ingress = append(result.Ingress, trafficRule)
 			}
 		}
 	}
@@ -107,24 +83,19 @@ func (r *firewallRuleResolver) ResolveRules(ctx context.Context, currentPeer *in
 				}
 
 				destIP := cleanIP(destPeer.Address)
-
-				// 命令格式: -A OUTPUT -o wg0 -d <IP> ... -j ACCEPT
-				baseCmd := fmt.Sprintf("-A OUTPUT -o %s -d %s", currentPeer.InterfaceName, destIP)
-				// 调用平台策略生成最终命令
-				fullCmd, err := generator.GenerateRule("OUTPUT", baseCmd, rule, destPeer)
-				if err != nil {
-					return nil, err
+				trafficRule := infra.TrafficRule{
+					ChainName: "WIREFLOW-EGRESS",
+					Peers:     make([]string, 0),
+					Port:      rule.Port,
+					Protocol:  rule.Protocol,
+					Action:    "ACCEPT",
 				}
-				result.EgressRules = append(result.EgressRules, fullCmd)
+				trafficRule.Peers = append(trafficRule.Peers, destIP)
+				result.Egress = append(result.Egress, trafficRule)
 
 			}
 		}
 	}
-
-	// [Step 4] 默认拒绝 (Default Deny) - 兜底规则
-	// 放在链的最后，丢弃所有未匹配上述 ACCEPT 规则的流量
-	result.IngressRules = append(result.IngressRules, fmt.Sprintf("-A INPUT -i %s -j DROP", currentPeer.InterfaceName))
-	result.EgressRules = append(result.EgressRules, fmt.Sprintf("-A OUTPUT -o %s -j DROP", currentPeer.InterfaceName))
 
 	return result, nil
 }

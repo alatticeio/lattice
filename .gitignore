@@ -1,5 +1,6 @@
 .idea
 bin
+*.db
 conf/control.yaml
 conf/control-deployment.yaml
 .vscode
