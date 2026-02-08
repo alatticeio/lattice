@@ -24,9 +24,10 @@ import (
 )
 
 var (
-	cm   *ConfigManager
-	once sync.Once
-	Conf *Flags
+	cm         *ConfigManager
+	once       sync.Once
+	serverOnce sync.Once
+	Conf       *Flags
 )
 
 type ConfigManager struct {

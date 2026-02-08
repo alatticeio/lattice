@@ -2,7 +2,9 @@ package utils
 
 import (
 	"errors"
+	"os"
 	"time"
+	"wireflow/management/model"
 
 	"github.com/golang-jwt/jwt/v5"
 )
@@ -49,4 +51,42 @@ func ParseToken(tokenString string) (*Claims, error) {
 	}
 
 	return nil, errors.New("无效的 Token")
+}
+
+// 建议从环境变量读取，不要硬编码
+//var jwtSecret = []byte("your-256-bit-secret-key-here")
+
+func GetJWTSecret() []byte {
+	// 从环境变量获取，比如在 docker-compose 里配置的
+	secret := os.Getenv("WF_JWT_SECRET")
+	if secret == "" {
+		// 生产环境建议在这里直接 panic，强制要求配置 secret
+		return []byte("your-256-bit-secret-key-here")
+	}
+	return []byte(secret)
+}
+
+func GenerateBusinessJWT(userID, email string) (string, error) {
+	// 1. 设置有效期（例如 12 小时）
+	claims := model.WireFlowClaims{
+		Subject: userID,
+		Email:   email,
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(12 * time.Hour)),
+			IssuedAt:  jwt.NewNumericDate(time.Now()),
+			Issuer:    "wireflow-bff",
+			Subject:   userID,
+		},
+	}
+
+	// 2. 选择签名算法 (HS256 是最常用的对称加密)
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+
+	// 3. 生成最终的字符串 Token
+	signedToken, err := token.SignedString(GetJWTSecret())
+	if err != nil {
+		return "", err
+	}
+
+	return signedToken, nil
 }

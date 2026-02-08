@@ -1,0 +1,12 @@
+# cluster-role-template.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: wf-resource-editor
+rules:
+  - apiGroups: ["wireflow.io"]
+    resources: ["wireflowpeers", "wireflownetworks", "wireflowpolicies"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: [""]
+    resources: ["secrets", "configmaps"]
+    verbs: ["get", "list", "watch"]

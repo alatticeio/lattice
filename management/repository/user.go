@@ -9,6 +9,8 @@ import (
 )
 
 type UserRepository interface {
+	GetMe(ctx context.Context, id string) (*model.User, error)
+
 	// 基础查询
 	GetByID(ctx context.Context, id uint) (*model.User, error)
 	GetByEmail(ctx context.Context, email string) (*model.User, error)
@@ -26,6 +28,15 @@ type UserRepository interface {
 
 type userRepository struct {
 	db *gorm.DB
+}
+
+func (r *userRepository) GetMe(ctx context.Context, id string) (*model.User, error) {
+	var user model.User
+	if err := r.db.First(&user, "id = ?", id).Error; err != nil {
+		return nil, err
+	}
+
+	return &user, nil
 }
 
 func (r *userRepository) GetByID(ctx context.Context, id uint) (*model.User, error) {

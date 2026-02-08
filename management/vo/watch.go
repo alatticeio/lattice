@@ -4,7 +4,7 @@ import (
 	"wireflow/internal/infra"
 )
 
-func (vo *PeerVO) TransferToNode() *infra.Peer {
+func (vo *PeerVo) TransferToNode() *infra.Peer {
 	return &infra.Peer{
 		Name:                vo.Name,
 		Description:         vo.Description,

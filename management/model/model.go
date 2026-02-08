@@ -3,6 +3,7 @@ package model
 import (
 	"time"
 
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
@@ -13,8 +14,16 @@ import (
 //	  gorm.Model
 //	}
 type Model struct {
-	ID        uint64         `gorm:"primary_key" json:"id"`
+	ID        string         `gorm:"primaryKey;type:text;autoIncrement:false"`
 	CreatedAt time.Time      `json:"created_at" json:"created_at"`
 	UpdatedAt time.Time      `json:"updated_at" json:"updated_at"`
 	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
+}
+
+// uuid v7 time + rand
+func (m *Model) BeforeCreate(tx *gorm.DB) (err error) {
+	if m.ID == "" {
+		m.ID = uuid.New().String()
+	}
+	return
 }

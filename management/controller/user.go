@@ -4,12 +4,14 @@ import (
 	"context"
 	"wireflow/internal/log"
 	"wireflow/management/dto"
+	"wireflow/management/model"
 	"wireflow/management/service"
 )
 
 type UserController interface {
 	Register(ctx context.Context, userDto dto.UserDto) error
 	Login(ctx context.Context, email, password string) (string, error)
+	GetMe(ctx context.Context, id string) (*model.User, error)
 }
 
 var (
@@ -19,6 +21,10 @@ var (
 type userController struct {
 	log         *log.Logger
 	userService service.UserService
+}
+
+func (u userController) GetMe(ctx context.Context, id string) (*model.User, error) {
+	return u.userService.GetMe(ctx, id)
 }
 
 func (u userController) Login(ctx context.Context, email, password string) (string, error) {

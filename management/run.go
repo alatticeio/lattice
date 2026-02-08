@@ -22,6 +22,7 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
+	"wireflow/internal/config"
 	"wireflow/internal/log"
 	"wireflow/management/server"
 
@@ -33,9 +34,11 @@ func Start(listen string) error {
 	defer stop()
 	logger := log.GetLogger("management")
 
+	cfg := config.InitConfig("deploy/conf.yaml")
+
 	// 1. 初始化服务实例
 	hs, err := server.NewServer(&server.ServerConfig{
-		Listen: listen,
+		Cfg: cfg,
 	})
 	if err != nil {
 		return err

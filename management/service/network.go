@@ -16,40 +16,110 @@ package service
 
 import (
 	"context"
+	"strings"
 	wireflowv1alpha1 "wireflow/api/v1alpha1"
 	"wireflow/internal/infra"
-	"wireflow/management/model"
+	"wireflow/management/dto"
 	"wireflow/management/resource"
+	"wireflow/management/vo"
+
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 type NetworkService interface {
 	CreateNetwork(ctx context.Context, networkId, cidr string) (*infra.Network, error)
 	JoinNetwork(ctx context.Context, appIds []string, networkId string) error
 	LeaveNetwork(ctx context.Context, appIds []string, networkId string) error
-	ListTokens(ctx context.Context) ([]model.Token, error)
+	ListTokens(ctx context.Context, pageParam *dto.PageRequest) (*dto.PageResult[vo.TokenVo], error)
 }
 
 type networkService struct {
 	client *resource.Client
 }
 
-func (s *networkService) ListTokens(ctx context.Context) ([]model.Token, error) {
-	var tokenList wireflowv1alpha1.WireflowEnrollmentTokenList
-	if err := s.client.List(ctx, &tokenList); err != nil {
+func (s *networkService) ListTokens(ctx context.Context, pageParam *dto.PageRequest) (*dto.PageResult[vo.TokenVo], error) {
+	//var tokenList wireflowv1alpha1.WireflowEnrollmentTokenList
+	//if err := s.client.List(ctx, &tokenList); err != nil {
+	//	return nil, err
+	//}
+	//
+	//var tokens []model.Token
+	//for _, token := range tokenList.Items {
+	//	tokens = append(tokens, model.Token{
+	//		Namespace:  token.Namespace,
+	//		Token:      token.Spec.Token,
+	//		Expiry:     token.Spec.Expiry,
+	//		UsageLimit: token.Spec.UsageLimit,
+	//	})
+	//}
+	//
+	//return tokens, nil
+
+	var (
+		tokenList wireflowv1alpha1.WireflowEnrollmentTokenList
+		err       error
+	)
+	err = s.client.GetAPIReader().List(ctx, &tokenList, client.InNamespace(pageParam.Namespace))
+
+	if err != nil {
 		return nil, err
 	}
 
-	var tokens []model.Token
-	for _, token := range tokenList.Items {
-		tokens = append(tokens, model.Token{
-			Namespace:  token.Namespace,
-			Token:      token.Spec.Token,
-			Expiry:     token.Spec.Expiry,
-			UsageLimit: token.Spec.UsageLimit,
+	// 2. 获取全量数据（模拟）
+	allTokens := []*vo.TokenVo{ /* ... 很多数据 ... */ }
+
+	for _, item := range tokenList.Items {
+		allTokens = append(allTokens, &vo.TokenVo{
+			Namespace:  item.Namespace,
+			Token:      item.Spec.Token,
+			Expiry:     item.Spec.Expiry,
+			UsageLimit: item.Spec.UsageLimit,
 		})
 	}
 
-	return tokens, nil
+	// 3. 逻辑过滤（搜索）
+	var filteredTokens []*vo.TokenVo
+	if pageParam.Search != "" {
+		for _, n := range allTokens {
+			if strings.Contains(n.Token, pageParam.Search) {
+				filteredTokens = append(filteredTokens, n)
+			}
+		}
+	} else {
+		filteredTokens = allTokens
+	}
+
+	// 4. 执行内存切片分页
+	total := len(filteredTokens)
+	start := (pageParam.Page - 1) * pageParam.PageSize
+	end := start + pageParam.PageSize
+
+	// 防止切片越界越界
+	if start > total {
+		start = total
+	}
+	if end > total {
+		end = total
+	}
+
+	// 截取
+	data := filteredTokens[start:end]
+	var res []vo.TokenVo
+	for _, n := range data {
+		res = append(res, vo.TokenVo{
+			Namespace:  n.Namespace,
+			Token:      n.Token,
+			Expiry:     n.Expiry,
+			UsageLimit: n.UsageLimit,
+		})
+	}
+
+	return &dto.PageResult[vo.TokenVo]{
+		Page:     pageParam.Page,
+		PageSize: pageParam.PageSize,
+		Total:    int64(len(allTokens)),
+		List:     res,
+	}, nil
 }
 
 func NewNetworkService(client *resource.Client) NetworkService {

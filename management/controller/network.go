@@ -18,9 +18,9 @@ import (
 	"context"
 	"encoding/json"
 	"wireflow/management/dto"
-	"wireflow/management/model"
 	"wireflow/management/resource"
 	"wireflow/management/service"
+	"wireflow/management/vo"
 )
 
 type NetworkController interface {
@@ -28,7 +28,7 @@ type NetworkController interface {
 	JoinNetwork(ctx context.Context, request []byte) error
 	LeaveNetwork(ctx context.Context, request []byte) error
 
-	ListTokens(ctx context.Context) ([]model.Token, error)
+	ListTokens(ctx context.Context, pageParam *dto.PageRequest) (*dto.PageResult[vo.TokenVo], error)
 }
 
 type networkController struct {
@@ -58,8 +58,8 @@ func (n *networkController) CreateNetwork(ctx context.Context, request []byte) (
 	return data, nil
 }
 
-func (n *networkController) ListTokens(ctx context.Context) ([]model.Token, error) {
-	return n.networkService.ListTokens(ctx)
+func (n *networkController) ListTokens(ctx context.Context, pageParam *dto.PageRequest) (*dto.PageResult[vo.TokenVo], error) {
+	return n.networkService.ListTokens(ctx, pageParam)
 }
 
 func (n networkController) JoinNetwork(ctx context.Context, request []byte) error {

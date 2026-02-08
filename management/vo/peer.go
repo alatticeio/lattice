@@ -4,7 +4,7 @@ import (
 	"time"
 )
 
-type PeerVO struct {
+type PeerVo struct {
 	ID                  uint64    `json:"id,string"`
 	Namespace           string    `json:"namespace"`
 	Name                string    `json:"name,omitempty"`

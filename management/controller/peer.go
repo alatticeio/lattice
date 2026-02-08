@@ -36,8 +36,8 @@ type PeerController interface {
 	CreateToken(ctx context.Context, request []byte) ([]byte, error)
 	UpdateStatus(ctx context.Context, status int) error
 
-	ListPeers(ctx context.Context, pageParam *dto.PageRequest) (*dto.PageResult[vo.PeerVO], error)
-	UpdatePeer(ctx context.Context, peerDto *dto.PeerDto) (*vo.PeerVO, error)
+	ListPeers(ctx context.Context, pageParam *dto.PageRequest) (*dto.PageResult[vo.PeerVo], error)
+	UpdatePeer(ctx context.Context, peerDto *dto.PeerDto) (*vo.PeerVo, error)
 }
 
 func NewPeerController(client *resource.Client) PeerController {
@@ -52,11 +52,11 @@ type peerController struct {
 	policyService service.PolicyService
 }
 
-func (p *peerController) UpdatePeer(ctx context.Context, peerDto *dto.PeerDto) (*vo.PeerVO, error) {
+func (p *peerController) UpdatePeer(ctx context.Context, peerDto *dto.PeerDto) (*vo.PeerVo, error) {
 	return p.peerService.UpdatePeer(ctx, peerDto)
 }
 
-func (p *peerController) ListPeers(ctx context.Context, pageParam *dto.PageRequest) (*dto.PageResult[vo.PeerVO], error) {
+func (p *peerController) ListPeers(ctx context.Context, pageParam *dto.PageRequest) (*dto.PageResult[vo.PeerVo], error) {
 	return p.peerService.ListPeers(ctx, pageParam)
 }
 

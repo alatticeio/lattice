@@ -49,8 +49,8 @@ type PeerService interface {
 	bootstrap(ctx context.Context, provideToken string) error
 
 	//Peer
-	ListPeers(ctx context.Context, pageParam *dto.PageRequest) (*dto.PageResult[vo.PeerVO], error)
-	UpdatePeer(ctx context.Context, peerDto *dto.PeerDto) (*vo.PeerVO, error)
+	ListPeers(ctx context.Context, pageParam *dto.PageRequest) (*dto.PageResult[vo.PeerVo], error)
+	UpdatePeer(ctx context.Context, peerDto *dto.PeerDto) (*vo.PeerVo, error)
 }
 
 type peerService struct {
@@ -58,7 +58,7 @@ type peerService struct {
 	client *resource.Client
 }
 
-func (p *peerService) UpdatePeer(ctx context.Context, peerDto *dto.PeerDto) (*vo.PeerVO, error) {
+func (p *peerService) UpdatePeer(ctx context.Context, peerDto *dto.PeerDto) (*vo.PeerVo, error) {
 	var peer v1alpha1.WireflowPeer
 	if err := p.client.GetAPIReader().Get(ctx, types.NamespacedName{Namespace: peerDto.Namespace, Name: peerDto.Name}, &peer); err != nil {
 		return nil, err
@@ -92,7 +92,7 @@ func (p *peerService) UpdatePeer(ctx context.Context, peerDto *dto.PeerDto) (*vo
 		return nil, err
 	}
 
-	return &vo.PeerVO{
+	return &vo.PeerVo{
 		Name:      peer.Name,
 		AppID:     peer.Spec.AppId,
 		Labels:    peerLabels,
@@ -102,7 +102,7 @@ func (p *peerService) UpdatePeer(ctx context.Context, peerDto *dto.PeerDto) (*vo
 	}, nil
 }
 
-func (p *peerService) ListPeers(ctx context.Context, pageParam *dto.PageRequest) (*dto.PageResult[vo.PeerVO], error) {
+func (p *peerService) ListPeers(ctx context.Context, pageParam *dto.PageRequest) (*dto.PageResult[vo.PeerVo], error) {
 	var (
 		peerList v1alpha1.WireflowPeerList
 		err      error
@@ -153,9 +153,9 @@ func (p *peerService) ListPeers(ctx context.Context, pageParam *dto.PageRequest)
 
 	// 截取
 	data := filteredNodes[start:end]
-	var res []*vo.PeerVO
+	var res []*vo.PeerVo
 	for _, n := range data {
-		res = append(res, &vo.PeerVO{
+		res = append(res, &vo.PeerVo{
 			Name:      n.Name,
 			PublicKey: n.PublicKey,
 			AppID:     n.AppID,
@@ -163,9 +163,9 @@ func (p *peerService) ListPeers(ctx context.Context, pageParam *dto.PageRequest)
 		})
 	}
 
-	var vos []vo.PeerVO
+	var vos []vo.PeerVo
 	for _, n := range res {
-		evin := vo.PeerVO{
+		evin := vo.PeerVo{
 			Name:      n.Name,
 			PublicKey: n.PublicKey,
 			AppID:     n.AppID,
@@ -174,7 +174,7 @@ func (p *peerService) ListPeers(ctx context.Context, pageParam *dto.PageRequest)
 		vos = append(vos, evin)
 	}
 
-	return &dto.PageResult[vo.PeerVO]{
+	return &dto.PageResult[vo.PeerVo]{
 		Page:     pageParam.Page,
 		PageSize: pageParam.PageSize,
 		Total:    int64(len(allPeers)),

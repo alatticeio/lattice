@@ -1,0 +1,14 @@
+app:
+  listen: :8080
+  name: "WireFlow"
+  env: "development"
+  init_admins:
+    - "ladmin@example.com" # 换成你自己的 GitHub 邮箱
+
+jwt:
+  secret: "your-super-secret-key"
+  expire_hours: 24
+
+database:
+  driver: "sqlite"
+  dsn: "wireflow.db"

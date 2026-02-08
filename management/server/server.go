@@ -27,7 +27,6 @@ import (
 	"wireflow/pkg/version"
 
 	"github.com/gin-gonic/gin"
-	"gorm.io/gorm"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 )
 
@@ -39,22 +38,24 @@ type Server struct {
 	logger *log.Logger
 	listen string
 	nats   infra.SignalService
+	cfg    *config.Config
 
+	client            *resource.Client
 	manager           manager.Manager
 	peerController    controller.PeerController
 	networkController controller.NetworkController
 	userController    controller.UserController
+	policyController  controller.PolicyController
 }
 
 // ServerConfig is the server configuration.
 type ServerConfig struct {
-	Listen          string
-	DatabaseService *gorm.DB
-	Nats            infra.SignalService
+	Cfg  *config.Config
+	Nats infra.SignalService
 }
 
 // NewServer creates a new server.
-func NewServer(cfg *ServerConfig) (*Server, error) {
+func NewServer(serverConfig *ServerConfig) (*Server, error) {
 	logger := log.GetLogger("management")
 
 	signal, err := nats.NewNatsService(context.Background(), config.Conf.SignalingURL)
@@ -79,12 +80,15 @@ func NewServer(cfg *ServerConfig) (*Server, error) {
 
 	s := &Server{
 		logger:            logger,
-		listen:            cfg.Listen,
+		listen:            serverConfig.Cfg.App.Listen,
 		nats:              signal,
 		manager:           mgr,
+		client:            client,
+		cfg:               serverConfig.Cfg,
 		peerController:    controller.NewPeerController(client),
 		networkController: controller.NewNetworkController(client),
 		userController:    controller.NewUserController(),
+		policyController:  controller.NewPolicyController(client),
 	}
 
 	routes := map[string]Handler{

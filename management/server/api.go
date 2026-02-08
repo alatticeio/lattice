@@ -2,7 +2,8 @@ package server
 
 import (
 	"fmt"
-	"net/http"
+	"wireflow/management/controller"
+	"wireflow/management/dex"
 	"wireflow/management/dto"
 	"wireflow/management/server/middleware"
 	"wireflow/pkg/cmd/network"
@@ -10,11 +11,16 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func (s *Server) apiRouter() {
+func (s *Server) apiRouter() error {
 	r := s.Engine
 	// 跨域处理（对接 Vite 开发环境）
 	s.Use(middleware.CORSMiddleware())
 
+	dex, err := dex.NewDex(controller.NewTeamController(s.client, s.cfg))
+	if err != nil {
+		return err
+	}
+	r.GET("/auth/callback", dex.Login)
 	api := r.Group("/api/v1")
 	{
 		// 网络管理 (Namespace)
@@ -29,20 +35,25 @@ func (s *Server) apiRouter() {
 		api.GET("/networks/:id/peers", s.GetPeers) // 获取该网络下的所有机器
 	}
 
-	userApi := r.Group("/api/v1/users")
-	{
-		userApi.POST("/register", s.RegisterUser) //注册用户
-		userApi.POST("/login", s.login)           //注册用户
-	}
-
 	peerApi := r.Group("/api/v1/peers")
 	{
 		peerApi.GET("/list", s.listPeers)
 		peerApi.PUT("/update", s.updatePeer)
 	}
 
+	policyApi := r.Group("/api/v1/policies")
+	{
+		policyApi.GET("/list", s.listPolicies)
+		policyApi.PUT("/update", s.updatePolicy)
+		policyApi.POST("/create", s.createPolicy)
+		policyApi.DELETE("/delete", s.deletePolicy)
+	}
+
+	s.userApi()
+
 	// 实时状态推送 (WebSocket)
 	//r.GET("/ws/status", HandleStatusWS)
+	return nil
 }
 
 func (s *Server) ListNetworks(c *gin.Context) {
@@ -53,7 +64,14 @@ func (s *Server) GetPeers(c *gin.Context) {}
 
 func (s *Server) listTokens() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		tokens, err := s.networkController.ListTokens(c.Request.Context())
+		// 1. 获取参数
+		var pageParam dto.PageRequest
+		err := c.ShouldBindQuery(&pageParam)
+		if err != nil {
+			c.JSON(400, gin.H{"error": err.Error()})
+			return
+		}
+		tokens, err := s.networkController.ListTokens(c.Request.Context(), &pageParam)
 		if err != nil {
 			c.JSON(400, gin.H{
 				"error": err.Error(),
@@ -98,46 +116,6 @@ func CreateNetwork(c *gin.Context) {
 	c.JSON(201, gin.H{
 		"message": "网络创建成功",
 		"id":      req.Name,
-	})
-}
-
-// 用户注册
-func (s *Server) RegisterUser(c *gin.Context) {
-	var req dto.UserDto
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "参数校验失败: " + err.Error()})
-		return
-	}
-
-	ctx := c.Request.Context()
-
-	err := s.userController.Register(ctx, req)
-
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "注册失败: " + err.Error()})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{"message": "注册成功"})
-}
-
-func (s *Server) login(c *gin.Context) {
-	var req dto.UserDto
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(400, gin.H{"error": "参数格式错误"})
-		return
-	}
-
-	token, err := s.userController.Login(c.Request.Context(), req.Email, req.Password)
-	if err != nil {
-		c.JSON(401, gin.H{"error": err.Error()})
-		return
-	}
-
-	// 返回给前端
-	c.JSON(200, gin.H{
-		"message": "登录成功",
-		"token":   token,
 	})
 }
 
