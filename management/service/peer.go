@@ -23,9 +23,9 @@ import (
 	"wireflow/internal/log"
 	"wireflow/management/dto"
 	"wireflow/management/model"
+	"wireflow/management/repository"
 	"wireflow/management/resource"
 	"wireflow/management/vo"
-	"wireflow/pkg/utils"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -48,7 +48,7 @@ type PeerService interface {
 	CreateToken(ctx context.Context, tokenDto *dto.TokenDto) ([]byte, error)
 	bootstrap(ctx context.Context, provideToken string) error
 
-	//Peer
+	//Peer tenant
 	ListPeers(ctx context.Context, pageParam *dto.PageRequest) (*dto.PageResult[vo.PeerVo], error)
 	UpdatePeer(ctx context.Context, peerDto *dto.PeerDto) (*vo.PeerVo, error)
 }
@@ -56,6 +56,8 @@ type PeerService interface {
 type peerService struct {
 	logger *log.Logger
 	client *resource.Client
+
+	workspaceRepo repository.WorkspaceRepository
 }
 
 func (p *peerService) UpdatePeer(ctx context.Context, peerDto *dto.PeerDto) (*vo.PeerVo, error) {
@@ -107,7 +109,19 @@ func (p *peerService) ListPeers(ctx context.Context, pageParam *dto.PageRequest)
 		peerList v1alpha1.WireflowPeerList
 		err      error
 	)
-	err = p.client.GetAPIReader().List(ctx, &peerList, client.InNamespace(pageParam.Namespace))
+
+	workspaceV := ctx.Value("workspaceId")
+	var workspaceId string
+	if workspaceV != nil {
+		workspaceId = workspaceV.(string)
+	}
+
+	workspace, err := p.workspaceRepo.FindById(ctx, workspaceId)
+	if err != nil {
+		return nil, err
+	}
+
+	err = p.client.GetAPIReader().List(ctx, &peerList, client.InNamespace(workspace.Namespace))
 
 	if err != nil {
 		return nil, err
@@ -128,9 +142,9 @@ func (p *peerService) ListPeers(ctx context.Context, pageParam *dto.PageRequest)
 
 	// 3. 逻辑过滤（搜索）
 	var filteredNodes []*model.Peer
-	if pageParam.Search != "" {
+	if pageParam.Keyword != "" {
 		for _, n := range allPeers {
-			if strings.Contains(n.Name, pageParam.Search) || (n.Address != nil && strings.Contains(*n.Address, pageParam.Search)) {
+			if strings.Contains(n.Name, pageParam.Keyword) || (n.Address != nil && strings.Contains(*n.Address, pageParam.Keyword)) {
 				filteredNodes = append(filteredNodes, n)
 			}
 		}
@@ -197,20 +211,17 @@ func (p *peerService) CreateToken(ctx context.Context, tokenDto *dto.TokenDto) (
 
 			// 计算过期时间点（Unix 秒）
 			expiryTimestamp := time.Now().Add(duration).Unix()
-			tokenStr, err := utils.GenerateSecureToken()
-			if err != nil {
-				return nil, err
-			}
+
 			token = v1alpha1.WireflowEnrollmentToken{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      tokenDto.Name,
+					Name:      strings.ToLower(tokenDto.Name),
 					Namespace: tokenDto.Namespace,
 					Labels: map[string]string{
 						"app.kubernetes.io/managed-by": "wireflow-controller",
 					},
 				},
 				Spec: v1alpha1.WireflowEnrollmentTokenSpec{
-					Token:      tokenStr,
+					Token:      tokenDto.Name,
 					Namespace:  tokenDto.Namespace,
 					Expiry:     metav1.NewTime(time.Unix(expiryTimestamp, 0)),
 					UsageLimit: tokenDto.Limit,
@@ -233,8 +244,9 @@ func (p *peerService) Join(ctx context.Context, dto *dto.PeerDto) (*infra.Peer, 
 
 func NewPeerService(client *resource.Client) PeerService {
 	return &peerService{
-		client: client,
-		logger: log.GetLogger("peer-service"),
+		client:        client,
+		logger:        log.GetLogger("peer-service"),
+		workspaceRepo: repository.NewWorkspaceRepository(),
 	}
 }
 

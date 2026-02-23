@@ -943,15 +943,15 @@ func (in *WireflowPolicyList) DeepCopyObject() runtime.Object {
 func (in *WireflowPolicySpec) DeepCopyInto(out *WireflowPolicySpec) {
 	*out = *in
 	in.PeerSelector.DeepCopyInto(&out.PeerSelector)
-	if in.IngressRule != nil {
-		in, out := &in.IngressRule, &out.IngressRule
+	if in.Ingress != nil {
+		in, out := &in.Ingress, &out.Ingress
 		*out = make([]IngressRule, len(*in))
 		for i := range *in {
 			(*in)[i].DeepCopyInto(&(*out)[i])
 		}
 	}
-	if in.EgressRule != nil {
-		in, out := &in.EgressRule, &out.EgressRule
+	if in.Egress != nil {
+		in, out := &in.Egress, &out.Egress
 		*out = make([]EgressRule, len(*in))
 		for i := range *in {
 			(*in)[i].DeepCopyInto(&(*out)[i])

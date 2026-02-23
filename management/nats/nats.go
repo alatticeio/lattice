@@ -127,7 +127,7 @@ func (s *NatsSignalService) Request(ctx context.Context, subject, method string,
 	}
 
 	if resp.Header.Get("error") != "" {
-		return nil, fmt.Errorf(resp.Header.Get("error"))
+		return nil, fmt.Errorf("%s", resp.Header.Get("error"))
 	}
 
 	return resp.Data, nil

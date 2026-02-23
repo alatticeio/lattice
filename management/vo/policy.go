@@ -2,17 +2,17 @@ package vo
 
 import (
 	"wireflow/api/v1alpha1"
-
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 type PolicyVo struct {
-	Name         string                 `json:"name"`
-	Type         string                 `json:"type"`
-	Description  string                 `json:"description"`
-	PeerSelector metav1.LabelSelector   `json:"peerSelector"`
-	IngressRule  []v1alpha1.IngressRule `json:"ingressRule,omitempty"`
-	EgressRule   []v1alpha1.EgressRule  `json:"egressRule,omitempty"`
-	Network      string                 `json:"network"`
-	Action       string                 `json:"action"`
+	// 基础元数据
+	Name        string `json:"name" binding:"required,lowercase"`
+	Action      string `json:"action" binding:"oneof=Allow Deny"`
+	Description string `json:"description"`
+	Namespace   string `json:"namespace"`
+
+	PolicyTypes []string `json:"policyTypes"`
+	// 策略核心：使用指针嵌套
+	// 这样前端传参可以扁平，也可以通过判断 nil 知道用户是否传了策略部分
+	*v1alpha1.WireflowPolicySpec `json:",inline"`
 }

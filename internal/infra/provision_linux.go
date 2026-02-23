@@ -17,6 +17,8 @@ package infra
 import (
 	"fmt"
 	"log"
+	"os/exec"
+	"strings"
 )
 
 func (r *routeProvisioner) ApplyRoute(action, address, name string) error {
@@ -53,8 +55,8 @@ func (r *ruleProvisioner) Provision(rule *FirewallRule) error {
 	outChain := "WIREFLOW-EGRESS"
 
 	// 1. 初始化链
-	p.initChain(inChain, "INPUT", "-i")
-	p.initChain(outChain, "OUTPUT", "-o")
+	r.initChain(inChain, "INPUT", "-i")
+	r.initChain(outChain, "OUTPUT", "-o")
 
 	// 2. 清空旧规则 (Flush)
 	exec.Command("iptables", "-F", inChain).Run()
@@ -67,7 +69,7 @@ func (r *ruleProvisioner) Provision(rule *FirewallRule) error {
 	// 4. 应用 Ingress (源地址匹配 -s)
 	for _, tr := range rule.Ingress {
 		for _, ip := range tr.Peers {
-			if err := p.addRule(inChain, "-s", ip, tr); err != nil {
+			if err := r.addRule(inChain, "-s", ip, tr); err != nil {
 				return err
 			}
 		}
@@ -76,7 +78,7 @@ func (r *ruleProvisioner) Provision(rule *FirewallRule) error {
 	// 5. 应用 Egress (目的地址匹配 -d)
 	for _, tr := range rule.Egress {
 		for _, ip := range tr.Peers {
-			if err := p.addRule(outChain, "-d", ip, tr); err != nil {
+			if err := r.addRule(outChain, "-d", ip, tr); err != nil {
 				return err
 			}
 		}
@@ -94,12 +96,12 @@ func (p *ruleProvisioner) initChain(chain, parent, flag string) {
 	exec.Command("iptables", "-N", chain).Run()
 	// 检查是否已挂载，未挂载则插入到第一条
 	if err := exec.Command("iptables", "-C", parent, flag, p.interfaceName, "-j", chain).Run(); err != nil {
-		exec.Command("iptables", "-I", parent, 1, flag, p.interfaceName, "-j", chain).Run()
+		exec.Command("iptables", "-I", parent, "1", flag, p.interfaceName, "-j", chain).Run()
 	}
 }
 
 // 内部辅助：添加单条规则
-func (p *ruleProvisioner) addRule(chain, dir, ip string, tr infra.TrafficRule) error {
+func (p *ruleProvisioner) addRule(chain, dir, ip string, tr TrafficRule) error {
 	args := []string{"-A", chain, dir, ip, "-p", strings.ToLower(tr.Protocol), "--dport", fmt.Sprintf("%d", tr.Port), "-j", "ACCEPT"}
 	return exec.Command("iptables", args...).Run()
 }

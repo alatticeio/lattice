@@ -2,6 +2,7 @@ package utils
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"time"
 	"wireflow/management/model"
@@ -31,26 +32,43 @@ func GenerateToken(userID uint) (string, error) {
 }
 
 // ParseToken 解析并校验 JWT
-func ParseToken(tokenString string) (*Claims, error) {
-	// 1. 解析 Token
-	token, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(token *jwt.Token) (interface{}, error) {
-		// 校验签名算法是否匹配（防止算法降级攻击）
+func ParseToken(tokenString string) (*model.WireFlowClaims, error) {
+	// 1. 准备载体：直接声明目标结构体指针
+	claims := &model.WireFlowClaims{}
+
+	// 2. 解析 Token
+	// 注意：第二个参数传入声明好的 claims，库会自动填充数据
+	token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
+
+		// 3. 安全校验：确保签名算法是 HS256（防止 alg:none 攻击）
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, errors.New("意外的签名方法")
+			return nil, fmt.Errorf("意外的签名算法: %v", token.Header["alg"])
 		}
-		return jwtKey, nil
+
+		// 4. 获取密钥：必须与 GenerateBusinessJWT 保持一致
+		// 强制转换为 []byte 是避免 "signature is invalid" 的核心
+		secret := GetJWTSecret()
+
+		// 如果 GetJWTSecret 返回的是 string，转为 []byte
+		//if s, ok := secret.(string); ok {
+		//	return []byte(s), nil
+		//}
+		// 如果已经是 []byte，直接返回
+		return secret, nil
 	})
 
+	// 5. 处理解析过程中的错误（如过期、篡改、格式错误）
 	if err != nil {
 		return nil, err
 	}
 
-	// 2. 校验 Claims 是否合法以及 Token 是否有效
-	if claims, ok := token.Claims.(*Claims); ok && token.Valid {
+	// 6. 最终验证：只有 Valid 为 true 且断言成功才返回数据
+	// 此时 claims 已经被 ParseWithClaims 填充满了
+	if token.Valid {
 		return claims, nil
 	}
 
-	return nil, errors.New("无效的 Token")
+	return nil, errors.New("Token 验证失败：无效的凭证")
 }
 
 // 建议从环境变量读取，不要硬编码
@@ -70,7 +88,7 @@ func GenerateBusinessJWT(userID, email string) (string, error) {
 	// 1. 设置有效期（例如 12 小时）
 	claims := model.WireFlowClaims{
 		Subject: userID,
-		Email:   email,
+		Name:    email,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(12 * time.Hour)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),

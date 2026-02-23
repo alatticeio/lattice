@@ -20,6 +20,7 @@ import (
 	wireflowv1alpha1 "wireflow/api/v1alpha1"
 	"wireflow/internal/infra"
 	"wireflow/management/dto"
+	"wireflow/management/repository"
 	"wireflow/management/resource"
 	"wireflow/management/vo"
 
@@ -34,7 +35,8 @@ type NetworkService interface {
 }
 
 type networkService struct {
-	client *resource.Client
+	client        *resource.Client
+	workspaceRepo repository.WorkspaceRepository
 }
 
 func (s *networkService) ListTokens(ctx context.Context, pageParam *dto.PageRequest) (*dto.PageResult[vo.TokenVo], error) {
@@ -59,7 +61,19 @@ func (s *networkService) ListTokens(ctx context.Context, pageParam *dto.PageRequ
 		tokenList wireflowv1alpha1.WireflowEnrollmentTokenList
 		err       error
 	)
-	err = s.client.GetAPIReader().List(ctx, &tokenList, client.InNamespace(pageParam.Namespace))
+
+	workspaceV := ctx.Value("workspaceId")
+	var workspaceId string
+	if workspaceV != nil {
+		workspaceId = workspaceV.(string)
+	}
+
+	workspace, err := s.workspaceRepo.FindById(ctx, workspaceId)
+	if err != nil {
+		return nil, err
+	}
+
+	err = s.client.GetAPIReader().List(ctx, &tokenList, client.InNamespace(workspace.Namespace))
 
 	if err != nil {
 		return nil, err
@@ -79,9 +93,9 @@ func (s *networkService) ListTokens(ctx context.Context, pageParam *dto.PageRequ
 
 	// 3. 逻辑过滤（搜索）
 	var filteredTokens []*vo.TokenVo
-	if pageParam.Search != "" {
+	if pageParam.Keyword != "" {
 		for _, n := range allTokens {
-			if strings.Contains(n.Token, pageParam.Search) {
+			if strings.Contains(n.Token, pageParam.Keyword) {
 				filteredTokens = append(filteredTokens, n)
 			}
 		}
@@ -124,7 +138,8 @@ func (s *networkService) ListTokens(ctx context.Context, pageParam *dto.PageRequ
 
 func NewNetworkService(client *resource.Client) NetworkService {
 	return &networkService{
-		client: client,
+		client:        client,
+		workspaceRepo: repository.NewWorkspaceRepository(),
 	}
 }
 

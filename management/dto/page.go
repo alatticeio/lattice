@@ -4,7 +4,7 @@ package dto
 type PageRequest struct {
 	Page      int    `form:"page" json:"page"`           // 页码
 	PageSize  int    `form:"pageSize" json:"pageSize"`   // 每页条数
-	Search    string `form:"search" json:"search"`       // 搜索关键词
+	Keyword   string `form:"search" json:"search"`       // 搜索关键词
 	Namespace string `form:"namespace" json:"namespace"` // 命名空间/隔离字段
 }
 

@@ -52,7 +52,7 @@ func GetComputedPeers(current *infra.Peer, network *infra.Network, policies []*v
 		}
 
 		// 2. 处理出站 (Egress): 这些是当前节点主动要连接的目标
-		for _, egress := range policy.Spec.EgressRule {
+		for _, egress := range policy.Spec.Egress {
 			for _, peerSelection := range egress.To {
 				matchedPeers := resolveSelectionToPeers(peerSelection, allPeers)
 				for _, peer := range matchedPeers {
@@ -67,7 +67,7 @@ func GetComputedPeers(current *infra.Peer, network *infra.Network, policies []*v
 		// 注意：在对等网络中，如果 A 允许 B 入站，通常意味着 B 需要连接 A。
 		// 如果你的逻辑是生成“被动允许列表”，则记录在别处；
 		// 如果是生成“全双工连接”，则也需要把 Ingress 节点加入。
-		for _, ingress := range policy.Spec.IngressRule {
+		for _, ingress := range policy.Spec.Ingress {
 			for _, p := range ingress.From {
 				matchedPeers := resolveSelectionToPeers(p, allPeers)
 				for _, peer := range matchedPeers {

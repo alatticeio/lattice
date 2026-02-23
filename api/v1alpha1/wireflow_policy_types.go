@@ -36,9 +36,9 @@ type WireflowPolicySpec struct {
 	// PeerSelector is a label query over node that should be applied to the wireflow policy.
 	PeerSelector metav1.LabelSelector `json:"peerSelector,omitempty"`
 
-	IngressRule []IngressRule `json:"ingressRule,omitempty"`
+	Ingress []IngressRule `json:"ingress,omitempty"`
 
-	EgressRule []EgressRule `json:"egressRule,omitempty"`
+	Egress []EgressRule `json:"egress,omitempty"`
 
 	// default DENY
 	Action string `json:"action,omitempty"` // DENY / ALLOW

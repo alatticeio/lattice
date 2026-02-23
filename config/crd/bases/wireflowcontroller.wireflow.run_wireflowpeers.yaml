@@ -183,11 +183,14 @@ spec:
                 - disconnected
                 - total
                 type: object
+              currentHash:
+                description: message hash store here
+                type: string
               lastSyncTime:
                 format: date-time
                 type: string
               observedGeneration:
-                description: ObserveGeneration is the generation observed by the controller.
+                description: client applied version
                 format: int64
                 type: integer
               phase:

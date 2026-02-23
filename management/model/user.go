@@ -1,19 +1,20 @@
 package model
 
-// User 结构体：对应外部 SSO 同步进来的用户
+import "wireflow/management/dto"
+
+// User 结构体：对应用户名密码以及外部 SSO 同步进来的用户
 type User struct {
 	Model
-	Role       TeamRole `gorm:"type:varchar(20)" json:"role"`
-	ExternalID string   `gorm:"column:external_id" json:"external_id"`
-	Username   string   `json:"username,omitempty"`
-	Password   string   `json:"password,omitempty"`
-	Namespace  string   `json:"namespace,omitempty"`
-	Mobile     string   `json:"mobile,omitempty"`
-	Email      string   `json:"email"`
-	Avatar     string   `json:"avatar"`
-	Address    string   `json:"address,omitempty"`
-	Gender     int      `json:"gender,omitempty"`
-	Teams      []Team   `gorm:"many2many:team_members;" json:"teams,omitempty"`
+	Role       dto.WorkspaceRole `gorm:"type:varchar(20)" json:"role"`
+	ExternalID string            `gorm:"column:external_id" json:"external_id"`
+	Username   string            `json:"username,omitempty"`
+	Password   string            `json:"password,omitempty"`
+	Mobile     string            `json:"mobile,omitempty"`
+	Email      string            `json:"email"`
+	Avatar     string            `json:"avatar"`
+	Address    string            `json:"address,omitempty"`
+	Gender     int               `json:"gender,omitempty"`
+	Teams      []Workspace       `gorm:"many2many:team_members;" json:"teams,omitempty"`
 }
 
 func (User) TableName() string {

@@ -74,7 +74,11 @@ func (p *peerController) CreateToken(ctx context.Context, request []byte) ([]byt
 	}
 
 	// create default deny
-	if err := p.policyService.CreatePolicy(ctx, tokenDto.Namespace, "default-deny-all", "deny", nil, nil, nil); err != nil {
+	if _, err := p.policyService.CreateOrUpdatePolicy(ctx, &dto.PolicyDto{
+		Name:      tokenDto.Name,
+		Namespace: tokenDto.Namespace,
+		Action:    "Deny",
+	}); err != nil {
 		return nil, err
 	}
 

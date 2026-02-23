@@ -61,7 +61,7 @@ func (ts *TurnServer) start(publicIP string, port int) error {
 	}
 
 	// Cache -users flag for easy lookup later
-	// If passwords are stored they should be saved to your DB hashed using turn.GenerateAuthKey
+	// If passwords are stored they should be saved to your db hashed using turn.GenerateAuthKey
 	//usersMap := map[string][]byte{}
 	//for _, kv := range regexp.MustCompile(`(\w+)=(\w+)`).FindAllStringSubmatch(users, -1) {
 	//	usersMap[kv[1]] = turn.GenerateAuthKey(kv[1], "wireflowio.com", kv[2])

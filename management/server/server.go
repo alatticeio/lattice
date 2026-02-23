@@ -46,6 +46,9 @@ type Server struct {
 	networkController controller.NetworkController
 	userController    controller.UserController
 	policyController  controller.PolicyController
+
+	workspaceController controller.WorkspaceController
+	tokenController     controller.TokenController
 }
 
 // ServerConfig is the server configuration.
@@ -79,17 +82,28 @@ func NewServer(serverConfig *ServerConfig) (*Server, error) {
 	database.InitDB("wireflow.db")
 
 	s := &Server{
-		logger:            logger,
-		listen:            serverConfig.Cfg.App.Listen,
-		nats:              signal,
-		manager:           mgr,
-		client:            client,
-		cfg:               serverConfig.Cfg,
-		peerController:    controller.NewPeerController(client),
-		networkController: controller.NewNetworkController(client),
-		userController:    controller.NewUserController(),
-		policyController:  controller.NewPolicyController(client),
+		Engine:              gin.Default(),
+		logger:              logger,
+		listen:              serverConfig.Cfg.App.Listen,
+		nats:                signal,
+		manager:             mgr,
+		client:              client,
+		cfg:                 serverConfig.Cfg,
+		peerController:      controller.NewPeerController(client),
+		networkController:   controller.NewNetworkController(client),
+		userController:      controller.NewUserController(),
+		policyController:    controller.NewPolicyController(client),
+		workspaceController: controller.NewWorkspaceController(client),
+		tokenController:     controller.NewTokenController(client),
 	}
+
+	// initAdmins
+	if err = s.userController.InitAdmin(context.Background(), config.GlobalConfig.App.InitAdmins); err != nil {
+		s.logger.Error("init admin failed", err)
+		return nil, err
+	}
+
+	s.logger.Debug("Init admin success")
 
 	routes := map[string]Handler{
 		"wireflow.signals.peer.register":       s.Register,
@@ -102,10 +116,9 @@ func NewServer(serverConfig *ServerConfig) (*Server, error) {
 		s.nats.Service(route, "wireflow_queue", handler)
 	}
 
-	// http
-	s.Engine = gin.Default()
-
-	s.apiRouter()
+	if err = s.apiRouter(); err != nil {
+		return nil, err
+	}
 
 	return s, nil
 }

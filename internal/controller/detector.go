@@ -370,8 +370,8 @@ func (d *Generator) buildPolicy(ctx context.Context, src *v1alpha1.WireflowPolic
 	}
 
 	var ingresses, egresses []*infra.Rule
-	srcIngresses := src.Spec.IngressRule
-	srcEgresses := src.Spec.EgressRule
+	srcIngresses := src.Spec.Ingress
+	srcEgresses := src.Spec.Egress
 	for _, ingress := range srcIngresses {
 		rule := &infra.Rule{}
 		peers, err := d.getPeerFromLabels(ctx, ingress.From)

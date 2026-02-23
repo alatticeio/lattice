@@ -2,10 +2,12 @@ package dex
 
 import (
 	"context"
+	"fmt"
 	"net/http"
-	"wireflow/management/controller"
 	"wireflow/management/model"
+	"wireflow/management/service"
 	"wireflow/pkg/utils"
+	"wireflow/pkg/utils/resp"
 
 	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/gin-gonic/gin"
@@ -30,18 +32,19 @@ type Dex struct {
 	verifier     *oidc.IDTokenVerifier
 	oauth2Config *oauth2.Config
 
-	teamController controller.TeamController
+	workspaceService service.WorkspaceService
+	userService      service.UserService
 }
 
-func NewDex(teamController controller.TeamController) (*Dex, error) {
+func NewDex(workspaceService service.WorkspaceService) (*Dex, error) {
 	veryfier, err := InitVerifier()
 	if err != nil {
 		return nil, err
 	}
 	return &Dex{
-		teamController: teamController,
-		oauth2Config:   &config,
-		verifier:       veryfier,
+		workspaceService: workspaceService,
+		oauth2Config:     &config,
+		verifier:         veryfier,
 	}, nil
 }
 
@@ -52,7 +55,7 @@ func (d *Dex) Login(c *gin.Context) {
 	// 1. 获取授权码
 	code := c.Query("code")
 	if code == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Missing code"})
+		resp.BadRequest(c, "Missing code")
 		return
 	}
 
@@ -60,38 +63,40 @@ func (d *Dex) Login(c *gin.Context) {
 	// oauth2Config 是你初始化时定义的变量
 	oauth2Token, err := d.oauth2Config.Exchange(ctx, code)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to exchange token: " + err.Error()})
+		resp.Error(c, fmt.Sprintf("Failed to exchange token: %v", err))
 		return
 	}
 
 	// 3. 解析 ID Token (这是 Dex 返回的用户身份信息)
 	rawIDToken, ok := oauth2Token.Extra("id_token").(string)
 	if !ok {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "No id_token in response"})
+		resp.Error(c, "No id_token in response")
 		return
 	}
 
 	// 4. 验证 Token 并提取 Claims
 	idToken, err := d.verifier.Verify(ctx, rawIDToken)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to verify ID Token: " + err.Error()})
+		resp.Error(c, fmt.Sprintf("Failed to verify ID Token: %v ", err))
 		return
 	}
 
 	var dexClaims model.WireFlowClaims
 
 	if err := idToken.Claims(&dexClaims); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to parse claims"})
+		resp.Error(c, "Failed to parse claims")
 		return
 	}
 
-	// 5. 【核心】同步到你的数据库并初始化 K8s 基础设施
-	// 这调用的是我们最初写的 OnboardExternalUser 函数
-	user, err := d.teamController.OnboardExternalUser(ctx, dexClaims.Subject, dexClaims.Email)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to onboard user"})
-		return
-	}
+	//// 5. 【核心】同步到你的数据库并初始化 K8s 基础设施
+	//// 这调用的是我们最初写的 OnboardExternalUser 函数
+	//user, err := d.workspaceService.OnboardExternalUser(ctx, dexClaims.Subject, dexClaims.Name)
+	//if err != nil {
+	//	c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to onboard user"})
+	//	return
+	//}
+
+	user, err := d.userService.OnboardExternalUser(ctx, dexClaims.Subject, dexClaims.Name)
 
 	// 6. 签发你自己的业务 JWT (给前端后续请求使用)
 	businessToken, _ := utils.GenerateBusinessJWT(user.ID, user.Email)

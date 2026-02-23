@@ -3,7 +3,8 @@ app:
   name: "WireFlow"
   env: "development"
   init_admins:
-    - "ladmin@example.com" # 换成你自己的 GitHub 邮箱
+    - username: "admin"
+      password: "123456"
 
 jwt:
   secret: "your-super-secret-key"

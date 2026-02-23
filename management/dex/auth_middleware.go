@@ -1,10 +1,10 @@
 package dex
 
 import (
-	"net/http"
 	"strings"
 	"wireflow/management/model"
 	"wireflow/pkg/utils"
+	"wireflow/pkg/utils/resp"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
@@ -23,7 +23,7 @@ func AuthMiddleware() gin.HandlerFunc {
 		// 1. 获取 Authorization Header
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" || !strings.HasPrefix(authHeader, "Bearer ") {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Authorization header is missing or invalid"})
+			resp.Unauthorized(c, "Authorization header is missing or invalid")
 			c.Abort() // 必须调用 Abort 阻止后续 Handler 执行
 			return
 		}
@@ -38,7 +38,7 @@ func AuthMiddleware() gin.HandlerFunc {
 
 		// 3. 校验 Token 有效性
 		if err != nil || !token.Valid {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Token is expired or invalid"})
+			resp.Unauthorized(c, "Token is expired or invalid")
 			c.Abort()
 			return
 		}
@@ -46,7 +46,7 @@ func AuthMiddleware() gin.HandlerFunc {
 		// 4. 关键信息注入 Gin Context
 		// 这样后续的路由 Handler 就可以通过 c.GetString("namespace") 直接拿到了
 		c.Set(CtxUserKey, claims.Subject)
-		c.Set(CtxTeamKey, claims.TeamID)
+		c.Set(CtxTeamKey, claims.WorkspaceId)
 
 		c.Next() // 继续执行后续流程
 	}

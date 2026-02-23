@@ -65,7 +65,7 @@ spec:
               action:
                 description: default DENY
                 type: string
-              egressRule:
+              egress:
                 items:
                   properties:
                     ports:
@@ -139,7 +139,7 @@ spec:
                       type: array
                   type: object
                 type: array
-              ingressRule:
+              ingress:
                 items:
                   description: IngressRule and EgressRule are used to control the
                     wireflow's traffic flow.

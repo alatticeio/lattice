@@ -180,7 +180,7 @@ func (c *Client) pushToNode(ctx context.Context, peerId uint64, msg *infra.Messa
 	}
 
 	if err := c.sender.Send(ctx, infra.FromUint64(peerId), content); err != nil {
-		return fmt.Errorf("Failed to send message to node %s: %v", peerId, err)
+		return fmt.Errorf("Failed to send message to node %d: %v", peerId, err)
 	}
 
 	// 4. 更新缓存

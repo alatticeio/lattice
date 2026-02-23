@@ -13,9 +13,14 @@ type Config struct {
 }
 
 type AppConfig struct {
-	Listen     string   `mapstructure:"listen"`
-	Name       string   `mapstructure:"name"`
-	InitAdmins []string `mapstructure:"init_admins"`
+	Listen     string        `mapstructure:"listen"`
+	Name       string        `mapstructure:"name"`
+	InitAdmins []AdminConfig `mapstructure:"init_admins"`
+}
+
+type AdminConfig struct {
+	Username string `yaml:"username"`
+	Password string `yaml:"password"`
 }
 
 type JWTConfig struct {
@@ -48,8 +53,6 @@ func InitConfig(configPath string) *Config {
 		if err := viper.Unmarshal(&GlobalConfig); err != nil {
 			panic(fmt.Errorf("解析配置文件失败: %w", err))
 		}
-
-		fmt.Printf("✅ 配置加载成功: 已加载 %d 个初始管理员\n", len(GlobalConfig.App.InitAdmins))
 	})
 	return GlobalConfig
 }

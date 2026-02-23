@@ -1,0 +1,43 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: wireflow-admin
+rules:
+  - apiGroups: [ "", "apps", "networking.k8s.io" ]
+    resources: [ "pods", "deployments", "services", "ingresses", "configmaps", "secrets" ]
+    verbs: [ "*" ]
+  - apiGroups: [ "wireflowcontroller.wireflow.run" ]
+    resources: [ "*" ]
+    verbs: [ "*" ]
+
+---
+# 2. 普通成员：可以操作业务资源，但不能动敏感配置（如 Secret）
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: wireflow-member
+rules:
+  - apiGroups: [ "", "apps" ]
+    resources: [ "pods", "services", "deployments" ]
+    verbs: [ "get", "list", "watch", "create", "update", "patch" ]
+  - apiGroups: [ "" ]
+    resources: [ "configmaps" ]
+    verbs: [ "get", "list", "watch" ]
+  - apiGroups: [ ""wireflowcontroller.wireflow.run"" ]
+    resources: [ "*" ]
+    verbs: [ "get", "list", "watch", "update" ]
+
+---
+# 3. 审计员/查看者：只读权限
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: wireflow-viewer
+rules:
+  - apiGroups: [ "", "apps", "networking.k8s.io" ]
+    resources: [ "*" ]
+    verbs: [ "get", "list", "watch" ]
+  - apiGroups: [ "wireflowcontroller.wireflow.run" ]
+    resources: [ "*" ]
+    verbs: [ "get", "list", "watch" ]
+

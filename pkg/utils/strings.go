@@ -19,11 +19,13 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/mozillazg/go-pinyin" // 处理中文转拼音，对国内企业很友好
 )
 
 func Splits(ids string, sep string) ([]uint64, error) {
@@ -81,4 +83,29 @@ func GenerateAppId() string {
 	randomPart := hex.EncodeToString(b)
 
 	return fmt.Sprintf("wireflow-%s-%s", date, randomPart)
+}
+
+func GenerateSlug(input string) string {
+	// 1. 如果有中文，转成拼音（可选，如果不转中文会被正则滤掉）
+	args := pinyin.NewArgs()
+	p := pinyin.Pinyin(input, args)
+	if len(p) > 0 {
+		var s []string
+		for _, v := range p {
+			s = append(s, v[0])
+		}
+		input = strings.Join(s, "-")
+	}
+
+	// 2. 统一转小写
+	slug := strings.ToLower(input)
+
+	// 3. 正则清洗：只保留字母、数字和中划线
+	reg, _ := regexp.Compile(`[^a-z0-9]+`)
+	slug = reg.ReplaceAllString(slug, "-")
+
+	// 4. 去除首尾的多余中划线
+	slug = strings.Trim(slug, "-")
+
+	return slug
 }

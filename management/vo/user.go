@@ -1,17 +1,17 @@
 package vo
 
 type UserVo struct {
-	ID          uint64 `json:"id,string"`
+	ID          string `json:"id,string"`
 	Username    string `json:"name,omitempty"`
 	Email       string `json:"email,omitempty"`
 	MobilePhone string `json:"mobilePhone,omitempty"`
 	Avatar      string `json:"avatar,omitempty"`
 	Address     string `json:"address,omitempty"`
+	Role        string `json:"role,omitempty"`
 }
 
 type InviteVo struct {
-	*UserResourceVo
-	ID           uint64 `json:"id"`
+	ID           string `json:"id"`
 	InviteeName  string `json:"inviteeName,omitempty"`
 	InviterName  string `json:"inviterName,omitempty"`
 	MobilePhone  string `json:"mobilePhone,omitempty"`
@@ -33,32 +33,4 @@ type InvitationVo struct {
 	Role          string `json:"role,omitempty"`
 	Permissions   string `json:"permissions,omitempty"`
 	AcceptStatus  string `json:"acceptStatus,omitempty"`
-}
-
-type NodeResourceVo struct {
-	NodeValues map[string]string `json:"nodeValues"`
-}
-
-type PolicyResourceVo struct {
-	PolicyValues map[string]string `json:"policyValues" gorm:"-"`
-}
-
-type GroupResourceVo struct {
-	GroupValues map[string]string `json:"groupValues"`
-}
-
-type PermissionResourceVo struct {
-	PermissionValues map[string]string `json:"permissionValues"`
-}
-
-type LabelResourceVo struct {
-	LabelValues map[string]string `json:"labelValues"`
-}
-
-type UserResourceVo struct {
-	*GroupResourceVo
-	*PolicyResourceVo
-	*NodeResourceVo
-	*PermissionResourceVo
-	*LabelResourceVo
 }

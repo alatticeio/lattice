@@ -6,12 +6,12 @@ require (
 	github.com/coreos/go-oidc/v3 v3.17.0
 	github.com/gin-gonic/gin v1.11.0
 	github.com/glebarez/sqlite v1.11.0
-	github.com/golang-jwt/jwt v3.2.2+incompatible
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/google/uuid v1.6.0
 	github.com/lmittmann/tint v1.1.2
 	github.com/miekg/dns v1.1.67
 	github.com/moby/term v0.5.0
+	github.com/mozillazg/go-pinyin v0.21.0
 	github.com/nats-io/nats.go v1.34.0
 	github.com/onsi/ginkgo/v2 v2.22.0
 	github.com/onsi/gomega v1.36.1

@@ -14,9 +14,9 @@ type Token struct {
 
 // WireFlowClaims 通常在 Dex 回调成功后，签发一个属于 WireFlow 自己的轻量级 JWT。
 type WireFlowClaims struct {
-	Subject string `json:"sub"`
-	Email   string `json:"email"`
+	Subject string `json:"sub"`  // may be userId or extId
+	Name    string `json:"name"` // may be username or email
 	// 增加当前选中的团队 ID，方便实现“Vercel 风格”的上下文切换
-	TeamID string `json:"tid"`
+	WorkspaceId string `json:"workspaceId"`
 	jwt.RegisteredClaims
 }

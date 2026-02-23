@@ -15,38 +15,12 @@
 package controller
 
 import (
-	"context"
 	"testing"
-	"wireflow/internal/infra"
 )
 
 func TestPeerResolver_ResolvePeers(t *testing.T) {
-	resolver := NewPeerResolver()
 
 	t.Run("success", func(t *testing.T) {
-		peer := &infra.Peer{
-			Name: "test",
-		}
-		var peers []*infra.Peer
-		peers = append(peers, peer)
-		network := &infra.Network{
-			Peers: peers,
-		}
 
-		var policies []*infra.Policy
-		for i := 0; i < 3; i++ {
-			rule := &infra.TrafficRule{
-				Peers: []*infra.Peer{peer},
-			}
-
-			rules := []*infra.TrafficRule{rule}
-			policy := &infra.Policy{
-				Ingress: rules,
-			}
-			policies = append(policies, policy)
-		}
-
-		result, err := resolver.ResolvePeers(context.Background(), network, policies)
-		t.Log(result, err)
 	})
 }

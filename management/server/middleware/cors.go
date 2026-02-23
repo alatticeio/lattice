@@ -1,7 +1,7 @@
 package middleware
 
 import "github.com/gin-gonic/gin"
-	
+
 func CORSMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.Writer.Header().Set("Access-Control-Allow-Origin", "*") // 生产环境建议替换为具体域名
