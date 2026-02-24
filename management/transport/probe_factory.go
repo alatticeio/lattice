@@ -31,8 +31,7 @@ type ProbeFactory struct {
 	mu     sync.RWMutex
 	probes map[uint64]*Probe
 
-	wrrpMu     sync.RWMutex
-	wrrpProbes map[string]*Probe
+	wrrpProbes map[string]*Probe // nolint
 
 	signal      infra.SignalService
 	provisioner infra.Provisioner

@@ -15,7 +15,7 @@ import (
 // silently clamp the value to other maximums, such as linux clamping to
 // net.core.{r,w}mem_max (see _linux.go for additional implementation that works
 // around this limitation)
-const socketBufferSize = 7 << 20
+const socketBufferSize = 7 << 20 // nolint
 
 // controlFn is the callback function signature from net.ListenConfig.Control.
 // It is used to apply platform specific configuration to the socket prior to

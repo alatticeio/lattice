@@ -4,88 +4,18 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"wireflow/management/database"
+	"wireflow/internal/infra"
 	"wireflow/management/dto"
 	"wireflow/management/model"
-	"wireflow/pkg/utils"
 
 	"gorm.io/gorm"
 )
 
-type WorkspaceRepository interface {
-	WithTx(tx *gorm.DB) WorkspaceRepository // 关键：返回接口
-	CheckPermission(ctx context.Context, userID, teamID string) (bool, error)
-	Create(ctx context.Context, workspace *dto.WorkspaceDto) (*model.Workspace, error)
-	Update(ctx context.Context, workspace *dto.WorkspaceDto) (*model.Workspace, error)
-	Delete(ctx context.Context, workspace *dto.WorkspaceDto) error
-
-	List(ctx context.Context, request *dto.PageRequest) ([]model.Workspace, int64, error)
-	FindByNs(ctx context.Context, namespace string) (model.Workspace, error)
-
-	FindById(ctx context.Context, wsId string) (*model.Workspace, error)
+type WorkspaceRepository struct {
+	*BaseRepository[model.Workspace]
 }
 
-type WorkspaceMemberRepository interface {
-	Create(ctx context.Context, workspace *model.WorkspaceMember) (*model.WorkspaceMember, error)
-	Update(ctx context.Context, workspace *model.WorkspaceMember) (*model.WorkspaceMember, error)
-	Delete(ctx context.Context, workspace *model.WorkspaceMember) error
-	List(ctx context.Context, request *dto.PageRequest) ([]model.WorkspaceMember, int64, error)
-
-	// GetMemberRole 获取用户在特定工作区中的角色
-	GetMemberRole(ctx context.Context, workspaceSlug string, userID string) (dto.WorkspaceRole, error)
-}
-
-type workspaceRepository struct {
-	db *gorm.DB
-}
-
-func (r *workspaceRepository) FindById(ctx context.Context, wsId string) (*model.Workspace, error) {
-	var workspace model.Workspace
-	if err := r.db.First(&workspace, "id = ?", wsId).Error; err != nil {
-		return nil, err
-	}
-
-	return &workspace, nil
-}
-
-func (r *workspaceRepository) FindByNs(ctx context.Context, namespace string) (model.Workspace, error) {
-	var workspace model.Workspace
-	err := r.db.Where("namespace = ?", namespace).First(&workspace).Error
-	return workspace, err
-}
-
-// 实现 WithTx
-func (r *workspaceRepository) WithTx(tx *gorm.DB) WorkspaceRepository {
-	// 返回一个新的实例，但 db 替换为事务 tx
-	return &workspaceRepository{db: tx}
-}
-
-func (t *workspaceRepository) Create(ctx context.Context, dto *dto.WorkspaceDto) (*model.Workspace, error) {
-	var err error
-	newNS := model.Workspace{
-		Slug:        utils.GenerateSlug(dto.Slug),
-		DisplayName: dto.DisplayName,
-		Namespace:   dto.Namespace,
-	}
-
-	if err = t.db.WithContext(ctx).Create(&newNS).Error; err != nil {
-		return nil, err
-	}
-
-	return &newNS, nil
-}
-
-func (t *workspaceRepository) Update(ctx context.Context, workspace *dto.WorkspaceDto) (*model.Workspace, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (t *workspaceRepository) Delete(ctx context.Context, workspace *dto.WorkspaceDto) error {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (t *workspaceRepository) List(ctx context.Context, request *dto.PageRequest) ([]model.Workspace, int64, error) {
+func (t *WorkspaceRepository) List(ctx context.Context, request *dto.PageRequest) ([]model.Workspace, int64, error) {
 	var workspaces []model.Workspace
 	var total int64
 
@@ -113,11 +43,12 @@ func (t *workspaceRepository) List(ctx context.Context, request *dto.PageRequest
 	return workspaces, total, nil
 }
 
-type workspaceMemberRepository struct {
+type WorkspaceMemberRepository struct {
 	db *gorm.DB
+	*BaseRepository[model.WorkspaceMember]
 }
 
-func (r *workspaceMemberRepository) GetMemberRole(ctx context.Context, workspaceSlug string, userID string) (dto.WorkspaceRole, error) {
+func (r *WorkspaceMemberRepository) GetMemberRole(ctx context.Context, workspaceSlug string, userID string) (dto.WorkspaceRole, error) {
 	var member model.WorkspaceMember
 	err := r.db.WithContext(ctx).
 		Table("workspace_member").
@@ -129,28 +60,18 @@ func (r *workspaceMemberRepository) GetMemberRole(ctx context.Context, workspace
 	return member.Role, err
 }
 
-func (r *workspaceMemberRepository) Create(ctx context.Context, workspaceMember *model.WorkspaceMember) (*model.WorkspaceMember, error) {
-	err := r.db.WithContext(ctx).Create(workspaceMember).Error
-	if err != nil {
-		return nil, err
-	}
-
-	return workspaceMember, nil
-}
-
-func (r *workspaceMemberRepository) Update(ctx context.Context, workspace *model.WorkspaceMember) (*model.WorkspaceMember, error) {
+func (r *WorkspaceMemberRepository) Update(ctx context.Context, workspace *model.WorkspaceMember) (*model.WorkspaceMember, error) {
 	//TODO implement me
 	panic("implement me")
 }
 
-func (r *workspaceMemberRepository) Delete(ctx context.Context, workspace *model.WorkspaceMember) error {
-	//TODO implement me
-	panic("implement me")
+func (r *WorkspaceMemberRepository) Delete(ctx context.Context, workspace *model.WorkspaceMember) error {
+	return r.db.WithContext(ctx).Delete(workspace).Error
 }
 
-func (r *workspaceMemberRepository) List(ctx context.Context, request *dto.PageRequest) ([]model.WorkspaceMember, int64, error) {
+func (r *WorkspaceMemberRepository) List(ctx context.Context, request *dto.PageRequest) ([]model.WorkspaceMember, int64, error) {
 
-	userID, ok := ctx.Value("user_id").(string)
+	userID, ok := ctx.Value(infra.UserIDKey).(string)
 	if !ok {
 		return nil, 0, errors.New("unauthorized: user_id not found in context")
 	}
@@ -179,7 +100,7 @@ func (r *workspaceMemberRepository) List(ctx context.Context, request *dto.PageR
 	return members, total, nil
 }
 
-func (t *workspaceRepository) CheckPermission(ctx context.Context, userID, teamID string) (bool, error) {
+func (t *WorkspaceRepository) CheckPermission(ctx context.Context, userID, teamID string) (bool, error) {
 	// 3. 数据库查询：校验 WorkspaceMember 关系
 	var member model.WorkspaceMember
 	err := t.db.Where("user_id = ? AND team_id = ? AND status = ?", userID, teamID, "active").First(&member).Error
@@ -191,10 +112,13 @@ func (t *workspaceRepository) CheckPermission(ctx context.Context, userID, teamI
 	return member.Status == "active", nil
 }
 
-func NewWorkspaceRepository() WorkspaceRepository {
-	return &workspaceRepository{db: database.DB}
+func NewWorkspaceRepository(db *gorm.DB) *WorkspaceRepository {
+	return &WorkspaceRepository{
+		BaseRepository: NewBaseRepository[model.Workspace](db)}
 }
 
-func NewWorkspaceMemberRepository() WorkspaceMemberRepository {
-	return &workspaceMemberRepository{db: database.DB}
+func NewWorkspaceMemberRepository(db *gorm.DB) *WorkspaceMemberRepository {
+	return &WorkspaceMemberRepository{
+		BaseRepository: NewBaseRepository[model.WorkspaceMember](db),
+	}
 }

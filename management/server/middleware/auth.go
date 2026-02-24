@@ -3,6 +3,7 @@ package middleware
 import (
 	"context"
 	"strings"
+	"wireflow/internal/infra"
 	"wireflow/pkg/utils"
 	"wireflow/pkg/utils/resp"
 
@@ -36,7 +37,7 @@ func AuthMiddleware() gin.HandlerFunc {
 
 		// 进阶：如果你想让后面的 context.Context 也能拿到这个值
 		// 可以重写 Request 的 Context (可选，但在纯净的架构中很有用)
-		ctx := context.WithValue(c.Request.Context(), "user_id", claims.Subject)
+		ctx := context.WithValue(c.Request.Context(), infra.UserIDKey, claims.Subject)
 		c.Request = c.Request.WithContext(ctx)
 		c.Next()
 	}

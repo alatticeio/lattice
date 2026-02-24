@@ -138,7 +138,8 @@ func (r *PeerReconciler) reconcileJoinNetwork(ctx context.Context, peer *v1alpha
 
 	// 2.修改Spec
 	ok, err = r.updateSpec(ctx, peer, func(node *v1alpha1.WireflowPeer) error {
-		network, err := r.getNetwork(ctx, node)
+		var network *v1alpha1.WireflowNetwork
+		network, err = r.getNetwork(ctx, node)
 		if err != nil {
 			return err
 		}
@@ -150,7 +151,8 @@ func (r *PeerReconciler) reconcileJoinNetwork(ctx context.Context, peer *v1alpha
 		node.SetLabels(labels)
 
 		if node.Spec.PrivateKey == "" {
-			key, err := wgtypes.GeneratePrivateKey()
+			var key wgtypes.Key
+			key, err = wgtypes.GeneratePrivateKey()
 			if err != nil {
 				return err
 			}
@@ -228,13 +230,14 @@ func (r *PeerReconciler) lastReconcile(ctx context.Context, peer *v1alpha1.Wiref
 		return ctrl.Result{}, err
 	}
 
-	newHash, err := computeMessageHash(message)
+	var newHash string
+	newHash, err = computeMessageHash(message)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
 
 	desiredConfigMap := r.newConfigmap(peer.Namespace, configMapName, message.String(), newHash)
-	if err := controllerutil.SetControllerReference(peer, desiredConfigMap, r.Scheme); err != nil {
+	if err = controllerutil.SetControllerReference(peer, desiredConfigMap, r.Scheme); err != nil {
 		logger.Error(err, "Failed to set owner reference on configmap")
 		return ctrl.Result{}, err
 	}
@@ -351,7 +354,7 @@ func (r *PeerReconciler) reconcileLeaveNetwork(ctx context.Context, peer *v1alph
 	ok, err = r.updateSpec(ctx, peer, func(node *v1alpha1.WireflowPeer) error {
 
 		labels := node.GetLabels()
-		for label, _ := range labels {
+		for label := range labels {
 			if strings.HasPrefix(label, "wireflow.run/network-") {
 				delete(labels, label)
 			}
@@ -397,7 +400,7 @@ func (r *PeerReconciler) updateSpec(ctx context.Context, node *v1alpha1.Wireflow
 	nodeCopy := node.DeepCopy()
 
 	// 添加network spec
-	updateFunc(nodeCopy)
+	_ = updateFunc(nodeCopy)
 
 	// 使用 Patch 发送差异。client.MergeFrom 会自动检查 nodeCopy 和 node 之间的差异。
 	if err := r.Patch(ctx, nodeCopy, client.MergeFrom(node)); err != nil {
@@ -649,7 +652,8 @@ func (r *PeerReconciler) getPeerStateSnapshot(ctx context.Context, current *v1al
 		}
 		snapshot.Network = &network
 
-		peerList, err := r.findPeersByNetwork(ctx, &network)
+		var peerList *v1alpha1.WireflowPeerList
+		peerList, err = r.findPeersByNetwork(ctx, &network)
 		if err != nil {
 			return snapshot
 		}

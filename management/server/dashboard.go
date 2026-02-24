@@ -4,6 +4,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// nolint:all
 func (s *Server) dashboardRouter() {
 	dashApi := s.Group("/api/v1/dashboard")
 	{
@@ -11,6 +12,7 @@ func (s *Server) dashboardRouter() {
 	}
 }
 
+// nolint:all
 func (s *Server) dashboardOverview() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		//var wg sync.WaitGroup

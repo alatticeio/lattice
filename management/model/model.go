@@ -15,8 +15,8 @@ import (
 //	}
 type Model struct {
 	ID        string         `gorm:"primaryKey;type:text;autoIncrement:false"`
-	CreatedAt time.Time      `json:"created_at" json:"created_at"`
-	UpdatedAt time.Time      `json:"updated_at" json:"updated_at"`
+	CreatedAt time.Time      `json:"created_at"`
+	UpdatedAt time.Time      `json:"updated_at"`
 	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
 }
 

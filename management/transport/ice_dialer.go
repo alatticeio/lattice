@@ -26,6 +26,7 @@ import (
 	"wireflow/internal/log"
 
 	"github.com/pion/logging"
+	"github.com/pion/stun/v3"
 	"github.com/wireflowio/ice"
 	"google.golang.org/protobuf/proto"
 )
@@ -35,17 +36,15 @@ var (
 )
 
 type iceDialer struct {
-	su          sync.Mutex
 	mu          sync.Mutex
 	log         *log.Logger
 	localId     infra.PeerID
 	remoteId    infra.PeerID
 	sender      func(ctx context.Context, peerId infra.PeerID, data []byte) error
 	onClose     func(peerId infra.PeerID)
-	provisioner infra.Provisioner
+	provisioner infra.Provisioner // nolint
 	agent       *AgentWrapper
 	closeOnce   sync.Once
-	ackClose    sync.Once
 	showLog     bool
 	peerManager *infra.PeerManager
 
@@ -54,7 +53,7 @@ type iceDialer struct {
 	// offerReady start Dial() after receiving offer
 	offerReady chan struct{}
 	cancel     context.CancelFunc
-	ackChan    chan struct{}
+	ackChan    chan struct{} // nolint
 
 	universalUdpMuxDefault *ice.UniversalUDPMuxDefault
 }
@@ -172,7 +171,7 @@ func (i *iceDialer) Prepare(ctx context.Context, remoteId infra.PeerID) error {
 		// send syn
 		ticker := time.NewTicker(2 * time.Second)
 		defer ticker.Stop()
-		ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
+		newCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
 		defer cancel()
 
 		// safe
@@ -184,8 +183,8 @@ func (i *iceDialer) Prepare(ctx context.Context, remoteId infra.PeerID) error {
 		i.mu.Unlock()
 		for {
 			select {
-			case <-ctx.Done():
-				i.log.Warn("send syn canceled", "err", ctx.Err())
+			case <-newCtx.Done():
+				i.log.Warn("send syn canceled", "err", newCtx.Err())
 				return
 			case <-ticker.C:
 				i.log.Debug("send syn")
@@ -238,7 +237,7 @@ func (i *iceDialer) getAgent(remoteId infra.PeerID) (*AgentWrapper, error) {
 		UDPMux:         i.universalUdpMuxDefault.UDPMuxDefault,
 		UDPMuxSrflx:    i.universalUdpMuxDefault,
 		NetworkTypes:   []ice.NetworkType{ice.NetworkTypeUDP4},
-		Urls:           []*ice.URL{{Scheme: ice.SchemeTypeSTUN, Host: "stun.wireflow.run", Port: 3478}},
+		Urls:           []*stun.URI{{Scheme: stun.SchemeTypeSTUN, Host: "stun.wireflow.run", Port: 3478}},
 		Tiebreaker:     uint64(ice.NewTieBreaker()),
 		LoggerFactory:  f,
 		CandidateTypes: []ice.CandidateType{ice.CandidateTypeHost, ice.CandidateTypeServerReflexive},
@@ -256,16 +255,20 @@ func (i *iceDialer) getAgent(remoteId infra.PeerID) (*AgentWrapper, error) {
 			Agent: iceAgent,
 		}
 		// 绑定状态监听，成功后更新 WireGuard
-		agent.OnConnectionStateChange(func(s ice.ConnectionState) {
+		err = agent.OnConnectionStateChange(func(s ice.ConnectionState) {
 			i.log.Debug("ice state changed", "state", s)
 			if s == ice.ConnectionStateConnected {
-
+				i.log.Debug("ice connected")
 			}
 
 			if s == ice.ConnectionStateDisconnected || s == ice.ConnectionStateFailed {
 				i.close()
 			}
 		})
+
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	if err = agent.OnCandidate(func(candidate ice.Candidate) {

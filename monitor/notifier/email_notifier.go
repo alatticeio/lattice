@@ -118,7 +118,7 @@ func (n *EmailNotifier) Notify(alerts []Alert) error {
 			endTimeStr = alert.EndTime.Format("2006-01-02 15:04:05")
 		}
 
-		body.WriteString(fmt.Sprintf("<tr>"))
+		body.WriteString("<tr>")
 		body.WriteString(fmt.Sprintf("<td>%s</td>", alert.Name))
 		body.WriteString(fmt.Sprintf("<td style='color:%s;font-weight:bold'>%s</td>", severityColor, alert.Severity))
 		body.WriteString(fmt.Sprintf("<td>%s</td>", alert.MetricName))
@@ -127,7 +127,7 @@ func (n *EmailNotifier) Notify(alerts []Alert) error {
 		body.WriteString(fmt.Sprintf("<td>%s</td>", alert.Status))
 		body.WriteString(fmt.Sprintf("<td>%s</td>", alert.StartTime.Format("2006-01-02 15:04:05")))
 		body.WriteString(fmt.Sprintf("<td>%s</td>", endTimeStr))
-		body.WriteString(fmt.Sprintf("</tr>"))
+		body.WriteString("</tr>")
 	}
 
 	body.WriteString("</table>")

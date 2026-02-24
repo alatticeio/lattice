@@ -34,7 +34,6 @@ var (
 
 type Client struct {
 	logger       *log.Logger
-	natsUrl      string
 	nats         infra.SignalService
 	keyManager   infra.KeyManager
 	probeFactory *transport.ProbeFactory

@@ -45,19 +45,25 @@ func NewDnsClient() DnsClient {
 
 func (c *client) AddRecord(record Record) error {
 	var (
-		err error
-		bs  []byte
+		err  error
+		bs   []byte
+		resp *http.Response
 	)
 	bs, err = json.Marshal(record)
 	if err != nil {
 		return err
 	}
-	_, err = c.httpClient.Post(
+	resp, err = c.httpClient.Post(
 		"http://linkany.io:9001/api/v1/zones/example.com",
 		"Content-Type: application/json",
 		bytes.NewReader(bs),
 	)
-	return err
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	return nil
 }
 
 func (c *client) RemoveRecord(record Record) error {

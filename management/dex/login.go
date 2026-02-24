@@ -83,7 +83,7 @@ func (d *Dex) Login(c *gin.Context) {
 
 	var dexClaims model.WireFlowClaims
 
-	if err := idToken.Claims(&dexClaims); err != nil {
+	if err = idToken.Claims(&dexClaims); err != nil {
 		resp.Error(c, "Failed to parse claims")
 		return
 	}
@@ -97,6 +97,10 @@ func (d *Dex) Login(c *gin.Context) {
 	//}
 
 	user, err := d.userService.OnboardExternalUser(ctx, dexClaims.Subject, dexClaims.Name)
+	if err != nil {
+		resp.Error(c, fmt.Sprintf("Failed to get user: %v", err))
+		return
+	}
 
 	// 6. 签发你自己的业务 JWT (给前端后续请求使用)
 	businessToken, _ := utils.GenerateBusinessJWT(user.ID, user.Email)

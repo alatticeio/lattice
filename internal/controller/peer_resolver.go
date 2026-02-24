@@ -111,6 +111,7 @@ func resolveSelectionToPeers(selection v1alpha1.PeerSelection, allPeers []*infra
 	return result
 }
 
+// nolint:all
 func peerStringSet(peers []*infra.Peer) map[string]struct{} {
 	m := make(map[string]struct{})
 	for _, peer := range peers {

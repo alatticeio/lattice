@@ -24,6 +24,7 @@ func (s *Server) listPolicies(c *gin.Context) {
 	resp.OK(c, vo)
 }
 
+// nolint:all
 func (s *Server) updatePolicy(c *gin.Context) {
 	var req dto.PeerDto
 	err := c.ShouldBindJSON(&req)

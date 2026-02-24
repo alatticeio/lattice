@@ -78,6 +78,7 @@ func (h *MessageHandler) HandleEvent(ctx context.Context, msg *infra.Message) er
 
 		//reconfigure
 		if msg.Changes.KeyChanged {
+			h.logger.Debug("Received remote key change", "message", msg)
 		}
 
 		//

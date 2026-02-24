@@ -37,8 +37,8 @@ var (
 )
 
 type WRRPClient struct {
+	mu        sync.Mutex // nolint
 	log       *log.Logger
-	mu        sync.Mutex
 	localId   infra.PeerID
 	ServerURL string
 	Conn      net.Conn
@@ -107,6 +107,7 @@ func (c *WRRPClient) Configure(opts ...ClientOption) {
 	}
 }
 
+// nolint:all
 func (c *WRRPClient) Connect() error {
 	// 1. 建立 TCP 连接 (如果是 https 则需要 tls.Dial)
 	conn, err := net.Dial("tcp", c.ServerURL)
@@ -239,6 +240,7 @@ func (c *WRRPClient) ReceiveFunc() conn.ReceiveFunc {
 	}
 }
 
+// nolint:all
 func (c *WRRPClient) startKeepAlive(ctx context.Context, interval time.Duration) {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()

@@ -1,13 +1,14 @@
 package vo
 
 type UserVo struct {
-	ID          string `json:"id,string"`
-	Username    string `json:"name,omitempty"`
-	Email       string `json:"email,omitempty"`
-	MobilePhone string `json:"mobilePhone,omitempty"`
-	Avatar      string `json:"avatar,omitempty"`
-	Address     string `json:"address,omitempty"`
-	Role        string `json:"role,omitempty"`
+	ID          string        `json:"id,omitempty"`
+	Username    string        `json:"name,omitempty"`
+	Email       string        `json:"email,omitempty"`
+	MobilePhone string        `json:"mobilePhone,omitempty"`
+	Avatar      string        `json:"avatar,omitempty"`
+	Address     string        `json:"address,omitempty"`
+	Role        string        `json:"role,omitempty"`
+	Workspaces  []WorkspaceVo `json:"workspaces,omitempty"`
 }
 
 type InviteVo struct {

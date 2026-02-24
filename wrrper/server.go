@@ -126,9 +126,9 @@ func (s *Server) wrrpUpgradeHandler(w http.ResponseWriter, r *http.Request) {
 
 	// 在 Hijack 后的 conn 上设置
 	if tcpConn, ok := conn.(*net.TCPConn); ok {
-		tcpConn.SetWriteBuffer(64 * 1024) // 64KB
-		tcpConn.SetReadBuffer(64 * 1024)
-		tcpConn.SetNoDelay(true) // 降低延迟的关键
+		_ = tcpConn.SetWriteBuffer(64 * 1024) // 64KB
+		_ = tcpConn.SetReadBuffer(64 * 1024)
+		_ = tcpConn.SetNoDelay(true) // 降低延迟的关键
 	}
 
 	// 4. 将连接交给 WRRP 处理器
@@ -142,7 +142,7 @@ func (s *Server) handleWRRPSession(conn net.Conn, bufrw *bufio.ReadWriter) {
 	defer stream.Close()
 
 	// 2. 设置读取超时（防止握手阶段无限期阻塞）
-	conn.SetReadDeadline(time.Now().Add(10 * time.Second))
+	_ = conn.SetReadDeadline(time.Now().Add(10 * time.Second))
 
 	// 3. 读取第一个 WRRP Header (必须是 Register)
 	headBuf := make([]byte, wrrp.HeaderSize)
@@ -163,7 +163,7 @@ func (s *Server) handleWRRPSession(conn net.Conn, bufrw *bufio.ReadWriter) {
 	defer s.wrrpManager.Unregister(fromId)
 
 	// 5. 握手成功，重置超时（进入长连接模式）
-	conn.SetReadDeadline(time.Time{})
+	_ = conn.SetReadDeadline(time.Time{})
 
 	s.log.Info("[WRRP] New session registered", "fromId", header.FromID, "toId", header.ToID)
 
@@ -196,14 +196,20 @@ func (s *Server) handleWRRPSession(conn net.Conn, bufrw *bufio.ReadWriter) {
 			target := s.wrrpManager.Get(targetID)
 			if target == nil {
 				s.log.Warn("[WRRP] Target not found", "targetId", targetID)
-				io.CopyN(io.Discard, stream, int64(h.PayloadLen)) //
+				_, err = io.CopyN(io.Discard, stream, int64(h.PayloadLen)) //
+				if err != nil {
+					s.log.Error("copy failed", err)
+				}
 				continue
 			}
 			// send header
 			_, err = target.Stream.Write(headBuf)
 			if err != nil {
 				s.log.Error("relay packet failed", err)
-				io.CopyN(io.Discard, stream, int64(h.PayloadLen))
+				_, err = io.CopyN(io.Discard, stream, int64(h.PayloadLen))
+				if err != nil {
+					s.log.Error("relay packet failed", err)
+				}
 				continue
 			}
 			_, err = io.CopyN(target.Stream, stream, int64(h.PayloadLen))

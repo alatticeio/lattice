@@ -15,13 +15,11 @@
 package dns
 
 import (
+	"fmt"
 	"log"
-	"sync"
 
 	"github.com/miekg/dns"
 )
-
-var configLock sync.RWMutex
 
 type LinkDNS struct {
 	listenAddr  string
@@ -102,7 +100,10 @@ func (l *LinkDNS) handleDNSRequest(w dns.ResponseWriter, r *dns.Msg) {
 		}
 	}
 
-	w.WriteMsg(m)
+	err := w.WriteMsg(m)
+	if err != nil {
+		fmt.Println(err)
+	}
 }
 
 func startServer(net, addr string) {
@@ -114,6 +115,7 @@ func startServer(net, addr string) {
 	}
 }
 
+// nolint:all
 func watchConfigFile(filename string) {
 	// 这里可以添加代码来监视配置文件变化
 	// 为简单起见，这里省略了该功能

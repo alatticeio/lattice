@@ -2,6 +2,7 @@ package database
 
 import (
 	"log"
+	"time"
 	"wireflow/management/model"
 
 	"github.com/glebarez/sqlite"
@@ -24,7 +25,14 @@ func InitDB(dbPath string) {
 		log.Fatal(err)
 	}
 	// 关键配置：限制最大打开连接数为 1
-	sqlDB.SetMaxOpenConns(1)
+	// SetMaxIdleConns 设置空闲连接池中连接的最大数量
+	sqlDB.SetMaxIdleConns(10)
+
+	// SetMaxOpenConns 设置打开数据库连接的最大数量
+	sqlDB.SetMaxOpenConns(100)
+
+	// SetConnMaxLifetime 设置连接可复用的最大时间，防止数据库主动断开导致的“失效连接”
+	sqlDB.SetConnMaxLifetime(time.Hour)
 
 	// 自动迁移表结构
 	err = DB.AutoMigrate(&model.User{}, &model.Token{}, &model.Workspace{}, &model.WorkspaceMember{})

@@ -54,6 +54,9 @@ func (c *Client) Register(ctx context.Context, namespace string, e *dto.PeerDto)
 		}
 	} else {
 		key, err = wgtypes.ParseKey(node.Spec.PrivateKey)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	peerId = infra.FromKey(key.PublicKey())
@@ -157,13 +160,13 @@ func (c *Client) GetNetworkMap(ctx context.Context, tokenStr, name string) (*inf
 	}
 
 	var node v1alpha1.WireflowPeer
-	if err := c.Get(ctx, types.NamespacedName{Namespace: token.Namespace, Name: name}, &node); err != nil {
+	if err = c.Get(ctx, types.NamespacedName{Namespace: token.Namespace, Name: name}, &node); err != nil {
 		return nil, err
 	}
 
 	//从network获取
 	var nodeConfig corev1.ConfigMap
-	if err := c.Get(ctx, types.NamespacedName{
+	if err = c.Get(ctx, types.NamespacedName{
 		Namespace: node.Namespace,
 		Name:      fmt.Sprintf("%s-config", node.Name),
 	}, &nodeConfig); err != nil {

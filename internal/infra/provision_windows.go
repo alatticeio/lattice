@@ -14,7 +14,11 @@
 
 package infra
 
-import "fmt"
+import (
+	"fmt"
+	"os/exec"
+	"strings"
+)
 
 func (r *routeProvisioner) ApplyRoute(action, address, interfaceName string) error {
 	//example: sudo route -nv add -net 192.168.10.1 -netmask 255.255.255.0 -interface en0

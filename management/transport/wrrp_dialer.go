@@ -90,7 +90,7 @@ func (w *wrrpDialer) Prepare(ctx context.Context, remoteId infra.PeerID) error {
 		// send syn
 		ticker := time.NewTicker(2 * time.Second)
 		defer ticker.Stop()
-		ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
+		newCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
 		defer cancel()
 
 		// safe
@@ -102,11 +102,11 @@ func (w *wrrpDialer) Prepare(ctx context.Context, remoteId infra.PeerID) error {
 		w.mu.Unlock()
 		for {
 			select {
-			case <-ctx.Done():
+			case <-newCtx.Done():
 				w.log.Warn("send syn canceled", "err", ctx.Err(), "ctx", fmt.Sprintf("%p", ctx))
 				return
 			case <-ticker.C:
-				w.log.Debug("send syn", "ctx", fmt.Sprintf("%p", ctx))
+				w.log.Debug("send syn", "ctx", fmt.Sprintf("%p", newCtx))
 				err := w.sendPacket(ctx, remoteId, grpc.PacketType_HANDSHAKE_SYN, nil)
 				if err != nil {
 					w.log.Error("send syn failed", err)

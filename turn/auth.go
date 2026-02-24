@@ -16,14 +16,10 @@ package turn
 
 import (
 	"net"
-	"wireflow/management/client"
-
-	"github.com/redis/go-redis/v9"
 )
 
 type Handler struct {
-	client *client.Client
-	rdb    *redis.Client
+	//rdb *redis.Client
 }
 
 func (h *Handler) AuthHandler(username string, realm string, srcAddr net.Addr) ([]byte, bool) { // nolint: revive

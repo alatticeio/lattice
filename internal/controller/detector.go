@@ -23,9 +23,7 @@ import (
 	"wireflow/internal/infra"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
-	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 )
@@ -182,8 +180,9 @@ func NewGenerator(client client.Client) *Generator {
 //	return changes
 //}
 
-type changeType int
+type changeType int // nolint
 
+// nolint:all
 const (
 	typeNone changeType = iota
 	typeAdd
@@ -253,46 +252,46 @@ const (
 //	return changes
 //}
 
-func (d *Generator) findPolicy(ctx context.Context, node *v1alpha1.WireflowPeer, req ctrl.Request) ([]*infra.Policy, error) {
-	var policyList v1alpha1.WireflowPolicyList
-	if err := d.client.List(ctx, &policyList, client.InNamespace(req.Namespace)); err != nil {
-		return nil, err
-	}
+//func (d *Generator) findPolicy(ctx context.Context, node *v1alpha1.WireflowPeer, req ctrl.Request) ([]*infra.Policy, error) {
+//	var policyList v1alpha1.WireflowPolicyList
+//	if err := d.client.List(ctx, &policyList, client.InNamespace(req.Namespace)); err != nil {
+//		return nil, err
+//	}
+//
+//	var policies []*infra.Policy
+//
+//	for _, policy := range policyList.Items {
+//		selector, _ := metav1.LabelSelectorAsSelector(&policy.Spec.PeerSelector)
+//		matched := selector.Matches(labels.Set(node.Labels))
+//		if matched {
+//			p := d.buildPolicy(ctx, &policy)
+//			policies = append(policies, p)
+//		}
+//	}
+//
+//	return policies, nil
+//}
 
-	var policies []*infra.Policy
-
-	for _, policy := range policyList.Items {
-		selector, _ := metav1.LabelSelectorAsSelector(&policy.Spec.PeerSelector)
-		matched := selector.Matches(labels.Set(node.Labels))
-		if matched {
-			p := d.buildPolicy(ctx, &policy)
-			policies = append(policies, p)
-		}
-	}
-
-	return policies, nil
-}
-
-func (d *Generator) findNodes(ctx context.Context, networkName string) ([]*infra.Peer, error) {
-	log := logf.FromContext(ctx)
-	log.Info("findNodes by network labels", "networkName", networkName)
-
-	labels := map[string]string{
-		"wireflow.run/network-": networkName,
-	}
-
-	var peers v1alpha1.WireflowPeerList
-	if err := d.client.List(ctx, &peers, client.MatchingLabels(labels)); err != nil {
-		return nil, err
-	}
-
-	var addedPeers []*infra.Peer
-	for _, item := range peers.Items {
-		addedPeers = append(addedPeers, transferToPeer(&item))
-	}
-
-	return addedPeers, nil
-}
+//func (d *Generator) findNodes(ctx context.Context, networkName string) ([]*infra.Peer, error) {
+//	log := logf.FromContext(ctx)
+//	log.Info("findNodes by network labels", "networkName", networkName)
+//
+//	labels := map[string]string{
+//		"wireflow.run/network-": networkName,
+//	}
+//
+//	var peers v1alpha1.WireflowPeerList
+//	if err := d.client.List(ctx, &peers, client.MatchingLabels(labels)); err != nil {
+//		return nil, err
+//	}
+//
+//	var addedPeers []*infra.Peer
+//	for _, item := range peers.Items {
+//		addedPeers = append(addedPeers, transferToPeer(&item))
+//	}
+//
+//	return addedPeers, nil
+//}
 
 func (d *Generator) generate(ctx context.Context, current *v1alpha1.WireflowPeer, snapshot *PeerStateSnapshot, version string) (*infra.Message, error) {
 	var err error
@@ -344,14 +343,14 @@ func (d *Generator) generate(ctx context.Context, current *v1alpha1.WireflowPeer
 	return msg, nil
 }
 
-func peerToSet(peers []*infra.Peer) map[string]*infra.Peer {
-	m := make(map[string]*infra.Peer)
-	for _, peer := range peers {
-		m[peer.Name] = peer
-	}
-
-	return m
-}
+//func peerToSet(peers []*infra.Peer) map[string]*infra.Peer {
+//	m := make(map[string]*infra.Peer)
+//	for _, peer := range peers {
+//		m[peer.Name] = peer
+//	}
+//
+//	return m
+//}
 
 // generateConfigVersion 生成配置版本号
 func (d *Generator) generateConfigVersion() string {

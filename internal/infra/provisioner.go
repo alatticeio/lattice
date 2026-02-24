@@ -179,7 +179,7 @@ func NewRouteProvisioner(logger *log.Logger) RouteProvisioner {
 }
 
 type ruleProvisioner struct {
-	interfaceName string
+	interfaceName string // nolint
 	logger        *log.Logger
 }
 

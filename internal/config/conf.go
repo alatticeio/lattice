@@ -71,6 +71,7 @@ func (cm *ConfigManager) LoadConf(cmd *cobra.Command) error {
 	}
 
 	if err := v.ReadInConfig(); err != nil {
+		fmt.Printf("%v\n", err)
 	}
 
 	v.SetEnvPrefix("WIREFLOW")

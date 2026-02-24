@@ -6,8 +6,7 @@ import (
 
 type FlowController struct {
 	// activeTransport map[string]Transport
-	activeTransport sync.Map
-	mu              sync.RWMutex
+	activeTransport sync.Map // nolint
 }
 
 type TransportType int

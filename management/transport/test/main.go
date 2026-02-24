@@ -13,6 +13,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager/signals"
 )
 
+// nolint:all
 func main() {
 	args := os.Args
 	localIdStr := args[1]
@@ -41,7 +42,10 @@ func main() {
 	//	panic(err)
 	//}
 	wrrpClient, err := wrrper.NewWrrpClient(localId, "127.0.0.1:6266")
-	if err := wrrpClient.Connect(); err != nil {
+	if err != nil {
+		panic(err)
+	}
+	if err = wrrpClient.Connect(); err != nil {
 		panic(err)
 	}
 

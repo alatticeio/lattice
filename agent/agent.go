@@ -63,7 +63,7 @@ type Agent struct {
 
 	current *infra.Peer
 
-	callback       func(message *infra.Message) error
+	callback       func(message *infra.Message) error // nolint
 	messageHandler Handler
 
 	DeviceManager *DeviceManager
@@ -224,9 +224,7 @@ func (c *Agent) Start(ctx context.Context) error {
 		return err
 	}
 
-	c.messageHandler.ApplyFullConfig(ctx, remoteCfg)
-
-	return nil
+	return c.messageHandler.ApplyFullConfig(ctx, remoteCfg)
 }
 
 func (c *Agent) Stop() error {

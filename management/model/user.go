@@ -14,7 +14,7 @@ type User struct {
 	Avatar     string            `json:"avatar"`
 	Address    string            `json:"address,omitempty"`
 	Gender     int               `json:"gender,omitempty"`
-	Teams      []Workspace       `gorm:"many2many:team_members;" json:"teams,omitempty"`
+	Workspaces []Workspace       `gorm:"many2many:t_workspaces_member;" json:"workspaces,omitempty"`
 }
 
 func (User) TableName() string {

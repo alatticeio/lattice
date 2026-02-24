@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"context"
+	"wireflow/internal/infra"
 	"wireflow/pkg/utils/resp"
 
 	"github.com/gin-gonic/gin"
@@ -40,8 +41,8 @@ func TenantContextMiddleware() gin.HandlerFunc {
 
 func injectWorkspace(c *gin.Context, wsID string, strict bool) {
 	// 注入 workspaceId
-	ctx := context.WithValue(c.Request.Context(), "workspaceId", wsID)
+	ctx := context.WithValue(c.Request.Context(), infra.WorkspaceKey, wsID)
 	// 注入是否严格过滤的标记
-	ctx = context.WithValue(ctx, "isStrictTenant", strict)
+	ctx = context.WithValue(ctx, infra.StrictTenantKey, strict)
 	c.Request = c.Request.WithContext(ctx)
 }

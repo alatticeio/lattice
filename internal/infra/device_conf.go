@@ -160,40 +160,33 @@ func (d *DeviceConf) Parse(str string) (*DeviceConf, error) {
 			switch key {
 			case "private_key":
 				conf.Device.PrivateKey = value
-				break
 			case "listen_port":
 				conf.Device.ListenPort, err = strconv.Atoi(value)
 				if err != nil {
 					return nil, fmt.Errorf("invalid ListenPort!!!, err:%v", line)
 				}
-				break
 			case "fwmark":
 				conf.Device.Fwmark, err = strconv.Atoi(value)
 				if err != nil {
 					return nil, fmt.Errorf("invalid Fwmark!!!, err:%v", line)
 				}
-				break
 			case "replace_peers":
 				conf.Device.ReplacePeers, err = strconv.ParseBool(value)
 				if err != nil {
 					return nil, fmt.Errorf("invalid replace_peers!!!, err:%v", line)
 				}
-				break
 			}
 		} else {
 			switch key {
 			case "preshared_key":
 				setPeer.peer.PresharedKey = value
-				break
 			case "replace_allow_ips":
 				setPeer.peer.ReplacePeers, err = strconv.ParseBool(value)
 				if err != nil {
 					return nil, fmt.Errorf("invalid replace_peers!!!, err:%v", line)
 				}
-				break
 			case "allow_ips":
 				setPeer.peer.AllowedIPs = value
-				break
 			}
 		}
 	}

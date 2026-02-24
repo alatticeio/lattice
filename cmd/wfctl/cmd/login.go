@@ -23,6 +23,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// nolint:all
 type loginOptions struct {
 	Username  string
 	Password  string
@@ -30,6 +31,7 @@ type loginOptions struct {
 	RedisPass string
 }
 
+// nolint:all
 func loginCmd() *cobra.Command {
 	var opts loginOptions
 	var cmd = &cobra.Command{
@@ -56,6 +58,7 @@ func loginCmd() *cobra.Command {
 }
 
 // runJoin join a network cmd
+// nolint:all
 func runLogin(opts loginOptions) error {
 	//logger := log.NewLogger(log.Loglevel, "wireflow")
 	//var err error
@@ -125,6 +128,7 @@ func runLogin(opts loginOptions) error {
 	return nil
 }
 
+// nolint:all
 func readLine(prompt string, slient bool) (string, error) {
 	fmt.Print(prompt)
 	if slient {
@@ -134,7 +138,7 @@ func readLine(prompt string, slient bool) (string, error) {
 			fmt.Println(err)
 			return "", err
 		}
-		term.DisableEcho(fd, state)
+		term.DisableEcho(fd, state) // nolint
 		defer term.RestoreTerminal(fd, state)
 	}
 

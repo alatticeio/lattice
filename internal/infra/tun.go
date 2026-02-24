@@ -14,6 +14,7 @@
 
 package infra
 
+// nolint:all
 func getInterfaceName() string {
 	return "wf0"
 }

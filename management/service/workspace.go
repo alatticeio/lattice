@@ -12,6 +12,7 @@ import (
 	"wireflow/management/repository"
 	client_r "wireflow/management/resource"
 	"wireflow/management/vo"
+	"wireflow/pkg/utils"
 
 	"golang.org/x/sync/errgroup"
 	"gorm.io/gorm"
@@ -42,9 +43,8 @@ type workspaceService struct {
 	log           *log.Logger
 	client        *client_r.Client
 	db            *gorm.DB // SQLite 实例
-	config        *config.Config
-	workspaceRepo repository.WorkspaceRepository
-	memberRepo    repository.WorkspaceMemberRepository
+	workspaceRepo *repository.WorkspaceRepository
+	memberRepo    *repository.WorkspaceMemberRepository
 	identify      *client_r.IdentityImpersonator
 }
 
@@ -173,15 +173,13 @@ func NewWorkspaceService(client *client_r.Client) WorkspaceService {
 		identify:      identify,
 		client:        client,
 		db:            database.DB,
-		workspaceRepo: repository.NewWorkspaceRepository(),
-		memberRepo:    repository.NewWorkspaceMemberRepository(),
+		workspaceRepo: repository.NewWorkspaceRepository(database.DB),
 	}
 }
 
 func NewWorkspaceMemberService() WorkspaceMemberService {
 	return &workspaceMemberService{
-		log:                 log.GetLogger("workspace-member-service"),
-		workspaceMemberRepo: repository.NewWorkspaceMemberRepository(),
+		log: log.GetLogger("workspace-member-service"),
 	}
 }
 
@@ -282,16 +280,21 @@ func (w *workspaceService) AddWorkspace(ctx context.Context, dto *dto.WorkspaceD
 	//开一个事务来操作
 	err := w.db.Transaction(func(tx *gorm.DB) error {
 		var err error
-		txRepo := w.workspaceRepo.WithTx(tx)
+		txRepo := repository.NewWorkspaceRepository(tx)
 
-		ws, err := txRepo.Create(ctx, dto)
+		newWs := &model.Workspace{
+			Slug:        utils.GenerateSlug(dto.Slug),
+			DisplayName: dto.DisplayName,
+			Namespace:   dto.Namespace,
+		}
+		err = txRepo.Create(ctx, newWs)
 		if err != nil {
 			return err
 		}
 
 		// 1. 在 K8s 中真实创建 Namespace, 创建RoleBinding
 		// 同时可以创建 ResourceQuota (配额), 限制用户创建的节点数与空间数，防止用户把集群搞崩
-		err = w.InitNewNamespace(ctx, ws.ID)
+		err = w.InitNewNamespace(ctx, newWs.ID)
 		if err != nil {
 			return err
 		}
@@ -390,6 +393,7 @@ func (w *workspaceService) InitializeTenant(ctx context.Context, wsID, role stri
 }
 
 // 无论什么用户，都走这套逻辑，只是参数不同
+// nolint:all
 func (w *workspaceService) setupQuota(ctx context.Context, ns string, plan *model.Plan) {
 	quota := &corev1.ResourceQuota{
 		Spec: corev1.ResourceQuotaSpec{

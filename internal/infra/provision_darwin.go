@@ -82,7 +82,10 @@ func (r *ruleProvisioner) Provision(rule *FirewallRule) error {
 
 	// 3. 将规则写入临时文件并加载到 anchor
 	tmpFile := "/tmp/wireflow.pf"
-	os.WriteFile(tmpFile, []byte(sb.String()), 0644)
+	err := os.WriteFile(tmpFile, []byte(sb.String()), 0644)
+	if err != nil {
+		return err
+	}
 
 	// 使用 pfctl 加载特定的 anchor，不影响系统其他规则
 	cmd := exec.Command("sudo", "pfctl", "-a", anchor, "-f", tmpFile)

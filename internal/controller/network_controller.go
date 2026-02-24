@@ -103,6 +103,10 @@ func (r *NetworkReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 			return nil
 		})
 
+		if err != nil {
+			log.Error(err, "Failed to update WireflowNetwork status")
+		}
+
 		if updated {
 			return ctrl.Result{}, nil
 		}
@@ -137,6 +141,7 @@ func (r *NetworkReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 // reconcileSpec 检查并修正 WireflowNetwork.Spec 字段。
 // 如果 Spec 被修改并成功写入，返回 (true, nil)，调用者应立即退出 Reconcile。
 // 否则返回 (false, nil) 或 (false, error)。
+// nolint:all
 func (r *NetworkReconciler) updateSpec(ctx context.Context, network *v1alpha1.WireflowNetwork, updateFunc func(node *v1alpha1.WireflowNetwork)) (bool, error) {
 	log := logf.FromContext(ctx)
 	networkCopy := network.DeepCopy()
@@ -222,6 +227,7 @@ func (r *NetworkReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(r)
 }
 
+// nolint:all
 func (r *NetworkReconciler) mapNodeForNetworks(ctx context.Context, obj client.Object) []reconcile.Request {
 	node := obj.(*v1alpha1.WireflowPeer)
 

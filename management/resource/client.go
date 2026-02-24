@@ -94,7 +94,7 @@ func NewClient(signal infra.SignalService, mgr manager.Manager) (*Client, error)
 	}
 
 	// 3. 注册事件回调函数
-	informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+	_, err = informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			logger.Info("Received add event for configMap", "obj", obj)
 			client.handleConfigMapEvent(ctx, obj, "ADD")
@@ -110,6 +110,10 @@ func NewClient(signal infra.SignalService, mgr manager.Manager) (*Client, error)
 			client.handleConfigMapEvent(ctx, obj, "DELETE")
 		},
 	})
+
+	if err != nil {
+		return nil, err
+	}
 	return client, nil
 }
 
@@ -136,7 +140,11 @@ func (c *Client) handleConfigMapEvent(ctx context.Context, obj interface{}, even
 	}
 
 	if message.Current != nil {
-		c.pushToNode(ctx, message.Current.PeerID, &message)
+		err := c.pushToNode(ctx, message.Current.PeerID, &message)
+		if err != nil {
+			c.log.Error("Failed to push message", err)
+			return
+		}
 		c.log.Info(">>> Message pushed to node success <<<", "namespace", cm.Namespace, "appId", message.Current.PublicKey, "version", cm.ResourceVersion)
 	}
 }
@@ -179,7 +187,7 @@ func (c *Client) pushToNode(ctx context.Context, peerId uint64, msg *infra.Messa
 		return err
 	}
 
-	if err := c.sender.Send(ctx, infra.FromUint64(peerId), content); err != nil {
+	if err = c.sender.Send(ctx, infra.FromUint64(peerId), content); err != nil {
 		return fmt.Errorf("Failed to send message to node %d: %v", peerId, err)
 	}
 
@@ -221,9 +229,13 @@ func NewManager() (manager.Manager, error) {
 		},
 	})
 
+	if err != nil {
+		return nil, err
+	}
+
 	ctx := context.Background()
 	// 注册索引： status.token
-	if err := mgr.GetFieldIndexer().IndexField(ctx, &v1alpha1.WireflowEnrollmentToken{}, "status.token", func(rawObj client.Object) []string {
+	if err = mgr.GetFieldIndexer().IndexField(ctx, &v1alpha1.WireflowEnrollmentToken{}, "status.token", func(rawObj client.Object) []string {
 		// 1. 断言对象类型
 		token, ok := rawObj.(*v1alpha1.WireflowEnrollmentToken)
 		if !ok {

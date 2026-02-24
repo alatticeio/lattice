@@ -1,15 +1,41 @@
 run:
-  timeout: 5m
-  # 新版本中使用 skip-dirs 依然有效（配置文件中尚未弃用）
-  # 但更现代的做法是在 issues 层面进行排除
-  skip-dirs:
-    - vendor
-    - third_party
+  timeout: 5m       # 设置超时时间，防止 CI 卡死
+  tests: true       # 是否检查测试文件
+
+linters:
+  disable-all: true # 建议先全部关掉，再手动开启需要的，这样最可控
+  enable:
+    - errcheck      # 检查未处理的 error
+    - gosimple      # 简化代码
+    - govet         # 官方静态分析
+    - ineffassign   # 无效赋值
+    - staticcheck   # 强力静态检查
+    - unused        # 未使用的变量/函数
+    - typecheck     # 必须开启，否则泛型语法可能解析报错
+    - asciicheck    # 检查非 ASCII 字符（防止代码里混入奇怪的中文字符）
+    - bodyclose     # 检查 HTTP response 是否关闭（后端必开）
+
+linters-settings:
+  govet:
+    enable:
+      - shadow
+    enable-all: false
 
 issues:
-  # 排除掉所有来自外部库或生成的代码的警告
+  # 排除规则：让特定的文件不运行特定的检查
   exclude-rules:
     - path: _test\.go
       linters:
-        - gocyclo
         - errcheck
+        - unused
+    # 如果你觉得某些特定的、无法避免的报错很烦，可以用正则排除
+    - text: "variable name '.*' is too short"
+      linters:
+        - revive
+
+  # 限制每个 linter 的最大错误数，防止满屏报错
+  max-issues-per-linter: 0
+  max-same-issues: 0
+
+  # 自动修复一些简单的错误
+  fix: true

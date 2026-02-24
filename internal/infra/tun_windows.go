@@ -15,6 +15,8 @@
 package infra
 
 import (
+	"wireflow/internal/log"
+
 	"golang.zx2c4.com/wireguard/tun"
 )
 

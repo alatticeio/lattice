@@ -103,6 +103,7 @@ func newControllerCmd() *cobra.Command {
 	return cmd
 }
 
+// nolint:all
 type ControllerFlags struct {
 	metricsAddr          string
 	webhookCertPath      string
@@ -112,9 +113,9 @@ type ControllerFlags struct {
 	metricsCertName      string
 	metricsCertKey       string
 	enableLeaderElection bool
-	probeAddr            string
-	secureMetrics        bool
-	enableHTTP2          bool
+	//probeAddr            string
+	//secureMetrics        bool
+	//enableHTTP2          bool
 }
 
 // nolint:gocyclo

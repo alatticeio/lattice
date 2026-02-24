@@ -35,11 +35,9 @@ var (
 type SignalHandler func(ctx context.Context, peerId infra.PeerID, packet *grpc.SignalPacket) error
 
 type NatsSignalService struct {
-	log       *log.Logger
-	nc        *natsgo.Conn
-	localID   string // local  publickey
-	sub       *natsgo.Subscription
-	onMessage SignalHandler
+	log *log.Logger
+	nc  *natsgo.Conn
+	sub *natsgo.Subscription
 }
 
 func NewNatsService(ctx context.Context, url string) (*NatsSignalService, error) {
@@ -102,7 +100,10 @@ func (s *NatsSignalService) Subscribe(subject string, onMessage SignalHandler) e
 
 		err := onMessage(context.Background(), infra.FromUint64(packet.SenderId), &packet)
 		if err == nil {
-			m.Ack()
+			err := m.Ack()
+			if err != nil {
+				s.log.Error("failed to ack message", err)
+			}
 		}
 	})
 
@@ -134,16 +135,26 @@ func (s *NatsSignalService) Request(ctx context.Context, subject, method string,
 }
 
 func (s *NatsSignalService) Service(subject, queue string, service func(data []byte) ([]byte, error)) {
-	s.nc.QueueSubscribe(subject, queue, func(msg *natsgo.Msg) {
+	_, err := s.nc.QueueSubscribe(subject, queue, func(msg *natsgo.Msg) {
 		data, err := service(msg.Data)
 		if err != nil {
 			resp := natsgo.NewMsg(msg.Reply)
 			resp.Header.Add("error", err.Error())
 			resp.Header.Add("status", "400")
 
-			msg.RespondMsg(resp)
+			err = msg.RespondMsg(resp)
+			if err != nil {
+				s.log.Error("failed to respond to message", err)
+			}
 			return
 		}
-		msg.Respond(data)
+		err = msg.Respond(data)
+		if err != nil {
+			s.log.Error("failed to respond to message", err)
+		}
 	})
+
+	if err != nil {
+		s.log.Error("failed to subscribe", err)
+	}
 }

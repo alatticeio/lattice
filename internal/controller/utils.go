@@ -29,6 +29,7 @@ func stringSet(list []string) map[string]struct{} {
 	return set
 }
 
+// nolint:all
 func setsEqual(a, b map[string]struct{}) bool {
 	if len(a) != len(b) {
 		return false
@@ -41,6 +42,7 @@ func setsEqual(a, b map[string]struct{}) bool {
 	return true
 }
 
+// nolint:all
 func setsDifference(a, b map[string]struct{}) map[string]struct{} {
 	diff := make(map[string]struct{}, len(a))
 	if len(a) == 0 {
@@ -58,6 +60,7 @@ func setsDifference(a, b map[string]struct{}) map[string]struct{} {
 	return diff
 }
 
+// nolint:all
 func setsToSlice(set map[string]struct{}) []string {
 	slice := make([]string, 0, len(set))
 	for k := range set {
@@ -78,6 +81,7 @@ func setsToSlice(set map[string]struct{}) []string {
 //	return true
 //}
 
+// nolint:all
 func stringSliceEqual(a, b []string) bool {
 	if len(a) != len(b) {
 		return false

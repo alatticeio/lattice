@@ -26,11 +26,18 @@ func (r *routeProvisioner) ApplyRoute(action, address, name string) error {
 	switch action {
 	case "add":
 		//ExecCommand("/bin/sh", "-c", fmt.Sprintf("ip address add dev %s %s", name, address))
-		ExecCommand("/bin/sh", "-c", fmt.Sprintf("iptables -A FORWARD -i %s -j ACCEPT; iptables -A FORWARD -o %s -j ACCEPT; iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE", name, name))
-		ExecCommand("/bin/sh", "-c", fmt.Sprintf("route %s -net %v dev %s", action, cidr, name))
+		if err := ExecCommand("/bin/sh", "-c", fmt.Sprintf("iptables -A FORWARD -i %s -j ACCEPT; iptables -A FORWARD -o %s -j ACCEPT; iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE", name, name)); err != nil {
+			return err
+		}
+
+		if err := ExecCommand("/bin/sh", "-c", fmt.Sprintf("route %s -net %v dev %s", action, cidr, name)); err != nil {
+			return err
+		}
 		r.logger.Debug("add route", "cmd", fmt.Sprintf("add route %s -net %v dev %s", action, cidr, name))
 	case "delete":
-		ExecCommand("/bin/sh", "-c", fmt.Sprintf("route %s -net %v dev %s", action, cidr, name))
+		if err := ExecCommand("/bin/sh", "-c", fmt.Sprintf("route %s -net %v dev %s", action, cidr, name)); err != nil {
+			return err
+		}
 		r.logger.Debug("delete route", "cmd", fmt.Sprintf("delete route %s -net %v dev %s", action, cidr, name))
 	}
 	return nil
@@ -39,8 +46,12 @@ func (r *routeProvisioner) ApplyRoute(action, address, name string) error {
 func (r *routeProvisioner) ApplyIP(action, address, name string) error {
 	switch action {
 	case "add":
-		ExecCommand("/bin/sh", "-c", fmt.Sprintf("ip address add dev %s %s", name, address))
-		ExecCommand("/bin/sh", "-c", fmt.Sprintf("ip link set dev %s up", name))
+		if err := ExecCommand("/bin/sh", "-c", fmt.Sprintf("ip address add dev %s %s", name, address)); err != nil {
+			return err
+		}
+		if err := ExecCommand("/bin/sh", "-c", fmt.Sprintf("ip link set dev %s up", name)); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -59,12 +70,22 @@ func (r *ruleProvisioner) Provision(rule *FirewallRule) error {
 	r.initChain(outChain, "OUTPUT", "-o")
 
 	// 2. 清空旧规则 (Flush)
-	exec.Command("iptables", "-F", inChain).Run()
-	exec.Command("iptables", "-F", outChain).Run()
+	if err := exec.Command("iptables", "-F", inChain).Run(); err != nil {
+		return err
+	}
+
+	if err := exec.Command("iptables", "-F", outChain).Run(); err != nil {
+		return err
+	}
 
 	// 3. 基础规则：允许 Established 流量（零信任回包保障）
-	exec.Command("iptables", "-A", inChain, "-m", "conntrack", "--ctstate", "ESTABLISHED,RELATED", "-j", "ACCEPT").Run()
-	exec.Command("iptables", "-A", outChain, "-m", "conntrack", "--ctstate", "ESTABLISHED,RELATED", "-j", "ACCEPT").Run()
+	if err := exec.Command("iptables", "-A", inChain, "-m", "conntrack", "--ctstate", "ESTABLISHED,RELATED", "-j", "ACCEPT").Run(); err != nil {
+		return err
+	}
+
+	if err := exec.Command("iptables", "-A", outChain, "-m", "conntrack", "--ctstate", "ESTABLISHED,RELATED", "-j", "ACCEPT").Run(); err != nil {
+		return err
+	}
 
 	// 4. 应用 Ingress (源地址匹配 -s)
 	for _, tr := range rule.Ingress {
@@ -85,18 +106,28 @@ func (r *ruleProvisioner) Provision(rule *FirewallRule) error {
 	}
 
 	// 6. 终极封口 (DROP)
-	exec.Command("iptables", "-A", inChain, "-j", "DROP").Run()
-	exec.Command("iptables", "-A", outChain, "-j", "DROP").Run()
+	if err := exec.Command("iptables", "-A", inChain, "-j", "DROP").Run(); err != nil {
+		return err
+	}
+
+	if err := exec.Command("iptables", "-A", outChain, "-j", "DROP").Run(); err != nil {
+		return err
+	}
 
 	return nil
 }
 
 // 内部辅助：确保链存在并挂载
 func (p *ruleProvisioner) initChain(chain, parent, flag string) {
-	exec.Command("iptables", "-N", chain).Run()
+	if err := exec.Command("iptables", "-N", chain).Run(); err != nil {
+		p.logger.Error("init iptables failed", err)
+		return
+	}
 	// 检查是否已挂载，未挂载则插入到第一条
 	if err := exec.Command("iptables", "-C", parent, flag, p.interfaceName, "-j", chain).Run(); err != nil {
-		exec.Command("iptables", "-I", parent, "1", flag, p.interfaceName, "-j", chain).Run()
+		if err = exec.Command("iptables", "-I", parent, "1", flag, p.interfaceName, "-j", chain).Run(); err != nil {
+			p.logger.Error("init iptables failed", err)
+		}
 	}
 }
 
@@ -124,7 +155,9 @@ func (r *ruleProvisioner) SetupNAT(interfaceName string) error {
 	}
 
 	for _, args := range cmds {
-		ExecCommand("/bin/sh", "-c", args)
+		if err := ExecCommand("/bin/sh", "-c", args); err != nil {
+			return err
+		}
 	}
 
 	log.Printf("Successfully configured iptables for %s", interfaceName)

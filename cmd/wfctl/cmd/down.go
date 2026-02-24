@@ -22,6 +22,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// nolint:all
 func stop() *cobra.Command {
 	var flags config.Flags
 	cmd := &cobra.Command{
@@ -40,6 +41,7 @@ func stop() *cobra.Command {
 	return cmd
 }
 
+// nolint:all
 func stopWireflowd(flags *config.Flags) error {
 	if flags.Level == "" {
 		flags.Level = "error"

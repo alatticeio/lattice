@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"wireflow/internal/infra"
 
 	"gorm.io/gorm"
 )
@@ -9,8 +10,8 @@ import (
 // defind a scope, then repo can filter 'workspaceId' if exists.
 func TenantScope(ctx context.Context) func(db *gorm.DB) *gorm.DB {
 	return func(db *gorm.DB) *gorm.DB {
-		wsID, _ := ctx.Value("workspaceId").(string)
-		strict, _ := ctx.Value("isStrictTenant").(bool)
+		wsID, _ := ctx.Value(infra.WorkspaceKey).(string)
+		strict, _ := ctx.Value(infra.StrictTenantKey).(bool)
 
 		// 如果没有 ID 且不是严格模式（如 Admin 看全量），则不加过滤
 		if wsID == "" && !strict {

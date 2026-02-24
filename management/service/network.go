@@ -19,6 +19,7 @@ import (
 	"strings"
 	wireflowv1alpha1 "wireflow/api/v1alpha1"
 	"wireflow/internal/infra"
+	"wireflow/management/database"
 	"wireflow/management/dto"
 	"wireflow/management/repository"
 	"wireflow/management/resource"
@@ -36,7 +37,7 @@ type NetworkService interface {
 
 type networkService struct {
 	client        *resource.Client
-	workspaceRepo repository.WorkspaceRepository
+	workspaceRepo *repository.WorkspaceRepository
 }
 
 func (s *networkService) ListTokens(ctx context.Context, pageParam *dto.PageRequest) (*dto.PageResult[vo.TokenVo], error) {
@@ -62,13 +63,13 @@ func (s *networkService) ListTokens(ctx context.Context, pageParam *dto.PageRequ
 		err       error
 	)
 
-	workspaceV := ctx.Value("workspaceId")
+	workspaceV := ctx.Value(infra.WorkspaceKey)
 	var workspaceId string
 	if workspaceV != nil {
 		workspaceId = workspaceV.(string)
 	}
 
-	workspace, err := s.workspaceRepo.FindById(ctx, workspaceId)
+	workspace, err := s.workspaceRepo.GetByID(ctx, workspaceId)
 	if err != nil {
 		return nil, err
 	}
@@ -139,7 +140,7 @@ func (s *networkService) ListTokens(ctx context.Context, pageParam *dto.PageRequ
 func NewNetworkService(client *resource.Client) NetworkService {
 	return &networkService{
 		client:        client,
-		workspaceRepo: repository.NewWorkspaceRepository(),
+		workspaceRepo: repository.NewWorkspaceRepository(database.DB),
 	}
 }
 

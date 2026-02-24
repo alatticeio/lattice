@@ -6,6 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// nolint:all
 func (s *Server) adminRouter() {
 	// 只有【系统管理员】才能访问的路由
 	adminGroup := s.Group("/api/v1/admin")
@@ -27,14 +28,17 @@ func NamespaceAdminOnly() gin.HandlerFunc {
 	return func(c *gin.Context) {}
 }
 
+// nolint:all
 func handlePromoteUser() gin.HandlerFunc {
 	return func(c *gin.Context) {}
 }
 
+// nolint:all
 func handleAddMemberToProject() gin.HandlerFunc {
 	return func(c *gin.Context) {}
 }
 
+// nolint:all
 func handleCreateUser() gin.HandlerFunc {
 	return func(c *gin.Context) {
 

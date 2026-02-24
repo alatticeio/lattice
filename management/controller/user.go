@@ -18,6 +18,7 @@ type UserController interface {
 
 	// Add user from admin
 	AddUser(ctx context.Context, userDto *dto.UserDto) error
+	DeleteUser(ctx context.Context, username string) error
 
 	// management page, if current user is admin will list all users created by self,
 	//if current is ns amdin, will list all users in the ns. other will list none.
@@ -37,6 +38,10 @@ var (
 type userController struct {
 	log         *log.Logger
 	userService service.UserService
+}
+
+func (u *userController) DeleteUser(ctx context.Context, username string) error {
+	return u.userService.DeleteUser(ctx, username)
 }
 
 func (u *userController) AddUser(ctx context.Context, userDto *dto.UserDto) error {

@@ -48,11 +48,17 @@ var rootCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		isVersion, _ := cmd.Flags().GetBool("version")
 		if isVersion {
-			runVersion() // 在这里调用你联网获取 Server 版本的逻辑
+			err := runVersion() // 在这里调用你联网获取 Server 版本的逻辑
+			if err != nil {
+				fmt.Println(err)
+			}
 			return
 		}
 
-		cmd.Help()
+		err := cmd.Help()
+		if err != nil {
+			fmt.Println(err)
+		}
 	},
 }
 

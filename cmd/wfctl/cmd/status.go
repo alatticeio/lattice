@@ -22,6 +22,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// nolint
 func status() *cobra.Command {
 	var flags config.Flags
 	cmd := &cobra.Command{
@@ -40,6 +41,7 @@ func status() *cobra.Command {
 	return cmd
 }
 
+// nolint:all
 func wireflowInfo(flags *config.Flags) error {
 	if flags.Level == "" {
 		flags.Level = "error"

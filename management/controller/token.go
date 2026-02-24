@@ -7,7 +7,7 @@ import (
 )
 
 type TokenController interface {
-	
+
 	// Create token for web
 	Create(ctx context.Context) error
 

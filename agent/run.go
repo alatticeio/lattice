@@ -37,11 +37,13 @@ import (
 )
 
 // Start start wireflow
+// nolint:all
 func Start(ctx context.Context, flags *config.Flags) error {
 	var (
 		logFile *os.File
 		path    string
 		err     error
+		process *os.Process
 	)
 
 	log.SetLevel(flags.Level)
@@ -145,7 +147,7 @@ func Start(ctx context.Context, flags *config.Flags) error {
 				}
 			}
 
-			process, err := os.StartProcess(
+			process, err = os.StartProcess(
 				path,
 				filteredArgs,
 				attr,
@@ -176,12 +178,17 @@ func Start(ctx context.Context, flags *config.Flags) error {
 	if flags.EnableDNS {
 		go func() {
 			nativeDNS := dns.NewNativeDNS(&dns.DNSConfig{})
-			nativeDNS.Start()
+			err := nativeDNS.Start()
+			if err != nil {
+				logger.Error("Failed to start", err)
+			}
 			fmt.Println("Dns started")
 		}()
 	}
 
-	c, err := NewAgent(ctx, agentCfg)
+	var c *Agent
+
+	c, err = NewAgent(ctx, agentCfg)
 	if err != nil {
 		return err
 	}

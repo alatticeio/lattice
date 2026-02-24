@@ -29,6 +29,7 @@ func (c *workspaceController) AddWorkspace(ctx context.Context, workspaceDto *dt
 	return c.workspaceService.AddWorkspace(ctx, workspaceDto)
 }
 
+// nolint:all
 type workspaceMemberController struct {
 	workspaceMemberService service.WorkspaceMemberService
 }

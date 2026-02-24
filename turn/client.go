@@ -18,7 +18,6 @@ import (
 	"net"
 	"sync"
 	"wireflow/internal"
-	"wireflow/internal/config"
 	"wireflow/internal/log"
 
 	"github.com/pion/logging"
@@ -32,13 +31,12 @@ var (
 // Client is a TURN client.
 type Client struct {
 	logger     *log.Logger
-	lock       sync.Mutex
+	lock       sync.Mutex // nolint
 	realm      string
-	conf       *config.Flags
 	turnClient *turn.Client
 	relayConn  net.PacketConn
-	mappedAddr net.Addr
-	relayInfo  *internal.RelayInfo
+	//mappedAddr net.Addr
+	relayInfo *internal.RelayInfo
 }
 
 // ClientConfig is the configuration for a TURN client.
@@ -100,7 +98,8 @@ func (c *Client) GetRelayInfo(allocated bool) (*internal.RelayInfo, error) {
 	// Push BindingRequest to learn our external IP
 	c.relayInfo = &internal.RelayInfo{}
 	if allocated {
-		relayConn, err := c.turnClient.Allocate()
+		var relayConn net.PacketConn
+		relayConn, err = c.turnClient.Allocate()
 		if err != nil {
 			return nil, err
 		}
@@ -119,24 +118,6 @@ func (c *Client) GetRelayInfo(allocated bool) (*internal.RelayInfo, error) {
 	c.relayInfo.MappedAddr = *mapAddr
 
 	return c.relayInfo, nil
-}
-
-func (c *Client) punchHole() error {
-	// Push BindingRequest to learn our external IP
-	mappedAddr, err := c.turnClient.SendBindingRequest()
-	if err != nil {
-		return err
-	}
-
-	// Punch a UDP hole for the relayConn by sending a data to the mappedAddr.
-	// This will trigger a TURN client to generate a permission request to the
-	// TURN server. After this, packets from the IP address will be accepted by
-	// the TURN server.
-	_, err = c.relayConn.WriteTo([]byte("Hello"), mappedAddr)
-	if err != nil {
-		return err
-	}
-	return nil
 }
 
 func (c *Client) Close() {

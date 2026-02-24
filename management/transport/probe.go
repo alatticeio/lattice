@@ -33,18 +33,14 @@ var (
 
 // Probe for probe connection from two peerManager.
 type Probe struct {
-	mu           sync.RWMutex
-	localId      infra.PeerID
-	remoteId     infra.PeerID
-	iceDialer    infra.Dialer
-	state        ice.ConnectionState
-	signal       infra.SignalService
-	ctx          context.Context
-	cancel       context.CancelFunc
-	log          *log.Logger
-	lastSeen     time.Time
-	rtt          time.Duration
-	handShackAck chan struct{}
+	mu        sync.RWMutex
+	localId   infra.PeerID
+	remoteId  infra.PeerID
+	iceDialer infra.Dialer
+	state     ice.ConnectionState
+	signal    infra.SignalService
+	log       *log.Logger
+	rtt       time.Duration // nolint
 
 	started atomic.Bool
 
@@ -72,29 +68,6 @@ func (p *Probe) OnConnectionStateChange(state ice.ConnectionState) {
 	p.log.Debug("Setting new connection status", "state", state)
 }
 
-func (p *Probe) probeWrrpPacket(ctx context.Context, remoteId string, packetType grpc.PacketType) error {
-	//packet := &grpc.SignalPacket{
-	//	SenderId: p.localId,
-	//	Type:     packetType,
-	//	Payload: &grpc.SignalPacket_Handshake{
-	//		Handshake: &grpc.Handshake{
-	//			Timestamp: time.Now().Unix(),
-	//		},
-	//	},
-	//}
-
-	//data, err := proto.Marshal(packet)
-	//if err != nil {
-	//	return err
-	//}
-	//
-	//sessionId, err := infra.IDFromPublicKey(remoteId)
-	//if err != nil {
-	//	return err
-	//}
-	return nil
-}
-
 func (p *Probe) Start(ctx context.Context, remoteId infra.PeerID) error {
 	if p.started.Load() {
 		p.log.Warn("Probe already started")
@@ -109,12 +82,17 @@ func (p *Probe) Start(ctx context.Context, remoteId infra.PeerID) error {
 		if err != nil {
 			p.updateState(ice.ConnectionStateFailed)
 			p.log.Error("Discover transport failed", err)
-			p.onFailure(err)
+			err = p.onFailure(err)
+			if err != nil {
+				p.updateState(ice.ConnectionStateFailed)
+			}
 			return
 		}
 
 		p.currentTransport = t
-		p.onSuccess(t)
+		if err = p.onSuccess(t); err != nil {
+			p.updateState(ice.ConnectionStateFailed)
+		}
 	}()
 
 	return nil

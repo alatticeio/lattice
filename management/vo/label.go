@@ -1,8 +1,9 @@
 package vo
 
 import (
-	"gorm.io/gorm"
 	"time"
+
+	"gorm.io/gorm"
 )
 
 type LabelVo struct {

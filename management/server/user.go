@@ -18,8 +18,10 @@ func (s *Server) userRouter() {
 		userApi.POST("/register", s.RegisterUser) //注册用户
 		userApi.POST("/login", s.login)           //注册用户
 		userApi.GET("/getme", middleware.AuthMiddleware(), s.getMe())
+		userApi.GET("/list", middleware.AuthMiddleware(), s.listUser())
 
 		userApi.POST("/add", middleware.AuthMiddleware(), s.handleAddUser())
+		userApi.DELETE("/:name", middleware.AuthMiddleware(), s.handleDeleteUser())
 	}
 }
 
@@ -102,6 +104,43 @@ func (s *Server) handleAddUser() gin.HandlerFunc {
 			return
 		}
 
-		c.JSON(http.StatusOK, nil)
+		resp.OK(c, nil)
+	}
+}
+
+func (s *Server) handleDeleteUser() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		name := c.Param("name")
+		if name == "" {
+			resp.BadRequest(c, `"name" is empty`)
+			return
+		}
+
+		err := s.userController.DeleteUser(c.Request.Context(), name)
+		if err != nil {
+			resp.Error(c, err.Error())
+			return
+		}
+
+		resp.OK(c, nil)
+	}
+}
+
+// listUser list members
+func (s *Server) listUser() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var req dto.PageRequest
+		if err := c.ShouldBindQuery(&req); err != nil {
+			resp.BadRequest(c, err.Error())
+			return
+		}
+
+		res, err := s.userController.ListUser(c.Request.Context(), &req)
+		if err != nil {
+			resp.Error(c, err.Error())
+			return
+		}
+
+		resp.OK(c, res)
 	}
 }

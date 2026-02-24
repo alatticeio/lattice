@@ -23,6 +23,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"wireflow/internal/infra"
 
 	"github.com/google/uuid"
 	"github.com/mozillazg/go-pinyin" // 处理中文转拼音，对国内企业很友好
@@ -59,7 +60,7 @@ func GenerateUUID() string {
 }
 
 func GetUserIdFromCtx(ctx context.Context) uint64 {
-	userId := ctx.Value("userId")
+	userId := ctx.Value(infra.UserIDKey)
 	if userId == nil {
 		return 0
 	}
@@ -79,7 +80,11 @@ func GenerateAppId() string {
 
 	// 2. 生成 2 字节（4位十六进制）的随机数
 	b := make([]byte, 2)
-	rand.Read(b)
+	_, err := rand.Read(b)
+	if err != nil {
+		return ""
+	}
+
 	randomPart := hex.EncodeToString(b)
 
 	return fmt.Sprintf("wireflow-%s-%s", date, randomPart)

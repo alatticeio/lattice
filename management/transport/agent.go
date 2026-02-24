@@ -17,16 +17,12 @@ package transport
 import (
 	"context"
 	"sync/atomic"
-	"wireflow/internal/log"
 
 	"github.com/wireflowio/ice"
 )
 
 type AgentWrapper struct {
-	sender  func(ctx context.Context, peerId string, data []byte) error
-	localId string
-	peerId  string
-	log     *log.Logger
+	sender func(ctx context.Context, peerId string, data []byte) error // nolint
 	*ice.Agent
 	IsCredentialsInited atomic.Bool
 	RUfrag              string
@@ -39,6 +35,4 @@ type AgentConfig struct {
 	LocalId string
 	PeerID  string
 	StunURI string
-	//连接成功时回调
-	onCall func(peerId string, address string) error
 }

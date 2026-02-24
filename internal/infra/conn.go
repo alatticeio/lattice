@@ -47,21 +47,16 @@ var (
 // proposal in https://github.com/golang/go/issues/45886#issuecomment-1218301564.
 type DefaultBind struct {
 	logger          *log.Logger
-	agent           *ice.Agent
 	universalUdpMux *ice.UniversalUDPMuxDefault
-	conn            net.Conn // drp clients conn
 	PublicKey       wgtypes.Key
 	keyManager      KeyManager
 
 	// used for turn relay
 	wrrperClient Wrrp
 
-	drpAddr net.TCPAddr // drp addr，drp created from console
-
 	mu     sync.Mutex // protects all fields except as specified
 	v4conn *net.UDPConn
 	v6conn *net.UDPConn
-	port   int
 	ipv4   *net.UDPConn
 	ipv6   *net.UDPConn
 	ipv4PC *ipv4.PacketConn // will be nil on non-Linux
@@ -380,7 +375,10 @@ func (b *DefaultBind) Send(bufs [][]byte, endpoint conn.Endpoint) error {
 
 	if e.TransportType == WRRP {
 		for _, buf := range bufs {
-			b.wrrperClient.Send(context.Background(), e.RemoteId, wrrp.Forward, buf)
+			err := b.wrrperClient.Send(context.Background(), e.RemoteId, wrrp.Forward, buf)
+			if err != nil {
+				return err
+			}
 		}
 		return nil
 	}

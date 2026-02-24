@@ -55,11 +55,17 @@ func (c *DeviceManager) IpcHandle(socket net.Conn) {
 		// handle operation
 		switch op {
 		case "stop\n":
-			buffered.Write([]byte("OK\n\n"))
+			_, err = buffered.Write([]byte("OK\n\n"))
+			if err != nil {
+				fmt.Printf("Error setting operation: %s\n", err)
+			}
 			// send kill signal
-			syscall.Kill(os.Getpid(), syscall.SIGTERM)
+			err = syscall.Kill(os.Getpid(), syscall.SIGTERM)
 		case "set=1\n":
 			err = c.device.IpcSetOperation(buffered.Reader)
+			if err != nil {
+				fmt.Printf("Error setting operation: %s\n", err)
+			}
 		case "get=1\n":
 			var nextByte byte
 			nextByte, err = buffered.ReadByte()

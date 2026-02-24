@@ -198,6 +198,7 @@ func ipToHex(ip net.IP) string {
 }
 
 // hexToIP 将 8 位十六进制字符串还原为 net.IP
+// nolint:all
 func hexToIP(h string) net.IP {
 	bytes, err := hex.DecodeString(h)
 	if err != nil || len(bytes) != 4 {

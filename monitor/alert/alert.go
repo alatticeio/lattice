@@ -21,7 +21,7 @@ import (
 
 // ThresholdAlerter 基于阈值的告警器
 type ThresholdAlerter struct {
-	rules []AlertRule
+	rules []AlertRule // nolint
 	//notifiers []Notifier
 }
 

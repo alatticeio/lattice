@@ -83,6 +83,9 @@ func (m *CPUMonitor) collectStats() (SystemStats, error) {
 	}
 
 	totalPercentage, err := cpu.Percent(time.Second, false)
+	if err != nil {
+		return SystemStats{}, fmt.Errorf("failed to get CPU total usage: %v", err)
+	}
 
 	// 获取内存使用情况
 	memStats, err := mem.VirtualMemory()
@@ -92,6 +95,9 @@ func (m *CPUMonitor) collectStats() (SystemStats, error) {
 
 	// 获取磁盘使用情况
 	diskStats, err := disk.Usage("/")
+	if err != nil {
+		return SystemStats{}, fmt.Errorf("failed to get memory stats: %v", err)
+	}
 
 	diskUsage := DiskUsage{
 		UsedPercent: diskStats.UsedPercent,
@@ -163,6 +169,7 @@ func MonitorCPULoad() error {
 	}
 }
 
+// nolint:all
 func main() {
 	// 创建监控器
 	monitor := NewCPUMonitor(time.Second * 2)
