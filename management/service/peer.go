@@ -287,6 +287,7 @@ func (p *peerService) checkToken(ctx context.Context, tokenStr string) (bool, *v
 	if tokenStr == "" {
 		return false, nil, fmt.Errorf("token is empty")
 	}
+
 	var list v1alpha1.WireflowEnrollmentTokenList
 	err := p.client.List(ctx, &list, client.MatchingFields{"status.token": tokenStr})
 	if err != nil {
