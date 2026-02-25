@@ -52,6 +52,11 @@ jobs:
 
       - name: Deploy to K3s/K8s
         run: |
+          export PATH=$PATH:/usr/local/go/bin:$(go env GOPATH)/bin
+          
+          echo "Current PATH: $PATH"
+          go version # 打印一下确认
+          
           OWNER_LOWER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
           PR_TAG="pr-${{ github.event.pull_request.number }}"
           NAMESPACE="wireflow-pr-${{ github.event.pull_request.number }}"
