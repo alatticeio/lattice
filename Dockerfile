@@ -1,5 +1,5 @@
 # Build the manager binary
-FROM registry.cn-hangzhou.aliyuncs.com/wireflow-io/golang:1.25.2 AS builder
+FROM golang:1.25.2 AS builder
 ARG TARGETOS
 ARG TARGETARCH
 ARG TARGETSERVICE
@@ -10,7 +10,7 @@ COPY go.mod go.sum ./
 
 # cache deps before building and copying source so that we don't need to re-download as much
 # and so that source changes don't invalidate our downloaded layer
-RUN go env -w GOPROXY=https://goproxy.cn,direct && go mod download
+RUN go mod download
 
 # Copy the go source
 COPY . . 

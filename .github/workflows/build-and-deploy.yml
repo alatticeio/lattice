@@ -1,0 +1,59 @@
+name: CI/CD Pipeline
+
+on:
+  pull_request_target:
+    types: [labeled, synchronize] # 只有打标签或 PR 更新时触发
+
+jobs:
+  # 1. 在 GitHub 免费资源上构建并推送
+  build-and-push:
+    # 仅当 PR 带有 'ok-to-test' 标签，或者是组织内部成员提交时运行
+    if: |
+      contains(github.event.pull_request.labels.*.name, 'ok-to-test') ||
+      github.event.pull_request.author_association == 'MEMBER' ||
+      github.event.pull_request.author_association == 'OWNER'
+    runs-on: ubuntu-latest  # 使用 GitHub 免费算力
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GHCR_PAT }}
+
+      - name: Build and Push Images
+        run: |
+          OWNER_LOWER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          # 镜像打上 pr-xxx 的标签
+          make docker-all REGISTRY=ghcr.io/${OWNER_LOWER} TAG=pr-${{ github.event.pull_request.number }}
+
+  # 2. 在你的 Self-hosted 服务器上部署
+  deploy:
+    needs: build-and-push
+    runs-on: self-hosted    # 切换到你自己的服务器
+    steps:
+      - name: Deploy to K3s/K8s
+        run: |
+          OWNER_LOWER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          PR_TAG="pr-${{ github.event.pull_request.number }}"
+          NAMESPACE="wireflow-pr-${{ github.event.pull_request.number }}"
+          
+          echo "🚀 Deploying PR ${{ github.event.pull_request.number }} to Namespace: $NAMESPACE"
+          
+          # 创建独立的隔离空间
+          kubectl create namespace $NAMESPACE --dry-run=client -o yaml | kubectl apply -f -
+          
+          # 这里的 make deploy 需要支持传入 REGISTRY, TAG 和 NAMESPACE
+          make deploy REGISTRY=ghcr.io/${OWNER_LOWER} TAG=$PR_TAG NAMESPACE=$NAMESPACE

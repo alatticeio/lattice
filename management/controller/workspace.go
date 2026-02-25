@@ -11,6 +11,7 @@ import (
 
 type WorkspaceController interface {
 	AddWorkspace(ctx context.Context, workspaceDto *dto.WorkspaceDto) (*vo.WorkspaceVo, error)
+	DeleteWorkspace(ctx context.Context, id string) error
 	ListWorkspaces(ctx context.Context, request *dto.PageRequest) (*dto.PageResult[vo.WorkspaceVo], error)
 }
 
@@ -19,6 +20,10 @@ type WorkspaceMemberController interface {
 
 type workspaceController struct {
 	workspaceService service.WorkspaceService
+}
+
+func (c *workspaceController) DeleteWorkspace(ctx context.Context, id string) error {
+	return c.workspaceService.DeleteWorkspace(ctx, id)
 }
 
 func (c *workspaceController) ListWorkspaces(ctx context.Context, request *dto.PageRequest) (*dto.PageResult[vo.WorkspaceVo], error) {

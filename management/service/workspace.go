@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"wireflow/internal/config"
+	"wireflow/internal/infra"
 	"wireflow/internal/log"
 	"wireflow/management/database"
 	"wireflow/management/dto"
@@ -26,6 +27,7 @@ import (
 type WorkspaceService interface {
 	OnboardExternalUser(ctx context.Context, userId, extEmail string) (*model.User, error)
 	AddWorkspace(ctx context.Context, dto *dto.WorkspaceDto) (*vo.WorkspaceVo, error)
+	DeleteWorkspace(ctx context.Context, id string) error
 	ListWorkspaces(ctx context.Context, search *dto.PageRequest) (*dto.PageResult[vo.WorkspaceVo], error)
 }
 
@@ -48,27 +50,58 @@ type workspaceService struct {
 	identify      *client_r.IdentityImpersonator
 }
 
+func (w *workspaceService) DeleteWorkspace(ctx context.Context, id string) error {
+	return w.db.Transaction(func(tx *gorm.DB) error {
+		//delete workspace member
+		workspaceMemberRepo := repository.NewWorkspaceMemberRepository(tx)
+		err := workspaceMemberRepo.Delete(ctx, repository.WithWorkspaceID(id))
+		if err != nil {
+			return err
+		}
+
+		// delete workspace
+		workspaceRepo := repository.NewWorkspaceRepository(tx)
+		err = workspaceRepo.Delete(ctx, repository.WithID(id))
+		if err != nil {
+			return err
+		}
+
+		return nil
+	})
+}
+
 func (w *workspaceService) ListWorkspaces(ctx context.Context, request *dto.PageRequest) (*dto.PageResult[vo.WorkspaceVo], error) {
 	userRole := "super_admin"
 
-	var workspaces []model.Workspace
+	var workspaces []*model.Workspace
 	var total int64
 	var err error
 
 	if userRole == "super_admin" {
-		workspaces, total, err = w.workspaceRepo.List(ctx, request)
+
+		total, err = w.workspaceRepo.Count(ctx, repository.WithKeyword(request.Keyword, "display_name", "slug"))
+		if err != nil {
+			return nil, err
+		}
+
+		workspaces, err = w.workspaceRepo.Find(ctx, repository.WithKeyword(request.Keyword, "display_name", "slug"), repository.Paginate(request.Page, request.PageSize))
 		if err != nil {
 			return nil, err
 		}
 	} else {
-		var members []model.WorkspaceMember
-		members, total, err = w.memberRepo.List(ctx, request)
+		var members []*model.WorkspaceMember
+		userId := ctx.Value(infra.UserIDKey).(string)
+		total, err = w.memberRepo.Count(ctx, repository.WithUserID(userId))
+		if err != nil {
+			return nil, err
+		}
+		members, err = w.memberRepo.Find(ctx, repository.WithUserID(userId), repository.Paginate(request.Page, request.PageSize))
 		if err != nil {
 			return nil, err
 		}
 
 		for _, m := range members {
-			workspaces = append(workspaces, m.Workspace)
+			workspaces = append(workspaces, &m.Workspace)
 		}
 	}
 

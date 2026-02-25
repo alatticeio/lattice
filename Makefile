@@ -17,7 +17,7 @@ REGISTRY ?= ghcr.io/wireflowio
 SERVICES := manager wireflow
 TARGETOS ?= linux
 TARGETARCH ?=amd64
-VERSION ?= latest
+VERSION ?= dev
 IMG ?= ghcr.io/wireflowio/manager:$(VERSION)
 
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
@@ -201,9 +201,6 @@ docker-all: docker-build-all docker-push-all ## 构建并推送所有镜像
 
 .PHONY: docker
 docker: docker-build docker-push ## 构建并推送单个镜像
-
-.PHONY: docker-all
-docker-all: docker-build-all docker-push-all
 
 # PLATFORMS defines the target platforms for the manager image be built to provide support to multiple
 # architectures. (i.e. make docker-buildx IMG=myregistry/mypoperator:0.0.1). To use this option you need to:

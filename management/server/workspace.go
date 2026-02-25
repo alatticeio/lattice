@@ -9,12 +9,12 @@ import (
 )
 
 func (s *Server) workspaceRouter() {
-	// 只有【系统管理员】才能访问的路由
-	adminGroup := s.Group("/api/v1/workspaces")
-	adminGroup.Use(middleware.AuthMiddleware())
+	workspaceGroup := s.Group("/api/v1/workspaces")
+	workspaceGroup.Use(middleware.AuthMiddleware())
 	{
-		adminGroup.POST("/add", s.handleAddWs())
-		adminGroup.GET("/list", s.handleListWs())
+		workspaceGroup.POST("/add", s.handleAddWs())
+		workspaceGroup.GET("/list", s.handleListWs())
+		workspaceGroup.DELETE("/:id", s.handleDeleteWs())
 	}
 }
 
@@ -52,5 +52,23 @@ func (s *Server) handleListWs() gin.HandlerFunc {
 		}
 
 		resp.OK(c, res)
+	}
+}
+
+func (s *Server) handleDeleteWs() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		id := c.Param("id")
+		if id == "" {
+			resp.BadRequest(c, "id is required")
+			return
+		}
+
+		err := s.workspaceController.DeleteWorkspace(c.Request.Context(), id)
+		if err != nil {
+			resp.Error(c, err.Error())
+			return
+		}
+
+		resp.OK(c, "ok")
 	}
 }

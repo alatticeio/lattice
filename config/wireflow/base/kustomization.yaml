@@ -1,7 +1,8 @@
 resources:
   - deployment.yaml
-#  - service.yaml
+  - service.yaml
   - configmap.yaml
   - service_account.yaml
   - wireflow-role-binding.yaml
   - wireflow-ip-pool.yaml
+  - wireflow-web.yaml

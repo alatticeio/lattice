@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"gorm.io/gorm"
 )
@@ -80,4 +81,23 @@ func (r *BaseRepository[T]) Delete(ctx context.Context, scopes ...func(*gorm.DB)
 func (r *BaseRepository[T]) Upsert(ctx context.Context, attrs T, values T) error {
 	var model T
 	return r.db.WithContext(ctx).Where(attrs).Assign(values).FirstOrCreate(&model).Error
+}
+
+// 定义通用 Keyword Scope
+func WithKeyword(keyword string, columns ...string) func(db *gorm.DB) *gorm.DB {
+	return func(db *gorm.DB) *gorm.DB {
+		if keyword == "" || len(columns) == 0 {
+			return db
+		}
+
+		// 构造第一个条件
+		subQuery := db.Where(fmt.Sprintf("%s LIKE ?", columns[0]), "%"+keyword+"%")
+
+		// 如果有多个字段，循环添加 Or
+		for i := 1; i < len(columns); i++ {
+			subQuery = subQuery.Or(fmt.Sprintf("%s LIKE ?", columns[i]), "%"+keyword+"%")
+		}
+
+		return db.Where(subQuery)
+	}
 }
