@@ -3,14 +3,19 @@ kind: ConfigMap
 metadata:
   name: control-config
 data:
-  control.yaml: |
-    listen: :8080
+  conf.yaml: |
+    app:
+      listen: :8080
+      name: "WireFlow"
+      env: "development"
+      init_admins:
+        - username: "admin"
+          password: "123456"
+
+    jwt:
+      secret: "your-super-secret-key"
+      expire_hours: 24
+
     database:
-      host: 81.68.109.143
-      port: 3306
-      name: linkany
-      user: root
-      password: dhvuYUoxnSZMavdJ
-    Redis:
-      Addr: 81.68.109.143:6379
-      Password: dhvuYap
+      driver: "sqlite"
+      dsn: "wireflow.db"

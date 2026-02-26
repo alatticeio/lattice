@@ -18,7 +18,13 @@ SERVICES := manager wireflow
 TARGETOS ?= linux
 TARGETARCH ?=amd64
 VERSION ?= dev
+TAG ?= dev
 IMG ?= ghcr.io/wireflowio/manager:$(VERSION)
+
+# 默认环境设置为 dev
+ENV ?= dev
+# 定义 overlays 的根目录
+OVERLAYS_PATH = config/wireflow/overlays/$(ENV)
 
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
 ifeq (,$(shell go env GOBIN))
@@ -106,28 +112,28 @@ vet: ## Run go vet against code.
 test: manifests generate fmt vet setup-envtest ## Run tests.
 	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test $$(go list ./... | grep -v /e2e) -coverprofile cover.out
 
-# TODO(user): To use a different vendor for e2e tests, modify the setup under 'tests/e2e'.
-# The default setup assumes Kind is pre-installed and builds/loads the Manager Docker image locally.
-# CertManager is installed by default; skip with:
-# - CERT_MANAGER_INSTALL_SKIP=true
-KIND_CLUSTER ?= wireflow-controller-test-e2e
-
-.PHONY: setup-test-e2e
-setup-test-e2e: ## Set up a Kind cluster for e2e tests if it does not exist
-	@command -v $(KIND) >/dev/null 2>&1 || { \
-		echo "Kind is not installed. Please install Kind manually."; \
-		exit 1; \
-	}
-	$(KIND) create cluster --name $(KIND_CLUSTER)
+# 变量定义
+TEST_NS_A ?= wireflow-e2e-source
+TEST_NS_B ?= wireflow-e2e-target
 
 .PHONY: test-e2e
-test-e2e: setup-test-e2e manifests generate fmt vet ## Run the e2e tests. Expected an isolated environment using Kind.
-	KIND_CLUSTER=$(KIND_CLUSTER) go test ./test/e2e/ -v -ginkgo.v
-	$(MAKE) cleanup-test-e2e
+test-e2e: ## 运行跨 Namespace 连通性集成测试
+	@echo "====> Prepare test env..."
+	kubectl create namespace $(TEST_NS_A) --dry-run=client -o yaml | kubectl apply -f -
+	kubectl create namespace $(TEST_NS_B) --dry-run=client -o yaml | kubectl apply -f -
+	@echo "====> Deploy tests resources (Token/Peers)..."
+	# 这里可以根据你的需求，用 sed 替换模板生成 Token 资源
+	# kubectl apply -f config/samples/test_token.yaml -n $(TEST_NS_B)
+	@echo "====> tests connectivity..."
+	chmod +x ./scripts/test-connectivity.sh
+	./scripts/test-connectivity.sh $(TEST_NS_A) $(TEST_NS_B)
+	@$(MAKE) test-e2e-cleanup
 
-.PHONY: cleanup-test-e2e
-cleanup-test-e2e: ## Tear down the Kind cluster used for e2e tests
-	@$(KIND) delete cluster --name $(KIND_CLUSTER)
+.PHONY: test-e2e-cleanup
+test-e2e-cleanup: ## 清理测试残留
+	@echo "====> 清理测试 Namespace..."
+	kubectl delete namespace $(TEST_NS_A) $(TEST_NS_B) --ignore-not-found=true
+
 
 .PHONY: lint
 lint: golangci-lint ## Run golangci-lint linter
@@ -170,12 +176,12 @@ docker-build: ## 构建单个服务的 Docker 镜像 (使用: make docker-build 
 		--build-arg TARGETSERVICE=$(SERVICE) \
 		--build-arg TARGETOS=$(TARGETOS) \
 		--build-arg TARGETARCH=$(TARGETARCH) \
-		--build-arg VERSION=$(VERSION) \
+		--build-arg VERSION=$(TAG) \
 		--build-arg BUILD_DATE=$(BUILD_DATE) \
-		-t $(REGISTRY)/$(SERVICE):$(VERSION) \
+		-t $(REGISTRY)/$(SERVICE):$(TAG) \
 		-f Dockerfile \
 		.
-	@echo "✅ Built image: $(REGISTRY)/$(SERVICE):$(VERSION)"
+	@echo "✅ Built image: $(REGISTRY)/$(SERVICE):$(TAG)"
 
 # ============ Docker 推送 ============
 .PHONY: docker-push-all
@@ -191,9 +197,9 @@ docker-push: ## 推送单个服务的 Docker 镜像
 		echo "❌ Error: SERVICE is required"; \
 		exit 1; \
 	fi
-	@echo " Pushing $(REGISTRY)/$(SERVICE):$(VERSION)..."
-	$(CONTAINER_TOOL) push $(REGISTRY)/$(SERVICE):$(VERSION)
-	@echo "✅ Pushed: $(REGISTRY)/$(SERVICE):$(VERSION)"
+	@echo " Pushing $(REGISTRY)/$(SERVICE):$(TAG)..."
+	$(CONTAINER_TOOL) push $(REGISTRY)/$(SERVICE):$(TAG)
+	@echo "✅ Pushed: $(REGISTRY)/$(SERVICE):$(TAG)"
 
 # ============ Docker 构建并推送 ============
 .PHONY: docker-all
@@ -240,12 +246,24 @@ uninstall: manifests kustomize ## Uninstall CRDs from the K8s cluster specified 
 	$(KUSTOMIZE) build config/crd | $(KUBECTL) delete --ignore-not-found=$(ignore-not-found) -f -
 
 .PHONY: deploy
-deploy: manifests kustomize ## Deploy controller to the K8s cluster specified in ~/.kube/config.
-	cd config/default && $(KUSTOMIZE) edit set image manager=${IMG}
+deploy: manifests kustomize ## 根据 ENV 部署 (usage: make deploy ENV=production)
+	# 1. 强制创建 Namespace (如果已存在则忽略错误)
+	$(KUBECTL) create namespace wireflow-system --dry-run=client -o yaml | $(KUBECTL) apply -f -
+
+	@echo "正在部署到环境: $(ENV)..."
+	# 1. 动态修改对应环境的镜像标签
+	cd $(OVERLAYS_PATH) && $(KUSTOMIZE) edit set image manager=${IMG}
+
+	# 2. 部署 CRD (通常 CRD 是全局的，可以继续用 base)
 	$(KUSTOMIZE) build config/crd | $(KUBECTL) apply -f -
 	@echo "等待5秒，让CRD完成初始化..."
 	@sleep 5
-	$(KUSTOMIZE) build config/default | $(KUBECTL) apply -f -
+
+	# 3. 部署指定环境的完整资源
+	$(KUSTOMIZE) build $(OVERLAYS_PATH) | $(KUBECTL) apply -f -
+
+	# 3. 立即还原该文件（文件变干净）
+	git checkout config/wireflow/overlays/$(ENV)/kustomization.yaml
 
 .PHONY: Yaml
 yaml:
@@ -253,7 +271,7 @@ yaml:
 
 .PHONY: undeploy
 undeploy: kustomize ## Undeploy controller from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
-	$(KUSTOMIZE) build config/default | $(KUBECTL) delete --ignore-not-found=true -f -
+	$(KUSTOMIZE) build $(OVERLAYS_PATH) | $(KUBECTL) delete -f -
 
 ##@ Dependencies
 

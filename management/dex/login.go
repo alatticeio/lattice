@@ -16,8 +16,8 @@ import (
 
 // 1. OIDC 配置
 var endpoint = oauth2.Endpoint{
-	AuthURL:  "http://localhost:5556/dex/auth",
-	TokenURL: "http://localhost:5556/dex/token",
+	AuthURL:  "http://wireflow-dex.wireflow-system.svc.cluster.local:5556/dex/auth",
+	TokenURL: "http://wireflow-dex.wireflow-system.svc.cluster.local:5556/dex/token",
 }
 
 var config = oauth2.Config{
@@ -114,7 +114,7 @@ func InitVerifier() (*oidc.IDTokenVerifier, error) {
 	ctx := context.Background()
 
 	// 1. 创建一个 Provider，它会自动去 http://localhost:5556/dex/.well-known/openid-configuration 获取公钥
-	provider, err := oidc.NewProvider(ctx, "http://localhost:5556/dex")
+	provider, err := oidc.NewProvider(ctx, "http://wireflow-dex.wireflow-system.svc.cluster.local:5556/dex")
 	if err != nil {
 		return nil, err
 	}

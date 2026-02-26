@@ -65,3 +65,8 @@ jobs:
           
           # 这里的 make deploy 需要支持传入 REGISTRY, TAG 和 NAMESPACE
           make deploy IMG=ghcr.io/wireflowio/manager:$PR_TAG
+
+      # 在 GitHub Action 的步骤里加入判断
+      - name: Run E2E Tests
+        if: contains(github.event.pull_request.labels.*.name, 'run-e2e')
+        run: make test-e2e

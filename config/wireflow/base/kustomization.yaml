@@ -6,3 +6,8 @@ resources:
   - wireflow-role-binding.yaml
   - wireflow-ip-pool.yaml
   - wireflow-web.yaml
+
+
+images:
+  - name: ghcr.io/wireflowio/wireflow-web
+    newTag: v0.0.1  # 在这里指定你的特定版本（Tag）

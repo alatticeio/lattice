@@ -1,0 +1,22 @@
+resources:
+- ../../base
+- ../../components/dex
+- ../../components/nats
+- ../../rbac
+
+# 1. 动态修改所有资源的命名空间
+namespace: wireflow-system
+
+namePrefix: wireflow-
+
+# 3. 动态替换镜像标签
+images:
+- name: manager
+  newName: ghcr.io/wireflowio/manager
+  newTag: dev
+- name: wireflow-manager
+  newTag: dev
+
+
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization

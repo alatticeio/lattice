@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dex
+  namespace: auth
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: dex
+  template:
+    metadata:
+      labels:
+        app: dex
+    spec:
+      serviceAccountName: dex-sa # 需要赋予 Dex 操作 CRD 的权限
+      containers:
+        - name: dex
+          image: ghcr.io/dexidp/dex:v2.37.0
+          args: ["dex", "serve", "/etc/dex/cfg/config.yaml"]
+          ports:
+            - containerPort: 5556
+          volumeMounts:
+            - name: config
+              mountPath: /etc/dex/cfg
+      volumes:
+        - name: config
+          configMap:
+            name: dex-config
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dex
+  namespace: auth
+spec:
+  ports:
+    - port: 5556
+      targetPort: 5556
+      protocol: TCP
+  selector:
+    app: dex

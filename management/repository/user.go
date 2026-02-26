@@ -15,26 +15,6 @@ type UserRepository struct {
 	*BaseRepository[model.User]
 }
 
-func (r *UserRepository) ListWithQuery(ctx context.Context, options *dto.QueryOption) ([]*model.User, error) {
-	db := r.db.WithContext(ctx).Model(&model.User{})
-	if options != nil {
-		if options.UserID != "" {
-			db = db.Where("user_id = ?", options.UserID)
-		}
-
-		if options.WorkspaceID != "" {
-			db = db.Where("workspace_id = ?", options.WorkspaceID)
-		}
-	}
-
-	var users []*model.User
-	if err := db.Find(&users).Error; err != nil {
-		return nil, err
-	}
-
-	return users, nil
-}
-
 func (r *UserRepository) Login(ctx context.Context, username, password string) (*model.User, error) {
 
 	var user model.User

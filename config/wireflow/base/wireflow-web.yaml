@@ -1,7 +1,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: wireflow-web
+  name: web
   labels:
     app: wireflow-web
 spec:
@@ -15,9 +15,9 @@ spec:
         app: wireflow-web
     spec:
       containers:
-        - name: wireflow-web
+        - name: web
           image: ghcr.io/wireflowio/wireflow-web:v0.0.1
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           ports:
             - containerPort: 80
 
@@ -51,11 +51,13 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: wireflow-web
+  name: web
   annotations:
-    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    # 如果用 Traefik，之前的 nginx 专用注解就失效了
+    # Traefik 默认不强制跳转 HTTPS，可以先去掉或换成 Traefik 注解
+    traefik.ingress.kubernetes.io/router.entrypoints: web
 spec:
-  ingressClassName: nginx
+  ingressClassName: traefik  # <--- 改为 traefik (k3d 默认)
   rules:
     - host: wireflow.run
       http:
@@ -64,6 +66,6 @@ spec:
             pathType: Prefix
             backend:
               service:
-                name: wireflow-web
+                name: web
                 port:
                   number: 80

@@ -32,7 +32,7 @@ type tokenService struct {
 	workspaceRepo repository.WorkspaceRepository // nolint:all
 }
 
-func (t tokenService) Delete(ctx context.Context, token string) error {
+func (t *tokenService) Delete(ctx context.Context, token string) error {
 	return t.db.Transaction(func(tx *gorm.DB) error {
 		wsId := ctx.Value(infra.WorkspaceKey).(string)
 		workspaceRepo := repository.NewWorkspaceRepository(tx)
@@ -57,7 +57,7 @@ func (t tokenService) Delete(ctx context.Context, token string) error {
 
 }
 
-func (t tokenService) Create(ctx context.Context) error {
+func (t *tokenService) Create(ctx context.Context) error {
 	wsId := ctx.Value(infra.WorkspaceKey).(string)
 	return t.db.Transaction(func(tx *gorm.DB) error {
 		workspaceRepo := repository.NewWorkspaceRepository(tx)

@@ -1,0 +1,17 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: wireflow-manager
+spec:
+  template:
+    spec:
+      affinity:
+        podAntiAffinity: # 开启 Pod 反亲和性
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchExpressions:
+                  - key: app
+                    operator: In
+                    values:
+                      - wireflow-manager
+              topologyKey: "kubernetes.io/hostname" # 强制副本分散在不同的物理机上

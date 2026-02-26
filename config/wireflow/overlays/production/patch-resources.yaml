@@ -1,0 +1,17 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: wireflow-manager
+spec:
+  replicas: 3  # 生产环境增加副本
+  template:
+    spec:
+      containers:
+        - name: manager
+          resources: # 增加资源限制
+            limits:
+              cpu: "1"
+              memory: "1Gi"
+            requests:
+              cpu: "500m"
+              memory: "512Mi"
