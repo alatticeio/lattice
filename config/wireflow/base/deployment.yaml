@@ -15,7 +15,7 @@ spec:
         k8s-app: wireflow-control
     spec:
       hostAliases:
-      - ip: "101.36.119.12"
+      - ip: "10.7.88.27"
         hostnames:
           - "signaling.wireflow.run"
       serviceAccountName: wireflow-controller-admin
@@ -38,10 +38,22 @@ spec:
             - "start"
             - "manager"
             - "--level=INFO"
+            - "--env=prod"
           volumeMounts:
             - mountPath: /app/deploy/conf.yaml
               name: conf
               subPath: conf.yaml
+          env:
+            # 对应结构体 Database.DSN
+            - name: APP_DATABASE_DSN
+              value: "root:root@tcp(10.7.88.27:3306)/wireflow?charset=utf8mb4&parseTime=True&loc=Local"
+
+            # 对应结构体 Dex.Issuer
+            - name: APP_DEX_ISSUR
+              value: "http://wireflow-dex.wireflow-system.svc.cluster.local:5556/dex/auth"
+            # 对应结构体 Dex.Issuer
+            - name: APP_DEX_PROVIDERURL
+              value: "http://wireflow-dex.wireflow-system.svc.cluster.local:5556/dex"
       volumes:
         - name: conf
           configMap:
@@ -67,7 +79,7 @@ spec:
         k8s-app: wireflow-turn
     spec:
       hostAliases:
-        - ip: "101.36.119.12"
+        - ip: "10.7.88.27"
           hostnames:
             - "signaling.wireflow.run"
       initContainers:

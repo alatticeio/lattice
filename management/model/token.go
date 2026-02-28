@@ -5,11 +5,16 @@ import (
 )
 
 type Token struct {
+	Model
 	Token      string `json:"token"`
 	Namespace  string `json:"namespace"`
 	UsageLimit int    `json:"usageLimit"`
 	Expiry     string `json:"expiry"`
 	//BoundPeers []string `json:"boundPeers,omitempty"`
+}
+
+func (t *Token) TableName() string {
+	return "t_token"
 }
 
 // WireFlowClaims 通常在 Dex 回调成功后，签发一个属于 WireFlow 自己的轻量级 JWT。

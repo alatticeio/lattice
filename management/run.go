@@ -29,12 +29,12 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-func Start(listen string) error {
+func Start(flags *config.Flags) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	logger := log.GetLogger("management")
 
-	cfg := config.InitConfig("deploy/conf.yaml")
+	cfg := config.InitConfig(flags.ENV)
 
 	// 1. 初始化服务实例
 	hs, err := server.NewServer(&server.ServerConfig{

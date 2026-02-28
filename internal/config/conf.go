@@ -116,6 +116,7 @@ type Flags struct {
 	ServerUrl     string `mapstructure:"server-url,omitempty"`
 	WrrperURL     string `mapstructure:"wrrper-url,omitempty"`
 	TurnServerURL string `mapstructure:"stun-url,omitempty"`
+	ENV           string `mapstructure:"env,omitempty"`
 
 	// for controller
 	MetricsAddr          string `mapstructure:"metrics-addr,omitempty"`

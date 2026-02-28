@@ -1,4 +1,5 @@
 resources:
+  - manager.yaml
   - deployment.yaml
   - service.yaml
   - configmap.yaml
@@ -10,4 +11,4 @@ resources:
 
 images:
   - name: ghcr.io/wireflowio/wireflow-web
-    newTag: v0.0.1  # 在这里指定你的特定版本（Tag）
+    newTag: dev  # 在这里指定你的特定版本（Tag）

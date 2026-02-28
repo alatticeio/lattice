@@ -1,0 +1,7 @@
+database:
+  driver: "sqlite"
+  dsn: "root:root@tcp(101.36.119.12:3306)/wireflow?charset=utf8mb4&parseTime=True&loc=Local"
+
+dex:
+  issur: http://localhost:5556/dex/auth
+  providerUrl: http://localhost:5556/dex

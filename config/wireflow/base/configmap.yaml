@@ -17,5 +17,5 @@ data:
       expire_hours: 24
 
     database:
-      driver: "sqlite"
-      dsn: "wireflow.db"
+      driver: "mysql"
+      dsn: "root:root@tcp(10.7.88.27:3306)/wireflow?charset=utf8mb4&parseTime=True&loc=Local"

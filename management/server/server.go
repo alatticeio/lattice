@@ -79,7 +79,7 @@ func NewServer(serverConfig *ServerConfig) (*Server, error) {
 		return nil, err
 	}
 
-	database.InitDB("wireflow.db")
+	database.InitDB(serverConfig.Cfg.Database.DSN)
 
 	s := &Server{
 		Engine:              gin.Default(),

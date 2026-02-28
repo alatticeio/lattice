@@ -352,7 +352,7 @@ func (p *peerService) ensureNamespace(ctx context.Context, nsName string) error 
 					},
 				},
 			}); err != nil {
-				return err
+				p.logger.Error("create namespace failed", err)
 			}
 		}
 	}

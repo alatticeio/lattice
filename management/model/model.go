@@ -14,7 +14,7 @@ import (
 //	  gorm.Model
 //	}
 type Model struct {
-	ID        string         `gorm:"primaryKey;type:text;autoIncrement:false"`
+	ID        string         `gorm:"primaryKey;type:varchar(36);not null"`
 	CreatedAt time.Time      `json:"created_at"`
 	UpdatedAt time.Time      `json:"updated_at"`
 	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`

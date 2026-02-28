@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"wireflow/internal/config"
 	"wireflow/management/model"
 	"wireflow/management/service"
 	"wireflow/pkg/utils"
@@ -20,9 +21,9 @@ var endpoint = oauth2.Endpoint{
 	TokenURL: "http://wireflow-dex.wireflow-system.svc.cluster.local:5556/dex/token",
 }
 
-var config = oauth2.Config{
-	ClientID:     "wireflow-server",     // 必须对应 dex-config.yaml
-	ClientSecret: "wireflow-secret-key", // 必须对应 dex-config.yaml
+var oauth2Config = oauth2.Config{
+	ClientID:     "wireflow-server",     // 必须对应 dex-oauth2Config.yaml
+	ClientSecret: "wireflow-secret-key", // 必须对应 dex-oauth2Config.yaml
 	Endpoint:     endpoint,
 	RedirectURL:  "http://localhost:8080/auth/callback",
 	Scopes:       []string{oidc.ScopeOpenID, "profile", "email"},
@@ -43,7 +44,7 @@ func NewDex(workspaceService service.WorkspaceService) (*Dex, error) {
 	}
 	return &Dex{
 		workspaceService: workspaceService,
-		oauth2Config:     &config,
+		oauth2Config:     &oauth2Config,
 		verifier:         veryfier,
 	}, nil
 }
@@ -114,16 +115,16 @@ func InitVerifier() (*oidc.IDTokenVerifier, error) {
 	ctx := context.Background()
 
 	// 1. 创建一个 Provider，它会自动去 http://localhost:5556/dex/.well-known/openid-configuration 获取公钥
-	provider, err := oidc.NewProvider(ctx, "http://wireflow-dex.wireflow-system.svc.cluster.local:5556/dex")
+	provider, err := oidc.NewProvider(ctx, config.GlobalConfig.Dex.ProviderUrl)
 	if err != nil {
 		return nil, err
 	}
 
 	// 2. 创建 Verifier 配置
 	// 它会检查 Token 的发行者是否是 Dex，以及接收者（Audience）是否是你的 wireflow-server
-	config := &oidc.Config{
+	cfg := &oidc.Config{
 		ClientID: "wireflow-server",
 	}
 
-	return provider.Verifier(config), nil
+	return provider.Verifier(cfg), nil
 }

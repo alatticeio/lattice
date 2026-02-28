@@ -5,33 +5,36 @@ import (
 	"time"
 	"wireflow/management/model"
 
-	"github.com/glebarez/sqlite"
+	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 )
 
 var DB *gorm.DB
 
-func InitDB(dbPath string) {
-	// dbPath 建议从环境变量获取，K8s 部署时指向挂载的 PV 路径
-	// 例如：/data/wireflow.db
+func InitDB(dsn string) {
 	var err error
-	DB, err = gorm.Open(sqlite.Open(dbPath), &gorm.Config{})
-	if err != nil {
-		log.Fatalf("无法连接数据库: %v", err)
+
+	// 建议增加重试机制，因为 K8s 启动时数据库可能还没准备好
+	for i := 0; i < 5; i++ {
+		DB, err = gorm.Open(mysql.Open(dsn), &gorm.Config{
+			Logger: logger.Default.LogMode(logger.Info), // 打印 SQL 日志，方便调试 403 问题
+		})
+		if err == nil {
+			break
+		}
+		log.Printf("数据库连接失败，正在重试... (%d/5)", i+1)
+		time.Sleep(5 * time.Second)
 	}
 
-	sqlDB, err := DB.DB()
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal("无法连接到 MariaDB:", err)
 	}
-	// 关键配置：限制最大打开连接数为 1
-	// SetMaxIdleConns 设置空闲连接池中连接的最大数量
+
+	// 设置连接池
+	sqlDB, _ := DB.DB()
 	sqlDB.SetMaxIdleConns(10)
-
-	// SetMaxOpenConns 设置打开数据库连接的最大数量
 	sqlDB.SetMaxOpenConns(100)
-
-	// SetConnMaxLifetime 设置连接可复用的最大时间，防止数据库主动断开导致的“失效连接”
 	sqlDB.SetConnMaxLifetime(time.Hour)
 
 	// 自动迁移表结构
@@ -39,6 +42,4 @@ func InitDB(dbPath string) {
 	if err != nil {
 		log.Printf("自动迁移失败: %v", err)
 	}
-
-	log.Println("SQLite 数据库初始化成功")
 }

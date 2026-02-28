@@ -66,6 +66,13 @@ spec:
             pathType: Prefix
             backend:
               service:
-                name: web
+                name: wireflow-web
                 port:
                   number: 80
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: wireflow-api-service # 你的后端 Service 名字
+                port:
+                  number: 8080    # 后端服务端口

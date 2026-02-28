@@ -4,7 +4,7 @@ metadata:
   labels:
     app.kubernetes.io/name: wireflow-controller
     app.kubernetes.io/managed-by: kustomize
-  name: wireflow-ip-pool
+  name: ip-pool
 spec:
   cidr: 10.0.0.0/8
   subnetMask: 24

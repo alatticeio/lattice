@@ -15,19 +15,14 @@
 package cmd
 
 import (
+	"wireflow/internal/config"
 	"wireflow/internal/log"
 	"wireflow/management"
 
 	"github.com/spf13/cobra"
 )
 
-type managementOptions struct {
-	Listen   string
-	LogLevel string
-}
-
 func newManagementCmd() *cobra.Command {
-	var opts managementOptions
 	var cmd = &cobra.Command{
 		Use:          "manager [command]",
 		SilenceUsage: true,
@@ -39,17 +34,18 @@ func newManagementCmd() *cobra.Command {
 		},
 
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runManagement(opts)
+			return runManagement(config.Conf)
 		},
 	}
 	fs := cmd.Flags()
 	fs.StringP("listen", "l", "", "management server listen address")
 	fs.StringP("level", "", "silent", "log level (silent, info, error, warn, verbose)")
+	fs.StringP("env", "", "dev", "run environment (dev, pre-run, production) ")
 	return cmd
 }
 
 // run drp
-func runManagement(opts managementOptions) error {
-	log.SetLevel(opts.LogLevel)
-	return management.Start(opts.Listen)
+func runManagement(flags *config.Flags) error {
+	log.SetLevel(flags.Level)
+	return management.Start(flags)
 }
