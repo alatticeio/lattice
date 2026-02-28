@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  # 1. 流量/状态采集
+  wg-exporter:
+    image: mindflavor/prometheus-wireguard-exporter
+    cap_add: [NET_ADMIN]
+    network_mode: "host" # 必须直接访问宿主机 wg 网卡
+
+  # 2. 延迟/丢包采集
+  fping-exporter:
+    image: schose/fping-exporter
+    command: ["-targets", "10.0.0.2,10.0.0.3"] # 替换为你 Peer 的内网 IP
+    ports: ["9605:9605"]
+
+  # 3. 统一数据上报
+  vmagent:
+    image: victoriametrics/vmagent
+    volumes: ["vdata:/vmagentdata"]
+    command:
+      - "-remoteWrite.url=http://中心服务器IP:8428/api/v1/write"
+      - "-remoteWrite.label=node_id=edge-01"
+      - "-promscrape.config.inline='
+        scrape_configs:
+          - job_name: edge
+            static_configs:
+              - targets: [\"localhost:9586\", \"localhost:9605\"]
+        '"
+    network_mode: "host"
+
+volumes:
+  vdata:

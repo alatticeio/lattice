@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  vmagent-mac:
+    image: docker.1ms.run/victoriametrics/vmagent:latest
+    container_name: vmagent-mac
+    ports:
+      - "8429:8429"  # 映射 8429 端口，方便我们在 Mac 宿主机通过 curl 推送数据
+    volumes:
+      - vdata-mac:/vmagentdata
+    command:
+      - "-remoteWrite.url=http://101.36.119.12:8428/api/v1/write"
+      - "-remoteWrite.label=node_id=macbook-pro.local" # 给这台 Mac 打个标签
+      - "-remoteWrite.label=agent=vmagent-docker"
+      - "-remoteWrite.tmpDataPath=/vmagentdata"
+    restart: always
+
+volumes:
+  vdata-mac:

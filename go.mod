@@ -5,6 +5,7 @@ go 1.24.5
 require (
 	github.com/coreos/go-oidc/v3 v3.17.0
 	github.com/gin-gonic/gin v1.11.0
+	github.com/go-ping/ping v1.2.0
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/google/uuid v1.6.0
 	github.com/lmittmann/tint v1.1.2
@@ -17,17 +18,18 @@ require (
 	github.com/pion/logging v0.2.2
 	github.com/pion/stun/v3 v3.0.0
 	github.com/pion/turn/v4 v4.0.0
+	github.com/prometheus-community/pro-bing v0.8.0
 	github.com/prometheus/client_golang v1.22.0
 	github.com/redis/go-redis/v9 v9.7.0
 	github.com/shirou/gopsutil/v4 v4.25.2
 	github.com/spf13/cobra v1.10.1
 	github.com/spf13/viper v1.19.0
 	github.com/wireflowio/ice v0.0.0-20250918024245-51a48c53c081
-	golang.org/x/crypto v0.41.0
-	golang.org/x/net v0.43.0
+	golang.org/x/crypto v0.47.0
+	golang.org/x/net v0.49.0
 	golang.org/x/oauth2 v0.28.0
-	golang.org/x/sync v0.16.0
-	golang.org/x/sys v0.35.0
+	golang.org/x/sync v0.19.0
+	golang.org/x/sys v0.40.0
 	golang.zx2c4.com/wireguard v0.0.0
 	golang.zx2c4.com/wireguard/wgctrl v0.0.0-20241231184526-a9ab2273dd10
 	google.golang.org/grpc v1.68.1
@@ -153,11 +155,11 @@ require (
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	golang.org/x/arch v0.20.0 // indirect
 	golang.org/x/exp v0.0.0-20240719175910-8a7402abbf56 // indirect
-	golang.org/x/mod v0.27.0 // indirect
-	golang.org/x/term v0.34.0 // indirect
-	golang.org/x/text v0.28.0 // indirect
+	golang.org/x/mod v0.31.0 // indirect
+	golang.org/x/term v0.39.0 // indirect
+	golang.org/x/text v0.33.0 // indirect
 	golang.org/x/time v0.9.0 // indirect
-	golang.org/x/tools v0.36.0 // indirect
+	golang.org/x/tools v0.40.0 // indirect
 	golang.zx2c4.com/wintun v0.0.0-20230126152724-0fa3db229ce2 // indirect
 	gomodules.xyz/jsonpatch/v2 v2.4.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20241209162323-e6fa225c2576 // indirect
