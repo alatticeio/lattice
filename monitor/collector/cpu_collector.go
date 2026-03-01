@@ -25,43 +25,48 @@ type CPUCollector struct {
 	// 可配置参数
 }
 
+func NewCPUCollector() *CPUCollector {
+	return &CPUCollector{}
+}
+
 func (c *CPUCollector) Name() string {
 	return "cpu"
 }
 
 func (c *CPUCollector) Collect() ([]Metric, error) {
 	metrics := make([]Metric, 0)
+	now := time.Now()
 
-	// 获取CPU使用率
+	// 只阻塞一次，获取分核数据
 	percentages, err := cpu.Percent(time.Second, true)
 	if err != nil {
 		return nil, err
 	}
 
-	totalPercent, err := cpu.Percent(time.Second, false)
-	if err != nil {
-		return nil, err
-	}
-
-	// 总体CPU指标
-	metrics = append(metrics, NewSimpleMetric(
-		"cpu_usage_total",
-		totalPercent[0],
-		map[string]string{"type": "total"},
-		time.Now(),
-		"total CPU usage",
-	))
-
-	// 各核心CPU指标
+	var totalSum float64
 	for i, p := range percentages {
+		// 各核心指标
 		metrics = append(metrics, NewSimpleMetric(
 			"cpu_usage_core",
 			p,
 			map[string]string{"core": fmt.Sprintf("%d", i)},
-			time.Now(),
+			now, // 统一使用同一个时间戳
 			"every cpu usage",
 		))
+		totalSum += p
 	}
+
+	// 通过分核数据算平均值，避免再次调用 cpu.Percent 阻塞 1 秒
+	avgPercent := totalSum / float64(len(percentages))
+
+	// 总体CPU指标
+	metrics = append(metrics, NewSimpleMetric(
+		"cpu_usage_total",
+		avgPercent,
+		map[string]string{"type": "total"},
+		now,
+		"total CPU usage",
+	))
 
 	return metrics, nil
 }

@@ -12,6 +12,7 @@ type Config struct {
 	JWT      JWTConfig      `mapstructure:"jwt"`
 	Database DatabaseConfig `mapstructure:"database"`
 	Dex      DexConfig      `mapstructure:"dex"`
+	Metrics  MetricsConfig  `mapstructure:"metrics"`
 }
 
 type AppConfig struct {
@@ -38,6 +39,10 @@ type DatabaseConfig struct {
 type DexConfig struct {
 	Issur       string `mapstructure:"issur"`
 	ProviderUrl string `mapstructure:"providerUrl"`
+}
+
+type MetricsConfig struct {
+	Port string `mapstructure:"port"`
 }
 
 var (

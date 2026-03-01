@@ -30,6 +30,7 @@ type Metric interface {
 }
 
 type SimpleMetric struct {
+	peerId    string
 	name      string
 	value     interface{}
 	labels    map[string]string
@@ -39,6 +40,7 @@ type SimpleMetric struct {
 
 func NewSimpleMetric(name string, value interface{}, labels map[string]string, timestamp time.Time, help string) *SimpleMetric {
 	return &SimpleMetric{
+		peerId:    "test-node-id",
 		name:      name,
 		value:     value,
 		labels:    labels,

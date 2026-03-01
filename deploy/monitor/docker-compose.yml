@@ -5,14 +5,23 @@ services:
     image: docker.1ms.run/victoriametrics/vmagent:latest
     container_name: vmagent-mac
     ports:
-      - "8429:8429"  # 映射 8429 端口，方便我们在 Mac 宿主机通过 curl 推送数据
+      - "8429:8429"
     volumes:
       - vdata-mac:/vmagentdata
+      # 映射配置文件（假设你在当前目录下创建了 prometheus.yml）
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+    extra_hosts:
+      # 关键：让容器内部可以通过 'host.docker.internal' 访问到宿主机的 wireflow
+      - "host.docker.internal:host-gateway"
     command:
       - "-remoteWrite.url=http://101.36.119.12:8428/api/v1/write"
-      - "-remoteWrite.label=node_id=macbook-pro.local" # 给这台 Mac 打个标签
+      - "-remoteWrite.label=node_id=macbook-pro.local"
       - "-remoteWrite.label=agent=vmagent-docker"
       - "-remoteWrite.tmpDataPath=/vmagentdata"
+      # 启用配置文件抓取
+      - "-promscrape.config=/etc/prometheus/prometheus.yml"
+      # 可选：如果你想在本地看 vmagent 的状态，可以开启 http 界面
+      - "-httpListenAddr=:8429"
     restart: always
 
 volumes:

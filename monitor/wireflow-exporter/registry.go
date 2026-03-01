@@ -34,7 +34,7 @@ var (
 	PeerStatus = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "wireflow_peer_status",
 		Help: "Peer connection status (1: connected, 0: disconnected)",
-	}, []string{"peer_id"})
+	}, []string{"peer_id", "endpoint", "alias"})
 
 	LastHandshakeTime = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "wireflow_peer_last_handshake_seconds",
@@ -46,6 +46,12 @@ var (
 		Name: "wireflow_node_cpu_usage_percent",
 		Help: "CPU usage percentage of the wireflow process",
 	})
+
+	// 各核心 CPU 使用率 (带 label)
+	NodeCoreUsage = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "wireflow_node_core_usage_percent",
+		Help: "Per-core CPU usage percentage",
+	}, []string{"core_id"}) // 这里的 label 叫 core_id
 
 	NodeMemUsage = prometheus.NewGauge(prometheus.GaugeOpts{
 		Name: "wireflow_node_memory_bytes",
@@ -63,6 +69,6 @@ func init() {
 		PeerLatency, PeerLoss,
 		PeerTrafficBytes, PeerPacketCount,
 		PeerStatus, LastHandshakeTime,
-		NodeCpuUsage, NodeMemUsage, NodeUptime,
+		NodeCpuUsage, NodeCoreUsage, NodeMemUsage, NodeUptime,
 	)
 }

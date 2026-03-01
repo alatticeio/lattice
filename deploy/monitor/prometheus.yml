@@ -1,0 +1,11 @@
+global:
+  scrape_interval: 15s # 对应你 Go 代码里的采集频率
+
+scrape_configs:
+  - job_name: 'wireflow-exporter'
+    static_configs:
+      # 使用 host.docker.internal 访问宿主机上开启了 9586 的 wireflow 进程
+      - targets: ['host.docker.internal:9586']
+        labels:
+          env: 'dev'
+          os: 'macos'

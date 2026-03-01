@@ -23,14 +23,13 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"time"
 	"wireflow/dns"
 	"wireflow/internal/config"
 	"wireflow/internal/infra"
 	"wireflow/internal/log"
 	"wireflow/monitor"
-	"wireflow/monitor/collector"
 
+	"golang.org/x/sync/errgroup"
 	wg "golang.zx2c4.com/wireguard/device"
 	"golang.zx2c4.com/wireguard/ipc"
 	"golang.zx2c4.com/wireguard/wgctrl"
@@ -63,16 +62,8 @@ func Start(ctx context.Context, flags *config.Flags) error {
 		Flags: flags,
 	}
 
-	//// set appId
-	//if config.GlobalConfig.AppId == "" {
-	//	hostName, err := os.Hostname()
-	//	if err != nil {
-	//		return err
-	//	}
-	//	config.GlobalConfig.AppId = utils.StringFormatter(hostName)
-	//	//更新到.wireflow.yaml
-	//	config.WriteConfig("app-id", config.GlobalConfig.AppId)
-	//}
+	// 创建一个随主程序生命周期管理的 Context
+	g, ctx := errgroup.WithContext(context.Background())
 
 	if flags.EnableDaemon {
 		fmt.Println("Run wireflow in daemon mode")
@@ -163,15 +154,10 @@ func Start(ctx context.Context, flags *config.Flags) error {
 
 	// enable metrics
 	if flags.EnableMetric {
-		go func() {
-			metric := monitor.NewNodeMonitor(10*time.Second, collector.NewPrometheusStorage(""), nil)
-			metric.AddCollector(&collector.CPUCollector{})
-			metric.AddCollector(&collector.MemoryCollector{})
-			metric.AddCollector(&collector.DiskCollector{})
-			metric.AddCollector(&collector.TrafficCollector{})
-			metric.Start()
-			fmt.Println("Metrics started")
-		}()
+		g.Go(func() error {
+			runner := monitor.NewMonitorRunner(infra.NewPeerManager())
+			return runner.Run(ctx)
+		})
 	}
 
 	// enable DNS
@@ -231,11 +217,13 @@ func Start(ctx context.Context, flags *config.Flags) error {
 	}()
 	logger.Info("wireflow started")
 
-	<-ctx.Done()
-	uapi.Close()
+	// 等待所有任务完成（或者任意一个任务出错退出）
+	if err = g.Wait(); err != nil {
+		uapi.Close()
+		c.close()
+		logger.Warn("wireflow shutting down")
+	}
 
-	c.close()
-	logger.Warn("wireflow shutting down")
 	return err
 }
 

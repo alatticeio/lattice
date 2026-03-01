@@ -9,3 +9,6 @@ app:
 jwt:
   secret: "your-super-secret-key"
   expire_hours: 24
+
+metrics:
+  port: 9685
