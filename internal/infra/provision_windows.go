@@ -21,13 +21,12 @@ import (
 )
 
 func (r *routeProvisioner) ApplyRoute(action, address, interfaceName string) error {
-	//example: sudo route -nv add -net 192.168.10.1 -netmask 255.255.255.0 -interface en0
-	// example: netsh interface ipv4 set address name="linkany-xx" static 192.168.1.10
 	ip := TrimCIDR(address)
 	gateway := GetGatewayFromIP(ip)
 
-	ExecCommand("cmd", "/C", fmt.Sprintf(`route %s %s mask 255.255.255.0 %s`, action, ip, gateway))
-
+	// Use the route command for Windows, add or delete route
+	ExecCommand("cmd", "/C", fmt.Sprintf(
+		"route %s %s mask 255.255.255.0 %s", action, ip, gateway))
 	return nil
 }
 
@@ -35,18 +34,25 @@ func (r *routeProvisioner) ApplyIP(action, address, name string) error {
 	switch action {
 	case "add":
 		ip := TrimCIDR(address)
-		ExecCommand("cmd", "/C", fmt.Sprintf(`netsh interface ipv4 set address name="%s" static %s 255.255.255.0`, name, ip))
-		ExecCommand("cmd", "/C", fmt.Sprintf(`netsh interface set interface name="%s" admin=ENABLED`, name))
-	}
+		// Set the IP address using netsh on Windows
+		ExecCommand("cmd", "/C", fmt.Sprintf(
+			"netsh interface ipv4 set address name=\"%s\" static %s 255.255.255.0",
+			name, ip))
 
+		// Enable the network interface
+		ExecCommand("cmd", "/C", fmt.Sprintf(
+			"netsh interface set interface name=\"%s\" admin=ENABLED", name))
+	}
 	return nil
 }
 
-func (r *ruleProvisioner) Name() string { return "windows-fw" }
+func (r *ruleProvisioner) Name() string {
+	return "windows-fw"
+}
 
 func (r *ruleProvisioner) Provision(rule *FirewallRule) error {
 	// 1. 清理旧规则 (基于 Name 前缀)
-	p.execPS("Remove-NetFirewallRule -DisplayName 'Wireflow-*'")
+	r.execPS("Remove-NetFirewallRule -DisplayName 'Wireflow-*'")
 
 	// 2. 处理 Ingress
 	for i, tr := range rule.Ingress {
@@ -55,7 +61,7 @@ func (r *ruleProvisioner) Provision(rule *FirewallRule) error {
 			"New-NetFirewallRule -DisplayName 'Wireflow-In-%d' -Direction Inbound -Action Allow -Protocol %s -LocalPort %d -RemoteAddress %s",
 			i, strings.ToUpper(tr.Protocol), tr.Port, ips,
 		)
-		if err := p.execPS(cmd); err != nil {
+		if err := r.execPS(cmd); err != nil {
 			return err
 		}
 	}
@@ -67,26 +73,27 @@ func (r *ruleProvisioner) Provision(rule *FirewallRule) error {
 			"New-NetFirewallRule -DisplayName 'Wireflow-Out-%d' -Direction Outbound -Action Allow -Protocol %s -RemotePort %d -RemoteAddress %s",
 			i, strings.ToUpper(tr.Protocol), tr.Port, ips,
 		)
-		if err := p.execPS(cmd); err != nil {
+		if err := r.execPS(cmd); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (p *WindowsProvisioner) execPS(command string) error {
+func (p *ruleProvisioner) execPS(command string) error {
 	cmd := exec.Command("powershell", "-Command", command)
 	return cmd.Run()
 }
 
-func (p *WindowsProvisioner) Cleanup() error {
-	return p.execPS("Remove-NetFirewallRule -DisplayName 'Wireflow-*'")
-}
-
-func (r *ruleProvisioner) ApplyRule(action, rule string) error {
+func (p *ruleProvisioner) Cleanup() error {
 	return nil
 }
 
 func (r *ruleProvisioner) SetupNAT(interfaceName string) error {
-	return nil
+	// Example of enabling NAT through RRAS, assuming RRAS is configured
+	// Windows doesn't directly support iptables-like NAT, but you can use
+	// Windows Routing and Remote Access Service (RRAS) for NAT configuration
+	cmd := fmt.Sprintf(
+		"netsh routing ip nat add interface %s", interfaceName)
+	return r.execPS(cmd)
 }

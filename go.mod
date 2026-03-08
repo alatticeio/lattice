@@ -179,4 +179,4 @@ require (
 	sigs.k8s.io/yaml v1.6.0 // indirect
 )
 
-replace golang.zx2c4.com/wireguard => github.com/wireflowio/wireguard-go v0.0.0-20230325221338-052af4a8072b
+replace golang.zx2c4.com/wireguard => github.com/wireflowio/wireguard-go v0.0.0-20260306075115-6de966ac2b08

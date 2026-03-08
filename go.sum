@@ -280,8 +280,8 @@ github.com/ugorji/go/codec v1.3.0 h1:Qd2W2sQawAfG8XSvzwhBeoGq71zXOC/Q1E9y/wUcsUA
 github.com/ugorji/go/codec v1.3.0/go.mod h1:pRBVtBSKl77K30Bv8R2P+cLSGaTtex6fsA2Wjqmfxj4=
 github.com/wireflowio/ice v0.0.0-20250918024245-51a48c53c081 h1:M3Zi3zq5YKDR+T8Xo+rjWGLJPG1YT4ZobnDaSIEBqRI=
 github.com/wireflowio/ice v0.0.0-20250918024245-51a48c53c081/go.mod h1:zUMblh6Td8M+2bi5DtufHdwtEEsaGabC+troGNlOvy8=
-github.com/wireflowio/wireguard-go v0.0.0-20230325221338-052af4a8072b h1:xGICnh6OE7nDhTU0bxaHk4cP5LkOLkQZZf6h3j9LCFE=
-github.com/wireflowio/wireguard-go v0.0.0-20230325221338-052af4a8072b/go.mod h1:tqur9LnfstdR9ep2LaJT4lFUl0EjlHtge+gAjmsHUG4=
+github.com/wireflowio/wireguard-go v0.0.0-20260306075115-6de966ac2b08 h1:DBvzzx8Ci4FK9vOX/2S74UNNGNF5hIOxnJX//3Lh+Ek=
+github.com/wireflowio/wireguard-go v0.0.0-20260306075115-6de966ac2b08/go.mod h1:tqur9LnfstdR9ep2LaJT4lFUl0EjlHtge+gAjmsHUG4=
 github.com/wlynxg/anet v0.0.3 h1:PvR53psxFXstc12jelG6f1Lv4MWqE0tI76/hHGjh9rg=
 github.com/wlynxg/anet v0.0.3/go.mod h1:eay5PRQr7fIVAMbTbchTnO9gG65Hg/uYGdc7mguHxoA=
 github.com/x448/float16 v0.8.4 h1:qLwI1I70+NjRFUR3zs1JPUCgaCXSh3SW62uAKT1mSBM=

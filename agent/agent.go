@@ -12,9 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//go:build !windows
-// +build !windows
-
 // agent for wireflow
 package agent
 
@@ -194,7 +191,7 @@ func NewAgent(ctx context.Context, cfg *AgentConfig) (*Agent, error) {
 	agent.messageHandler = NewMessageHandler(agent, log.GetLogger("event-handler"), agent.provisioner)
 	probeFactory.Configure(transport.WithOnMessage(agent.messageHandler.HandleEvent), transport.WithWrrp(wrrp), transport.WithProvisioner(agent.provisioner))
 
-	agent.DeviceManager = NewDeviceManager(log.GetLogger("device-manager"), agent.iface)
+	agent.DeviceManager = NewDeviceManager(log.GetLogger("device-manager"), agent.iface, make(chan struct{}))
 	return agent, err
 }
 

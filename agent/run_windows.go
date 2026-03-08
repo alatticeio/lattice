@@ -1,96 +1,201 @@
-// Copyright 2025 The Wireflow Authors, Inc.
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
 //go:build windows
 // +build windows
 
+// // Copyright 2025 The Wireflow Authors, Inc.
+// //
+// // Licensed under the Apache License, Version 2.0 (the "License");
+// // you may not use this file except in compliance with the License.
+// // You may obtain a copy of the License at
+// //
+// //     http://www.apache.org/licenses/LICENSE-2.0
+// //
+// // Unless required by applicable law or agreed to in writing, software
+// // distributed under the License is distributed on an "AS IS" BASIS,
+// // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// // See the License for the specific language governing permissions and
+// // limitations under the License.
 package agent
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"os"
-	"wireflow/internal"
-	"wireflow/management/vo"
+	"path/filepath"
+	"runtime"
+	"time"
+	"wireflow/dns"
+	"wireflow/internal/config"
+	"wireflow/internal/infra"
+	"wireflow/internal/log"
+	"wireflow/monitor"
+	"wireflow/monitor/collector"
 
 	wg "golang.zx2c4.com/wireguard/device"
 	"golang.zx2c4.com/wireguard/ipc"
 	"golang.zx2c4.com/wireguard/wgctrl"
 )
 
-func Start(flags *Flags) error {
+func Start(ctx context.Context, flags *config.Flags) error {
+	var (
+		logFile *os.File
+		path    string
+		err     error
+	)
 
-	var err error
-	ctx := internal.SetupSignalHandler()
+	log.SetLevel(flags.Level)
 
-	logger := log.NewLogger(log.Loglevel, "linkany")
+	logger := log.GetLogger("wireflow")
 
 	// peers config to wireGuard
-	engineCfg := &AgentConfig{
+	agentCfg := &AgentConfig{
 		Logger:        logger,
-		Conf:          conf,
 		Port:          51820,
 		InterfaceName: flags.InterfaceName,
+		Token:         flags.Token,
+		ShowLog:       flags.EnableSysLog,
 		WgLogger: wg.NewLogger(
 			wg.LogLevelError,
 			fmt.Sprintf("(%s) ", flags.InterfaceName),
 		),
-		ForceRelay: flags.ForceRelay,
+		Flags: flags,
 	}
 
-	if flags.ManagementUrl == "" {
-		engineCfg.ManagementUrl = fmt.Sprintf("%s:%d", internal.ManagementDomain, internal.DefaultManagementPort)
+	if flags.EnableDaemon {
+		fmt.Println("Run wireflow in daemon mode")
+		env := os.Environ()
+		env = append(env, "WIREFLOW_DAEMON=true")
+		if os.Getenv("WIREFLOW_DAEMON") == "" {
+			// 确保日志目录存在
+			var logDir string
+			switch runtime.GOOS {
+			case "darwin":
+				host, _ := os.UserHomeDir()
+				logDir = fmt.Sprintf("%s/%s", host, "Library/Logs/wireflow")
+			case "windows":
+				logDir = "C:\\ProgramData\\wireflow\\logs"
+			default:
+				logDir = "/var/log/wireflow"
+			}
+
+			if _, err = os.Stat(logDir); err != nil {
+				// 如果目录不存在或不是目录，则创建目录
+				if err = os.MkdirAll(logDir, 0755); err != nil {
+					fmt.Printf("Failed to create log directory: %v\n", err)
+					os.Exit(1)
+				}
+			} else {
+				fmt.Printf("Log directory already exists: %s\n", logDir)
+			}
+
+			// 打开日志文件
+			logFile, err = os.OpenFile(
+				filepath.Join(logDir, "wireflow.log"),
+				os.O_CREATE|os.O_WRONLY|os.O_APPEND,
+				0644,
+			)
+			if err != nil {
+				fmt.Printf("Failed to open log file: %v\n", err)
+				os.Exit(1)
+			}
+
+			files := [3]*os.File{}
+			if flags.Level != "" && flags.Level != "slient" {
+				files[0], _ = os.Open(os.DevNull)
+				files[1] = logFile
+				files[2] = logFile
+			} else {
+				files[0], _ = os.Open(os.DevNull)
+				files[1], _ = os.Open(os.DevNull)
+				files[2], _ = os.Open(os.DevNull)
+			}
+			attr := &os.ProcAttr{
+				Files: []*os.File{
+					files[0], // stdin
+					files[1], // stdout
+					files[2], // stderr
+					//tdev.File(),
+					//fileUAPI,
+				},
+				Dir: ".",
+				Env: env,
+			}
+
+			path, err = os.Executable()
+			if err != nil {
+				logger.Error("Failed to determine executable", err)
+				os.Exit(1)
+			}
+
+			filteredArgs := make([]string, 0)
+			for _, arg := range os.Args {
+				if arg != "--daemon" && arg != "-d" && arg != "--foreground" && arg != "-f" {
+					filteredArgs = append(filteredArgs, arg)
+				}
+			}
+
+			process, err := os.StartProcess(
+				path,
+				filteredArgs,
+				attr,
+			)
+			if err != nil {
+				logger.Error("Failed to daemonize", err)
+				os.Exit(1)
+			}
+			process.Release()
+			os.Exit(0) // exit parent
+		}
 	}
 
-	if flags.SignalingUrl == "" {
-		engineCfg.SignalingUrl = fmt.Sprintf("nats://%s:%d", internal.SignalingDomain, internal.DefaultSignalingPort)
+	// enable metrics
+	if flags.EnableMetric {
+		go func() {
+			metric := monitor.NewNodeMonitor(10*time.Second, collector.NewPrometheusStorage(""), nil)
+			metric.AddCollector(&collector.CPUCollector{})
+			metric.AddCollector(&collector.MemoryCollector{})
+			metric.AddCollector(&collector.DiskCollector{})
+			metric.AddCollector(&collector.TrafficCollector{})
+			metric.Start()
+			fmt.Println("Metrics started")
+		}()
 	}
 
-	if flags.TurnServerUrl == "" {
-		engineCfg.TurnServerUrl = fmt.Sprintf("%s:%d", internal.TurnServerDomain, internal.DefaultTurnServerPort)
+	// enable DNS
+	if flags.EnableDNS {
+		go func() {
+			nativeDNS := dns.NewNativeDNS(&dns.DNSConfig{})
+			nativeDNS.Start()
+			fmt.Println("Dns started")
+		}()
 	}
 
-	engine, err := NewAgent(engineCfg)
+	c, err := NewAgent(ctx, agentCfg)
 	if err != nil {
 		return err
 	}
 
-	engine.GetNetworkMap = func() (*vo.NetworkMap, error) {
+	c.GetNetworkMap = func() (*infra.Message, error) {
 		// get network map from list
-		conf, err := engine.ctrClient.GetNetMap()
+		msg, err := c.ctrClient.GetNetMap(flags.Token)
 		if err != nil {
-			logger.Errorf("Get network map failed: %v", err)
+			logger.Error("Get network map failed", err)
 			return nil, err
 		}
 
-		logger.Infof("Success get net map")
+		logger.Debug("Success get net map")
 
-		return conf, err
+		return msg, err
 	}
 
-	//ticker := time.NewTicker(10 * time.Second) //30 seconds will sync config a time
-	quit := make(chan struct{})
-	defer close(quit)
-	// start iface
-	err = engine.Start()
+	err = c.Start(ctx)
 
-	// open UAPI file (or use supplied fd)
-	logger.Infof("got iface name: %s", engine.Name)
+	// open UAPI file
+	logger.Debug("Interface name", "name", c.Name)
 
-	uapi, err := ipc.UAPIListen(engine.Name)
+	uapi, err := ipc.UAPIListen(c.Name)
 	if err != nil {
-		logger.Errorf("Failed to listen on uapi socket: %v", err)
+		logger.Error("Failed to listen on uapi socket: %v", err)
 		os.Exit(-1)
 	}
 
@@ -100,20 +205,45 @@ func Start(flags *Flags) error {
 			if err != nil {
 				return
 			}
-			go engine.IpcHandle(conn)
+			go c.DeviceManager.IpcHandle(conn)
 		}
 	}()
-	logger.Infof("UAPI listener started")
+	logger.Info("wireflow started")
 
 	<-ctx.Done()
 	uapi.Close()
 
-	logger.Infof("linkany shutting down")
+	c.close()
+	logger.Warn("wireflow shutting down")
 	return err
 }
 
-// Stop stop linkany daemon
-func Stop(flags *Flags) error {
+// Stop stop wireflow daemon
+func Stop(flags *config.Flags) error {
+	interfaceName := flags.InterfaceName
+	if flags.InterfaceName == "" {
+		ctr, err := wgctrl.New()
+		if err != nil {
+			return nil
+		}
+
+		ifaces, err := ctr.Devices()
+		if err != nil {
+			return err
+		}
+
+		if len(ifaces) == 0 {
+			return fmt.Errorf("%s", "Wireflow daemon is not running, no ifaces found")
+		}
+
+		interfaceName = ifaces[0].Name
+	}
+	// 如果 UAPI 失败，尝试通过 PID 文件停止进程
+	return stopViaPIDFile(interfaceName)
+
+}
+
+func Status(flags *config.Flags) error {
 	interfaceName := flags.InterfaceName
 	if flags.InterfaceName == "" {
 		ctr, err := wgctrl.New()
@@ -127,17 +257,17 @@ func Stop(flags *Flags) error {
 		}
 
 		if len(devices) == 0 {
-			return fmt.Errorf("没有找到任何 Linkany 设备")
+			return fmt.Errorf("Could not found WireFlow Devices")
 		}
 
 		interfaceName = devices[0].Name
 	}
-	// 如果 UAPI 失败，尝试通过 PID 文件停止进程
-	return stopViaPIDFile(interfaceName)
 
+	fmt.Printf("Wierflow interface: %s\n", interfaceName)
+	return nil
 }
 
-// stop linkany daemon via sock file
+// stop wireflow daemon via sock file
 func stopViaPIDFile(interfaceName string) error {
 	// get sock
 	socketPath := fmt.Sprintf("/var/run/wireguard/%s.sock", interfaceName)
@@ -149,7 +279,7 @@ func stopViaPIDFile(interfaceName string) error {
 	// connect to the socket
 	conn, err := net.Dial("unix", socketPath)
 	if err != nil {
-		return fmt.Errorf("linkany sock connect failed: %v", err)
+		return fmt.Errorf("wireflow sock connect failed: %v", err)
 	}
 	defer conn.Close()
 	// 发送消息到服务器
@@ -165,6 +295,6 @@ func stopViaPIDFile(interfaceName string) error {
 		return fmt.Errorf("receive error: %v", err)
 	}
 
-	fmt.Printf("linkany stopped: %s\n", interfaceName)
+	fmt.Printf("wireflow stopped: %s\n", interfaceName)
 	return nil
 }
