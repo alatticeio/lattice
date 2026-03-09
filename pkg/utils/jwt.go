@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 	"time"
-	"wireflow/management/model"
+	"wireflow/management/models"
 
 	"github.com/golang-jwt/jwt/v5"
 )
@@ -32,9 +32,9 @@ func GenerateToken(userID uint) (string, error) {
 }
 
 // ParseToken 解析并校验 JWT
-func ParseToken(tokenString string) (*model.WireFlowClaims, error) {
+func ParseToken(tokenString string) (*models.WireFlowClaims, error) {
 	// 1. 准备载体：直接声明目标结构体指针
-	claims := &model.WireFlowClaims{}
+	claims := &models.WireFlowClaims{}
 
 	// 2. 解析 Token
 	// 注意：第二个参数传入声明好的 claims，库会自动填充数据
@@ -86,7 +86,7 @@ func GetJWTSecret() []byte {
 
 func GenerateBusinessJWT(userID, email string) (string, error) {
 	// 1. 设置有效期（例如 12 小时）
-	claims := model.WireFlowClaims{
+	claims := models.WireFlowClaims{
 		Subject: userID,
 		Name:    email,
 		RegisteredClaims: jwt.RegisteredClaims{

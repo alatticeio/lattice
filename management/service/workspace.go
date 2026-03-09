@@ -9,7 +9,7 @@ import (
 	"wireflow/internal/log"
 	"wireflow/management/database"
 	"wireflow/management/dto"
-	"wireflow/management/model"
+	"wireflow/management/models"
 	"wireflow/management/repository"
 	client_r "wireflow/management/resource"
 	"wireflow/management/vo"
@@ -25,17 +25,17 @@ import (
 )
 
 type WorkspaceService interface {
-	OnboardExternalUser(ctx context.Context, userId, extEmail string) (*model.User, error)
+	OnboardExternalUser(ctx context.Context, userId, extEmail string) (*models.User, error)
 	AddWorkspace(ctx context.Context, dto *dto.WorkspaceDto) (*vo.WorkspaceVo, error)
 	DeleteWorkspace(ctx context.Context, id string) error
 	ListWorkspaces(ctx context.Context, search *dto.PageRequest) (*dto.PageResult[vo.WorkspaceVo], error)
 }
 
 type WorkspaceMemberService interface {
-	Create(ctx context.Context, workspace *model.WorkspaceMember) (*model.WorkspaceMember, error)
-	Update(ctx context.Context, workspace *model.WorkspaceMember) (*model.WorkspaceMember, error)
-	Delete(ctx context.Context, workspace *model.WorkspaceMember) error
-	List(ctx context.Context) ([]*model.WorkspaceMember, error)
+	Create(ctx context.Context, workspace *models.WorkspaceMember) (*models.WorkspaceMember, error)
+	Update(ctx context.Context, workspace *models.WorkspaceMember) (*models.WorkspaceMember, error)
+	Delete(ctx context.Context, workspace *models.WorkspaceMember) error
+	List(ctx context.Context) ([]*models.WorkspaceMember, error)
 
 	// GetMemberRole 获取用户在特定工作区中的角色
 	GetMemberRole(ctx context.Context, workspaceSlug string, userID string) (dto.WorkspaceRole, error)
@@ -73,7 +73,7 @@ func (w *workspaceService) DeleteWorkspace(ctx context.Context, id string) error
 func (w *workspaceService) ListWorkspaces(ctx context.Context, request *dto.PageRequest) (*dto.PageResult[vo.WorkspaceVo], error) {
 	userRole := "super_admin"
 
-	var workspaces []*model.Workspace
+	var workspaces []*models.Workspace
 	var total int64
 	var err error
 
@@ -89,7 +89,7 @@ func (w *workspaceService) ListWorkspaces(ctx context.Context, request *dto.Page
 			return nil, err
 		}
 	} else {
-		var members []*model.WorkspaceMember
+		var members []*models.WorkspaceMember
 		userId := ctx.Value(infra.UserIDKey).(string)
 		total, err = w.memberRepo.Count(ctx, repository.WithUserID(userId))
 		if err != nil {
@@ -174,22 +174,22 @@ func (w *workspaceMemberService) GetMemberRole(ctx context.Context, workspaceSlu
 	return w.workspaceMemberRepo.GetMemberRole(ctx, workspaceSlug, userID)
 }
 
-func (w *workspaceMemberService) Create(ctx context.Context, workspace *model.WorkspaceMember) (*model.WorkspaceMember, error) {
+func (w *workspaceMemberService) Create(ctx context.Context, workspace *models.WorkspaceMember) (*models.WorkspaceMember, error) {
 	//TODO implement me
 	panic("implement me")
 }
 
-func (w *workspaceMemberService) Update(ctx context.Context, workspace *model.WorkspaceMember) (*model.WorkspaceMember, error) {
+func (w *workspaceMemberService) Update(ctx context.Context, workspace *models.WorkspaceMember) (*models.WorkspaceMember, error) {
 	//TODO implement me
 	panic("implement me")
 }
 
-func (w *workspaceMemberService) Delete(ctx context.Context, workspace *model.WorkspaceMember) error {
+func (w *workspaceMemberService) Delete(ctx context.Context, workspace *models.WorkspaceMember) error {
 	//TODO implement me
 	panic("implement me")
 }
 
-func (w *workspaceMemberService) List(ctx context.Context) ([]*model.WorkspaceMember, error) {
+func (w *workspaceMemberService) List(ctx context.Context) ([]*models.WorkspaceMember, error) {
 	//TODO implement me
 	panic("implement me")
 }
@@ -216,8 +216,8 @@ func NewWorkspaceMemberService() WorkspaceMemberService {
 	}
 }
 
-func (w *workspaceService) OnboardExternalUser(ctx context.Context, externalID, email string) (*model.User, error) {
-	var user model.User
+func (w *workspaceService) OnboardExternalUser(ctx context.Context, externalID, email string) (*models.User, error) {
+	var user models.User
 
 	// 1. 先查数据库
 	err := w.db.Where("external_id = ? OR email = ?", externalID, email).First(&user).Error
@@ -233,7 +233,7 @@ func (w *workspaceService) OnboardExternalUser(ctx context.Context, externalID, 
 		}
 
 		// 3. 构造新用户对象
-		user = model.User{
+		user = models.User{
 			ExternalID: externalID,
 			Email:      email,
 			Role:       role,
@@ -254,12 +254,12 @@ func (w *workspaceService) CreateTeamWithInfrastructure(ctx context.Context, own
 
 	return w.db.Transaction(func(tx *gorm.DB) error {
 		// --- A. SQLite 事务 ---
-		team := model.Workspace{DisplayName: teamName}
+		team := models.Workspace{DisplayName: teamName}
 
 		if err := tx.Create(&team).Error; err != nil {
 			return err
 		}
-		if err := tx.Create(&model.WorkspaceMember{WorkspaceID: teamID, UserID: ownerID, Role: "admin"}).Error; err != nil {
+		if err := tx.Create(&models.WorkspaceMember{WorkspaceID: teamID, UserID: ownerID, Role: "admin"}).Error; err != nil {
 			return err
 		}
 
@@ -315,7 +315,7 @@ func (w *workspaceService) AddWorkspace(ctx context.Context, dto *dto.WorkspaceD
 		var err error
 		txRepo := repository.NewWorkspaceRepository(tx)
 
-		newWs := &model.Workspace{
+		newWs := &models.Workspace{
 			Slug:        utils.GenerateSlug(dto.Slug),
 			DisplayName: dto.DisplayName,
 			Namespace:   dto.Namespace,
@@ -351,7 +351,7 @@ func (w *workspaceService) AddWorkspace(ctx context.Context, dto *dto.WorkspaceD
 func (w *workspaceService) AssignPermission(ctx context.Context, dto *dto.UserNamespacePermissionDto) error {
 
 	// 1. 数据库写入权限记录
-	perm := &model.UserNamespacePermission{
+	perm := &models.UserNamespacePermission{
 		UserID:      dto.UserID,
 		Namespace:   dto.Namespace,
 		AccessLevel: dto.AccessLevel,
@@ -372,7 +372,7 @@ func (w *workspaceService) InitNewNamespace(ctx context.Context, workspaceId str
 	return w.InitializeTenant(ctx, workspaceId, "admin")
 }
 
-func (w *workspaceService) CreateRoleBinding(ctx context.Context, perm *model.UserNamespacePermission) error {
+func (w *workspaceService) CreateRoleBinding(ctx context.Context, perm *models.UserNamespacePermission) error {
 	return nil
 }
 
@@ -427,7 +427,7 @@ func (w *workspaceService) InitializeTenant(ctx context.Context, wsID, role stri
 
 // 无论什么用户，都走这套逻辑，只是参数不同
 // nolint:all
-func (w *workspaceService) setupQuota(ctx context.Context, ns string, plan *model.Plan) {
+func (w *workspaceService) setupQuota(ctx context.Context, ns string, plan *models.Plan) {
 	quota := &corev1.ResourceQuota{
 		Spec: corev1.ResourceQuotaSpec{
 			Hard: corev1.ResourceList{

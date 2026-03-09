@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"wireflow/internal/config"
-	"wireflow/management/model"
+	"wireflow/management/models"
 	"wireflow/management/service"
 	"wireflow/pkg/utils"
 	"wireflow/pkg/utils/resp"
@@ -82,7 +82,7 @@ func (d *Dex) Login(c *gin.Context) {
 		return
 	}
 
-	var dexClaims model.WireFlowClaims
+	var dexClaims models.WireFlowClaims
 
 	if err = idToken.Claims(&dexClaims); err != nil {
 		resp.Error(c, "Failed to parse claims")

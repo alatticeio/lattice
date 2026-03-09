@@ -8,7 +8,7 @@ import (
 
 func TestGetJWTSecret(t *testing.T) {
 	t.Run("should get secret", func(t *testing.T) {
-		user := model.User{
+		user := models.User{
 			Email: "admin@123.com",
 		}
 		user.ID = "123"

@@ -1,4 +1,4 @@
-package model
+package models
 
 // NodeTo represents a structure that can be used to define relationships or connections
 type NodeTo struct {

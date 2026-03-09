@@ -3,13 +3,13 @@ package repository
 import (
 	"context"
 	"wireflow/management/dto"
-	"wireflow/management/model"
+	"wireflow/management/models"
 
 	"gorm.io/gorm"
 )
 
 type WorkspaceRepository struct {
-	*BaseRepository[model.Workspace]
+	*BaseRepository[models.Workspace]
 }
 
 //
@@ -42,11 +42,11 @@ type WorkspaceRepository struct {
 //}
 
 type WorkspaceMemberRepository struct {
-	*BaseRepository[model.WorkspaceMember]
+	*BaseRepository[models.WorkspaceMember]
 }
 
 func (r *WorkspaceMemberRepository) GetMemberRole(ctx context.Context, workspaceSlug string, userID string) (dto.WorkspaceRole, error) {
-	var member model.WorkspaceMember
+	var member models.WorkspaceMember
 	err := r.db.WithContext(ctx).
 		Table("workspace_member").
 		Joins("JOIN workspace ON workspaces.id = workspace_members.workspace_id").
@@ -90,7 +90,7 @@ func (r *WorkspaceMemberRepository) GetMemberRole(ctx context.Context, workspace
 
 func (t *WorkspaceRepository) CheckPermission(ctx context.Context, userID, teamID string) (bool, error) {
 	// 3. 数据库查询：校验 WorkspaceMember 关系
-	var member model.WorkspaceMember
+	var member models.WorkspaceMember
 	err := t.db.Where("user_id = ? AND team_id = ? AND status = ?", userID, teamID, "active").First(&member).Error
 
 	if err != nil {
@@ -102,11 +102,11 @@ func (t *WorkspaceRepository) CheckPermission(ctx context.Context, userID, teamI
 
 func NewWorkspaceRepository(db *gorm.DB) *WorkspaceRepository {
 	return &WorkspaceRepository{
-		BaseRepository: NewBaseRepository[model.Workspace](db)}
+		BaseRepository: NewBaseRepository[models.Workspace](db)}
 }
 
 func NewWorkspaceMemberRepository(db *gorm.DB) *WorkspaceMemberRepository {
 	return &WorkspaceMemberRepository{
-		BaseRepository: NewBaseRepository[model.WorkspaceMember](db),
+		BaseRepository: NewBaseRepository[models.WorkspaceMember](db),
 	}
 }

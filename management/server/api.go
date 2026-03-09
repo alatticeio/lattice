@@ -9,6 +9,7 @@ import (
 	"wireflow/pkg/utils/resp"
 
 	"github.com/gin-gonic/gin"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 func (s *Server) apiRouter() error {
@@ -20,6 +21,8 @@ func (s *Server) apiRouter() error {
 		return err
 	}
 	s.GET("/auth/callback", dex.Login)
+	//加入监控
+	s.GET("/metrics", gin.WrapH(promhttp.Handler()))
 	api := s.Group("/api/v1")
 	{
 		// 网络管理 (Namespace)
@@ -56,6 +59,8 @@ func (s *Server) apiRouter() error {
 	s.userRouter()
 
 	s.workspaceRouter()
+
+	s.monitorRouter()
 
 	// 实时状态推送 (WebSocket)
 	//r.GET("/ws/status", HandleStatusWS)

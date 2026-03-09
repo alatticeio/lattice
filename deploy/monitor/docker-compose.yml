@@ -1,28 +1,38 @@
 version: '3.8'
 
 services:
-  vmagent-mac:
-    image: docker.1ms.run/victoriametrics/vmagent:latest
-    container_name: vmagent-mac
+  wireflow:
+    image: ghcr.io/wireflowio/wireflow:pr-191
+    container_name: wireflow
+    # 移除 /etc/hosts 挂载，改用下面的 extra_hosts 逻辑更稳妥
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+      - "signaling.wireflow.run:101.36.119.12"
+    command:
+      - "up"
+      - "--token=fIJr6BpT2captanz"
+      - "--enable-metric"
+      - "--save"
+    restart: always
+
+  vmagent:
+    image: docker.1ms.run/victoriametrics/vmagent
+    container_name: vmagent
     ports:
       - "8429:8429"
     volumes:
-      - vdata-mac:/vmagentdata
-      # 映射配置文件（假设你在当前目录下创建了 prometheus.yml）
-      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - vdata:/vmagentdata
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
     extra_hosts:
-      # 关键：让容器内部可以通过 'host.docker.internal' 访问到宿主机的 wireflow
       - "host.docker.internal:host-gateway"
     command:
       - "-remoteWrite.url=http://101.36.119.12:8428/api/v1/write"
-      - "-remoteWrite.label=node_id=macbook-pro.local"
-      - "-remoteWrite.label=agent=vmagent-docker"
+      # 使用变量名，或者让后端自动识别，减少硬编码
+      - "-remoteWrite.label=agent=vmagent-universal"
       - "-remoteWrite.tmpDataPath=/vmagentdata"
-      # 启用配置文件抓取
       - "-promscrape.config=/etc/prometheus/prometheus.yml"
-      # 可选：如果你想在本地看 vmagent 的状态，可以开启 http 界面
       - "-httpListenAddr=:8429"
     restart: always
 
 volumes:
-  vdata-mac:
+  vdata:

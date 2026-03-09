@@ -63,7 +63,7 @@ func Start(ctx context.Context, flags *config.Flags) error {
 	}
 
 	// 创建一个随主程序生命周期管理的 Context
-	g, ctx := errgroup.WithContext(context.Background())
+	g, newCtx := errgroup.WithContext(ctx)
 
 	if flags.EnableDaemon {
 		fmt.Println("Run wireflow in daemon mode")
@@ -155,8 +155,15 @@ func Start(ctx context.Context, flags *config.Flags) error {
 	// enable metrics
 	if flags.EnableMetric {
 		g.Go(func() error {
-			runner := monitor.NewMonitorRunner(infra.NewPeerManager())
-			return runner.Run(ctx)
+			select {
+			case <-newCtx.Done():
+				return newCtx.Err()
+			default:
+				runner := monitor.NewMonitorRunner(infra.NewPeerManager())
+				err := runner.Run(ctx)
+				return err
+			}
+
 		})
 	}
 
@@ -206,15 +213,34 @@ func Start(ctx context.Context, flags *config.Flags) error {
 		os.Exit(-1)
 	}
 
-	go func() {
+	g.Go(func() error {
+		// 1. 监听退出信号，手动关闭 listener 以解开 Accept 的阻塞
+		go func() {
+			<-newCtx.Done()
+			uapi.Close()
+		}()
+
 		for {
+			// Accept 会阻塞在这里，直到有新连接或 listener 被关闭
 			conn, err := uapi.Accept()
 			if err != nil {
-				return
+				// 如果是因为 context 取消导致的关闭，返回错误
+				select {
+				case <-newCtx.Done():
+					return newCtx.Err()
+				default:
+					return fmt.Errorf("ipc accept error: %w", err)
+				}
 			}
-			go c.DeviceManager.IpcHandle(conn)
+
+			// 2. 异步处理连接，不阻塞 Accept 接收下一个请求
+			go func(nc net.Conn) {
+				defer nc.Close() // 3. 确保连接关闭
+				c.DeviceManager.IpcHandle(nc)
+			}(conn)
 		}
-	}()
+	})
+
 	logger.Info("wireflow started")
 
 	// 等待所有任务完成（或者任意一个任务出错退出）
@@ -249,7 +275,6 @@ func Stop(flags *config.Flags) error {
 	}
 	// 如果 UAPI 失败，尝试通过 PID 文件停止进程
 	return stopViaPIDFile(interfaceName)
-
 }
 
 func Status(flags *config.Flags) error {

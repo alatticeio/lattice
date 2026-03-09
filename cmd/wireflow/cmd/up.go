@@ -81,5 +81,6 @@ func upCmd() *cobra.Command {
 	fs.StringP("level", "", "", "log level (debug, info, warn, error)")
 	fs.StringP("wrrper-url", "", "", "wrrper server url connect to")
 	fs.BoolP("enable-wrrp", "", false, "using wrrper server")
+	fs.BoolP("enable-metric", "", false, "enable metrics")
 	return cmd
 }

@@ -49,6 +49,8 @@ type Server struct {
 
 	workspaceController controller.WorkspaceController
 	tokenController     controller.TokenController
+
+	monitorController controller.MonitorController
 }
 
 // ServerConfig is the server configuration.
@@ -95,6 +97,7 @@ func NewServer(serverConfig *ServerConfig) (*Server, error) {
 		policyController:    controller.NewPolicyController(client),
 		workspaceController: controller.NewWorkspaceController(client),
 		tokenController:     controller.NewTokenController(client),
+		monitorController:   controller.NewMonitorController(config.GlobalConfig.Monitor.Address),
 	}
 
 	// initAdmins
@@ -119,6 +122,9 @@ func NewServer(serverConfig *ServerConfig) (*Server, error) {
 	if err = s.apiRouter(); err != nil {
 		return nil, err
 	}
+
+	// start monitor
+	s.StartStatusTick()
 
 	return s, nil
 }

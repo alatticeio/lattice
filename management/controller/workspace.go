@@ -3,7 +3,7 @@ package controller
 import (
 	"context"
 	"wireflow/management/dto"
-	"wireflow/management/model"
+	"wireflow/management/models"
 	"wireflow/management/resource"
 	"wireflow/management/service"
 	"wireflow/management/vo"
@@ -39,7 +39,7 @@ type workspaceMemberController struct {
 	workspaceMemberService service.WorkspaceMemberService
 }
 
-func (c workspaceController) OnboardExternalUser(ctx context.Context, userId, extEmail string) (*model.User, error) {
+func (c workspaceController) OnboardExternalUser(ctx context.Context, userId, extEmail string) (*models.User, error) {
 	return c.workspaceService.OnboardExternalUser(ctx, userId, extEmail)
 }
 

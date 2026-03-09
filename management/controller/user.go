@@ -5,7 +5,7 @@ import (
 	"wireflow/internal/config"
 	"wireflow/internal/log"
 	"wireflow/management/dto"
-	"wireflow/management/model"
+	"wireflow/management/models"
 	"wireflow/management/service"
 	"wireflow/management/vo"
 )
@@ -13,8 +13,8 @@ import (
 type UserController interface {
 	InitAdmin(ctx context.Context, admins []config.AdminConfig) error
 	Register(ctx context.Context, userDto dto.UserDto) error
-	Login(ctx context.Context, email, password string) (*model.User, error)
-	GetMe(ctx context.Context, id string) (*model.User, error)
+	Login(ctx context.Context, email, password string) (*models.User, error)
+	GetMe(ctx context.Context, id string) (*models.User, error)
 
 	// Add user from admin
 	AddUser(ctx context.Context, userDto *dto.UserDto) error
@@ -66,11 +66,11 @@ func (u *userController) InitAdmin(ctx context.Context, admins []config.AdminCon
 	return u.userService.InitAdmin(ctx, admins)
 }
 
-func (u *userController) GetMe(ctx context.Context, id string) (*model.User, error) {
+func (u *userController) GetMe(ctx context.Context, id string) (*models.User, error) {
 	return u.userService.GetMe(ctx, id)
 }
 
-func (u *userController) Login(ctx context.Context, email, password string) (*model.User, error) {
+func (u *userController) Login(ctx context.Context, email, password string) (*models.User, error) {
 	return u.userService.Login(ctx, email, password)
 }
 

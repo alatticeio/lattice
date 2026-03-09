@@ -2,7 +2,7 @@ package dex
 
 import (
 	"strings"
-	"wireflow/management/model"
+	"wireflow/management/models"
 	"wireflow/pkg/utils"
 	"wireflow/pkg/utils/resp"
 
@@ -31,7 +31,7 @@ func AuthMiddleware() gin.HandlerFunc {
 		tokenString := strings.TrimPrefix(authHeader, "Bearer ")
 
 		// 2. 解析 JWT
-		claims := model.WireFlowClaims{}
+		claims := models.WireFlowClaims{}
 		token, err := jwt.ParseWithClaims(tokenString, &claims, func(token *jwt.Token) (interface{}, error) {
 			return utils.GetJWTSecret(), nil
 		})

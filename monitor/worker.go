@@ -2,10 +2,9 @@ package monitor
 
 import (
 	"context"
-	"fmt"
 	"time"
+	"wireflow/internal"
 	"wireflow/monitor/collector"
-	exporter "wireflow/monitor/wireflow-exporter"
 )
 
 // MetricWorker 定义采集管理结构
@@ -16,6 +15,7 @@ type MetricWorker struct {
 }
 
 func NewMetricWorker() *MetricWorker {
+
 	return &MetricWorker{
 		stopChan:            make(chan struct{}),
 		cpuCollector:        collector.NewCPUCollector(),
@@ -35,7 +35,6 @@ func (mw *MetricWorker) StartLinkProbing(ctx context.Context, interval time.Dura
 				// targets := core.GetActivePeers()
 				// 2. 执行并发探测
 				// RunCycle(targets)
-				fmt.Println("start link probing")
 			case <-mw.stopChan:
 				return
 			case <-ctx.Done():
@@ -71,11 +70,10 @@ func (mw *MetricWorker) StartSystemMetrics(ctx context.Context, interval time.Du
 
 					switch m.Name() {
 					case "cpu_usage_total":
-						exporter.NodeCpuUsage.Set(val)
+						internal.NodeCpuUsage.WithLabelValues("ws-01", "macbook-pro.local").Set(val)
 
 					case "cpu_usage_core":
-						coreID := m.Labels()["core"]
-						exporter.NodeCoreUsage.WithLabelValues(coreID).Set(val)
+						internal.NodeCoreUsage.WithLabelValues("ws-01", "macbook-pro.local").Set(val)
 					}
 				}
 			case <-mw.stopChan:
@@ -102,7 +100,7 @@ func (mw *MetricWorker) StartPeerStatusMetrics(ctx context.Context, interval tim
 				}
 
 				// 2. 核心操作：在写入这一批次数据前，先重置 Gauge，防止已下线的节点残留
-				exporter.PeerStatus.Reset()
+				internal.PeerStatus.Reset()
 				// 如果你顺便采集了流量，也在这里重置对应的 Gauge/Counter
 				// exporter.PeerBytesTransmit.Reset()
 				// exporter.PeerBytesReceive.Reset()
@@ -121,7 +119,7 @@ func (mw *MetricWorker) StartPeerStatusMetrics(ctx context.Context, interval tim
 					case "peer_status":
 						// 确保这里的 Label 顺序与你定义 PeerStatus 时一致
 						// 建议：peer_id, ip, alias
-						exporter.PeerStatus.WithLabelValues(
+						internal.PeerStatus.WithLabelValues(
 							labels["peer_id"],
 							labels["ip"],
 							labels["alias"],

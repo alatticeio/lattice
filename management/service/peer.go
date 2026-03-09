@@ -23,7 +23,7 @@ import (
 	"wireflow/internal/log"
 	"wireflow/management/database"
 	"wireflow/management/dto"
-	"wireflow/management/model"
+	"wireflow/management/models"
 	"wireflow/management/repository"
 	"wireflow/management/resource"
 	"wireflow/management/vo"
@@ -129,10 +129,10 @@ func (p *peerService) ListPeers(ctx context.Context, pageParam *dto.PageRequest)
 	}
 
 	// 2. 获取全量数据（模拟）
-	allPeers := []*model.Peer{ /* ... 很多数据 ... */ }
+	allPeers := []*models.Peer{ /* ... 很多数据 ... */ }
 
 	for _, n := range peerList.Items {
-		allPeers = append(allPeers, &model.Peer{
+		allPeers = append(allPeers, &models.Peer{
 			Name:       n.Name,
 			PublicKey:  n.Spec.PublicKey,
 			AppID:      n.Spec.AppId,
@@ -142,7 +142,7 @@ func (p *peerService) ListPeers(ctx context.Context, pageParam *dto.PageRequest)
 	}
 
 	// 3. 逻辑过滤（搜索）
-	var filteredNodes []*model.Peer
+	var filteredNodes []*models.Peer
 	if pageParam.Keyword != "" {
 		for _, n := range allPeers {
 			if strings.Contains(n.Name, pageParam.Keyword) || (n.Address != nil && strings.Contains(*n.Address, pageParam.Keyword)) {

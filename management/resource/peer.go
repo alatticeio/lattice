@@ -21,7 +21,7 @@ import (
 	v1alpha1 "wireflow/api/v1alpha1"
 	"wireflow/internal/infra"
 	"wireflow/management/dto"
-	"wireflow/management/model"
+	"wireflow/management/models"
 
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 	corev1 "k8s.io/api/core/v1"
@@ -184,7 +184,7 @@ func (c *Client) GetNetworkMap(ctx context.Context, tokenStr, name string) (*inf
 	return message, nil
 }
 
-func (c *Client) GetByAppId(ctx context.Context, appId string) (*model.Peer, error) {
+func (c *Client) GetByAppId(ctx context.Context, appId string) (*models.Peer, error) {
 	return nil, nil
 }
 

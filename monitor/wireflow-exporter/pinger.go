@@ -3,6 +3,7 @@ package wireflow_exporter
 import (
 	"sync"
 	"time"
+	"wireflow/internal"
 
 	probing "github.com/prometheus-community/pro-bing"
 )
@@ -42,14 +43,14 @@ func RunCycle(targets []TargetPeer) {
 
 			err = pinger.Run()
 			if err != nil {
-				PeerLoss.WithLabelValues(target.ID).Set(100) // 探测失败视为 100% 丢包
+				internal.PeerLoss.WithLabelValues(target.ID).Set(100) // 探测失败视为 100% 丢包
 				return
 			}
 
 			stats := pinger.Statistics()
 			// 更新 Prometheus 指标
-			PeerLatency.WithLabelValues(target.ID, target.Name, target.IP).Set(float64(stats.AvgRtt.Milliseconds()))
-			PeerLoss.WithLabelValues(target.ID).Set(stats.PacketLoss)
+			internal.PeerLatency.WithLabelValues(target.ID, target.Name, target.IP).Set(float64(stats.AvgRtt.Milliseconds()))
+			internal.PeerLoss.WithLabelValues(target.ID).Set(stats.PacketLoss)
 		}(t)
 	}
 	wg.Wait()

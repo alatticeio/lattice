@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"strings"
 	"wireflow/api/v1alpha1"
 	"wireflow/internal/infra"
 	"wireflow/internal/log"
@@ -86,7 +85,7 @@ func (t *tokenService) Create(ctx context.Context) error {
 
 		// create default deny
 		if _, err := t.policyService.CreateOrUpdatePolicy(ctx, &dto.PolicyDto{
-			Name:      strings.ToLower(tokenDto.Name),
+			Name:      "default-deny",
 			Namespace: tokenDto.Namespace,
 			Action:    "Deny",
 		}); err != nil {

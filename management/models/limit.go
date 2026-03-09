@@ -1,4 +1,4 @@
-package model
+package models
 
 // UserConfig is a struct that contains invitation configuration for a user
 type UserConfig struct {

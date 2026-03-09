@@ -7,7 +7,7 @@ import (
 	"wireflow/internal/log"
 	"wireflow/management/database"
 	"wireflow/management/dto"
-	"wireflow/management/model"
+	"wireflow/management/models"
 	"wireflow/management/repository"
 	"wireflow/management/vo"
 	"wireflow/pkg/utils"
@@ -18,11 +18,11 @@ import (
 type UserService interface {
 	InitAdmin(ctx context.Context, admins []config.AdminConfig) error
 	Register(ctx context.Context, userDto dto.UserDto) error
-	Login(ctx context.Context, email, password string) (*model.User, error)
-	GetMe(ctx context.Context, id string) (*model.User, error)
+	Login(ctx context.Context, email, password string) (*models.User, error)
+	GetMe(ctx context.Context, id string) (*models.User, error)
 	List(ctx context.Context, req *dto.PageRequest) (*dto.PageResult[vo.UserVo], error)
 
-	OnboardExternalUser(ctx context.Context, subject string, email string) (*model.User, error)
+	OnboardExternalUser(ctx context.Context, subject string, email string) (*models.User, error)
 	AddUser(ctx context.Context, dtos *dto.UserDto) error
 	DeleteUser(ctx context.Context, username string) error
 }
@@ -43,7 +43,7 @@ func (u *userService) AddUser(ctx context.Context, dto *dto.UserDto) error {
 	// 先创建user
 	return u.db.Transaction(func(tx *gorm.DB) error {
 		userRepo := repository.NewUserRepository(tx)
-		newUser := &model.User{
+		newUser := &models.User{
 			Username: dto.Username,
 			Password: dto.Password,
 			Role:     dto.Role,
@@ -61,7 +61,7 @@ func (u *userService) AddUser(ctx context.Context, dto *dto.UserDto) error {
 		}
 
 		//创建workspace member
-		workspaceMember := model.WorkspaceMember{
+		workspaceMember := models.WorkspaceMember{
 			Role:        dto.Role,
 			Status:      "active",
 			WorkspaceID: ws.ID,
@@ -79,7 +79,7 @@ func (u *userService) AddUser(ctx context.Context, dto *dto.UserDto) error {
 	})
 }
 
-func (u *userService) OnboardExternalUser(ctx context.Context, subject string, email string) (*model.User, error) {
+func (u *userService) OnboardExternalUser(ctx context.Context, subject string, email string) (*models.User, error) {
 	return u.userRepo.OnboardExternalUser(ctx, subject, email)
 }
 
@@ -97,7 +97,7 @@ func (u *userService) InitAdmin(ctx context.Context, admins []config.AdminConfig
 
 		if count == 0 {
 			// 2. 不存在则创建
-			newUser := model.User{
+			newUser := models.User{
 				Username: admin.Username,
 				Password: admin.Password, // 记得加密！
 				Role:     dto.RoleAdmin,
@@ -113,25 +113,25 @@ func (u *userService) InitAdmin(ctx context.Context, admins []config.AdminConfig
 	return nil
 }
 
-func (u *userService) GetMe(ctx context.Context, id string) (*model.User, error) {
+func (u *userService) GetMe(ctx context.Context, id string) (*models.User, error) {
 	return u.userRepo.First(ctx, repository.WithID(id))
 }
 
 func (u *userService) Register(ctx context.Context, userDto dto.UserDto) error {
-	return u.userRepo.WithTransaction(func(txRepo *repository.BaseRepository[model.User]) error {
+	return u.userRepo.WithTransaction(func(txRepo *repository.BaseRepository[models.User]) error {
 		password, err := utils.EncryptPassword(userDto.Password)
 		if err != nil {
 			return err
 		}
 
-		return txRepo.Create(ctx, &model.User{
+		return txRepo.Create(ctx, &models.User{
 			Username: userDto.Username,
 			Password: password,
 		})
 	})
 }
 
-func (s *userService) Login(ctx context.Context, username, password string) (*model.User, error) {
+func (s *userService) Login(ctx context.Context, username, password string) (*models.User, error) {
 	// 1. 调用 Repository 获取用户
 	user, err := s.userRepo.Login(ctx, username, password)
 	if err != nil {

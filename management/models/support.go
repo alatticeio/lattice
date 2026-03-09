@@ -1,4 +1,4 @@
-package model
+package models
 
 // Support is a entity for support
 type Support struct {

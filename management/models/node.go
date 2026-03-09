@@ -1,4 +1,4 @@
-package model
+package models
 
 // Peer full node structure
 type Peer struct {

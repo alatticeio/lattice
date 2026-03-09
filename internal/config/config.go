@@ -8,11 +8,17 @@ import (
 )
 
 type Config struct {
-	App      AppConfig      `mapstructure:"app"`
-	JWT      JWTConfig      `mapstructure:"jwt"`
-	Database DatabaseConfig `mapstructure:"database"`
-	Dex      DexConfig      `mapstructure:"dex"`
-	Metrics  MetricsConfig  `mapstructure:"metrics"`
+	App       AppConfig       `mapstructure:"app"`
+	JWT       JWTConfig       `mapstructure:"jwt"`
+	Database  DatabaseConfig  `mapstructure:"database"`
+	Dex       DexConfig       `mapstructure:"dex"`
+	Monitor   MonitorConfig   `mapstructure:"monitor"`
+	Signaling SignalingConfig `mapstructure:"signaling"`
+	Agent     AgentConfig     `mapstructure:"agent"`
+}
+
+type AgentConfig struct {
+
 }
 
 type AppConfig struct {
@@ -41,8 +47,12 @@ type DexConfig struct {
 	ProviderUrl string `mapstructure:"providerUrl"`
 }
 
-type MetricsConfig struct {
-	Port string `mapstructure:"port"`
+type MonitorConfig struct {
+	Address string `mapstructure:"address"`
+}
+
+type SignalingConfig struct {
+	SignalAddress string `mapstructure:"signalAddress"`
 }
 
 var (

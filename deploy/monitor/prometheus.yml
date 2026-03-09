@@ -6,6 +6,8 @@ scrape_configs:
     static_configs:
       # 使用 host.docker.internal 访问宿主机上开启了 9586 的 wireflow 进程
       - targets: ['host.docker.internal:9586']
-        labels:
-          env: 'dev'
-          os: 'macos'
+
+  # 任务 2：抓取服务端的硬件指标（CPU、内存、磁盘）
+  - job_name: 'server-hardware'
+    static_configs:
+      - targets: [ 'host.docker.internal:8080' ] # 假设你起了一个 node_exporter

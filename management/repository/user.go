@@ -4,7 +4,7 @@ import (
 	"context"
 	"wireflow/internal/log"
 	"wireflow/management/dto"
-	"wireflow/management/model"
+	"wireflow/management/models"
 	"wireflow/management/vo"
 
 	"gorm.io/gorm"
@@ -12,12 +12,12 @@ import (
 
 type UserRepository struct {
 	log *log.Logger
-	*BaseRepository[model.User]
+	*BaseRepository[models.User]
 }
 
-func (r *UserRepository) Login(ctx context.Context, username, password string) (*model.User, error) {
+func (r *UserRepository) Login(ctx context.Context, username, password string) (*models.User, error) {
 
-	var user model.User
+	var user models.User
 	if err := r.db.WithContext(ctx).First(&user, "username = ? AND password = ?", username, password).Error; err != nil {
 		return nil, err
 	}
@@ -25,9 +25,9 @@ func (r *UserRepository) Login(ctx context.Context, username, password string) (
 	return &user, nil
 }
 
-func (r *UserRepository) OnboardExternalUser(ctx context.Context, subject string, email string) (*model.User, error) {
+func (r *UserRepository) OnboardExternalUser(ctx context.Context, subject string, email string) (*models.User, error) {
 
-	user := &model.User{
+	user := &models.User{
 		Email:      email,
 		ExternalID: subject,
 	}
@@ -40,12 +40,12 @@ func (r *UserRepository) OnboardExternalUser(ctx context.Context, subject string
 }
 
 func (r *UserRepository) List(ctx context.Context, req *dto.PageRequest) (*dto.PageResult[vo.UserVo], error) {
-	var users []model.User
+	var users []models.User
 	var total int64
 	var userVos []vo.UserVo
 
 	// 1. 初始化 db 句柄
-	query := r.db.WithContext(ctx).Model(&model.User{})
+	query := r.db.WithContext(ctx).Model(&models.User{})
 
 	// 2. 如果有搜索条件（例如按用户名搜索）
 	if req.Keyword != "" {
@@ -109,6 +109,6 @@ func (r *UserRepository) List(ctx context.Context, req *dto.PageRequest) (*dto.P
 func NewUserRepository(db *gorm.DB) *UserRepository {
 	return &UserRepository{
 		log:            log.GetLogger("user-repository"),
-		BaseRepository: NewBaseRepository[model.User](db),
+		BaseRepository: NewBaseRepository[models.User](db),
 	}
 }

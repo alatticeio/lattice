@@ -8,7 +8,7 @@ save: true
 server-url: ""
 show-system-log: false
 signaling-url: nats://signaling.wireflow.run:4222
-token: 36q6GrlfXRzMFVC4
+token: fIJr6BpT2captanz
 turnserver-url: stun.wireflow.run:3478
 version: false
 wrrper-url: 81.68.109.143:6266

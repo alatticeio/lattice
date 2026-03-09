@@ -1,4 +1,4 @@
-package model
+package models
 
 // RoleAssignment 用户对应权限
 type RoleAssignment struct {

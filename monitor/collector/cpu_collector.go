@@ -16,57 +16,90 @@ package collector
 
 import (
 	"fmt"
+	"sync"
 	"time"
+	"wireflow/internal/infra"
 
 	"github.com/shirou/gopsutil/v4/cpu"
 )
 
 type CPUCollector struct {
-	// 可配置参数
-}
+	peerManager *infra.PeerManager // 保持和你项目架构一致
 
-func NewCPUCollector() *CPUCollector {
-	return &CPUCollector{}
+	// 缓存数据
+	mu           sync.RWMutex
+	totalPercent float64
+	corePercents []float64
+	lastUpdate   time.Time
 }
 
 func (c *CPUCollector) Name() string {
-	return "cpu"
+	return "cpu_collector"
+}
+
+func NewCPUCollector() MetricCollector {
+	c := &CPUCollector{
+		peerManager: infra.NewPeerManager(),
+	}
+	// 启动后台异步采集协程
+	go c.runSnapshotter()
+	return c
+}
+
+func (c *CPUCollector) runSnapshotter() {
+	// 建议采集频率略高于或等于监控抓取频率
+	ticker := time.NewTicker(2 * time.Second)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		// 只需要阻塞一次，true 表示返回各核，其平均值即为总计
+		percents, err := cpu.Percent(time.Second, true)
+		if err != nil || len(percents) == 0 {
+			continue
+		}
+
+		// 计算总百分比
+		var total float64
+		for _, p := range percents {
+			total += p
+		}
+		avgTotal := total / float64(len(percents))
+
+		// 更新缓存
+		c.mu.Lock()
+		c.totalPercent = avgTotal
+		c.corePercents = percents
+		c.lastUpdate = time.Now()
+		c.mu.Unlock()
+	}
 }
 
 func (c *CPUCollector) Collect() ([]Metric, error) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
 	metrics := make([]Metric, 0)
 	now := time.Now()
 
-	// 只阻塞一次，获取分核数据
-	percentages, err := cpu.Percent(time.Second, true)
-	if err != nil {
-		return nil, err
-	}
-
-	var totalSum float64
-	for i, p := range percentages {
-		// 各核心指标
-		metrics = append(metrics, NewSimpleMetric(
-			"cpu_usage_core",
-			p,
-			map[string]string{"core": fmt.Sprintf("%d", i)},
-			now, // 统一使用同一个时间戳
-			"every cpu usage",
-		))
-		totalSum += p
-	}
-
-	// 通过分核数据算平均值，避免再次调用 cpu.Percent 阻塞 1 秒
-	avgPercent := totalSum / float64(len(percentages))
-
-	// 总体CPU指标
+	// 1. 总体 CPU 指标（直接读内存，耗时为纳秒级）
 	metrics = append(metrics, NewSimpleMetric(
 		"cpu_usage_total",
-		avgPercent,
+		c.totalPercent,
 		map[string]string{"type": "total"},
 		now,
 		"total CPU usage",
 	))
+
+	// 2. 各核心 CPU 指标
+	for i, p := range c.corePercents {
+		metrics = append(metrics, NewSimpleMetric(
+			"cpu_usage_core",
+			p,
+			map[string]string{"core": fmt.Sprintf("%d", i)},
+			now,
+			"per core cpu usage",
+		))
+	}
 
 	return metrics, nil
 }

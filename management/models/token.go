@@ -1,4 +1,4 @@
-package model
+package models
 
 import (
 	"github.com/golang-jwt/jwt/v5"
