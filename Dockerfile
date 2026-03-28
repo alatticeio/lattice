@@ -33,11 +33,18 @@ FROM alpine:latest
 RUN apk add --no-cache wireguard-tools iptables iproute2
 ARG TARGETSERVICE
 
+# 核心逻辑：根据服务名称动态安装工具
+RUN if [ "$TARGETSERVICE" = "wireflow" ]; then \
+        apk add --no-cache wireguard-tools iptables iproute2; \
+    else \
+        apk add --no-cache ca-certificates; \
+    fi
+
 RUN mkdir -p /app /etc/wireflow /var/log/wireflow
 
 WORKDIR /app
 ENV WIREFLOW_CONFIG_DIR=/etc/wireflow
 ENV HOME=/app
-COPY --from=builder /workspace/$TARGETSERVICE .//wireflow
+COPY --from=builder /workspace/$TARGETSERVICE ./wireflow
 
 ENTRYPOINT ["/app/wireflow"]

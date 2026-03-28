@@ -15,6 +15,8 @@
 package cmd
 
 import (
+	"fmt"
+	"os"
 	"wireflow/internal/config"
 	"wireflow/internal/log"
 	"wireflow/management"
@@ -45,7 +47,11 @@ func newManagementCmd() *cobra.Command {
 }
 
 // run drp
-func runManagement(flags *config.Flags) error {
+func runManagement(flags *config.Config) error {
 	log.SetLevel(flags.Level)
+	// pre-flight: 仅在 signaling-url 为空时打印警告（management 可降级运行，但功能受限）
+	if flags.SignalingURL == "" {
+		fmt.Fprintln(os.Stderr, "[pre-flight] 警告: signaling-url 未配置，NATS 信令服务将禁用，Agent 将无法接收 WireGuard 对端更新")
+	}
 	return management.Start(flags)
 }

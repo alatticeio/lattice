@@ -38,7 +38,7 @@ func InitDB(dsn string) {
 	sqlDB.SetConnMaxLifetime(time.Hour)
 
 	// 自动迁移表结构
-	err = DB.AutoMigrate(&models.User{}, &models.Token{}, &models.Workspace{}, &models.WorkspaceMember{})
+	err = DB.AutoMigrate(&models.User{}, &models.UserProfile{}, &models.Token{}, &models.Workspace{}, &models.WorkspaceMember{})
 	if err != nil {
 		log.Printf("自动迁移失败: %v", err)
 	}

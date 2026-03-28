@@ -5,10 +5,9 @@ import (
 	"errors"
 	"wireflow/internal/config"
 	"wireflow/internal/log"
-	"wireflow/management/database"
+	"wireflow/internal/store"
 	"wireflow/management/dto"
 	"wireflow/management/models"
-	"wireflow/management/repository"
 	"wireflow/management/vo"
 	"wireflow/pkg/utils"
 
@@ -28,136 +27,101 @@ type UserService interface {
 }
 
 type userService struct {
-	log                 *log.Logger
-	db                  *gorm.DB
-	userRepo            *repository.UserRepository
-	workspaceRepo       *repository.WorkspaceRepository
-	workspaceMemberRepo *repository.WorkspaceMemberRepository
+	log   *log.Logger
+	store store.Store
 }
 
 func (u *userService) DeleteUser(ctx context.Context, id string) error {
-	return u.userRepo.Delete(ctx, repository.WithID(id))
+	return u.store.Users().Delete(ctx, id)
 }
 
 func (u *userService) AddUser(ctx context.Context, dto *dto.UserDto) error {
-	// 先创建user
-	return u.db.Transaction(func(tx *gorm.DB) error {
-		userRepo := repository.NewUserRepository(tx)
+	return u.store.Tx(ctx, func(s store.Store) error {
 		newUser := &models.User{
 			Username: dto.Username,
 			Password: dto.Password,
 			Role:     dto.Role,
 		}
-		err := userRepo.Create(ctx, newUser)
+		if err := s.Users().Create(ctx, newUser); err != nil {
+			return err
+		}
+		ws, err := s.Workspaces().GetByNamespace(ctx, dto.Namespace)
 		if err != nil {
 			return err
 		}
-
-		workspaceRepo := repository.NewWorkspaceRepository(tx)
-
-		ws, err := workspaceRepo.First(ctx, repository.WithNamespace(dto.Namespace))
-		if err != nil {
-			return err
-		}
-
-		//创建workspace member
-		workspaceMember := models.WorkspaceMember{
+		return s.WorkspaceMembers().AddMember(ctx, &models.WorkspaceMember{
 			Role:        dto.Role,
 			Status:      "active",
 			WorkspaceID: ws.ID,
 			UserID:      newUser.ID,
-		}
-
-		workspaceMemberRepo := repository.NewWorkspaceMemberRepository(tx)
-
-		err = workspaceMemberRepo.Create(ctx, &workspaceMember)
-		if err != nil {
-			return err
-		}
-
-		return nil
+		})
 	})
 }
 
 func (u *userService) OnboardExternalUser(ctx context.Context, subject string, email string) (*models.User, error) {
-	return u.userRepo.OnboardExternalUser(ctx, subject, email)
+	existing, err := u.store.Users().GetByExternalID(ctx, subject)
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, err
+	}
+	if existing != nil {
+		return existing, nil
+	}
+	user := &models.User{ExternalID: subject, Email: email}
+	return user, u.store.Users().Create(ctx, user)
 }
 
 func (u *userService) List(ctx context.Context, req *dto.PageRequest) (*dto.PageResult[vo.UserVo], error) {
-	return u.userRepo.List(ctx, req)
+	return u.store.Users().List(ctx, req)
 }
 
 func (u *userService) InitAdmin(ctx context.Context, admins []config.AdminConfig) error {
 	for _, admin := range admins {
-		// 1. 检查是否存在名为 admin 的用户
-		count, err := u.userRepo.Count(ctx, repository.WithUsername(admin.Username))
-		if err != nil {
+		existing, err := u.store.Users().GetByUsername(ctx, admin.Username)
+		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 			return err
 		}
-
-		if count == 0 {
-			// 2. 不存在则创建
+		if existing == nil {
 			newUser := models.User{
 				Username: admin.Username,
-				Password: admin.Password, // 记得加密！
+				Password: admin.Password,
 				Role:     dto.RoleAdmin,
 			}
-			if err = u.userRepo.Create(ctx, &newUser); err != nil {
+			if err = u.store.Users().Create(ctx, &newUser); err != nil {
 				u.log.Error("初始化管理员失败", err)
 			} else {
 				u.log.Info("✅ 初始管理员账号创建成功", "username", newUser.Username)
 			}
 		}
 	}
-
 	return nil
 }
 
 func (u *userService) GetMe(ctx context.Context, id string) (*models.User, error) {
-	return u.userRepo.First(ctx, repository.WithID(id))
+	return u.store.Users().GetByID(ctx, id)
 }
 
 func (u *userService) Register(ctx context.Context, userDto dto.UserDto) error {
-	return u.userRepo.WithTransaction(func(txRepo *repository.BaseRepository[models.User]) error {
-		password, err := utils.EncryptPassword(userDto.Password)
-		if err != nil {
-			return err
-		}
-
-		return txRepo.Create(ctx, &models.User{
-			Username: userDto.Username,
-			Password: password,
-		})
+	password, err := utils.EncryptPassword(userDto.Password)
+	if err != nil {
+		return err
+	}
+	return u.store.Users().Create(ctx, &models.User{
+		Username: userDto.Username,
+		Password: password,
 	})
 }
 
-func (s *userService) Login(ctx context.Context, username, password string) (*models.User, error) {
-	// 1. 调用 Repository 获取用户
-	user, err := s.userRepo.Login(ctx, username, password)
+func (u *userService) Login(ctx context.Context, username, password string) (*models.User, error) {
+	user, err := u.store.Users().Login(ctx, username, password)
 	if err != nil {
 		return nil, errors.New("用户不存在或密码错误")
 	}
-
-	//// 核心校验步骤：
-	//// 第一个参数是数据库里的密文，第二个参数是用户输入的明文
-	//err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password))
-	//if err != nil {
-	//	return nil, errors.New("用户不存在或密码错误")
-	//}
-
 	return user, nil
 }
 
-func (s *userService) Get() {
-
-}
-
-func NewUserService() UserService {
+func NewUserService(st store.Store) UserService {
 	return &userService{
-		log:                 log.GetLogger("user-service"),
-		db:                  database.DB,
-		userRepo:            repository.NewUserRepository(database.DB),
-		workspaceRepo:       repository.NewWorkspaceRepository(database.DB),
-		workspaceMemberRepo: repository.NewWorkspaceMemberRepository(database.DB),
+		log:   log.GetLogger("user-service"),
+		store: st,
 	}
 }

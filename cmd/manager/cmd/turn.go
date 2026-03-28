@@ -47,7 +47,7 @@ func newTurnCmd() *cobra.Command {
 }
 
 func runTurn() error {
-	signalService, err := nats.NewNatsService(context.Background(), config.Conf.SignalingURL)
+	signalService, err := nats.NewNatsService(context.Background(), "turn", "client", config.Conf.SignalingURL)
 	if err != nil {
 		return err
 	}

@@ -38,17 +38,16 @@ var (
 type iceDialer struct {
 	mu          sync.Mutex
 	log         *log.Logger
-	localId     infra.PeerID
-	remoteId    infra.PeerID
+	localId     infra.PeerIdentity
+	remoteId    infra.PeerIdentity
 	sender      func(ctx context.Context, peerId infra.PeerID, data []byte) error
-	onClose     func(peerId infra.PeerID)
+	onClose     func(peerId infra.PeerIdentity)
 	provisioner infra.Provisioner // nolint
 	agent       *AgentWrapper
 	closeOnce   sync.Once
 	showLog     bool
-	peerManager *infra.PeerManager
-
-	peerStore *infra.PeerStore
+	localPeer   *infra.Peer
+	onPeerReceived func(peer infra.Peer)
 
 	// offerReady start Dial() after receiving offer
 	offerReady chan struct{}
@@ -60,18 +59,18 @@ type iceDialer struct {
 
 type ICEDialerConfig struct {
 	Sender                  func(ctx context.Context, peerId infra.PeerID, data []byte) error
-	LocalId                 infra.PeerID
-	RemoteId                infra.PeerID
-	OnClose                 func(peerId infra.PeerID)
+	LocalId                 infra.PeerIdentity
+	RemoteId                infra.PeerIdentity
+	OnClose                 func(peerId infra.PeerIdentity)
 	UniversalUdpMuxDefault  *ice.UniversalUDPMuxDefault
 	Configurer              infra.Provisioner
-	PeerManager             *infra.PeerManager
-	PeerStore               *infra.PeerStore
+	LocalPeer               *infra.Peer
+	OnPeerReceived          func(peer infra.Peer)
 	ShowLog                 bool
 	OnConnectionStateChange func(state ice.ConnectionState)
 }
 
-func (i *iceDialer) Handle(ctx context.Context, remoteId infra.PeerID, packet *grpc.SignalPacket) error {
+func (i *iceDialer) Handle(ctx context.Context, remoteId infra.PeerIdentity, packet *grpc.SignalPacket) error {
 	if packet.Dialer != grpc.DialerType_ICE {
 		return nil
 	}
@@ -95,25 +94,23 @@ func (i *iceDialer) Handle(ctx context.Context, remoteId infra.PeerID, packet *g
 			}
 			i.agent = agent
 		}
-		// start send offer (locaId < remoteId)
+		// start send offer (localId < remoteId)
 		return i.agent.GatherCandidates()
 	case grpc.PacketType_OFFER, grpc.PacketType_ANSWER:
 		i.log.Debug("receive offer", "remoteId", remoteId)
-		offer := packet.GetOffer() //第一次接收
+		offer := packet.GetOffer()
 		if !i.agent.IsCredentialsInited.Load() {
 			i.agent.RUfrag = offer.Ufrag
 			i.agent.RPwd = offer.Pwd
 			i.agent.RTieBreaker = offer.TieBreaker
 			i.agent.IsCredentialsInited.Store(true)
 
-			currentData := offer.Current
 			var remotePeer infra.Peer
-			if err := json.Unmarshal(currentData, &remotePeer); err != nil {
+			if err := json.Unmarshal(offer.Current, &remotePeer); err != nil {
 				return err
 			}
 
-			// cache peer
-			i.peerManager.AddPeer(i.remoteId.ToUint64(), &remotePeer)
+			i.onPeerReceived(remotePeer)
 		}
 
 		candidate, err := ice.UnmarshalCandidate(offer.Candidate)
@@ -142,14 +139,14 @@ func NewIceDialer(cfg *ICEDialerConfig) infra.Dialer {
 		remoteId:               cfg.RemoteId,
 		universalUdpMuxDefault: cfg.UniversalUdpMuxDefault,
 		showLog:                cfg.ShowLog,
-		peerManager:            cfg.PeerManager,
-		peerStore:              cfg.PeerStore,
+		localPeer:              cfg.LocalPeer,
+		onPeerReceived:         cfg.OnPeerReceived,
 		offerReady:             make(chan struct{}),
 	}
 }
 
-// Prepare prepare to send offer, send handshake packet first to remote when localId > remoteId.
-func (i *iceDialer) Prepare(ctx context.Context, remoteId infra.PeerID) error {
+// Prepare sends handshake SYN when localId > remoteId (lexicographic on PeerID string).
+func (i *iceDialer) Prepare(ctx context.Context, remoteId infra.PeerIdentity) error {
 	// init agent
 	if i.agent == nil {
 		agent, err := i.getAgent(remoteId)
@@ -158,8 +155,7 @@ func (i *iceDialer) Prepare(ctx context.Context, remoteId infra.PeerID) error {
 		}
 		i.agent = agent
 	}
-	localIdStr, remoteIdStr := i.localId.String(), remoteId.String()
-	i.log.Debug("prepare ice", "localId", i.localId, "remoteId", remoteId, "shouldSync", localIdStr > remoteIdStr)
+	i.log.Debug("prepare ice", "localId", i.localId, "remoteId", remoteId, "shouldSync", i.localId.String() > remoteId.String())
 	// only send syn when localId > remoteId
 	if i.localId.String() < remoteId.String() {
 		i.log.Debug("localId < remoteId, ignore prepare")
@@ -168,13 +164,11 @@ func (i *iceDialer) Prepare(ctx context.Context, remoteId infra.PeerID) error {
 
 	// send syn
 	go func() {
-		// send syn
 		ticker := time.NewTicker(2 * time.Second)
 		defer ticker.Stop()
 		newCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
 		defer cancel()
 
-		// safe
 		i.mu.Lock()
 		if i.cancel != nil {
 			i.cancel()
@@ -225,14 +219,13 @@ func (i *iceDialer) Type() infra.DialerType {
 	return infra.ICE_DIALER
 }
 
-func (i *iceDialer) getAgent(remoteId infra.PeerID) (*AgentWrapper, error) {
+func (i *iceDialer) getAgent(remoteId infra.PeerIdentity) (*AgentWrapper, error) {
 	f := logging.NewDefaultLoggerFactory()
-	f.DefaultLogLevel = logging.LogLevelDebug
 	if i.showLog {
+		f.DefaultLogLevel = logging.LogLevelDebug
 	} else {
 		f.DefaultLogLevel = logging.LogLevelError
 	}
-	//创建新 Agent
 	iceAgent, err := ice.NewAgent(&ice.AgentConfig{
 		UDPMux:         i.universalUdpMuxDefault.UDPMuxDefault,
 		UDPMuxSrflx:    i.universalUdpMuxDefault,
@@ -243,29 +236,15 @@ func (i *iceDialer) getAgent(remoteId infra.PeerID) (*AgentWrapper, error) {
 		CandidateTypes: []ice.CandidateType{ice.CandidateTypeHost, ice.CandidateTypeServerReflexive},
 	})
 
-	//iceAgent, err := ice.NewAgent(&ice.AgentConfig{
-	//	NetworkTypes:  []ice.NetworkType{ice.NetworkTypeUDP4},
-	//	LoggerFactory: f,
-	//	Tiebreaker:    uint64(ice.NewTieBreaker()),
-	//})
-
 	var agent *AgentWrapper
 	if err == nil {
-		agent = &AgentWrapper{
-			Agent: iceAgent,
-		}
-		// 绑定状态监听，成功后更新 WireGuard
+		agent = &AgentWrapper{Agent: iceAgent}
 		err = agent.OnConnectionStateChange(func(s ice.ConnectionState) {
 			i.log.Debug("ice state changed", "state", s)
-			if s == ice.ConnectionStateConnected {
-				i.log.Debug("ice connected")
-			}
-
 			if s == ice.ConnectionStateDisconnected || s == ice.ConnectionStateFailed {
 				i.close()
 			}
 		})
-
 		if err != nil {
 			return nil, err
 		}
@@ -275,11 +254,9 @@ func (i *iceDialer) getAgent(remoteId infra.PeerID) (*AgentWrapper, error) {
 		if candidate == nil {
 			return
 		}
-
 		if err = i.sendPacket(context.TODO(), remoteId, grpc.PacketType_OFFER, candidate); err != nil {
 			i.log.Error("Send candidate", err)
 		}
-
 		i.log.Debug("Sending candidate", "remoteId", remoteId, "candidate", candidate)
 	}); err != nil {
 		return nil, err
@@ -288,10 +265,12 @@ func (i *iceDialer) getAgent(remoteId infra.PeerID) (*AgentWrapper, error) {
 	return agent, err
 }
 
-func (i *iceDialer) sendPacket(ctx context.Context, remoteId infra.PeerID, packetType grpc.PacketType, candidate ice.Candidate) error {
+// sendPacket sends a signal packet to remoteId.
+// PeerIdentity.ID() is used for NATS routing; PublicKey is used in OFFER payload.
+func (i *iceDialer) sendPacket(ctx context.Context, remoteId infra.PeerIdentity, packetType grpc.PacketType, candidate ice.Candidate) error {
 	p := &grpc.SignalPacket{
 		Type:     packetType,
-		SenderId: i.localId.ToUint64(),
+		SenderId: i.localId.ID().ToUint64(),
 	}
 
 	switch packetType {
@@ -303,7 +282,7 @@ func (i *iceDialer) sendPacket(ctx context.Context, remoteId infra.PeerID, packe
 		}
 	case grpc.PacketType_OFFER:
 		agent := i.agent
-		current := i.peerManager.GetPeer(i.localId.ToUint64())
+		current := i.localPeer
 		currentData, err := json.Marshal(current)
 		if err != nil {
 			return err
@@ -312,12 +291,9 @@ func (i *iceDialer) sendPacket(ctx context.Context, remoteId infra.PeerID, packe
 		if err != nil {
 			return err
 		}
-
-		currentKey, b := i.peerStore.GetKeyByID(i.localId)
-		if !b {
-			return fmt.Errorf("peer not found: %s", i.localId)
+		if candidate == nil {
+			return fmt.Errorf("candidate is nil for OFFER")
 		}
-
 		p.Payload = &grpc.SignalPacket_Offer{
 			Offer: &grpc.Offer{
 				Ufrag:      ufrag,
@@ -325,7 +301,7 @@ func (i *iceDialer) sendPacket(ctx context.Context, remoteId infra.PeerID, packe
 				TieBreaker: agent.GetTieBreaker(),
 				Candidate:  candidate.Marshal(),
 				Current:    currentData,
-				PublicKey:  currentKey.String(),
+				PublicKey:  i.localId.PublicKey.String(), // directly from PeerIdentity
 			},
 		}
 	}
@@ -333,8 +309,7 @@ func (i *iceDialer) sendPacket(ctx context.Context, remoteId infra.PeerID, packe
 	if err != nil {
 		return err
 	}
-	return i.sender(ctx, remoteId, data)
-
+	return i.sender(ctx, remoteId.ID(), data)
 }
 
 func (i *iceDialer) close() error {
@@ -343,15 +318,10 @@ func (i *iceDialer) close() error {
 		if err := i.agent.Close(); err != nil {
 			i.log.Error("close agent", err)
 		}
-
 		if i.onClose != nil {
 			i.onClose(i.remoteId)
 		}
-
-		//remove peer
-		//i.Remove(t.remoteId, "")
 	})
-
 	return nil
 }
 

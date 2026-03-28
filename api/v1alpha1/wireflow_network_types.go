@@ -51,7 +51,7 @@ type WireflowNetworkStatus struct {
 
 	ActiveCIDR string `json:"activeCIDR,omitempty"`
 
-	// 已分配的 IP 列表
+	// +optional
 	AllocatedCount int `json:"allocatedCount,omitempty"`
 
 	// 可用 IP 数量

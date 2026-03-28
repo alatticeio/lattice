@@ -44,8 +44,8 @@ func (c *PeerStatusCollector) Collect() ([]Metric, error) {
 		// 假设你的 peerManager 存储了公钥到信息的映射
 		alias := "unknown"
 		internalIP := "0.0.0.0"
-		peerId := infra.FromKey(peer.PublicKey).ToUint64()
-		cachedPeer := c.peerManager.GetPeer(peerId)
+		peerID := infra.FromKey(peer.PublicKey)
+		cachedPeer := c.peerManager.GetByPeerID(peerID)
 		if cachedPeer != nil {
 			alias = cachedPeer.Name
 			internalIP = *cachedPeer.Address
@@ -60,9 +60,9 @@ func (c *PeerStatusCollector) Collect() ([]Metric, error) {
 		// 4. 封装为你的通用 Metric 结构
 		// 增加更多维度的标签，方便在 Grafana 里进行筛选
 		labels := map[string]string{
-			"peer_id": string(peerId), // 取公钥前8位作为 ID
-			"alias":   alias,          // 节点别名
-			"ip":      internalIP,     // 隧道内 IP
+			"peer_id": peerID.String(), // 取公钥前8位作为 ID
+			"alias":   alias,                     // 节点别名
+			"ip":      internalIP,                // 隧道内 IP
 		}
 
 		metrics = append(metrics, NewSimpleMetric(

@@ -21,10 +21,9 @@ import (
 	"time"
 	"wireflow/internal/infra"
 	"wireflow/internal/log"
-	"wireflow/management/database"
+	"wireflow/internal/store"
 	"wireflow/management/dto"
 	"wireflow/management/models"
-	"wireflow/management/repository"
 	"wireflow/management/resource"
 	"wireflow/management/vo"
 
@@ -57,8 +56,7 @@ type PeerService interface {
 type peerService struct {
 	logger *log.Logger
 	client *resource.Client
-
-	workspaceRepo *repository.WorkspaceRepository
+	store  store.Store
 }
 
 func (p *peerService) UpdatePeer(ctx context.Context, peerDto *dto.PeerDto) (*vo.PeerVo, error) {
@@ -68,26 +66,20 @@ func (p *peerService) UpdatePeer(ctx context.Context, peerDto *dto.PeerDto) (*vo
 	}
 
 	peerLabels := peer.GetLabels()
-
-	// 1. 安全检查：如果 labels 为 nil，必须初始化才能进行添加操作
 	if peerLabels == nil {
 		peerLabels = make(map[string]string)
 	}
 
 	if peerDto.Labels != nil {
-		// 逻辑：以 peerDto.Labels 为准更新 peerLabels
 		for k, v := range peerDto.Labels {
 			if v == "" {
-				// 约定俗成：如果值为空字符串，则删除该 Label
 				delete(peerLabels, k)
 			} else {
-				// 否则，添加或覆盖 Label
 				peerLabels[k] = v
 			}
 		}
 	}
 
-	// 2. 将修改后的 labels 写回对象
 	peer.SetLabels(peerLabels)
 
 	err := p.client.Update(ctx, &peer)
@@ -117,19 +109,17 @@ func (p *peerService) ListPeers(ctx context.Context, pageParam *dto.PageRequest)
 		workspaceId = workspaceV.(string)
 	}
 
-	workspace, err := p.workspaceRepo.GetByID(ctx, workspaceId)
+	workspace, err := p.store.Workspaces().GetByID(ctx, workspaceId)
 	if err != nil {
 		return nil, err
 	}
 
 	err = p.client.GetAPIReader().List(ctx, &peerList, client.InNamespace(workspace.Namespace))
-
 	if err != nil {
 		return nil, err
 	}
 
-	// 2. 获取全量数据（模拟）
-	allPeers := []*models.Peer{ /* ... 很多数据 ... */ }
+	allPeers := []*models.Peer{}
 
 	for _, n := range peerList.Items {
 		allPeers = append(allPeers, &models.Peer{
@@ -141,7 +131,6 @@ func (p *peerService) ListPeers(ctx context.Context, pageParam *dto.PageRequest)
 		})
 	}
 
-	// 3. 逻辑过滤（搜索）
 	var filteredNodes []*models.Peer
 	if pageParam.Keyword != "" {
 		for _, n := range allPeers {
@@ -153,12 +142,9 @@ func (p *peerService) ListPeers(ctx context.Context, pageParam *dto.PageRequest)
 		filteredNodes = allPeers
 	}
 
-	// 4. 执行内存切片分页
 	total := len(filteredNodes)
 	start := (pageParam.Page - 1) * pageParam.PageSize
 	end := start + pageParam.PageSize
-
-	// 防止切片越界越界
 	if start > total {
 		start = total
 	}
@@ -166,27 +152,14 @@ func (p *peerService) ListPeers(ctx context.Context, pageParam *dto.PageRequest)
 		end = total
 	}
 
-	// 截取
-	data := filteredNodes[start:end]
-	var res []*vo.PeerVo
-	for _, n := range data {
-		res = append(res, &vo.PeerVo{
+	var vos []vo.PeerVo
+	for _, n := range filteredNodes[start:end] {
+		vos = append(vos, vo.PeerVo{
 			Name:      n.Name,
 			PublicKey: n.PublicKey,
 			AppID:     n.AppID,
 			Labels:    n.Labels,
 		})
-	}
-
-	var vos []vo.PeerVo
-	for _, n := range res {
-		evin := vo.PeerVo{
-			Name:      n.Name,
-			PublicKey: n.PublicKey,
-			AppID:     n.AppID,
-			Labels:    n.Labels,
-		}
-		vos = append(vos, evin)
 	}
 
 	return &dto.PageResult[vo.PeerVo]{
@@ -210,7 +183,6 @@ func (p *peerService) CreateToken(ctx context.Context, tokenDto *dto.TokenDto) (
 				return nil, err
 			}
 
-			// 计算过期时间点（Unix 秒）
 			expiryTimestamp := time.Now().Add(duration).Unix()
 
 			token = v1alpha1.WireflowEnrollmentToken{
@@ -233,21 +205,16 @@ func (p *peerService) CreateToken(ctx context.Context, tokenDto *dto.TokenDto) (
 				return nil, err
 			}
 		}
-
 	}
 
 	return []byte(token.Spec.Token), nil
 }
 
-func (p *peerService) Join(ctx context.Context, dto *dto.PeerDto) (*infra.Peer, error) {
-	return nil, nil
-}
-
-func NewPeerService(client *resource.Client) PeerService {
+func NewPeerService(client *resource.Client, st store.Store) PeerService {
 	return &peerService{
-		client:        client,
-		logger:        log.GetLogger("peer-service"),
-		workspaceRepo: repository.NewWorkspaceRepository(database.DB),
+		client: client,
+		logger: log.GetLogger("peer-service"),
+		store:  st,
 	}
 }
 
@@ -273,13 +240,11 @@ func (p *peerService) Register(ctx context.Context, dto *dto.PeerDto) (*infra.Pe
 	}
 
 	node, err := p.client.Register(ctx, token.Namespace, dto)
-
 	if err != nil {
 		return nil, err
 	}
 
-	// setToken if bootstrap success
-	node.Token = token.Status.Token
+	node.Token = token.Spec.Token
 	return node, nil
 }
 
@@ -289,7 +254,7 @@ func (p *peerService) checkToken(ctx context.Context, tokenStr string) (bool, *v
 	}
 
 	var list v1alpha1.WireflowEnrollmentTokenList
-	err := p.client.List(ctx, &list, client.MatchingFields{"status.token": tokenStr})
+	err := p.client.List(ctx, &list, client.MatchingFields{"spec.token": tokenStr})
 	if err != nil {
 		return false, nil, fmt.Errorf("get token failed: %v", err)
 	}
@@ -300,7 +265,7 @@ func (p *peerService) checkToken(ctx context.Context, tokenStr string) (bool, *v
 
 	var token *v1alpha1.WireflowEnrollmentToken
 	for _, t := range list.Items {
-		if t.Status.Token == tokenStr {
+		if t.Spec.Token == tokenStr {
 			token = &t
 		}
 	}
@@ -309,19 +274,11 @@ func (p *peerService) checkToken(ctx context.Context, tokenStr string) (bool, *v
 		return false, nil, fmt.Errorf("Token not exists")
 	}
 
-	// 2. 校验逻辑（同步返回错误）
-	//if time.Now().After(token.Spec.Expiry) {
-	//	return false, nil, fmt.Errorf("Token 已过期")
-	//}
-
-	//更新
 	if err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		// 重新拉取最新版本进行更新
 		latestToken := &v1alpha1.WireflowEnrollmentToken{}
 		if err = p.client.GetCache().Get(ctx, client.ObjectKeyFromObject(token), latestToken); err != nil {
 			return err
 		}
-
 		latestToken.Status.UsedCount++
 		return p.client.Status().Update(ctx, latestToken)
 	}); err != nil {
@@ -343,24 +300,19 @@ func (p *peerService) ensureNamespace(ctx context.Context, nsName string) error 
 	if err := p.client.Get(ctx, client.ObjectKey{Name: nsName}, &ns); err != nil {
 		if errors.IsNotFound(err) {
 			p.logger.Info("Creating namespace", "name", nsName)
-			// 创建 Namespace
 			if err = p.client.Create(ctx, &corev1.Namespace{
 				ObjectMeta: metav1.ObjectMeta{
-					Name: nsName,
-					Labels: map[string]string{
-						"app.kubernetes.io/managed-by": "wireflow-controller",
-					},
+					Name:   nsName,
+					Labels: map[string]string{"app.kubernetes.io/managed-by": "wireflow-controller"},
 				},
 			}); err != nil {
 				p.logger.Error("create namespace failed", err)
 			}
 		}
 	}
-
 	return nil
 }
 
-// EnsureNamespaceForPeer 为新接入的节点确保环境就绪
 func (p *peerService) ensureDefaultNetwork(ctx context.Context, nsName string) error {
 	var defaultNet v1alpha1.WireflowNetwork
 	if err := p.client.Get(ctx, client.ObjectKey{Namespace: nsName, Name: "wireflow-default-net"}, &defaultNet); err != nil {
@@ -369,9 +321,7 @@ func (p *peerService) ensureDefaultNetwork(ctx context.Context, nsName string) e
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "wireflow-default-net",
 					Namespace: nsName,
-					Labels: map[string]string{
-						"app.kubernetes.io/managed-by": "wireflow-controller", // 必须对应
-					},
+					Labels:    map[string]string{"app.kubernetes.io/managed-by": "wireflow-controller"},
 				},
 				Spec: v1alpha1.WireflowNetworkSpec{
 					Name: fmt.Sprintf("%s-net", nsName),
@@ -383,6 +333,5 @@ func (p *peerService) ensureDefaultNetwork(ctx context.Context, nsName string) e
 			}
 		}
 	}
-
 	return nil
 }

@@ -16,6 +16,7 @@ package controller
 
 import (
 	"context"
+	"sort"
 	"wireflow/api/v1alpha1"
 	"wireflow/internal/infra"
 
@@ -79,11 +80,14 @@ func GetComputedPeers(current *infra.Peer, network *infra.Network, policies []*v
 		}
 	}
 
-	// 转换为 Slice 返回
+	// 转换为 Slice 返回，按 Name 排序保证 hash 稳定
 	result := make([]*infra.Peer, 0, len(finalPeersMap))
 	for _, p := range finalPeersMap {
 		result = append(result, p)
 	}
+	sort.Slice(result, func(i, j int) bool {
+		return result[i].Name < result[j].Name
+	})
 
 	return result
 }

@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"wireflow/internal/store"
 	"wireflow/management/dto"
 	"wireflow/management/resource"
 	"wireflow/management/service"
@@ -30,8 +31,8 @@ func (p *policyController) CreateOrUpdatePolicy(ctx context.Context, policyDto *
 	return p.policyService.CreateOrUpdatePolicy(ctx, policyDto)
 }
 
-func NewPolicyController(client *resource.Client) PolicyController {
+func NewPolicyController(client *resource.Client, st store.Store) PolicyController {
 	return &policyController{
-		policyService: service.NewPolicyService(client),
+		policyService: service.NewPolicyService(client, st),
 	}
 }

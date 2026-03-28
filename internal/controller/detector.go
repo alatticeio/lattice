@@ -17,6 +17,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"sort"
 	"sync"
 	"time"
 	v1alpha1 "wireflow/api/v1alpha1"
@@ -313,7 +314,7 @@ func (d *Generator) generate(ctx context.Context, current *v1alpha1.WireflowPeer
 		msg.Network.NetworkId = snapshot.Network.Name
 		msg.Network.NetworkName = snapshot.Network.Spec.Name
 
-		// 填充 peers
+		// 填充 peers，按 Name 排序保证 hash 稳定
 		for _, p := range snapshot.Peers {
 			if p.Status.AllocatedAddress == nil {
 				continue
@@ -321,6 +322,9 @@ func (d *Generator) generate(ctx context.Context, current *v1alpha1.WireflowPeer
 
 			msg.Network.Peers = append(msg.Network.Peers, transferToPeer(p))
 		}
+		sort.Slice(msg.Network.Peers, func(i, j int) bool {
+			return msg.Network.Peers[i].Name < msg.Network.Peers[j].Name
+		})
 	}
 
 	msg.ComputedPeers, err = d.peerResolver.ResolvePeers(ctx, msg, snapshot.Policies)
@@ -372,36 +376,43 @@ func (d *Generator) buildPolicy(ctx context.Context, src *v1alpha1.WireflowPolic
 	srcIngresses := src.Spec.Ingress
 	srcEgresses := src.Spec.Egress
 	for _, ingress := range srcIngresses {
-		rule := &infra.Rule{}
 		peers, err := d.getPeerFromLabels(ctx, ingress.From)
 		if err != nil {
 			log.Error(err, "failed to get peers from labels", "labels", ingress.From)
 			continue
 		}
-
-		rule.Peers = peers
-
-		if len(ingress.Ports) > 0 {
-			rule.Protocol = ingress.Ports[0].Protocol
-			rule.Port = int(ingress.Ports[0].Port)
+		// 每个 port 生成一条独立的 Rule，支持同一 from 下多端口
+		// 若未指定 ports，生成一条 Protocol/Port 为零值的 Rule（允许所有流量）
+		if len(ingress.Ports) == 0 {
+			ingresses = append(ingresses, &infra.Rule{Peers: peers})
+		} else {
+			for _, port := range ingress.Ports {
+				ingresses = append(ingresses, &infra.Rule{
+					Peers:    peers,
+					Protocol: port.Protocol,
+					Port:     int(port.Port),
+				})
+			}
 		}
-		ingresses = append(ingresses, rule)
 	}
 
 	for _, egress := range srcEgresses {
-		rule := &infra.Rule{}
 		peers, err := d.getPeerFromLabels(ctx, egress.To)
 		if err != nil {
 			log.Error(err, "failed to get peers from labels", "labels", egress.To)
 			continue
 		}
-
-		rule.Peers = peers
-		if len(egress.Ports) > 0 {
-			rule.Protocol = egress.Ports[0].Protocol
-			rule.Port = int(egress.Ports[0].Port)
+		if len(egress.Ports) == 0 {
+			egresses = append(egresses, &infra.Rule{Peers: peers})
+		} else {
+			for _, port := range egress.Ports {
+				egresses = append(egresses, &infra.Rule{
+					Peers:    peers,
+					Protocol: port.Protocol,
+					Port:     int(port.Port),
+				})
+			}
 		}
-		egresses = append(egresses, rule)
 	}
 
 	policy.Ingress = ingresses
@@ -440,11 +451,14 @@ func (d *Generator) getPeerFromLabels(ctx context.Context, rules []v1alpha1.Peer
 		}
 	}
 
-	// 4. 将 map 中的节点转换为切片作为最终结果返回
+	// 4. 将 map 中的节点转换为切片作为最终结果返回，按 Name 排序保证 hash 稳定
 	result := make([]*infra.Peer, 0, len(foundNodes))
 	for _, node := range foundNodes {
 		result = append(result, transferToPeer(&node))
 	}
+	sort.Slice(result, func(i, j int) bool {
+		return result[i].Name < result[j].Name
+	})
 
 	return result, nil
 }

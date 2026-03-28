@@ -1,0 +1,7 @@
+@import "tailwindcss";
+@plugin "daisyui";
+
+#nprogress .bar {
+    background: linear-gradient(to right, #00c6ff, #0072ff) !important; /* 从亮蓝到深蓝的渐变 */
+    height: 4px !important;
+}

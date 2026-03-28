@@ -1,332 +1,361 @@
-/*
-Copyright 2025.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
 package e2e
 
 import (
+	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
-	"os"
-	"os/exec"
-	"path/filepath"
+	"net/http"
+	"strings"
 	"time"
+
+	"wireflow/api/v1alpha1"
+	"wireflow/management/dto"
+	"wireflow/pkg/utils/resp"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-
-	"wireflow/test/utils"
+	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/remotecommand"
+	sigclient "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-// namespace where the project is deployed in
-const namespace = "wireflow-controller-system"
+const (
+	podA = "pod-a"
+	podB = "pod-b"
+)
 
-// serviceAccountName created for the project
-const serviceAccountName = "wireflow-controller-controller-manager"
+var _ = Describe("Wireflow 核心连通性 E2E", Ordered, func() {
+	var (
+		accessToken string
+		workspaceId string
+		joinToken   string
+		httpClient  = &http.Client{Timeout: 15 * time.Second}
+		ctx         = context.Background()
+	)
 
-// metricsServiceName is the name of the metrics service of the project
-const metricsServiceName = "wireflow-controller-controller-manager-metrics-service"
-
-// metricsRoleBindingName is the name of the RBAC that will be created to allow get the metrics data
-const metricsRoleBindingName = "wireflow-controller-metrics-binding"
-
-var _ = Describe("Manager", Ordered, func() {
-	var controllerPodName string
-
-	// Before running the tests, set up the environment by creating the namespace,
-	// enforce the restricted security policy to the namespace, installing CRDs,
-	// and deploying the controller.
-	BeforeAll(func() {
-		By("creating manager namespace")
-		cmd := exec.Command("kubectl", "create", "ns", namespace)
-		_, err := utils.Run(cmd)
-		Expect(err).NotTo(HaveOccurred(), "Failed to create namespace")
-
-		By("labeling the namespace to enforce the restricted security policy")
-		cmd = exec.Command("kubectl", "label", "--overwrite", "ns", namespace,
-			"pod-security.kubernetes.io/enforce=restricted")
-		_, err = utils.Run(cmd)
-		Expect(err).NotTo(HaveOccurred(), "Failed to label namespace with restricted policy")
-
-		By("installing CRDs")
-		cmd = exec.Command("make", "install")
-		_, err = utils.Run(cmd)
-		Expect(err).NotTo(HaveOccurred(), "Failed to install CRDs")
-
-		By("deploying the controller-manager")
-		cmd = exec.Command("make", "deploy", fmt.Sprintf("IMG=%s", projectImage))
-		_, err = utils.Run(cmd)
-		Expect(err).NotTo(HaveOccurred(), "Failed to deploy the controller-manager")
-	})
-
-	// After all tests have been executed, clean up by undeploying the controller, uninstalling CRDs,
-	// and deleting the namespace.
+	// 失败时收集诊断日志，帮助排查问题
 	AfterAll(func() {
-		By("cleaning up the curl pod for metrics")
-		cmd := exec.Command("kubectl", "delete", "pod", "curl-metrics", "-n", namespace)
-		_, _ = utils.Run(cmd)
-
-		By("undeploying the controller-manager")
-		cmd = exec.Command("make", "undeploy")
-		_, _ = utils.Run(cmd)
-
-		By("uninstalling CRDs")
-		cmd = exec.Command("make", "uninstall")
-		_, _ = utils.Run(cmd)
-
-		By("removing manager namespace")
-		cmd = exec.Command("kubectl", "delete", "ns", namespace)
-		_, _ = utils.Run(cmd)
-	})
-
-	// After each test, check for failures and collect logs, events,
-	// and pod descriptions for debugging.
-	AfterEach(func() {
-		specReport := CurrentSpecReport()
-		if specReport.Failed() {
-			By("Fetching controller manager pod logs")
-			cmd := exec.Command("kubectl", "logs", controllerPodName, "-n", namespace)
-			controllerLogs, err := utils.Run(cmd)
-			if err == nil {
-				_, _ = fmt.Fprintf(GinkgoWriter, "Controller logs:\n %s", controllerLogs)
-			} else {
-				_, _ = fmt.Fprintf(GinkgoWriter, "Failed to get Controller logs: %s", err)
-			}
-
-			By("Fetching Kubernetes events")
-			cmd = exec.Command("kubectl", "get", "events", "-n", namespace, "--sort-by=.lastTimestamp")
-			eventsOutput, err := utils.Run(cmd)
-			if err == nil {
-				_, _ = fmt.Fprintf(GinkgoWriter, "Kubernetes events:\n%s", eventsOutput)
-			} else {
-				_, _ = fmt.Fprintf(GinkgoWriter, "Failed to get Kubernetes events: %s", err)
-			}
-
-			By("Fetching curl-metrics logs")
-			cmd = exec.Command("kubectl", "logs", "curl-metrics", "-n", namespace)
-			metricsOutput, err := utils.Run(cmd)
-			if err == nil {
-				_, _ = fmt.Fprintf(GinkgoWriter, "Metrics logs:\n %s", metricsOutput)
-			} else {
-				_, _ = fmt.Fprintf(GinkgoWriter, "Failed to get curl-metrics logs: %s", err)
-			}
-
-			By("Fetching controller manager pod description")
-			cmd = exec.Command("kubectl", "describe", "pod", controllerPodName, "-n", namespace)
-			podDescription, err := utils.Run(cmd)
-			if err == nil {
-				fmt.Println("Pod description:\n", podDescription)
-			} else {
-				fmt.Println("Failed to describe controller pod")
-			}
+		if CurrentSpecReport().Failed() {
+			collectDiagnostics(ctx, ns)
 		}
 	})
 
-	SetDefaultEventuallyTimeout(2 * time.Minute)
-	SetDefaultEventuallyPollingInterval(time.Second)
+	It("全链路：登录 → 建 Workspace → 生成 Token → 拉起 Pod → 验证隧道互通", func() {
 
-	Context("Manager", func() {
-		It("should run successfully", func() {
-			By("validating that the controller-manager pod is running as expected")
-			verifyControllerUp := func(g Gomega) {
-				// Get the name of the controller-manager pod
-				cmd := exec.Command("kubectl", "get",
-					"pods", "-l", "control-plane=controller-manager",
-					"-o", "go-template={{ range .items }}"+
-						"{{ if not .metadata.deletionTimestamp }}"+
-						"{{ .metadata.name }}"+
-						"{{ \"\\n\" }}{{ end }}{{ end }}",
-					"-n", namespace,
-				)
+		By("步骤 1: 登录 Manager，获取 Admin Access Token")
+		loginBody, _ := json.Marshal(map[string]string{"username": "admin", "password": "123456"})
+		respLogin, err := httpClient.Post(manageUrl+"/api/v1/users/login", "application/json", bytes.NewBuffer(loginBody))
+		Expect(err).NotTo(HaveOccurred(), "登录请求失败")
+		defer respLogin.Body.Close()
 
-				podOutput, err := utils.Run(cmd)
-				g.Expect(err).NotTo(HaveOccurred(), "Failed to retrieve controller-manager pod information")
-				podNames := utils.GetNonEmptyLines(podOutput)
-				g.Expect(podNames).To(HaveLen(1), "expected 1 controller pod running")
-				controllerPodName = podNames[0]
-				g.Expect(controllerPodName).To(ContainSubstring("controller-manager"))
+		var loginData resp.Response
+		Expect(json.NewDecoder(respLogin.Body).Decode(&loginData)).To(Succeed())
+		Expect(respLogin.StatusCode).To(Equal(http.StatusOK), "登录接口返回非 200")
 
-				// Validate the pod's status
-				cmd = exec.Command("kubectl", "get",
-					"pods", controllerPodName, "-o", "jsonpath={.status.phase}",
-					"-n", namespace,
-				)
-				output, err := utils.Run(cmd)
-				g.Expect(err).NotTo(HaveOccurred())
-				g.Expect(output).To(Equal("Running"), "Incorrect controller-manager pod status")
-			}
-			Eventually(verifyControllerUp).Should(Succeed())
+		dataMap, ok := loginData.Data.(map[string]any)
+		Expect(ok).To(BeTrue(), "登录响应 Data 格式错误")
+		accessToken, ok = dataMap["token"].(string)
+		Expect(ok && accessToken != "").To(BeTrue(), "登录响应中未找到 token")
+
+		By("步骤 2: 创建 Workspace (Namespace: " + ns + ")")
+		wsBody, _ := json.Marshal(dto.WorkspaceDto{
+			Namespace:   ns,
+			DisplayName: "E2E-Workspace",
 		})
+		reqWs, _ := http.NewRequestWithContext(ctx, http.MethodPost, manageUrl+"/api/v1/workspaces/add", bytes.NewBuffer(wsBody))
+		reqWs.Header.Set("Authorization", "Bearer "+accessToken)
+		reqWs.Header.Set("Content-Type", "application/json")
 
-		It("should ensure the metrics endpoint is serving metrics", func() {
-			By("creating a ClusterRoleBinding for the service account to allow access to metrics")
-			cmd := exec.Command("kubectl", "create", "clusterrolebinding", metricsRoleBindingName,
-				"--clusterrole=wireflow-controller-metrics-reader",
-				fmt.Sprintf("--serviceaccount=%s:%s", namespace, serviceAccountName),
-			)
-			_, err := utils.Run(cmd)
-			Expect(err).NotTo(HaveOccurred(), "Failed to create ClusterRoleBinding")
+		respWs, err := httpClient.Do(reqWs)
+		Expect(err).NotTo(HaveOccurred(), "创建 Workspace 请求失败")
+		defer respWs.Body.Close()
 
-			By("validating that the metrics service is available")
-			cmd = exec.Command("kubectl", "get", "service", metricsServiceName, "-n", namespace)
-			_, err = utils.Run(cmd)
-			Expect(err).NotTo(HaveOccurred(), "Metrics service should exist")
+		var wsData resp.Response
+		Expect(json.NewDecoder(respWs.Body).Decode(&wsData)).To(Succeed())
 
-			By("getting the service account token")
-			token, err := serviceAccountToken()
-			Expect(err).NotTo(HaveOccurred())
-			Expect(token).NotTo(BeEmpty())
+		wsMap, ok := wsData.Data.(map[string]any)
+		Expect(ok).To(BeTrue(), "Workspace 响应 Data 格式错误")
+		workspaceId, ok = wsMap["id"].(string)
+		Expect(ok && workspaceId != "").To(BeTrue(), "Workspace 响应中未找到 id")
 
-			By("waiting for the metrics endpoint to be ready")
-			verifyMetricsEndpointReady := func(g Gomega) {
-				cmd = exec.Command("kubectl", "get", "endpoints", metricsServiceName, "-n", namespace)
-				var output string
-				output, err = utils.Run(cmd)
-				g.Expect(err).NotTo(HaveOccurred())
-				g.Expect(output).To(ContainSubstring("8443"), "Metrics endpoint is not ready")
-			}
-			Eventually(verifyMetricsEndpointReady).Should(Succeed())
+		ns := fmt.Sprintf("wf-%s", workspaceId)
 
-			By("verifying that the controller manager is serving the metrics server")
-			verifyMetricsServerStarted := func(g Gomega) {
-				cmd = exec.Command("kubectl", "logs", controllerPodName, "-n", namespace)
-				var output string
-				output, err = utils.Run(cmd)
-				g.Expect(err).NotTo(HaveOccurred())
-				g.Expect(output).To(ContainSubstring("controller-runtime.metrics\tServing metrics server"),
-					"Metrics server not yet started")
-			}
-			Eventually(verifyMetricsServerStarted).Should(Succeed())
+		By("步骤 3: 为 Workspace 生成 Agent Join Token")
+		reqTk, _ := http.NewRequestWithContext(ctx, http.MethodPost, manageUrl+"/api/v1/token/generate", nil)
+		reqTk.Header.Set("Authorization", "Bearer "+accessToken)
+		reqTk.Header.Set("X-workspace-id", workspaceId)
 
-			By("creating the curl-metrics pod to access the metrics endpoint")
-			cmd = exec.Command("kubectl", "run", "curl-metrics", "--restart=Never",
-				"--namespace", namespace,
-				"--image=curlimages/curl:latest",
-				"--overrides",
-				fmt.Sprintf(`{
-					"spec": {
-						"containers": [{
-							"name": "curl",
-							"image": "curlimages/curl:latest",
-							"command": ["/bin/sh", "-c"],
-							"args": ["curl -v -k -H 'Authorization: Bearer %s' https://%s.%s.svc.cluster.local:8443/metrics"],
-							"securityContext": {
-								"allowPrivilegeEscalation": false,
-								"capabilities": {
-									"drop": ["ALL"]
+		respTk, err := httpClient.Do(reqTk)
+		Expect(err).NotTo(HaveOccurred(), "生成 Token 请求失败")
+		defer respTk.Body.Close()
+
+		var tkData resp.Response
+		Expect(json.NewDecoder(respTk.Body).Decode(&tkData)).To(Succeed())
+
+		tkMap, ok := tkData.Data.(map[string]any)
+		Expect(ok).To(BeTrue(), "Token 响应 Data 格式错误")
+		joinToken, ok = tkMap["token"].(string)
+		Expect(ok && joinToken != "").To(BeTrue(), "Token 响应中未找到 token")
+
+		By("步骤 4: 查找 NATS Service ClusterIP 并创建具备特权和内核模块挂载的测试 Deployment")
+		svc, err := clientset.CoreV1().Services("wireflow-system").Get(ctx, "wireflow-nats-service", metav1.GetOptions{})
+		Expect(err).NotTo(HaveOccurred(), "未找到 wireflow-nats-service")
+
+		hostAliases := []corev1.HostAlias{{
+			IP:        svc.Spec.ClusterIP,
+			Hostnames: []string{"signaling.wireflow.run"},
+		}}
+
+		privileged := true
+		replicas := int32(1)
+		hostPathType := corev1.HostPathDirectory
+
+		for _, name := range []string{podA, podB} {
+			role := name
+			_, err := clientset.AppsV1().Deployments(ns).Create(ctx, &appsv1.Deployment{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: name,
+				},
+				Spec: appsv1.DeploymentSpec{
+					Replicas: &replicas,
+					Selector: &metav1.LabelSelector{
+						MatchLabels: map[string]string{"wf-role": role},
+					},
+					Template: corev1.PodTemplateSpec{
+						ObjectMeta: metav1.ObjectMeta{
+							Labels: map[string]string{
+								"app":     "wf-e2e",
+								"wf-role": role,
+							},
+						},
+						Spec: corev1.PodSpec{
+							Hostname:    name,
+							HostAliases: hostAliases,
+							Containers: []corev1.Container{{
+								Name:            "agent",
+								Image:           agentImage,
+								ImagePullPolicy: corev1.PullIfNotPresent,
+								SecurityContext: &corev1.SecurityContext{
+									Privileged:               &privileged,
+									AllowPrivilegeEscalation: &privileged,
+									Capabilities: &corev1.Capabilities{
+										Add: []corev1.Capability{"NET_ADMIN", "NET_RAW"},
+									},
 								},
-								"runAsNonRoot": true,
-								"runAsUser": 1000,
-								"seccompProfile": {
-									"type": "RuntimeDefault"
-								}
-							}
-						}],
-						"serviceAccount": "%s"
+								VolumeMounts: []corev1.VolumeMount{
+									{
+										Name:      "lib-modules",
+										MountPath: "/lib/modules",
+										ReadOnly:  true,
+									},
+									{
+										Name:      "xtables-lock",
+										MountPath: "/run/xtables.lock",
+									},
+								},
+								Command: []string{
+									"/app/wireflow", "up",
+									"--token", joinToken,
+									"--server-url", "wireflow-api-service.wireflow-system.svc.cluster.local:8080",
+									"--signaling-url", "nats://signaling.wireflow.run:4222",
+								},
+							}},
+							Volumes: []corev1.Volume{
+								{
+									Name: "lib-modules",
+									VolumeSource: corev1.VolumeSource{
+										HostPath: &corev1.HostPathVolumeSource{
+											Path: "/lib/modules",
+											Type: &hostPathType,
+										},
+									},
+								},
+								{
+									Name: "xtables-lock",
+									VolumeSource: corev1.VolumeSource{
+										HostPath: &corev1.HostPathVolumeSource{
+											Path: "/run/xtables.lock",
+											Type: func() *corev1.HostPathType {
+												t := corev1.HostPathFileOrCreate
+												return &t
+											}(),
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			}, metav1.CreateOptions{})
+
+			Expect(err).NotTo(HaveOccurred(), "创建 Deployment %s 失败", name)
+		}
+
+		By("步骤 5: 等待两个 Deployment 的 Pod 进入 Running 且容器全部 Ready (最长 180s)")
+		for _, role := range []string{podA, podB} {
+			Eventually(func() error {
+				pods, err := clientset.CoreV1().Pods(ns).List(ctx, metav1.ListOptions{
+					LabelSelector: "wf-role=" + role,
+				})
+				if err != nil {
+					return err
+				}
+				if len(pods.Items) == 0 {
+					return fmt.Errorf("等待 %s 的 Pod 被调度", role)
+				}
+				pod := pods.Items[0]
+				if pod.Status.Phase != corev1.PodRunning {
+					return fmt.Errorf("Pod %s 阶段为 %s，期望 Running", pod.Name, pod.Status.Phase)
+				}
+				for _, cs := range pod.Status.ContainerStatuses {
+					if !cs.Ready {
+						return fmt.Errorf("Pod %s 容器 %s 尚未 Ready (restarts=%d)", pod.Name, cs.Name, cs.RestartCount)
 					}
-				}`, token, metricsServiceName, namespace, serviceAccountName))
-			_, err = utils.Run(cmd)
-			Expect(err).NotTo(HaveOccurred(), "Failed to create curl-metrics pod")
+				}
+				return nil
+			}, "180s", "3s").Should(Succeed(), "Deployment %s 的 Pod 未能进入 Running+Ready 状态", role)
+		}
 
-			By("waiting for the curl-metrics pod to complete.")
-			verifyCurlUp := func(g Gomega) {
-				cmd := exec.Command("kubectl", "get", "pods", "curl-metrics",
-					"-o", "jsonpath={.status.phase}",
-					"-n", namespace)
-				output, err := utils.Run(cmd)
-				g.Expect(err).NotTo(HaveOccurred())
-				g.Expect(output).To(Equal("Succeeded"), "curl pod in wrong status")
+		// 获取两个 Deployment 实际的 Pod 名称，供后续步骤使用
+		getPodName := func(role string) string {
+			pods, err := clientset.CoreV1().Pods(ns).List(ctx, metav1.ListOptions{
+				LabelSelector: "wf-role=" + role,
+			})
+			Expect(err).NotTo(HaveOccurred(), "列出 %s 的 Pod 失败", role)
+			Expect(pods.Items).NotTo(BeEmpty(), "未找到 %s 的 Pod", role)
+			return pods.Items[0].Name
+		}
+		podAName := getPodName(podA)
+		podBName := getPodName(podB)
+
+		By("步骤 6: 等待控制面为 " + podB + " 分配 WireGuard 虚拟 IP (WireflowPeer CRD)")
+		var podBWGIP string
+		Eventually(func() error {
+			peer := &v1alpha1.WireflowPeer{}
+			if err := wireflowClient.Get(ctx, sigclient.ObjectKey{Namespace: ns, Name: podB}, peer); err != nil {
+				return fmt.Errorf("WireflowPeer %s 尚未创建: %w", podB, err)
 			}
-			Eventually(verifyCurlUp, 5*time.Minute).Should(Succeed())
+			if peer.Status.AllocatedAddress == nil || *peer.Status.AllocatedAddress == "" {
+				return fmt.Errorf("WireflowPeer %s 已创建，控制面尚未分配地址", podB)
+			}
+			podBWGIP = *peer.Status.AllocatedAddress
+			// 地址可能包含 CIDR 前缀 (e.g. "10.0.0.2/24")，ping 只需要 IP 部分
+			if idx := strings.Index(podBWGIP, "/"); idx != -1 {
+				podBWGIP = podBWGIP[:idx]
+			}
+			return nil
+		}, "90s", "3s").Should(Succeed(), "超时未能获取 %s 的 WireGuard IP", podB)
 
-			By("getting the metrics by checking curl-metrics logs")
-			metricsOutput := getMetricsOutput()
-			Expect(metricsOutput).To(ContainSubstring(
-				"controller_runtime_reconcile_total",
-			))
-		})
+		By("步骤 7: 创建 WireflowPolicy 允许 pod-a ↔ pod-b 互通")
+		peerB := &v1alpha1.WireflowPeer{}
+		Expect(wireflowClient.Get(ctx, sigclient.ObjectKey{Namespace: ns, Name: podB}, peerB)).To(Succeed())
 
-		// +kubebuilder:scaffold:e2e-webhooks-checks
+		var networkName string
+		if peerB.Spec.Network != nil && *peerB.Spec.Network != "" {
+			networkName = *peerB.Spec.Network
+		} else if peerB.Status.ActiveNetwork != nil {
+			networkName = *peerB.Status.ActiveNetwork
+		}
+		Expect(networkName).NotTo(BeEmpty(), "无法从 WireflowPeer 获取网络名称")
 
-		// TODO: Customize the e2e test suite with scenarios specific to your project.
-		// Consider applying sample/CR(s) and check their status and/or verifying
-		// the reconciliation by using the metrics, i.e.:
-		// metricsOutput := getMetricsOutput()
-		// Expect(metricsOutput).To(ContainSubstring(
-		//    fmt.Sprintf(`controller_runtime_reconcile_total{controller="%s",result="success"} 1`,
-		//    strings.ToLower(<Kind>),
-		// ))
+		networkLabel := fmt.Sprintf("wireflow.run/network-%s", networkName)
+		peerNetSelector := metav1.LabelSelector{
+			MatchLabels: map[string]string{networkLabel: "true"},
+		}
+		allowPolicy := &v1alpha1.WireflowPolicy{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "e2e-allow-all",
+				Namespace: ns,
+			},
+			Spec: v1alpha1.WireflowPolicySpec{
+				Network:      networkName,
+				PeerSelector: peerNetSelector,
+				Action:       "ALLOW",
+				Ingress: []v1alpha1.IngressRule{
+					{From: []v1alpha1.PeerSelection{{PeerSelector: &peerNetSelector}}},
+				},
+				Egress: []v1alpha1.EgressRule{
+					{To: []v1alpha1.PeerSelection{{PeerSelector: &peerNetSelector}}},
+				},
+			},
+		}
+		Expect(wireflowClient.Create(ctx, allowPolicy)).To(Succeed(), "创建 WireflowPolicy 失败")
+
+		By(fmt.Sprintf("步骤 8: 验证隧道连通性 (%s → %s @ %s)", podAName, podBName, podBWGIP))
+		Eventually(func() error {
+			output, err := execInPod(clientset, restConfig, ns, podAName, []string{"ping", "-c", "3", "-W", "2", podBWGIP})
+			if err != nil {
+				return fmt.Errorf("ping 执行失败: %w", err)
+			}
+			if !strings.Contains(output, "0% packet loss") {
+				return fmt.Errorf("ping 存在丢包: %s", output)
+			}
+			return nil
+		}, "60s", "5s").Should(Succeed(), "隧道连通性验证失败")
 	})
 })
 
-// serviceAccountToken returns a token for the specified service account in the given namespace.
-// It uses the Kubernetes TokenRequest API to generate a token by directly sending a request
-// and parsing the resulting token from the API response.
-func serviceAccountToken() (string, error) {
-	const tokenRequestRawString = `{
-		"apiVersion": "authentication.k8s.io/v1",
-		"kind": "TokenRequest"
-	}`
+// collectDiagnostics 在测试失败时打印关键日志，方便 CI 排查
+func collectDiagnostics(ctx context.Context, namespace string) {
+	fmt.Fprintf(GinkgoWriter, "\n========== E2E 诊断日志 [ns=%s] ==========\n", namespace)
 
-	// Temporary file to store the token request
-	secretName := fmt.Sprintf("%s-token-request", serviceAccountName)
-	tokenRequestFile := filepath.Join("/tmp", secretName)
-	err := os.WriteFile(tokenRequestFile, []byte(tokenRequestRawString), os.FileMode(0o644))
+	pods, err := clientset.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{})
 	if err != nil {
-		return "", err
+		fmt.Fprintf(GinkgoWriter, "[WARN] 无法列出 Pod: %v\n", err)
+		return
 	}
 
-	var out string
-	verifyTokenCreation := func(g Gomega) {
-		// Execute kubectl command to create the token
-		cmd := exec.Command("kubectl", "create", "--raw", fmt.Sprintf(
-			"/api/v1/namespaces/%s/serviceaccounts/%s/token",
-			namespace,
-			serviceAccountName,
-		), "-f", tokenRequestFile)
-
-		var output []byte
-		output, err = cmd.CombinedOutput()
-		g.Expect(err).NotTo(HaveOccurred())
-
-		// Parse the JSON output to extract the token
-		var token tokenRequest
-		err = json.Unmarshal(output, &token)
-		g.Expect(err).NotTo(HaveOccurred())
-
-		out = token.Status.Token
+	for _, pod := range pods.Items {
+		fmt.Fprintf(GinkgoWriter, "\n--- Pod: %s  Phase: %s ---\n", pod.Name, pod.Status.Phase)
+		for _, cs := range pod.Status.ContainerStatuses {
+			fmt.Fprintf(GinkgoWriter, "  Container %s: ready=%v restarts=%d\n", cs.Name, cs.Ready, cs.RestartCount)
+		}
+		// 打印容器日志（最近 100 行）
+		tailLines := int64(100)
+		logReq := clientset.CoreV1().Pods(namespace).GetLogs(pod.Name, &corev1.PodLogOptions{
+			TailLines: &tailLines,
+		})
+		logStream, err := logReq.Stream(ctx)
+		if err != nil {
+			fmt.Fprintf(GinkgoWriter, "  [WARN] 无法获取日志: %v\n", err)
+			continue
+		}
+		var buf bytes.Buffer
+		_, _ = buf.ReadFrom(logStream)
+		_ = logStream.Close()
+		fmt.Fprintf(GinkgoWriter, "%s\n", buf.String())
 	}
-	Eventually(verifyTokenCreation).Should(Succeed())
 
-	return out, err
+	fmt.Fprintf(GinkgoWriter, "===========================================\n")
 }
 
-// getMetricsOutput retrieves and returns the logs from the curl pod used to access the metrics endpoint.
-func getMetricsOutput() string {
-	By("getting the curl-metrics logs")
-	cmd := exec.Command("kubectl", "logs", "curl-metrics", "-n", namespace)
-	metricsOutput, err := utils.Run(cmd)
-	Expect(err).NotTo(HaveOccurred(), "Failed to retrieve logs from curl pod")
-	Expect(metricsOutput).To(ContainSubstring("< HTTP/1.1 200 OK"))
-	return metricsOutput
-}
+// execInPod 通过 SPDY 在指定 Pod 内执行命令并返回 stdout 输出
+func execInPod(c *kubernetes.Clientset, config *rest.Config, namespace, podName string, command []string) (string, error) {
+	req := c.CoreV1().RESTClient().Post().
+		Resource("pods").Name(podName).Namespace(namespace).SubResource("exec")
+	req.VersionedParams(&corev1.PodExecOptions{
+		Command: command,
+		Stdout:  true,
+		Stderr:  true,
+	}, scheme.ParameterCodec)
 
-// tokenRequest is a simplified representation of the Kubernetes TokenRequest API response,
-// containing only the token field that we need to extract.
-type tokenRequest struct {
-	Status struct {
-		Token string `json:"token"`
-	} `json:"status"`
+	exec, err := remotecommand.NewSPDYExecutor(config, "POST", req.URL())
+	if err != nil {
+		return "", fmt.Errorf("创建 SPDY executor 失败: %w", err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	if err = exec.StreamWithContext(context.Background(), remotecommand.StreamOptions{
+		Stdout: &stdout,
+		Stderr: &stderr,
+	}); err != nil {
+		return "", fmt.Errorf("执行命令失败 [%v]: stderr=%s", err, stderr.String())
+	}
+	return stdout.String(), nil
 }

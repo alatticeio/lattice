@@ -3,7 +3,7 @@ package utils
 import (
 	"fmt"
 	"testing"
-	"wireflow/management/model"
+	"wireflow/management/models"
 )
 
 func TestGetJWTSecret(t *testing.T) {

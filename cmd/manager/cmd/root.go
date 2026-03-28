@@ -42,5 +42,6 @@ func Execute() {
 }
 
 func init() {
+	rootCmd.PersistentFlags().StringP("config-dir", "", "", "config directory (default ~/.wireflow)")
 	rootCmd.AddCommand(newStartCommand())
 }

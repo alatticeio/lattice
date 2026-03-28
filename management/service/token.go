@@ -5,103 +5,85 @@ import (
 	"wireflow/api/v1alpha1"
 	"wireflow/internal/infra"
 	"wireflow/internal/log"
-	"wireflow/management/database"
+	"wireflow/internal/store"
 	"wireflow/management/dto"
-	"wireflow/management/repository"
 	"wireflow/management/resource"
 	"wireflow/pkg/utils"
 
-	"gorm.io/gorm"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 type TokenService interface {
-	Create(ctx context.Context) error
+	Create(ctx context.Context) (string, error)
 	Delete(ctx context.Context, token string) error
 }
 
 type tokenService struct {
-	log *log.Logger
-	db  *gorm.DB
-
+	log           *log.Logger
+	store         store.Store
 	client        *resource.Client
 	peerService   PeerService
 	policyService PolicyService
-	workspaceRepo repository.WorkspaceRepository // nolint:all
 }
 
 func (t *tokenService) Delete(ctx context.Context, token string) error {
-	return t.db.Transaction(func(tx *gorm.DB) error {
-		wsId := ctx.Value(infra.WorkspaceKey).(string)
-		workspaceRepo := repository.NewWorkspaceRepository(tx)
-		workspace, err := workspaceRepo.GetByID(ctx, wsId)
-		if err != nil {
-			return err
-		}
-
-		resource := &v1alpha1.WireflowEnrollmentToken{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      token,
-				Namespace: workspace.Namespace,
-			},
-		}
-
-		if err := t.client.Delete(ctx, resource); err != nil {
-			return client.IgnoreNotFound(err) // 如果资源已经被删除了，忽略报错
-		}
-
-		return nil
-	})
-
-}
-
-func (t *tokenService) Create(ctx context.Context) error {
 	wsId := ctx.Value(infra.WorkspaceKey).(string)
-	return t.db.Transaction(func(tx *gorm.DB) error {
-		workspaceRepo := repository.NewWorkspaceRepository(tx)
-		workspace, err := workspaceRepo.GetByID(ctx, wsId)
-		if err != nil {
-			return err
-		}
+	workspace, err := t.store.Workspaces().GetByID(ctx, wsId)
+	if err != nil {
+		return err
+	}
 
-		tokenDto := dto.TokenDto{
+	res := &v1alpha1.WireflowEnrollmentToken{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      token,
 			Namespace: workspace.Namespace,
-			Expiry:    "168h",
-			Limit:     5,
-		}
-
-		tokenStr, err := utils.GenerateSecureToken()
-		if err != nil {
-			return err
-		}
-
-		tokenDto.Name = tokenStr
-
-		_, err = t.peerService.CreateToken(ctx, &tokenDto)
-		if err != nil {
-			return err
-		}
-
-		// create default deny
-		if _, err := t.policyService.CreateOrUpdatePolicy(ctx, &dto.PolicyDto{
-			Name:      "default-deny",
-			Namespace: tokenDto.Namespace,
-			Action:    "Deny",
-		}); err != nil {
-			return err
-		}
-
-		return nil
-	})
+		},
+	}
+	return client.IgnoreNotFound(t.client.Delete(ctx, res))
 }
 
-func NewTokenService(client *resource.Client) TokenService {
+func (t *tokenService) Create(ctx context.Context) (string, error) {
+	wsId := ctx.Value(infra.WorkspaceKey).(string)
+
+	workspace, err := t.store.Workspaces().GetByID(ctx, wsId)
+	if err != nil {
+		return "", err
+	}
+
+	tokenStr, err := utils.GenerateSecureToken()
+	if err != nil {
+		return "", err
+	}
+
+	tokenDto := dto.TokenDto{
+		Namespace: workspace.Namespace,
+		Expiry:    "168h",
+		Limit:     5,
+		Name:      tokenStr,
+	}
+
+	if _, err = t.peerService.CreateToken(ctx, &tokenDto); err != nil {
+		return "", err
+	}
+
+	if _, err := t.policyService.CreateOrUpdatePolicy(ctx, &dto.PolicyDto{
+		Name:      "default-deny",
+		Namespace: tokenDto.Namespace,
+		Action:    "Deny",
+	}); err != nil {
+		return "", err
+	}
+
+	return tokenStr, nil
+}
+
+func NewTokenService(client *resource.Client, st store.Store) TokenService {
 	return &tokenService{
-		log:           log.GetLogger("user-service"),
-		db:            database.DB,
-		peerService:   NewPeerService(client),
-		policyService: NewPolicyService(client),
+		log:           log.GetLogger("token-service"),
+		store:         st,
+		peerService:   NewPeerService(client, st),
+		policyService: NewPolicyService(client, st),
 		client:        client,
 	}
 }

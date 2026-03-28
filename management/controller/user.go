@@ -4,6 +4,7 @@ import (
 	"context"
 	"wireflow/internal/config"
 	"wireflow/internal/log"
+	"wireflow/internal/store"
 	"wireflow/management/dto"
 	"wireflow/management/models"
 	"wireflow/management/service"
@@ -16,18 +17,12 @@ type UserController interface {
 	Login(ctx context.Context, email, password string) (*models.User, error)
 	GetMe(ctx context.Context, id string) (*models.User, error)
 
-	// Add user from admin
 	AddUser(ctx context.Context, userDto *dto.UserDto) error
 	DeleteUser(ctx context.Context, username string) error
 
-	// management page, if current user is admin will list all users created by self,
-	//if current is ns amdin, will list all users in the ns. other will list none.
 	ListUser(ctx context.Context, req *dto.PageRequest) (*dto.PageResult[vo.UserVo], error)
 
-	// admin will grant permit to user
 	AssignPermission(ctx context.Context, id string, userDto dto.UserDto) error
-
-	// admin will revoke permit from user
 	RevokePermission(ctx context.Context, id string, userDto dto.UserDto) error
 }
 
@@ -74,10 +69,10 @@ func (u *userController) Login(ctx context.Context, email, password string) (*mo
 	return u.userService.Login(ctx, email, password)
 }
 
-func NewUserController() UserController {
+func NewUserController(st store.Store) UserController {
 	return &userController{
 		log:         log.GetLogger("user-controller"),
-		userService: service.NewUserService(),
+		userService: service.NewUserService(st),
 	}
 }
 

@@ -3,7 +3,7 @@ kind: ConfigMap
 metadata:
   name: control-config
 data:
-  conf.yaml: |
+  wireflow.yaml: |
     app:
       listen: :8080
       name: "WireFlow"
@@ -16,6 +16,5 @@ data:
       secret: "your-super-secret-key"
       expire_hours: 24
 
-    database:
-      driver: "mysql"
-      dsn: "root:root@tcp(10.7.88.27:3306)/wireflow?charset=utf8mb4&parseTime=True&loc=Local"
+    signaling-url: "nats://wireflow-nats-service.wireflow-system.svc.cluster.local:4222"
+

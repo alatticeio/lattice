@@ -60,36 +60,48 @@ func (r *ruleProvisioner) Provision(rule *FirewallRule) error {
 	var sb strings.Builder
 	anchor := "wireflow"
 
-	// 1. 生成 PF 规则字符串
-	// Ingress: pass in proto tcp from {IP1, IP2} to any port 80
+	// 1. 默认拒绝 (零信任封口)
+	// 注意：PF 是 last-match-wins，block 必须写在 pass 之前作为兜底
+	iface := r.interfaceName
+	sb.WriteString(fmt.Sprintf("block in on %s all\n", iface))
+	sb.WriteString(fmt.Sprintf("block out on %s all\n", iface))
+
+	// 2. 生成 PF 规则字符串
+	// 当 Protocol 或 Port 未指定（零值）时，省略 proto/port，允许该 IP 的所有流量。
+	// Ingress: pass in [proto tcp] from {IP1} [to any port 80]
 	for _, tr := range rule.Ingress {
 		ips := "{" + strings.Join(tr.Peers, ", ") + "}"
-		sb.WriteString(fmt.Sprintf("pass in proto %s from %s to any port %d\n",
-			strings.ToLower(tr.Protocol), ips, tr.Port))
+		if tr.Protocol != "" && tr.Port != 0 {
+			sb.WriteString(fmt.Sprintf("pass in proto %s from %s to any port %d\n",
+				strings.ToLower(tr.Protocol), ips, tr.Port))
+		} else {
+			sb.WriteString(fmt.Sprintf("pass in from %s\n", ips))
+		}
 	}
 
-	// Egress: pass out proto tcp from any to {IP1} port 3306
+	// Egress: pass out [proto tcp] from any to {IP1} [port 3306]
 	for _, tr := range rule.Egress {
 		ips := "{" + strings.Join(tr.Peers, ", ") + "}"
-		sb.WriteString(fmt.Sprintf("pass out proto %s from any to %s port %d\n",
-			strings.ToLower(tr.Protocol), ips, tr.Port))
+		if tr.Protocol != "" && tr.Port != 0 {
+			sb.WriteString(fmt.Sprintf("pass out proto %s from any to %s port %d\n",
+				strings.ToLower(tr.Protocol), ips, tr.Port))
+		} else {
+			sb.WriteString(fmt.Sprintf("pass out to %s\n", ips))
+		}
 	}
-
-	// 2. 默认拒绝 (零信任封口)
-	// 注意：macOS PF 默认是放行的，需显式加入 block
-	sb.WriteString("block in on utun4 all\n")
-	sb.WriteString("block out on utun4 all\n")
 
 	// 3. 将规则写入临时文件并加载到 anchor
 	tmpFile := "/tmp/wireflow.pf"
-	err := os.WriteFile(tmpFile, []byte(sb.String()), 0644)
-	if err != nil {
+	if err := os.WriteFile(tmpFile, []byte(sb.String()), 0644); err != nil {
 		return err
 	}
 
 	// 使用 pfctl 加载特定的 anchor，不影响系统其他规则
 	cmd := exec.Command("sudo", "pfctl", "-a", anchor, "-f", tmpFile)
-	return cmd.Run()
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("pfctl command failed: %w\n%s", err, output)
+	}
+	return nil
 }
 
 func (p *ruleProvisioner) Cleanup() error {

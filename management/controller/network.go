@@ -17,6 +17,7 @@ package controller
 import (
 	"context"
 	"encoding/json"
+	"wireflow/internal/store"
 	"wireflow/management/dto"
 	"wireflow/management/resource"
 	"wireflow/management/service"
@@ -37,25 +38,15 @@ type networkController struct {
 }
 
 func (n *networkController) CreateNetwork(ctx context.Context, request []byte) ([]byte, error) {
-	var (
-		err        error
-		networkDto dto.NetworkDto
-	)
-	if err = json.Unmarshal(request, &networkDto); err != nil {
+	var networkDto dto.NetworkDto
+	if err := json.Unmarshal(request, &networkDto); err != nil {
 		return nil, err
 	}
-
 	network, err := n.networkService.CreateNetwork(ctx, networkDto.Name, networkDto.CIDR)
 	if err != nil {
 		return nil, err
 	}
-
-	data, err := json.Marshal(network)
-	if err != nil {
-		return nil, err
-	}
-
-	return data, nil
+	return json.Marshal(network)
 }
 
 func (n *networkController) ListTokens(ctx context.Context, pageParam *dto.PageRequest) (*dto.PageResult[vo.TokenVo], error) {
@@ -63,42 +54,24 @@ func (n *networkController) ListTokens(ctx context.Context, pageParam *dto.PageR
 }
 
 func (n networkController) JoinNetwork(ctx context.Context, request []byte) error {
-	var (
-		err        error
-		networkDto dto.NetworkDto
-	)
-	if err = json.Unmarshal(request, &networkDto); err != nil {
+	var networkDto dto.NetworkDto
+	if err := json.Unmarshal(request, &networkDto); err != nil {
 		return err
 	}
-
-	err = n.networkService.JoinNetwork(ctx, networkDto.AppIds, networkDto.Name)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return n.networkService.JoinNetwork(ctx, networkDto.AppIds, networkDto.Name)
 }
 
 func (n networkController) LeaveNetwork(ctx context.Context, req []byte) error {
-	var (
-		err        error
-		networkDto dto.NetworkDto
-	)
-	if err = json.Unmarshal(req, &networkDto); err != nil {
+	var networkDto dto.NetworkDto
+	if err := json.Unmarshal(req, &networkDto); err != nil {
 		return err
 	}
-
-	err = n.networkService.LeaveNetwork(ctx, networkDto.AppIds, networkDto.Name)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return n.networkService.LeaveNetwork(ctx, networkDto.AppIds, networkDto.Name)
 }
 
-func NewNetworkController(client *resource.Client) NetworkController {
+func NewNetworkController(client *resource.Client, st store.Store) NetworkController {
 	return &networkController{
-		networkService: service.NewNetworkService(client),
-		policyService:  service.NewPolicyService(client),
+		networkService: service.NewNetworkService(client, st),
+		policyService:  service.NewPolicyService(client, st),
 	}
 }

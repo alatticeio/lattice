@@ -19,9 +19,8 @@ import (
 	"strings"
 	wireflowv1alpha1 "wireflow/api/v1alpha1"
 	"wireflow/internal/infra"
-	"wireflow/management/database"
+	"wireflow/internal/store"
 	"wireflow/management/dto"
-	"wireflow/management/repository"
 	"wireflow/management/resource"
 	"wireflow/management/vo"
 
@@ -36,28 +35,11 @@ type NetworkService interface {
 }
 
 type networkService struct {
-	client        *resource.Client
-	workspaceRepo *repository.WorkspaceRepository
+	client *resource.Client
+	store  store.Store
 }
 
 func (s *networkService) ListTokens(ctx context.Context, pageParam *dto.PageRequest) (*dto.PageResult[vo.TokenVo], error) {
-	//var tokenList wireflowv1alpha1.WireflowEnrollmentTokenList
-	//if err := s.client.List(ctx, &tokenList); err != nil {
-	//	return nil, err
-	//}
-	//
-	//var tokens []model.Token
-	//for _, token := range tokenList.Items {
-	//	tokens = append(tokens, model.Token{
-	//		Namespace:  token.Namespace,
-	//		Token:      token.Spec.Token,
-	//		Expiry:     token.Spec.Expiry,
-	//		UsageLimit: token.Spec.UsageLimit,
-	//	})
-	//}
-	//
-	//return tokens, nil
-
 	var (
 		tokenList wireflowv1alpha1.WireflowEnrollmentTokenList
 		err       error
@@ -69,19 +51,17 @@ func (s *networkService) ListTokens(ctx context.Context, pageParam *dto.PageRequ
 		workspaceId = workspaceV.(string)
 	}
 
-	workspace, err := s.workspaceRepo.GetByID(ctx, workspaceId)
+	workspace, err := s.store.Workspaces().GetByID(ctx, workspaceId)
 	if err != nil {
 		return nil, err
 	}
 
 	err = s.client.GetAPIReader().List(ctx, &tokenList, client.InNamespace(workspace.Namespace))
-
 	if err != nil {
 		return nil, err
 	}
 
-	// 2. 获取全量数据（模拟）
-	allTokens := []*vo.TokenVo{ /* ... 很多数据 ... */ }
+	allTokens := []*vo.TokenVo{}
 
 	for _, item := range tokenList.Items {
 		allTokens = append(allTokens, &vo.TokenVo{
@@ -92,7 +72,6 @@ func (s *networkService) ListTokens(ctx context.Context, pageParam *dto.PageRequ
 		})
 	}
 
-	// 3. 逻辑过滤（搜索）
 	var filteredTokens []*vo.TokenVo
 	if pageParam.Keyword != "" {
 		for _, n := range allTokens {
@@ -104,12 +83,9 @@ func (s *networkService) ListTokens(ctx context.Context, pageParam *dto.PageRequ
 		filteredTokens = allTokens
 	}
 
-	// 4. 执行内存切片分页
 	total := len(filteredTokens)
 	start := (pageParam.Page - 1) * pageParam.PageSize
 	end := start + pageParam.PageSize
-
-	// 防止切片越界越界
 	if start > total {
 		start = total
 	}
@@ -117,16 +93,9 @@ func (s *networkService) ListTokens(ctx context.Context, pageParam *dto.PageRequ
 		end = total
 	}
 
-	// 截取
-	data := filteredTokens[start:end]
 	var res []vo.TokenVo
-	for _, n := range data {
-		res = append(res, vo.TokenVo{
-			Namespace:  n.Namespace,
-			Token:      n.Token,
-			Expiry:     n.Expiry,
-			UsageLimit: n.UsageLimit,
-		})
+	for _, n := range filteredTokens[start:end] {
+		res = append(res, *n)
 	}
 
 	return &dto.PageResult[vo.TokenVo]{
@@ -137,59 +106,45 @@ func (s *networkService) ListTokens(ctx context.Context, pageParam *dto.PageRequ
 	}, nil
 }
 
-func NewNetworkService(client *resource.Client) NetworkService {
+func NewNetworkService(client *resource.Client, st store.Store) NetworkService {
 	return &networkService{
-		client:        client,
-		workspaceRepo: repository.NewWorkspaceRepository(database.DB),
+		client: client,
+		store:  st,
 	}
 }
-
-// TODO implement for wireflow-cli
 
 func (s *networkService) CreateNetwork(ctx context.Context, networkId, cidr string) (*infra.Network, error) {
 	network, err := s.client.CreateNetwork(ctx, networkId, cidr)
 	if err != nil {
 		return nil, err
 	}
-
-	return &infra.Network{
-		NetworkName: network.Name,
-	}, nil
-
+	return &infra.Network{NetworkName: network.Name}, nil
 }
 
-// JoinNetwork
 func (s *networkService) JoinNetwork(ctx context.Context, appIds []string, networkId string) error {
-	//更新
-	var err error
 	if networkId == "" {
 		return nil
 	}
 	for _, appId := range appIds {
-		if err = s.client.UpdateNodeSepc(ctx, "default", appId, func(node *wireflowv1alpha1.WireflowPeer) {
+		if err := s.client.UpdateNodeSepc(ctx, "default", appId, func(node *wireflowv1alpha1.WireflowPeer) {
 			node.Spec.Network = &networkId
 		}); err != nil {
 			return err
 		}
 	}
-
 	return nil
 }
 
-// LeaveNetwork
 func (s *networkService) LeaveNetwork(ctx context.Context, appIds []string, networkId string) error {
 	if networkId == "" {
 		return nil
 	}
-	//更新
-	var err error
 	for _, appId := range appIds {
-		if err = s.client.UpdateNodeSepc(ctx, "default", appId, func(node *wireflowv1alpha1.WireflowPeer) {
+		if err := s.client.UpdateNodeSepc(ctx, "default", appId, func(node *wireflowv1alpha1.WireflowPeer) {
 			node.Spec.Network = nil
 		}); err != nil {
 			return err
 		}
 	}
 	return nil
-
 }

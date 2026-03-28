@@ -7,10 +7,9 @@ import (
 	"wireflow/internal/config"
 	"wireflow/internal/infra"
 	"wireflow/internal/log"
-	"wireflow/management/database"
+	"wireflow/internal/store"
 	"wireflow/management/dto"
 	"wireflow/management/models"
-	"wireflow/management/repository"
 	client_r "wireflow/management/resource"
 	"wireflow/management/vo"
 	"wireflow/pkg/utils"
@@ -38,68 +37,46 @@ type WorkspaceMemberService interface {
 	List(ctx context.Context) ([]*models.WorkspaceMember, error)
 
 	// GetMemberRole 获取用户在特定工作区中的角色
-	GetMemberRole(ctx context.Context, workspaceSlug string, userID string) (dto.WorkspaceRole, error)
+	GetMemberRole(ctx context.Context, workspaceNamespace string, userID string) (dto.WorkspaceRole, error)
 }
 
 type workspaceService struct {
-	log           *log.Logger
-	client        *client_r.Client
-	db            *gorm.DB // SQLite 实例
-	workspaceRepo *repository.WorkspaceRepository
-	memberRepo    *repository.WorkspaceMemberRepository
-	identify      *client_r.IdentityImpersonator
+	log      *log.Logger
+	client   *client_r.Client
+	store    store.Store
+	identify *client_r.IdentityImpersonator
 }
 
 func (w *workspaceService) DeleteWorkspace(ctx context.Context, id string) error {
-	return w.db.Transaction(func(tx *gorm.DB) error {
-		//delete workspace member
-		workspaceMemberRepo := repository.NewWorkspaceMemberRepository(tx)
-		err := workspaceMemberRepo.Delete(ctx, repository.WithWorkspaceID(id))
-		if err != nil {
+	return w.store.Tx(ctx, func(s store.Store) error {
+		if err := s.WorkspaceMembers().DeleteByWorkspace(ctx, id); err != nil {
 			return err
 		}
-
-		// delete workspace
-		workspaceRepo := repository.NewWorkspaceRepository(tx)
-		err = workspaceRepo.Delete(ctx, repository.WithID(id))
-		if err != nil {
-			return err
-		}
-
-		return nil
+		return s.Workspaces().Delete(ctx, id)
 	})
 }
 
 func (w *workspaceService) ListWorkspaces(ctx context.Context, request *dto.PageRequest) (*dto.PageResult[vo.WorkspaceVo], error) {
 	userRole := "super_admin"
 
-	var workspaces []*models.Workspace
-	var total int64
-	var err error
+	var (
+		workspaces []*models.Workspace
+		total      int64
+		err        error
+	)
 
 	if userRole == "super_admin" {
-
-		total, err = w.workspaceRepo.Count(ctx, repository.WithKeyword(request.Keyword, "display_name", "slug"))
-		if err != nil {
-			return nil, err
-		}
-
-		workspaces, err = w.workspaceRepo.Find(ctx, repository.WithKeyword(request.Keyword, "display_name", "slug"), repository.Paginate(request.Page, request.PageSize))
+		workspaces, total, err = w.store.Workspaces().List(ctx, request.Keyword, request.Page, request.PageSize)
 		if err != nil {
 			return nil, err
 		}
 	} else {
-		var members []*models.WorkspaceMember
 		userId := ctx.Value(infra.UserIDKey).(string)
-		total, err = w.memberRepo.Count(ctx, repository.WithUserID(userId))
+		var members []*models.WorkspaceMember
+		members, total, err = w.store.WorkspaceMembers().ListByUser(ctx, userId, request.Page, request.PageSize)
 		if err != nil {
 			return nil, err
 		}
-		members, err = w.memberRepo.Find(ctx, repository.WithUserID(userId), repository.Paginate(request.Page, request.PageSize))
-		if err != nil {
-			return nil, err
-		}
-
 		for _, m := range members {
 			workspaces = append(workspaces, &m.Workspace)
 		}
@@ -110,13 +87,9 @@ func (w *workspaceService) ListWorkspaces(ctx context.Context, request *dto.Page
 	g, gCtx := errgroup.WithContext(ctx)
 
 	for i, workspace := range workspaces {
-		// 闭包变量处理
 		idx, ws := i, workspace
 
 		g.Go(func() error {
-			//nsName := fmt.Sprintf("wf-%s", ws.ID)
-
-			// 初始化基础 VO 信息
 			v := vo.WorkspaceVo{
 				ID:          ws.ID,
 				DisplayName: ws.DisplayName,
@@ -124,16 +97,12 @@ func (w *workspaceService) ListWorkspaces(ctx context.Context, request *dto.Page
 				Status:      "healthy",
 			}
 
-			// 使用系统高权限 Client 查询 Quota (因为 view 角色可能没权限查 ResourceQuota 对象)
 			quota := &corev1.ResourceQuota{}
 			quotaKey := client.ObjectKey{Name: "workspace-quota", Namespace: ws.Namespace}
 
 			err := w.client.Get(gCtx, quotaKey, quota)
 			if err == nil {
-				// 提取我们在 InitializeTenant 中定义的自定义资源配额
-				// 对应 count/nodes.wireflowcontroller.wireflow.run
 				nodeRes := corev1.ResourceName("count/nodes.wireflowcontroller.wireflow.run")
-
 				if hard, ok := quota.Status.Hard[nodeRes]; ok {
 					v.NodeCount = hard.Value()
 				}
@@ -141,7 +110,6 @@ func (w *workspaceService) ListWorkspaces(ctx context.Context, request *dto.Page
 					v.QuotaUsage = used.Value()
 				}
 			} else {
-				// 如果 Namespace 还没初始化完成或 Quota 被删除了
 				v.Status = "initializing"
 				v.NodeCount = 0
 				v.QuotaUsage = 0
@@ -152,7 +120,6 @@ func (w *workspaceService) ListWorkspaces(ctx context.Context, request *dto.Page
 		})
 	}
 
-	// 等待所有并发 K8s 请求结束
 	if err := g.Wait(); err != nil {
 		return nil, fmt.Errorf("k8s data aggregation failed: %v", err)
 	}
@@ -166,12 +133,20 @@ func (w *workspaceService) ListWorkspaces(ctx context.Context, request *dto.Page
 }
 
 type workspaceMemberService struct {
-	log                 *log.Logger
-	workspaceMemberRepo repository.WorkspaceMemberRepository
+	log   *log.Logger
+	store store.Store
 }
 
-func (w *workspaceMemberService) GetMemberRole(ctx context.Context, workspaceSlug string, userID string) (dto.WorkspaceRole, error) {
-	return w.workspaceMemberRepo.GetMemberRole(ctx, workspaceSlug, userID)
+func (w *workspaceMemberService) GetMemberRole(ctx context.Context, workspaceNamespace string, userID string) (dto.WorkspaceRole, error) {
+	ws, err := w.store.Workspaces().GetByNamespace(ctx, workspaceNamespace)
+	if err != nil {
+		return "", err
+	}
+	member, err := w.store.WorkspaceMembers().GetMembership(ctx, ws.ID, userID)
+	if err != nil {
+		return "", err
+	}
+	return member.Role, nil
 }
 
 func (w *workspaceMemberService) Create(ctx context.Context, workspace *models.WorkspaceMember) (*models.WorkspaceMember, error) {
@@ -194,178 +169,72 @@ func (w *workspaceMemberService) List(ctx context.Context) ([]*models.WorkspaceM
 	panic("implement me")
 }
 
-func NewWorkspaceService(client *client_r.Client) WorkspaceService {
+func NewWorkspaceService(client *client_r.Client, st store.Store) WorkspaceService {
 	logger := log.GetLogger("team-service")
 	identify, err := client_r.NewIdentityImpersonator()
-
 	if err != nil {
 		logger.Error("init identity impersonator failed", err)
 	}
 	return &workspaceService{
-		log:           logger,
-		identify:      identify,
-		client:        client,
-		db:            database.DB,
-		workspaceRepo: repository.NewWorkspaceRepository(database.DB),
+		log:      logger,
+		identify: identify,
+		client:   client,
+		store:    st,
 	}
 }
 
-func NewWorkspaceMemberService() WorkspaceMemberService {
+func NewWorkspaceMemberService(st store.Store) WorkspaceMemberService {
 	return &workspaceMemberService{
-		log: log.GetLogger("workspace-member-service"),
+		log:   log.GetLogger("workspace-member-service"),
+		store: st,
 	}
 }
 
 func (w *workspaceService) OnboardExternalUser(ctx context.Context, externalID, email string) (*models.User, error) {
-	var user models.User
-
-	// 1. 先查数据库
-	err := w.db.Where("external_id = ? OR email = ?", externalID, email).First(&user).Error
-
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		// 2. 如果是新用户，判断是否应该给予 Admin 角色
-		role := dto.RoleViewer // 默认是普通用户
-		for _, adminEmail := range config.GlobalConfig.App.InitAdmins {
-			if email == adminEmail.Username {
-				role = dto.RoleAdmin
-				break
-			}
-		}
-
-		// 3. 构造新用户对象
-		user = models.User{
-			ExternalID: externalID,
-			Email:      email,
-			Role:       role,
-		}
-		// 数据库
-		if err := w.db.Create(&user).Error; err != nil {
-			return nil, err
-		}
-
+	existing, err := w.store.Users().GetByExternalID(ctx, externalID)
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, err
+	}
+	if existing != nil {
+		return existing, nil
 	}
 
-	return &user, nil
+	role := dto.RoleViewer
+	for _, adminEmail := range config.GlobalConfig.App.InitAdmins {
+		if email == adminEmail.Username {
+			role = dto.RoleAdmin
+			break
+		}
+	}
+
+	user := &models.User{ExternalID: externalID, Email: email, Role: role}
+	if err := w.store.Users().Create(ctx, user); err != nil {
+		return nil, err
+	}
+	return user, nil
 }
 
-// CreateTeamWithInfrastructure 创建 K8s Namespace、Quota、RoleBinding
-func (w *workspaceService) CreateTeamWithInfrastructure(ctx context.Context, ownerID string, teamName string) error {
-	teamID := fmt.Sprintf("wf-team-%s", ownerID[:8]) // 确保 ID 兼容 DNS 命名
-
-	return w.db.Transaction(func(tx *gorm.DB) error {
-		// --- A. SQLite 事务 ---
-		team := models.Workspace{DisplayName: teamName}
-
-		if err := tx.Create(&team).Error; err != nil {
-			return err
-		}
-		if err := tx.Create(&models.WorkspaceMember{WorkspaceID: teamID, UserID: ownerID, Role: "admin"}).Error; err != nil {
-			return err
-		}
-
-		// --- B. K8s 基础设施下发 ---
-
-		// 1. 创建 Namespace
-		ns := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{
-			Name:   teamID,
-			Labels: map[string]string{"managed-by": "wireflow"},
-		}}
-		if err := w.client.Create(ctx, ns); err != nil {
-			return err
-		}
-
-		// 2. 创建 ResourceQuota (限制 CRD 数量)
-		quota := &corev1.ResourceQuota{
-			ObjectMeta: metav1.ObjectMeta{Name: "team-quota", Namespace: teamID},
-			Spec: corev1.ResourceQuotaSpec{
-				Hard: corev1.ResourceList{
-					corev1.ResourceName("count/nodes.wireflow.io"): resource.MustParse("50"),
-					corev1.ResourceSecrets:                         resource.MustParse("20"),
-				},
-			},
-		}
-		if err := w.client.Create(ctx, quota); err != nil {
-			return err
-		}
-
-		// 3. 创建 RoleBinding (将 Owner 绑定到 Namespace)
-		rb := &rbacv1.RoleBinding{
-			ObjectMeta: metav1.ObjectMeta{Name: "owner-binding", Namespace: teamID},
-			Subjects: []rbacv1.Subject{{
-				Kind:     "User",
-				Name:     ownerID, // 这里对应外部身份系统的 ID/Name
-				APIGroup: "rbac.authorization.k8s.io",
-			}},
-			RoleRef: rbacv1.RoleRef{
-				Kind:     "ClusterRole",
-				Name:     "wf-resource-editor", // 引用之前定义的模板
-				APIGroup: "rbac.authorization.k8s.io",
-			},
-		}
-		return w.client.Create(ctx, rb)
-	})
-}
-
-// teamService逻辑
 func (w *workspaceService) AddWorkspace(ctx context.Context, dto *dto.WorkspaceDto) (*vo.WorkspaceVo, error) {
-
 	var res vo.WorkspaceVo
-	//开一个事务来操作
-	err := w.db.Transaction(func(tx *gorm.DB) error {
-		var err error
-		txRepo := repository.NewWorkspaceRepository(tx)
-
+	err := w.store.Tx(ctx, func(s store.Store) error {
 		newWs := &models.Workspace{
 			Slug:        utils.GenerateSlug(dto.Slug),
 			DisplayName: dto.DisplayName,
 			Namespace:   dto.Namespace,
 		}
-		err = txRepo.Create(ctx, newWs)
-		if err != nil {
+		if err := s.Workspaces().Create(ctx, newWs); err != nil {
 			return err
 		}
-
-		// 1. 在 K8s 中真实创建 Namespace, 创建RoleBinding
-		// 同时可以创建 ResourceQuota (配额), 限制用户创建的节点数与空间数，防止用户把集群搞崩
-		err = w.InitNewNamespace(ctx, newWs.ID)
-		if err != nil {
+		if err := w.InitNewNamespace(ctx, newWs.ID); err != nil {
 			return err
 		}
-
-		res = vo.WorkspaceVo{
-			Namespace:   dto.Namespace,
-			DisplayName: dto.DisplayName,
-		}
-
+		res = vo.WorkspaceVo{ID: newWs.ID, Namespace: dto.Namespace, DisplayName: dto.DisplayName}
 		return nil
 	})
-
 	if err != nil {
 		return nil, err
 	}
-
 	return &res, nil
-}
-
-// 授权逻辑
-func (w *workspaceService) AssignPermission(ctx context.Context, dto *dto.UserNamespacePermissionDto) error {
-
-	// 1. 数据库写入权限记录
-	perm := &models.UserNamespacePermission{
-		UserID:      dto.UserID,
-		Namespace:   dto.Namespace,
-		AccessLevel: dto.AccessLevel,
-	}
-	w.db.Save(&perm)
-
-	// 2. 【高级操作】同步创建 K8s RBAC RoleBinding
-	// 这样该用户以后通过 kubectl 访问时也会被权限限制
-	err := w.CreateRoleBinding(ctx, perm)
-	if err != nil {
-		return err
-	}
-
-	return nil
 }
 
 func (w *workspaceService) InitNewNamespace(ctx context.Context, workspaceId string) error {
@@ -376,27 +245,19 @@ func (w *workspaceService) CreateRoleBinding(ctx context.Context, perm *models.U
 	return nil
 }
 
-// 创建资源
 func (w *workspaceService) InitializeTenant(ctx context.Context, wsID, role string) error {
 	nsName := fmt.Sprintf("wf-%s", wsID)
 
-	// 构造 Namespace 对象
 	ns := &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: nsName,
-			Labels: map[string]string{
-				"wireflow.run/workspace-id": wsID, // 建议加上标签，方便以后清理
-			},
+			Name:   nsName,
+			Labels: map[string]string{"wireflow.run/workspace-id": wsID},
 		},
 	}
-
-	// 1. 创建 Namespace， 这里不能用模拟的client
-	err := w.client.Create(ctx, ns)
-	if err != nil {
+	if err := w.client.Create(ctx, ns); err != nil {
 		return err
 	}
-	//创建quota
-	// 2. 创建 ResourceQuota (限制 CRD 数量)
+
 	quota := &corev1.ResourceQuota{
 		ObjectMeta: metav1.ObjectMeta{Name: "workspace-quota", Namespace: nsName},
 		Spec: corev1.ResourceQuotaSpec{
@@ -406,33 +267,25 @@ func (w *workspaceService) InitializeTenant(ctx context.Context, wsID, role stri
 			},
 		},
 	}
-
-	err = w.client.Create(ctx, quota)
-	if err != nil {
+	if err := w.client.Create(ctx, quota); err != nil {
 		return fmt.Errorf("failed to create quota: %v", err)
 	}
 
-	// 2. 为三个角色创建 RoleBinding
-	// 假设你已经预先手动或在集群启动时创建了 3 个全局 ClusterRole:
-	// wireflow-admin, wireflow-member, wireflow-viewer
-	roles := []string{"admin", "member", "viewer"}
-	for _, role := range roles {
-		err = w.createRoleBinding(ctx, nsName, wsID, role)
-		if err != nil {
+	for _, r := range []string{"admin", "member", "viewer"} {
+		if err := w.createRoleBinding(ctx, nsName, wsID, r); err != nil {
 			return fmt.Errorf("failed to create role binding: %v", err)
 		}
 	}
 	return nil
 }
 
-// 无论什么用户，都走这套逻辑，只是参数不同
 // nolint:all
 func (w *workspaceService) setupQuota(ctx context.Context, ns string, plan *models.Plan) {
 	quota := &corev1.ResourceQuota{
 		Spec: corev1.ResourceQuotaSpec{
 			Hard: corev1.ResourceList{
-				corev1.ResourcePods:   resource.MustParse(plan.PeerLimit),   // 免费版 5个，专业版 100个
-				corev1.ResourceMemory: resource.MustParse(plan.MemoryLimit), // 免费版 1Gi，专业版 32Gi
+				corev1.ResourcePods:   resource.MustParse(plan.PeerLimit),
+				corev1.ResourceMemory: resource.MustParse(plan.MemoryLimit),
 			},
 		},
 	}
@@ -445,20 +298,16 @@ func (w *workspaceService) createRoleBinding(ctx context.Context, ns, wsID, role
 
 	rb := &rbacv1.RoleBinding{
 		ObjectMeta: metav1.ObjectMeta{Name: rbName, Namespace: ns},
-		Subjects: []rbacv1.Subject{
-			{
-				Kind:     "Group",
-				Name:     groupName, // 这是我们要模拟的组名
-				APIGroup: "rbac.authorization.k8s.io",
-			},
-		},
+		Subjects: []rbacv1.Subject{{
+			Kind:     "Group",
+			Name:     groupName,
+			APIGroup: "rbac.authorization.k8s.io",
+		}},
 		RoleRef: rbacv1.RoleRef{
 			Kind:     "ClusterRole",
-			Name:     fmt.Sprintf("wireflow-%s", roleName), // 绑定预定义的模板
+			Name:     fmt.Sprintf("wireflow-%s", roleName),
 			APIGroup: "rbac.authorization.k8s.io",
 		},
 	}
-	err := w.client.Create(ctx, rb)
-
-	return err
+	return w.client.Create(ctx, rb)
 }

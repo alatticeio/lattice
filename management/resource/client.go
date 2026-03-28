@@ -24,6 +24,8 @@ import (
 	"wireflow/internal/infra"
 	"wireflow/internal/log"
 
+	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
+
 	"wireflow/api/v1alpha1"
 
 	"google.golang.org/protobuf/proto"
@@ -48,7 +50,7 @@ type Client struct {
 	log *log.Logger
 
 	hashMu         sync.RWMutex
-	lastPushedHash map[uint64]string
+	lastPushedHash map[string]string
 	sender         infra.SignalService
 }
 
@@ -79,7 +81,7 @@ func NewClient(signal infra.SignalService, mgr manager.Manager) (*Client, error)
 
 	client := &Client{
 		Client:         mgr.GetClient(),
-		lastPushedHash: make(map[uint64]string),
+		lastPushedHash: make(map[string]string),
 		log:            logger,
 		sender:         signal,
 		Manager:        mgr,
@@ -140,40 +142,47 @@ func (c *Client) handleConfigMapEvent(ctx context.Context, obj interface{}, even
 	}
 
 	if message.Current != nil {
-		err := c.pushToNode(ctx, message.Current.PeerID, &message)
+		err := c.pushToNode(ctx, message.Current, &message)
 		if err != nil {
 			c.log.Error("Failed to push message", err)
 			return
 		}
-		c.log.Info(">>> Message pushed to node success <<<", "namespace", cm.Namespace, "appId", message.Current.PublicKey, "version", cm.ResourceVersion)
+		c.log.Info(">>> Message pushed to node success <<<", "namespace", cm.Namespace, "appId", message.Current.AppID, "version", cm.ResourceVersion)
 	}
 }
 
-func (c *Client) pushToNode(ctx context.Context, peerId uint64, msg *infra.Message) error {
+func (c *Client) pushToNode(ctx context.Context, peer *infra.Peer, msg *infra.Message) error {
 	// hash
 	msgHash, err := c.computeMessageHash(msg)
 	if err != nil {
 		return err
 	}
 
-	// check hash
+	// check hash by appId (stable across key rotations)
 	c.hashMu.RLock()
-	lastHash, exists := c.lastPushedHash[peerId]
+	lastHash, exists := c.lastPushedHash[peer.AppID]
 	c.hashMu.RUnlock()
 
 	if exists && lastHash == msgHash {
-		c.log.Info("Message unchanged, skipping push", "peerId", peerId)
+		c.log.Info("Message unchanged, skipping push", "appId", peer.AppID)
 		return nil
 	}
 
-	// 3. 推送消息
+	// derive PeerID from public key for NATS routing
+	pubKey, err := wgtypes.ParseKey(peer.PublicKey)
+	if err != nil {
+		return fmt.Errorf("invalid public key for peer %s: %v", peer.AppID, err)
+	}
+	peerID := infra.FromKey(pubKey)
+
+	// push message
 	data, err := json.Marshal(msg)
 	if err != nil {
 		return err
 	}
 
 	packet := &grpc.SignalPacket{
-		SenderId: peerId,
+		SenderId: peerID.ToUint64(),
 		Type:     grpc.PacketType_MESSAGE,
 		Payload: &grpc.SignalPacket_Message{
 			Message: &grpc.Message{
@@ -187,21 +196,16 @@ func (c *Client) pushToNode(ctx context.Context, peerId uint64, msg *infra.Messa
 		return err
 	}
 
-	if err = c.sender.Send(ctx, infra.FromUint64(peerId), content); err != nil {
-		return fmt.Errorf("Failed to send message to node %d: %v", peerId, err)
+	if err = c.sender.Send(ctx, peerID, content); err != nil {
+		return fmt.Errorf("failed to send message to node %s: %v", peer.AppID, err)
 	}
 
-	// 4. 更新缓存
+	// update cache
 	c.hashMu.Lock()
-	c.lastPushedHash[peerId] = msgHash
+	c.lastPushedHash[peer.AppID] = msgHash
 	c.hashMu.Unlock()
 
-	// 5. 记录日志
-	b, err := json.Marshal(msg)
-	if err != nil {
-		return err
-	}
-	c.log.Info("Pushing message success", "peerId", peerId, "data", len(b))
+	c.log.Info("Pushing message success", "appId", peer.AppID, "data", len(data))
 	return nil
 }
 
@@ -215,8 +219,13 @@ func (c *Client) computeMessageHash(msg *infra.Message) (string, error) {
 
 func NewManager() (manager.Manager, error) {
 	// 1. 初始化 Manager (它是 Informer 和 Cache 的核心)
-	// 默认会尝试加载集群内配置
-	mgr, err := manager.New(ctrl.GetConfigOrDie(), manager.Options{
+	// 使用 GetConfig() 替代 GetConfigOrDie()，避免非 K8s 环境下进程直接 exit。
+	restConfig, err := ctrl.GetConfig()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get kubeconfig (not in K8s cluster?): %w", err)
+	}
+
+	mgr, err := manager.New(restConfig, manager.Options{
 		Scheme: scheme,
 		Cache: cache2.Options{
 			DefaultLabelSelector: labels.SelectorFromSet(map[string]string{
@@ -234,18 +243,18 @@ func NewManager() (manager.Manager, error) {
 	}
 
 	ctx := context.Background()
-	// 注册索引： status.token
-	if err = mgr.GetFieldIndexer().IndexField(ctx, &v1alpha1.WireflowEnrollmentToken{}, "status.token", func(rawObj client.Object) []string {
+	// 注册索引： spec.token
+	if err = mgr.GetFieldIndexer().IndexField(ctx, &v1alpha1.WireflowEnrollmentToken{}, "spec.token", func(rawObj client.Object) []string {
 		// 1. 断言对象类型
 		token, ok := rawObj.(*v1alpha1.WireflowEnrollmentToken)
 		if !ok {
 			return nil
 		}
 		// 2. 返回需要索引的字段值
-		if token.Status.Token == "" {
+		if token.Spec.Token == "" {
 			return nil
 		}
-		return []string{token.Status.Token}
+		return []string{token.Spec.Token}
 	}); err != nil {
 		return nil, err
 	}

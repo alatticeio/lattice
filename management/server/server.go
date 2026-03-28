@@ -17,11 +17,14 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"time"
 	"wireflow/internal/config"
+	"wireflow/internal/db"
 	"wireflow/internal/infra"
 	"wireflow/internal/log"
+	"wireflow/internal/store"
 	"wireflow/management/controller"
-	"wireflow/management/database"
 	"wireflow/management/nats"
 	"wireflow/management/resource"
 	"wireflow/pkg/version"
@@ -42,6 +45,7 @@ type Server struct {
 
 	client            *resource.Client
 	manager           manager.Manager
+	cacheReady        chan struct{}
 	peerController    controller.PeerController
 	networkController controller.NetworkController
 	userController    controller.UserController
@@ -51,6 +55,9 @@ type Server struct {
 	tokenController     controller.TokenController
 
 	monitorController controller.MonitorController
+	profileController controller.ProfileController
+
+	store store.Store
 }
 
 // ServerConfig is the server configuration.
@@ -60,63 +67,87 @@ type ServerConfig struct {
 }
 
 // NewServer creates a new server.
-func NewServer(serverConfig *ServerConfig) (*Server, error) {
+func NewServer(ctx context.Context, serverConfig *ServerConfig) (*Server, error) {
 	logger := log.GetLogger("management")
+	cfg := serverConfig.Cfg
 
-	signal, err := nats.NewNatsService(context.Background(), config.Conf.SignalingURL)
-	if err != nil {
-		logger.Error("init signal failed", err)
-		return nil, err
+	// ── 弱依赖①：NATS 信令服务（可选）──────────────────────────────
+	// 若 signaling-url 为空或连接失败，降级为 noop，主进程继续启动。
+	var signal infra.SignalService
+	if cfg.SignalingURL == "" {
+		logger.Warn("signaling-url is empty, NATS signal service disabled")
+		signal = nats.NewNoopSignalService()
+	} else {
+		svc, err := nats.NewNatsService(ctx, "wireflow-manager", "server", cfg.SignalingURL)
+		if err != nil {
+			logger.Warn("NATS init failed, falling back to noop signal service", "url", cfg.SignalingURL, "err", err)
+			signal = nats.NewNoopSignalService()
+		} else {
+			signal = svc
+		}
 	}
 
-	mgr, err := resource.NewManager()
+	// ── 弱依赖②：K8s Manager（可选）────────────────────────────────
+	// 非 K8s 环境（本地开发、CI）下跳过，不影响 HTTP Server 启动。
+	var mgr manager.Manager
+	var client *resource.Client
+	k8sMgr, err := resource.NewManager()
 	if err != nil {
-		logger.Error("init mgr failed", err)
-		return nil, err
+		logger.Warn("K8s manager init failed, running without controller-runtime", "err", err)
+	} else {
+		mgr = k8sMgr
+		k8sClient, cerr := resource.NewClient(signal, mgr)
+		if cerr != nil {
+			logger.Warn("K8s client init failed, running without K8s CRD support", "err", cerr)
+		} else {
+			client = k8sClient
+		}
 	}
 
-	client, err := resource.NewClient(signal, mgr)
-	if err != nil {
-		logger.Error("init client failed", err)
-		return nil, err
+	// 注册一个 Runnable：controller-runtime 在 cache 同步完成后才会启动 Runnable，
+	// 关闭 cacheReady 通知外部 HTTP Server 可以安全上线。
+	var cacheReady chan struct{}
+	if mgr != nil {
+		cacheReady = make(chan struct{})
+		ch := cacheReady
+		_ = mgr.Add(manager.RunnableFunc(func(ctx context.Context) error {
+			close(ch)
+			<-ctx.Done()
+			return nil
+		}))
 	}
 
-	database.InitDB(serverConfig.Cfg.Database.DSN)
+	// ── 强依赖：数据库（失败时返回错误，符合设计约束）───────────
+	st, err := db.NewStore(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("failed to init store: %w", err)
+	}
 
 	s := &Server{
 		Engine:              gin.Default(),
 		logger:              logger,
-		listen:              serverConfig.Cfg.App.Listen,
+		listen:              cfg.Listen,
 		nats:                signal,
 		manager:             mgr,
+		cacheReady:          cacheReady,
 		client:              client,
-		cfg:                 serverConfig.Cfg,
-		peerController:      controller.NewPeerController(client),
-		networkController:   controller.NewNetworkController(client),
-		userController:      controller.NewUserController(),
-		policyController:    controller.NewPolicyController(client),
-		workspaceController: controller.NewWorkspaceController(client),
-		tokenController:     controller.NewTokenController(client),
-		monitorController:   controller.NewMonitorController(config.GlobalConfig.Monitor.Address),
+		cfg:                 cfg,
+		peerController:      controller.NewPeerController(client, st),
+		networkController:   controller.NewNetworkController(client, st),
+		userController:      controller.NewUserController(st),
+		policyController:    controller.NewPolicyController(client, st),
+		workspaceController: controller.NewWorkspaceController(client, st),
+		tokenController:     controller.NewTokenController(client, st),
+		monitorController:   controller.NewMonitorController(cfg.Monitor.Address),
+		profileController:   controller.NewProfileController(st),
+		store:               st,
 	}
 
-	// initAdmins
+	// initAdmins：DB 已就绪后执行；失败只告警，不阻断启动。
 	if err = s.userController.InitAdmin(context.Background(), config.GlobalConfig.App.InitAdmins); err != nil {
-		s.logger.Error("init admin failed", err)
-		return nil, err
-	}
-
-	s.logger.Debug("Init admin success")
-
-	routes := map[string]Handler{
-		"wireflow.signals.peer.register":       s.Register,
-		"wireflow.signals.peer.GetNetMap":      s.GetNetMap,
-		"wireflow.signals.service.info":        s.Info,
-		"wireflow.signals.service.createToken": s.CreateToken,
-	}
-
-	for route, handler := range routes {
-		s.nats.Service(route, "wireflow_queue", handler)
+		s.logger.Warn("init admin failed (non-fatal, will retry on next startup)", "err", err)
+	} else {
+		s.logger.Debug("Init admin success")
 	}
 
 	if err = s.apiRouter(); err != nil {
@@ -130,6 +161,29 @@ func NewServer(serverConfig *ServerConfig) (*Server, error) {
 }
 
 func (s *Server) Start(ctx context.Context) error {
+	if s.manager == nil {
+		// K8s manager 不可用，阻塞直到 ctx 取消，保持 goroutine 正常退出。
+		<-ctx.Done()
+		return nil
+	}
+
+	//注册nats service
+	routes := map[string]Handler{
+		"wireflow.signals.peer.register":       s.Register,
+		"wireflow.signals.peer.GetNetMap":      s.GetNetMap,
+		"wireflow.signals.service.info":        s.Info,
+		"wireflow.signals.service.createToken": s.CreateToken,
+	}
+
+	for route, handler := range routes {
+		s.nats.Service(route, "wireflow_queue", handler)
+	}
+
+	// 关键：确保订阅指令已经到达并被 NATS Server 处理
+	if err := s.nats.Flush(); err != nil {
+		s.logger.Error("NATS subscription sync failed", err)
+	}
+
 	return s.manager.Start(ctx)
 }
 
@@ -137,12 +191,22 @@ func (s *Server) GetManager() manager.Manager {
 	return s.manager
 }
 
+// CacheReady returns a channel that is closed once the controller-runtime cache
+// has fully synced. Returns nil if no K8s manager is available.
+func (s *Server) CacheReady() <-chan struct{} {
+	return s.cacheReady
+}
+
 func (s *Server) Register(content []byte) ([]byte, error) {
-	return s.peerController.Register(context.Background(), content)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	return s.peerController.Register(ctx, content)
 }
 
 func (s *Server) GetNetMap(content []byte) ([]byte, error) {
-	return s.peerController.GetNetmap(context.Background(), content)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	return s.peerController.GetNetmap(ctx, content)
 }
 
 func (s *Server) Info(content []byte) ([]byte, error) {
@@ -152,7 +216,9 @@ func (s *Server) Info(content []byte) ([]byte, error) {
 }
 
 func (s *Server) CreateToken(content []byte) ([]byte, error) {
-	return s.peerController.CreateToken(context.Background(), content)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	return s.peerController.CreateToken(ctx, content)
 }
 
 func (s *Server) Shutdown(ctx context.Context) error {

@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"os"
 	"runtime"
+	"time"
 	"wireflow/internal/config"
 	"wireflow/internal/infra"
 	"wireflow/internal/log"
@@ -111,6 +112,9 @@ func (c *Client) Register(ctx context.Context, token, interfaceName string) (*in
 	}
 	var err error
 
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
 	hostname, err := os.Hostname()
 	if err != nil {
 		c.logger.Error("get hostname failed", err)
@@ -174,11 +178,11 @@ func (c *Client) AddPeer(p *infra.Peer) error {
 	if err != nil {
 		return err
 	}
-	peerId := infra.FromKey(key)
+	peerIdentity := infra.NewPeerIdentity(p.AppID, key)
 
-	probe, err = c.probeFactory.Get(peerId)
+	probe, err = c.probeFactory.Get(peerIdentity)
 	if err != nil {
 		return err
 	}
-	return probe.Start(context.Background(), peerId)
+	return probe.Start(context.Background(), peerIdentity)
 }

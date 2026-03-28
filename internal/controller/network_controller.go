@@ -26,8 +26,10 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"wireflow/api/v1alpha1"
@@ -78,8 +80,8 @@ func (r *NetworkReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		}); err != nil {
 			return ctrl.Result{}, err
 		}
-
-		return ctrl.Result{}, nil
+		// 不提前返回：由于使用 GenerationChangedPredicate，status-only 的变更不会触发新的 reconcile，
+		// 必须在同一次 reconcile 中继续完成 ActiveCIDR 分配。
 	}
 
 	if network.Status.ActiveCIDR == "" {
@@ -105,6 +107,7 @@ func (r *NetworkReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 		if err != nil {
 			log.Error(err, "Failed to update WireflowNetwork status")
+			return ctrl.Result{}, err
 		}
 
 		if updated {
@@ -118,13 +121,16 @@ func (r *NetworkReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	if err != nil {
 		return ctrl.Result{}, err
 	}
-	_, err = r.updateStatus(ctx, &network, func(network *v1alpha1.WireflowNetwork) error {
-		network.Status.AllocatedCount = len(peers.Items)
-		return nil
-	})
 
-	if err != nil {
-		return ctrl.Result{}, err
+	count := len(peers.Items)
+	if network.Status.AllocatedCount != count {
+		_, err = r.updateStatus(ctx, &network, func(network *v1alpha1.WireflowNetwork) error {
+			network.Status.AllocatedCount = count
+			return nil
+		})
+		if err != nil {
+			return ctrl.Result{}, err
+		}
 	}
 
 	return ctrl.Result{}, nil
@@ -219,7 +225,8 @@ func (r *NetworkReconciler) findNodesByLabels(ctx context.Context, network *v1al
 // SetupWithManager sets up the controller with the Manager.
 func (r *NetworkReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&v1alpha1.WireflowNetwork{}).
+		// GenerationChangedPredicate 过滤 status 子资源更新，避免 NetworkReconciler 被自己的 status patch 反复触发
+		For(&v1alpha1.WireflowNetwork{}, builder.WithPredicates(predicate.GenerationChangedPredicate{})).
 		//Watches(&v1alpha1.WireflowPeer{},
 		//	handler.EnqueueRequestsFromMapFunc(r.mapNodeForNetworks),
 		//	builder.WithPredicates(predicate.ResourceVersionChangedPredicate{})).

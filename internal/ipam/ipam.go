@@ -40,42 +40,45 @@ func NewIPAM(client client.Client) *IPAM {
 
 // AllocateSubnet allocate a subnet for new network
 func (m *IPAM) AllocateSubnet(ctx context.Context, networkName string, pool *v1alpha1.WireflowGlobalIPPool) (string, error) {
-	ip, err := m.FindFirstFree(ctx, pool)
-	if err != nil {
-		return "", err
-	}
+	const maxRetries = 10
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		// 每次重试都重新查询，以感知并发创建带来的新占用
+		ip, err := m.FindFirstFree(ctx, pool)
+		if err != nil {
+			return "", err
+		}
 
-	subnetCIDR := fmt.Sprintf("%s/%d", ip.String(), pool.Spec.SubnetMask)
-	subnetName := fmt.Sprintf("subnet-%s", ipToHex(ip))
+		subnetCIDR := fmt.Sprintf("%s/%d", ip.String(), pool.Spec.SubnetMask)
+		subnetName := fmt.Sprintf("subnet-%s", ipToHex(ip))
 
-	// 3. 尝试原子创建索引对象
-	alloc := &v1alpha1.WireflowSubnetAllocation{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: subnetName,
-		},
-		Spec: struct {
-			NetworkName string `json:"networkName"`
-			CIDR        string `json:"cidr"`
-		}{
-			NetworkName: networkName,
-			CIDR:        subnetCIDR,
-		},
-	}
+		alloc := &v1alpha1.WireflowSubnetAllocation{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: subnetName,
+			},
+			Spec: struct {
+				NetworkName string `json:"networkName"`
+				CIDR        string `json:"cidr"`
+			}{
+				NetworkName: networkName,
+				CIDR:        subnetCIDR,
+			},
+		}
 
-	if err = controllerutil.SetControllerReference(pool, alloc, m.client.Scheme()); err != nil {
-		return "", err
-	}
+		if err = controllerutil.SetControllerReference(pool, alloc, m.client.Scheme()); err != nil {
+			return "", err
+		}
 
-	err = m.client.Create(ctx, alloc)
-	if err == nil {
-		// 创建成功，意味着我们抢到了这个段
-		return subnetCIDR, nil
-	}
+		err = m.client.Create(ctx, alloc)
+		if err == nil {
+			// 创建成功，意味着我们抢到了这个段
+			return subnetCIDR, nil
+		}
 
-	if !errors.IsAlreadyExists(err) {
-		return "", err // 发生了其他错误
+		if !errors.IsAlreadyExists(err) {
+			return "", err // 发生了其他错误
+		}
+		// AlreadyExists：该段刚被并发请求抢走，重试找下一个空闲段
 	}
-	// 如果 AlreadyExists，说明该段已被占用，循环继续尝试下一个
 
 	return "", fmt.Errorf("no available subnet in pool")
 }

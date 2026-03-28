@@ -2,6 +2,7 @@ package server
 
 import (
 	"strings"
+	"wireflow/internal/web"
 	"wireflow/management/dex"
 	"wireflow/management/dto"
 	"wireflow/management/server/middleware"
@@ -16,11 +17,23 @@ func (s *Server) apiRouter() error {
 	// 跨域处理（对接 Vite 开发环境）
 	s.Use(middleware.CORSMiddleware())
 
-	dex, err := dex.NewDex(service.NewWorkspaceService(s.client))
-	if err != nil {
-		return err
+	// Dex OIDC 为可选依赖：providerUrl 为空时跳过初始化，注册降级 handler。
+	if s.cfg.Dex.ProviderUrl != "" {
+		dexSvc, err := dex.NewDex(service.NewWorkspaceService(s.client, s.store))
+		if err != nil {
+			s.logger.Warn("Dex init failed, /auth/callback will return 503", "err", err)
+			s.GET("/auth/callback", func(c *gin.Context) {
+				c.JSON(503, gin.H{"error": "Dex OIDC provider not available"})
+			})
+		} else {
+			s.GET("/auth/callback", dexSvc.Login)
+		}
+	} else {
+		s.logger.Warn("dex.providerUrl is empty, Dex OIDC disabled")
+		s.GET("/auth/callback", func(c *gin.Context) {
+			c.JSON(503, gin.H{"error": "Dex OIDC is not configured"})
+		})
 	}
-	s.GET("/auth/callback", dex.Login)
 	//加入监控
 	s.GET("/metrics", gin.WrapH(promhttp.Handler()))
 	api := s.Group("/api/v1")
@@ -62,8 +75,14 @@ func (s *Server) apiRouter() error {
 
 	s.monitorRouter()
 
+	s.profileRouter()
+
 	// 实时状态推送 (WebSocket)
 	//r.GET("/ws/status", HandleStatusWS)
+
+	// SPA 静态资源：必须最后注册，通过 NoRoute 捕获所有未匹配路径
+	web.RegisterHandlers(s.Engine)
+
 	return nil
 }
 
@@ -95,13 +114,15 @@ func (s *Server) listTokens() gin.HandlerFunc {
 // 模拟 JWT 或加密 Token 的生成
 func (s *Server) generateToken() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		err := s.tokenController.Create(c.Request.Context())
+		token, err := s.tokenController.Create(c.Request.Context())
 		if err != nil {
 			resp.Error(c, err.Error())
 			return
 		}
 
-		resp.OK(c, nil)
+		resp.OK(c, map[string]interface{}{
+			"token": token,
+		})
 	}
 }
 

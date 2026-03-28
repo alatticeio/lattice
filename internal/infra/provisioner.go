@@ -183,8 +183,9 @@ type ruleProvisioner struct {
 	logger        *log.Logger
 }
 
-func NewRuleProvisioner(logger *log.Logger) RuleProvisioner {
+func NewRuleProvisioner(logger *log.Logger, ifaceName string) RuleProvisioner {
 	return &ruleProvisioner{
-		logger: logger,
+		interfaceName: ifaceName,
+		logger:        logger,
 	}
 }

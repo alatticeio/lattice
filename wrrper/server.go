@@ -63,7 +63,7 @@ type Server struct {
 	wrrpManager *WRRPManager
 }
 
-func NewServer(flags *config.Flags) *Server {
+func NewServer(flags *config.Config) *Server {
 	s := &Server{
 		log: internallog.GetLogger("wrrp"),
 		wrrpManager: &WRRPManager{

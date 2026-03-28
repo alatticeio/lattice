@@ -34,8 +34,8 @@ var (
 // Probe for probe connection from two peerManager.
 type Probe struct {
 	mu        sync.RWMutex
-	localId   infra.PeerID
-	remoteId  infra.PeerID
+	localId   infra.PeerIdentity
+	remoteId  infra.PeerIdentity
 	iceDialer infra.Dialer
 	state     ice.ConnectionState
 	signal    infra.SignalService
@@ -52,7 +52,7 @@ type Probe struct {
 	currentTransport infra.Transport
 }
 
-func (p *Probe) Handle(ctx context.Context, remoteId infra.PeerID, packet *grpc.SignalPacket) error {
+func (p *Probe) Handle(ctx context.Context, remoteId infra.PeerIdentity, packet *grpc.SignalPacket) error {
 	switch packet.Dialer {
 	case grpc.DialerType_ICE:
 		return p.iceDialer.Handle(ctx, p.remoteId, packet)
@@ -68,7 +68,7 @@ func (p *Probe) OnConnectionStateChange(state ice.ConnectionState) {
 	p.log.Debug("Setting new connection status", "state", state)
 }
 
-func (p *Probe) Start(ctx context.Context, remoteId infra.PeerID) error {
+func (p *Probe) Start(ctx context.Context, remoteId infra.PeerIdentity) error {
 	if p.started.Load() {
 		p.log.Warn("Probe already started")
 		return nil
@@ -89,7 +89,9 @@ func (p *Probe) Start(ctx context.Context, remoteId infra.PeerID) error {
 			return
 		}
 
+		p.mu.Lock()
 		p.currentTransport = t
+		p.mu.Unlock()
 		if err = p.onSuccess(t); err != nil {
 			p.updateState(ice.ConnectionStateFailed)
 		}
@@ -178,15 +180,17 @@ func (p *Probe) handleUpgradeTransport(newTransport infra.Transport) error {
 	defer p.mu.Unlock()
 
 	// 权重比较：直连优于中转
-	if newTransport.Priority() > p.currentTransport.Priority() {
+	if p.currentTransport == nil || newTransport.Priority() > p.currentTransport.Priority() {
 		old := p.currentTransport
 		p.currentTransport = newTransport
 
 		// 延迟关闭旧连接，确保缓冲区数据发完
-		go func() {
-			time.Sleep(2 * time.Second)
-			old.Close()
-		}()
+		if old != nil {
+			go func() {
+				time.Sleep(2 * time.Second)
+				old.Close()
+			}()
+		}
 	}
 
 	// reset endpoint

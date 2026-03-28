@@ -16,7 +16,6 @@ package management
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
@@ -29,23 +28,20 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-func Start(flags *config.Flags) error {
+func Start(flags *config.Config) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	logger := log.GetLogger("management")
 
-	cfg := config.InitConfig(flags.ENV)
-
-	// 1. 初始化服务实例
-	hs, err := server.NewServer(&server.ServerConfig{
-		Cfg: cfg,
+	// 2. 创建 errgroup
+	g, ctx := errgroup.WithContext(ctx)
+	// GlobalConfig 已在 PersistentPreRunE 中由 config.GetManager().Load(cmd) 填充。
+	hs, err := server.NewServer(ctx, &server.ServerConfig{
+		Cfg: config.GlobalConfig,
 	})
 	if err != nil {
 		return err
 	}
-
-	// 2. 创建 errgroup
-	g, ctx := errgroup.WithContext(ctx)
 
 	// 任务 A: 启动 Manager (控制器逻辑)
 	g.Go(func() error {
@@ -54,14 +50,19 @@ func Start(flags *config.Flags) error {
 		return hs.Start(ctx)
 	})
 
-	// 任务 B: 等待缓存同步并启动 HTTP Server
+	// 任务 B: 等待缓存同步（若 K8s 可用）后启动 HTTP Server
 	g.Go(func() error {
-		logger.Info("Waiting for cache sync...")
-		// 关键：确保在启动 Web 服务前，缓存已经同步完成
-		if !hs.GetManager().GetCache().WaitForCacheSync(ctx) {
-			return fmt.Errorf("failed to wait for cache sync")
+		if ch := hs.CacheReady(); ch != nil {
+			logger.Info("Waiting for cache sync...")
+			select {
+			case <-ch:
+				logger.Info("Cache synced, starting API Server...")
+			case <-ctx.Done():
+				return ctx.Err()
+			}
+		} else {
+			logger.Warn("K8s manager not available, starting API server without cache sync")
 		}
-		logger.Info("Cache synced, starting API Server...")
 
 		srv := &http.Server{
 			Addr:    ":8080",

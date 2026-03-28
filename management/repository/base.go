@@ -2,8 +2,8 @@ package repository
 
 import (
 	"context"
-	"errors"
 	"fmt"
+	"reflect"
 
 	"gorm.io/gorm"
 )
@@ -24,18 +24,18 @@ func (r *BaseRepository[T]) Find(ctx context.Context, scopes ...func(*gorm.DB) *
 	return results, err
 }
 
-// First 返回单个对象
-// 如果找不到，gorm 会返回 ErrRecordNotFound
+// First 返回单个对象，找不到时透传 gorm.ErrRecordNotFound。
 func (r *BaseRepository[T]) First(ctx context.Context, scopes ...func(*gorm.DB) *gorm.DB) (*T, error) {
 	var result T
-	err := r.db.WithContext(ctx).Scopes(scopes...).First(&result).Error
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, nil // 或者返回自定义的 NotFound 错误
-		}
+	if err := r.db.WithContext(ctx).Scopes(scopes...).First(&result).Error; err != nil {
 		return nil, err
 	}
 	return &result, nil
+}
+
+// DB 返回底层 *gorm.DB，供需要 Preload / Joins 等高级操作的子类使用。
+func (r *BaseRepository[T]) DB() *gorm.DB {
+	return r.db
 }
 
 func (r *BaseRepository[T]) Count(ctx context.Context, scopes ...func(*gorm.DB) *gorm.DB) (int64, error) {
@@ -76,6 +76,17 @@ func (r *BaseRepository[T]) GetByID(ctx context.Context, id interface{}, preload
 func (r *BaseRepository[T]) Delete(ctx context.Context, scopes ...func(*gorm.DB) *gorm.DB) error {
 	var model T
 	return r.db.WithContext(ctx).Scopes(scopes...).Delete(&model).Error
+}
+
+func (r *BaseRepository[T]) Update(ctx context.Context, entity *T) error {
+	return r.db.WithContext(ctx).Updates(entity).Error
+}
+
+// 辅助方法：通过反射获取泛型实体的主键 ID
+// nolint:unused
+func (r *BaseRepository[T]) getID(entity *T) any {
+	val := reflect.ValueOf(entity).Elem()
+	return val.FieldByName("ID").Interface()
 }
 
 func (r *BaseRepository[T]) Upsert(ctx context.Context, attrs T, values T) error {

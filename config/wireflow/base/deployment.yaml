@@ -14,14 +14,11 @@ spec:
       labels:
         k8s-app: wireflow-control
     spec:
-      hostAliases:
-      - ip: "10.7.88.27"
-        hostnames:
-          - "signaling.wireflow.run"
       serviceAccountName: wireflow-controller-admin
       initContainers:
         - name: wait-for-nats
           image: curlimages/curl:latest
+          imagePullPolicy: IfNotPresent
           command:
             - '/bin/sh'
             - '-c'
@@ -33,20 +30,20 @@ spec:
       containers:
         - name: wireflow-control
           image: manager:latest
-          imagePullPolicy: Always
+          imagePullPolicy: IfNotPresent
           args:
             - "start"
             - "manager"
-            - "--level=INFO"
+            - "--level=DEBUG"
             - "--env=prod"
           volumeMounts:
-            - mountPath: /app/deploy/conf.yaml
+            - mountPath: /etc/wireflow/wireflow.yaml
               name: conf
-              subPath: conf.yaml
+              subPath: wireflow.yaml
           env:
             # 对应结构体 Database.DSN
             - name: APP_DATABASE_DSN
-              value: "root:root@tcp(10.7.88.27:3306)/wireflow?charset=utf8mb4&parseTime=True&loc=Local"
+              value: "root:root@tcp(wireflow-mariadb.wireflow-system.svc.cluster.local:3306)/wireflow?charset=utf8mb4&parseTime=True&loc=Local"
 
             # 对应结构体 Dex.Issuer
             - name: APP_DEX_ISSUR
@@ -59,8 +56,8 @@ spec:
           configMap:
             name: wireflow-control-config
             items:
-              - key: conf.yaml
-                path: conf.yaml
+              - key: wireflow.yaml
+                path: wireflow.yaml
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -78,13 +75,10 @@ spec:
       labels:
         k8s-app: wireflow-turn
     spec:
-      hostAliases:
-        - ip: "10.7.88.27"
-          hostnames:
-            - "signaling.wireflow.run"
       initContainers:
         - name: wait-for-nats
           image: curlimages/curl:latest
+          imagePullPolicy: IfNotPresent
           command:
             - '/bin/sh'
             - '-c'
@@ -96,7 +90,7 @@ spec:
       containers:
         - name: wireflow-turn
           image: manager:latest
-          imagePullPolicy: Always
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 3478
               protocol: UDP
@@ -123,10 +117,6 @@ spec:
       labels:
         k8s-app: wireflow-wrrper
     spec:
-      hostAliases:
-        - ip: "81.68.109.143"
-          hostnames:
-            - "signaling.wireflow.run"
       serviceAccountName: wireflow-controller-admin
       initContainers:
         - name: wait-for-nats
@@ -142,7 +132,7 @@ spec:
       containers:
         - name: wireflow-wrrper
           image: manager:latest
-          imagePullPolicy: Always
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 6266
               hostPort: 6266

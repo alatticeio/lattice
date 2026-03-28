@@ -17,6 +17,7 @@ package controller
 import (
 	"context"
 	"encoding/json"
+	"wireflow/internal/store"
 	"wireflow/management/dto"
 	"wireflow/management/resource"
 	"wireflow/management/service"
@@ -40,10 +41,10 @@ type PeerController interface {
 	UpdatePeer(ctx context.Context, peerDto *dto.PeerDto) (*vo.PeerVo, error)
 }
 
-func NewPeerController(client *resource.Client) PeerController {
+func NewPeerController(client *resource.Client, st store.Store) PeerController {
 	return &peerController{
-		peerService:   service.NewPeerService(client),
-		policyService: service.NewPolicyService(client),
+		peerService:   service.NewPeerService(client, st),
+		policyService: service.NewPolicyService(client, st),
 	}
 }
 
@@ -73,7 +74,6 @@ func (p *peerController) CreateToken(ctx context.Context, request []byte) ([]byt
 		return nil, err
 	}
 
-	// create default deny
 	if _, err := p.policyService.CreateOrUpdatePolicy(ctx, &dto.PolicyDto{
 		Name:      tokenDto.Name,
 		Namespace: tokenDto.Namespace,
@@ -95,7 +95,7 @@ func (p *peerController) Register(ctx context.Context, request []byte) ([]byte, 
 	if err := json.Unmarshal(request, &req); err != nil {
 		return nil, err
 	}
-	peer, err := p.peerService.Register(context.Background(), &req)
+	peer, err := p.peerService.Register(ctx, &req)
 	if err != nil {
 		return nil, err
 	}

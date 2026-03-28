@@ -18,11 +18,16 @@ package agent
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"runtime"
+	"strconv"
+	"strings"
+	"syscall"
 	"wireflow/dns"
 	"wireflow/internal/config"
 	"wireflow/internal/infra"
@@ -37,17 +42,16 @@ import (
 
 // Start start wireflow
 // nolint:all
-func Start(ctx context.Context, flags *config.Flags) error {
-	var (
-		logFile *os.File
-		path    string
-		err     error
-		process *os.Process
-	)
-
+func Start(flags *config.Config) error {
 	log.SetLevel(flags.Level)
-
 	logger := log.GetLogger("wireflow")
+
+	if flags.EnableDaemon && os.Getenv("WIREFLOW_DAEMON") == "" {
+		return startDaemon(flags, logger)
+	}
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
 
 	agentCfg := &AgentConfig{
 		Logger:        logger,
@@ -55,187 +59,83 @@ func Start(ctx context.Context, flags *config.Flags) error {
 		InterfaceName: flags.InterfaceName,
 		Token:         flags.Token,
 		ShowLog:       flags.EnableSysLog,
-		WgLogger: wg.NewLogger(
-			wg.LogLevelError,
-			fmt.Sprintf("(%s) ", flags.InterfaceName),
-		),
-		Flags: flags,
+		WgLogger:      wg.NewLogger(wg.LogLevelError, fmt.Sprintf("(%s) ", flags.InterfaceName)),
+		Flags:         flags,
 	}
 
-	// 创建一个随主程序生命周期管理的 Context
-	g, newCtx := errgroup.WithContext(ctx)
-
-	if flags.EnableDaemon {
-		fmt.Println("Run wireflow in daemon mode")
-		env := os.Environ()
-		env = append(env, "WIREFLOW_DAEMON=true")
-		if os.Getenv("WIREFLOW_DAEMON") == "" {
-			// 确保日志目录存在
-			var logDir string
-			switch runtime.GOOS {
-			case "darwin":
-				host, _ := os.UserHomeDir()
-				logDir = fmt.Sprintf("%s/%s", host, "Library/Logs/wireflow")
-			case "windows":
-				logDir = "C:\\ProgramData\\wireflow\\logs"
-			default:
-				logDir = "/var/log/wireflow"
-			}
-
-			if _, err = os.Stat(logDir); err != nil {
-				// 如果目录不存在或不是目录，则创建目录
-				if err = os.MkdirAll(logDir, 0755); err != nil {
-					fmt.Printf("Failed to create log directory: %v\n", err)
-					os.Exit(1)
-				}
-			} else {
-				fmt.Printf("Log directory already exists: %s\n", logDir)
-			}
-
-			// 打开日志文件
-			logFile, err = os.OpenFile(
-				filepath.Join(logDir, "wireflow.log"),
-				os.O_CREATE|os.O_WRONLY|os.O_APPEND,
-				0644,
-			)
-			if err != nil {
-				fmt.Printf("Failed to open log file: %v\n", err)
-				os.Exit(1)
-			}
-
-			files := [3]*os.File{}
-			if flags.Level != "" && flags.Level != "slient" {
-				files[0], _ = os.Open(os.DevNull)
-				files[1] = logFile
-				files[2] = logFile
-			} else {
-				files[0], _ = os.Open(os.DevNull)
-				files[1], _ = os.Open(os.DevNull)
-				files[2], _ = os.Open(os.DevNull)
-			}
-			attr := &os.ProcAttr{
-				Files: []*os.File{
-					files[0], // stdin
-					files[1], // stdout
-					files[2], // stderr
-					//tdev.File(),
-					//fileUAPI,
-				},
-				Dir: ".",
-				Env: env,
-			}
-
-			path, err = os.Executable()
-			if err != nil {
-				logger.Error("Failed to determine executable", err)
-				os.Exit(1)
-			}
-
-			filteredArgs := make([]string, 0)
-			for _, arg := range os.Args {
-				if arg != "--daemon" && arg != "-d" && arg != "--foreground" && arg != "-f" {
-					filteredArgs = append(filteredArgs, arg)
-				}
-			}
-
-			process, err = os.StartProcess(
-				path,
-				filteredArgs,
-				attr,
-			)
-			if err != nil {
-				logger.Error("Failed to daemonize", err)
-				os.Exit(1)
-			}
-			process.Release()
-			os.Exit(0) // exit parent
-		}
+	// 写 PID 文件，让 wireflow stop 能发 SIGTERM
+	pidPath := pidFilePath(flags.InterfaceName)
+	if err := writePIDFile(pidPath); err != nil {
+		logger.Warn("failed to write PID file", "err", err)
+	} else {
+		defer os.Remove(pidPath)
 	}
 
-	// enable metrics
+	g, gCtx := errgroup.WithContext(ctx)
+
 	if flags.EnableMetric {
 		g.Go(func() error {
-			select {
-			case <-newCtx.Done():
-				return newCtx.Err()
-			default:
-				runner := monitor.NewMonitorRunner(infra.NewPeerManager())
-				err := runner.Run(ctx)
-				return err
-			}
-
+			runner := monitor.NewMonitorRunner(infra.NewPeerManager())
+			return runner.Run(gCtx)
 		})
 	}
 
-	// enable DNS
 	if flags.EnableDNS {
 		go func() {
 			nativeDNS := dns.NewNativeDNS(&dns.DNSConfig{})
-			err := nativeDNS.Start()
-			if err != nil {
-				logger.Error("Failed to start", err)
+			if err := nativeDNS.Start(); err != nil {
+				logger.Error("DNS start failed", err)
 			}
-			fmt.Println("Dns started")
 		}()
 	}
 
-	var c *Agent
-
-	c, err = NewAgent(ctx, agentCfg)
+	c, err := NewAgent(gCtx, agentCfg)
 	if err != nil {
 		return err
 	}
 
 	c.GetNetworkMap = func() (*infra.Message, error) {
-		// get network map from list
 		msg, err := c.ctrClient.GetNetMap(flags.Token)
 		if err != nil {
-			logger.Error("Get network map failed", err)
+			logger.Error("get network map failed", err)
 			return nil, err
 		}
-
-		logger.Debug("Success get net map")
-
-		return msg, err
+		return msg, nil
 	}
 
-	err = c.Start(ctx)
+	if err = c.Start(gCtx); err != nil {
+		return err
+	}
 
-	// open UAPI file
 	logger.Debug("Interface name", "name", c.Name)
-	fileUAPI, err := func() (*os.File, error) {
-		return ipc.UAPIOpen(c.Name)
-	}()
+	fileUAPI, err := ipc.UAPIOpen(c.Name)
+	if err != nil {
+		return fmt.Errorf("failed to open UAPI socket: %w", err)
+	}
 
 	uapi, err := ipc.UAPIListen(c.Name, fileUAPI)
 	if err != nil {
-		logger.Error("Failed to listen on uapi socket", err)
-		os.Exit(-1)
+		return fmt.Errorf("failed to listen on UAPI socket: %w", err)
 	}
 
 	g.Go(func() error {
-		// 1. 监听退出信号，手动关闭 listener 以解开 Accept 的阻塞
 		go func() {
-			<-newCtx.Done()
+			<-gCtx.Done()
 			uapi.Close()
 		}()
 
 		for {
-			// Accept 会阻塞在这里，直到有新连接或 listener 被关闭
 			conn, err := uapi.Accept()
 			if err != nil {
-				// 如果是因为 context 取消导致的关闭，返回错误
 				select {
-				case <-newCtx.Done():
-					return newCtx.Err()
+				case <-gCtx.Done():
+					return gCtx.Err()
 				default:
 					return fmt.Errorf("ipc accept error: %w", err)
 				}
 			}
-
-			// 2. 异步处理连接，不阻塞 Accept 接收下一个请求
 			go func(nc net.Conn) {
-				defer nc.Close() // 3. 确保连接关闭
+				defer nc.Close()
 				c.DeviceManager.IpcHandle(nc)
 			}(conn)
 		}
@@ -243,92 +143,150 @@ func Start(ctx context.Context, flags *config.Flags) error {
 
 	logger.Info("wireflow started")
 
-	// 等待所有任务完成（或者任意一个任务出错退出）
-	if err = g.Wait(); err != nil {
-		uapi.Close()
-		c.close()
-		logger.Warn("wireflow shutting down")
+	if err = g.Wait(); err != nil && !errors.Is(err, context.Canceled) {
+		logger.Error("wireflow exited with error", err)
 	}
 
-	return err
+	if stopErr := c.Stop(); stopErr != nil {
+		logger.Warn("wireflow stop error", "err", stopErr)
+	}
+	logger.Info("wireflow shutting down")
+
+	return nil
 }
 
-// Stop stop wireflow daemon
-func Stop(flags *config.Flags) error {
+// startDaemon forks the current process as a background daemon and exits the parent.
+func startDaemon(flags *config.Config, logger *log.Logger) error {
+	fmt.Println("Run wireflow in daemon mode")
+
+	var logDir string
+	switch runtime.GOOS {
+	case "darwin":
+		home, _ := os.UserHomeDir()
+		logDir = filepath.Join(home, "Library/Logs/wireflow")
+	case "windows":
+		logDir = `C:\ProgramData\wireflow\logs`
+	default:
+		logDir = "/var/log/wireflow"
+	}
+
+	if err := os.MkdirAll(logDir, 0755); err != nil {
+		return fmt.Errorf("failed to create log directory: %w", err)
+	}
+
+	var stdout, stderr *os.File
+	if flags.Level != "" && flags.Level != "silent" {
+		f, err := os.OpenFile(filepath.Join(logDir, "wireflow.log"), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+		if err != nil {
+			return fmt.Errorf("failed to open log file: %w", err)
+		}
+		stdout, stderr = f, f
+	} else {
+		devNull, _ := os.Open(os.DevNull)
+		stdout, stderr = devNull, devNull
+	}
+
+	devNull, _ := os.Open(os.DevNull)
+	attr := &os.ProcAttr{
+		Files: []*os.File{devNull, stdout, stderr},
+		Dir:   ".",
+		Env:   append(os.Environ(), "WIREFLOW_DAEMON=true"),
+	}
+
+	path, err := os.Executable()
+	if err != nil {
+		return fmt.Errorf("failed to determine executable: %w", err)
+	}
+
+	var filteredArgs []string
+	for _, arg := range os.Args {
+		if arg != "--daemon" && arg != "-d" {
+			filteredArgs = append(filteredArgs, arg)
+		}
+	}
+
+	process, err := os.StartProcess(path, filteredArgs, attr)
+	if err != nil {
+		return fmt.Errorf("failed to daemonize: %w", err)
+	}
+	if err = process.Release(); err != nil {
+		return fmt.Errorf("failed to release process: %w", err)
+	}
+	
+	logger.Info("daemon started", "pid", process.Pid)
+	os.Exit(0)
+	return nil // unreachable
+}
+
+// Stop sends SIGTERM to the running wireflow daemon via its PID file.
+func Stop(flags *config.Config) error {
 	interfaceName := flags.InterfaceName
-	if flags.InterfaceName == "" {
+	if interfaceName == "" {
 		ctr, err := wgctrl.New()
 		if err != nil {
-			return nil
+			return err
 		}
-
 		ifaces, err := ctr.Devices()
 		if err != nil {
 			return err
 		}
-
 		if len(ifaces) == 0 {
-			return fmt.Errorf("%s", "Wireflow daemon is not running, no ifaces found")
+			return fmt.Errorf("wireflow daemon is not running, no interfaces found")
 		}
-
 		interfaceName = ifaces[0].Name
 	}
-	// 如果 UAPI 失败，尝试通过 PID 文件停止进程
-	return stopViaPIDFile(interfaceName)
+
+	pidPath := pidFilePath(interfaceName)
+	data, err := os.ReadFile(pidPath)
+	if err != nil {
+		return fmt.Errorf("failed to read PID file %s: %w (is wireflow running?)", pidPath, err)
+	}
+
+	pid, err := strconv.Atoi(strings.TrimSpace(string(data)))
+	if err != nil {
+		return fmt.Errorf("invalid PID in %s: %w", pidPath, err)
+	}
+
+	proc, err := os.FindProcess(pid)
+	if err != nil {
+		return fmt.Errorf("process %d not found: %w", pid, err)
+	}
+
+	if err := proc.Signal(syscall.SIGTERM); err != nil {
+		return fmt.Errorf("failed to send SIGTERM to PID %d: %w", pid, err)
+	}
+
+	fmt.Printf("sent SIGTERM to wireflow daemon (interface: %s, PID: %d)\n", interfaceName, pid)
+	return nil
 }
 
-func Status(flags *config.Flags) error {
+func Status(flags *config.Config) error {
 	interfaceName := flags.InterfaceName
-	if flags.InterfaceName == "" {
+	if interfaceName == "" {
 		ctr, err := wgctrl.New()
 		if err != nil {
 			return nil
 		}
-
 		devices, err := ctr.Devices()
 		if err != nil {
 			return err
 		}
-
 		if len(devices) == 0 {
-			return fmt.Errorf("Could not found WireFlow Devices")
+			return fmt.Errorf("no wireflow interfaces found")
 		}
-
 		interfaceName = devices[0].Name
 	}
-
-	fmt.Printf("Wierflow interface: %s\n", interfaceName)
+	fmt.Printf("wireflow interface: %s\n", interfaceName)
 	return nil
 }
 
-// stop wireflow daemon via sock file
-func stopViaPIDFile(interfaceName string) error {
-	// get sock
-	socketPath := fmt.Sprintf("/var/run/wireguard/%s.sock", interfaceName)
-	// check sock
-	if _, err := os.Stat(socketPath); os.IsNotExist(err) {
-		return fmt.Errorf("file %s not exists", socketPath)
-	}
+func pidFilePath(iface string) string {
+	return fmt.Sprintf("/var/run/wireguard/%s.pid", iface)
+}
 
-	// connect to the socket
-	conn, err := net.Dial("unix", socketPath)
-	if err != nil {
-		return fmt.Errorf("wireflow sock connect failed: %v", err)
+func writePIDFile(path string) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		return err
 	}
-	defer conn.Close()
-	// 发送消息到服务器
-	_, err = conn.Write([]byte("stop\n"))
-	if err != nil {
-		return fmt.Errorf("send stop failed: %v", err)
-	}
-
-	// receive
-	buffer := make([]byte, 4096)
-	_, err = conn.Read(buffer)
-	if err != nil {
-		return fmt.Errorf("receive error: %v", err)
-	}
-
-	fmt.Printf("wireflow stopped: %s\n", interfaceName)
-	return nil
+	return os.WriteFile(path, []byte(strconv.Itoa(os.Getpid())), 0644)
 }

@@ -28,8 +28,8 @@ func main() {
 		panic(err)
 	}
 
-	localId := infra.FromKey(key1)
-	remoteId := infra.FromKey(key2)
+	localId := infra.NewPeerIdentity(key1.String(), key1)
+	remoteId := infra.NewPeerIdentity(key2.String(), key2)
 
 	//p := args[3]
 	//port, err := strconv.Atoi(p)
@@ -41,7 +41,7 @@ func main() {
 	//if err != nil {
 	//	panic(err)
 	//}
-	wrrpClient, err := wrrper.NewWrrpClient(localId, "127.0.0.1:6266")
+	wrrpClient, err := wrrper.NewWrrpClient(localId.ID(), "127.0.0.1:6266")
 	if err != nil {
 		panic(err)
 	}
@@ -64,7 +64,7 @@ func main() {
 	}()
 
 	ctx := signals.SetupSignalHandler()
-	nats, err := nats2.NewNatsService(ctx, "nats://81.68.109.143:4222")
+	nats, err := nats2.NewNatsService(ctx, "test", "client", "nats://81.68.109.143:4222")
 	if err != nil {
 		panic(err)
 	}

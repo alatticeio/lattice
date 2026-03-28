@@ -7,3 +7,4 @@ conf/control-deployment.yaml
 .DS_Store
 cmd/management/conf/control.yaml
 cmd/management/conf/signaling-deployment.yaml
+.aider*

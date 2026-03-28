@@ -45,7 +45,7 @@ func newWrrpCmd() *cobra.Command {
 }
 
 // run signaling server
-func runWrrp(flags *config.Flags) error {
+func runWrrp(flags *config.Config) error {
 	log.SetLevel(flags.Level)
 	server := wrrper.NewServer(flags)
 	return server.Start()

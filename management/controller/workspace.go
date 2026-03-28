@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"wireflow/internal/store"
 	"wireflow/management/dto"
 	"wireflow/management/models"
 	"wireflow/management/resource"
@@ -43,8 +44,8 @@ func (c workspaceController) OnboardExternalUser(ctx context.Context, userId, ex
 	return c.workspaceService.OnboardExternalUser(ctx, userId, extEmail)
 }
 
-func NewWorkspaceController(client *resource.Client) WorkspaceController {
+func NewWorkspaceController(client *resource.Client, st store.Store) WorkspaceController {
 	return &workspaceController{
-		workspaceService: service.NewWorkspaceService(client),
+		workspaceService: service.NewWorkspaceService(client, st),
 	}
 }

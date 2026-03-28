@@ -8,6 +8,13 @@ resources:
   - wireflow-ip-pool.yaml
   - wireflow-web.yaml
 
+# 推荐做法 (Kustomize v5+)
+labels:
+  - pairs:
+      app.kubernetes.io/name: wireflow-manager
+      app.kubernetes.io/part-of: wireflow
+    includeSelectors: true
+    includeTemplates: true  # 同时也给 Pod Template 打上标签
 
 images:
   - name: ghcr.io/wireflowio/wireflow-web

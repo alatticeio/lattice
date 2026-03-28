@@ -21,7 +21,8 @@ import (
 
 // SignalService only used for sending signal byte packet
 type SignalService interface {
-	// pub/sub
+	// Send routes a packet to the peer identified by PeerID (NATS subject level).
+	// PeerID is sufficient here — full PeerIdentity is not needed for routing.
 	Send(ctx context.Context, peerId PeerID, data []byte) error
 
 	//req/resp
@@ -29,12 +30,20 @@ type SignalService interface {
 
 	// server service
 	Service(subject, queue string, service func(data []byte) ([]byte, error))
+
+	Flush() error
+
+	// Close drains in-flight messages and closes the underlying connection.
+	Close() error
 }
 
+// Probe manages the connection lifecycle to a single remote peer.
+// Both Handle and Start receive the full PeerIdentity so implementations
+// can access the AppID for PeerManager lookups and PublicKey for WireGuard config.
 type Probe interface {
-	Start(ctx context.Context, remoteId PeerID) error
+	Start(ctx context.Context, remoteId PeerIdentity) error
 
-	Handle(ctx context.Context, remoteId PeerID, packet *grpc.SignalPacket) error
+	Handle(ctx context.Context, remoteId PeerIdentity, packet *grpc.SignalPacket) error
 
 	// 2. 健康检查：在链路 Connected 后，定时发送探测包
 	Ping(ctx context.Context) error

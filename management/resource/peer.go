@@ -41,6 +41,7 @@ func (c *Client) Register(ctx context.Context, namespace string, e *dto.PeerDto)
 		key  wgtypes.Key
 	)
 
+	log.Info("Get node", "node", e)
 	err = c.Get(ctx, types.NamespacedName{
 		Namespace: namespace,
 		Name:      e.AppID,
@@ -61,6 +62,7 @@ func (c *Client) Register(ctx context.Context, namespace string, e *dto.PeerDto)
 
 	peerId = infra.FromKey(key.PublicKey())
 
+	log.Info("Updating default net...")
 	// 使用SSA模式
 	manager := client.FieldOwner("wireflow-controller-manager")
 
@@ -84,7 +86,7 @@ func (c *Client) Register(ctx context.Context, namespace string, e *dto.PeerDto)
 			InterfaceName: e.InterfaceName,
 			PrivateKey:    key.String(),
 			PublicKey:     key.PublicKey().String(),
-			PeerId:        int64(peerId.ToUint64()),
+			PeerId:        fmt.Sprintf("%d", peerId.ToUint64()),
 		},
 
 		Status: v1alpha1.WireflowPeerStatus{
@@ -96,11 +98,13 @@ func (c *Client) Register(ctx context.Context, namespace string, e *dto.PeerDto)
 		return nil, err
 	}
 
+	log.Info("Register node success", "node", node)
 	return &infra.Peer{
 		AppID:      node.Spec.AppId,
 		Address:    node.Status.AllocatedAddress,
 		PrivateKey: node.Spec.PrivateKey,
 		PublicKey:  node.Spec.PublicKey,
+		PeerID:     peerId.ToUint64(),
 	}, err
 }
 
@@ -139,7 +143,7 @@ func (c *Client) GetNetworkMap(ctx context.Context, tokenStr, name string) (*inf
 		return nil, fmt.Errorf("token is empty")
 	}
 	var list v1alpha1.WireflowEnrollmentTokenList
-	err := c.List(ctx, &list, client.MatchingFields{"status.token": tokenStr})
+	err := c.List(ctx, &list, client.MatchingFields{"spec.token": tokenStr})
 	if err != nil {
 		return nil, fmt.Errorf("get token failed: %v", err)
 	}
@@ -170,6 +174,12 @@ func (c *Client) GetNetworkMap(ctx context.Context, tokenStr, name string) (*inf
 		Namespace: node.Namespace,
 		Name:      fmt.Sprintf("%s-config", node.Name),
 	}, &nodeConfig); err != nil {
+		if errors.IsNotFound(err) {
+			// ConfigMap 尚未被 controller 创建（节点首次启动时的正常情况）。
+			// 返回空 Message，agent 以空配置启动，后续通过 NATS 推送接收完整配置。
+			logger.Info("ConfigMap not found yet, returning empty network map", "namespace", node.Namespace, "name", node.Name)
+			return &infra.Message{}, nil
+		}
 		return nil, err
 	}
 

@@ -22,36 +22,8 @@ import (
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 )
 
-type PeerManager struct {
-	mu    sync.RWMutex
-	peers map[uint64]*Peer
-}
-
-func NewPeerManager() *PeerManager {
-	return &PeerManager{
-		peers: make(map[uint64]*Peer),
-	}
-}
-
-func (p *PeerManager) AddPeer(peerId uint64, peer *Peer) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	p.peers[peerId] = peer
-}
-
-func (p *PeerManager) RemovePeer(peerId uint64) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	delete(p.peers, peerId)
-}
-
-func (p *PeerManager) GetPeer(peerId uint64) *Peer {
-	p.mu.RLock()
-	defer p.mu.RUnlock()
-	return p.peers[peerId]
-}
-
-// PeerID union of public key and peer ID
+// PeerID is a compact 8-byte identifier derived from the first 8 bytes of a WireGuard public key.
+// It is used only for NATS subject routing and wire-protocol sender IDs.
 type PeerID [8]byte
 
 func FromKey(key wgtypes.Key) PeerID {
@@ -74,48 +46,89 @@ func (id PeerID) String() string {
 	return fmt.Sprintf("%d", id.ToUint64())
 }
 
-type PeerEntry struct {
+// PeerIdentity 统一了逻辑身份（AppID）和加密身份（WireGuard 公钥）。
+// 管理层通过 AppID 查找，传输层通过 PublicKey 配置 WireGuard，两层通过这个结构互转。
+type PeerIdentity struct {
+	AppID     string
 	PublicKey wgtypes.Key
-	ID        PeerID
 }
 
-type PeerStore struct {
-	mu     sync.RWMutex
-	idMap  map[PeerID]*PeerEntry
-	keyMap map[wgtypes.Key]*PeerEntry
+func NewPeerIdentity(appId string, pubKey wgtypes.Key) PeerIdentity {
+	return PeerIdentity{AppID: appId, PublicKey: pubKey}
 }
 
-func NewPeerStore() *PeerStore {
-	return &PeerStore{
-		idMap:  make(map[PeerID]*PeerEntry),
-		keyMap: make(map[wgtypes.Key]*PeerEntry),
+// ID 返回用于 NATS 路由的紧凑 PeerID。
+func (p PeerIdentity) ID() PeerID {
+	return FromKey(p.PublicKey)
+}
+
+// String 返回与 PeerID 一致的字符串，用于 NATS subject 拼接。
+func (p PeerIdentity) String() string {
+	return p.ID().String()
+}
+
+// PeerManager stores peer metadata indexed by AppID (primary) and PeerID (secondary).
+// Both indexes are maintained in sync for O(1) lookup from either key.
+type PeerManager struct {
+	mu    sync.RWMutex
+	peers map[string]*Peer // appId → Peer
+	byID  map[PeerID]*Peer // PeerID → Peer (secondary index)
+}
+
+func NewPeerManager() *PeerManager {
+	return &PeerManager{
+		peers: make(map[string]*Peer),
+		byID:  make(map[PeerID]*Peer),
 	}
 }
 
-// AddPeer 注册一个新的邻居。在 NATS 握手完成后调用。
-func (s *PeerStore) AddPeer(key wgtypes.Key) *PeerEntry {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	id := FromKey(key)
-	entry := &PeerEntry{
-		PublicKey: key,
-		ID:        id,
+func (p *PeerManager) AddPeer(appId string, peer *Peer) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.peers[appId] = peer
+	if peer.PublicKey != "" {
+		if key, err := wgtypes.ParseKey(peer.PublicKey); err == nil {
+			p.byID[FromKey(key)] = peer
+		}
 	}
-
-	s.idMap[id] = entry
-	s.keyMap[key] = entry
-	return entry
 }
 
-// GetKeyByID 实现你要求的“反查”逻辑
-func (s *PeerStore) GetKeyByID(id PeerID) (wgtypes.Key, bool) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	entry, ok := s.idMap[id]
-	if !ok {
-		return wgtypes.Key{}, false
+func (p *PeerManager) RemovePeer(appId string) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if peer := p.peers[appId]; peer != nil && peer.PublicKey != "" {
+		if key, err := wgtypes.ParseKey(peer.PublicKey); err == nil {
+			delete(p.byID, FromKey(key))
+		}
 	}
-	return entry.PublicKey, true
+	delete(p.peers, appId)
+}
+
+func (p *PeerManager) GetPeer(appId string) *Peer {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	return p.peers[appId]
+}
+
+// GetByPeerID looks up a peer by WireGuard-derived PeerID. O(1).
+func (p *PeerManager) GetByPeerID(peerID PeerID) *Peer {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	return p.byID[peerID]
+}
+
+// GetIdentity resolves a PeerID to a full PeerIdentity.
+// Used at the NATS boundary where only PeerID is available from the packet.
+func (p *PeerManager) GetIdentity(peerID PeerID) (PeerIdentity, bool) {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	peer := p.byID[peerID]
+	if peer == nil || peer.PublicKey == "" {
+		return PeerIdentity{}, false
+	}
+	key, err := wgtypes.ParseKey(peer.PublicKey)
+	if err != nil {
+		return PeerIdentity{}, false
+	}
+	return NewPeerIdentity(peer.AppID, key), true
 }

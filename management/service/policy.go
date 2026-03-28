@@ -6,9 +6,8 @@ import (
 	"wireflow/api/v1alpha1"
 	"wireflow/internal/infra"
 	"wireflow/internal/log"
-	"wireflow/management/database"
+	"wireflow/internal/store"
 	"wireflow/management/dto"
-	"wireflow/management/repository"
 	"wireflow/management/resource"
 	"wireflow/management/vo"
 
@@ -23,20 +22,19 @@ type PolicyService interface {
 }
 
 type policyService struct {
-	log           *log.Logger
-	client        *resource.Client
-	workspaceRepo *repository.WorkspaceRepository
+	log    *log.Logger
+	client *resource.Client
+	store  store.Store
 }
 
 func (p *policyService) DeletePolicy(ctx context.Context, name string) error {
-
 	wsId := ctx.Value(infra.WorkspaceKey).(string)
-	workspace, err := p.workspaceRepo.GetByID(ctx, wsId)
+	workspace, err := p.store.Workspaces().GetByID(ctx, wsId)
 	if err != nil {
 		return err
 	}
 
-	resource := &v1alpha1.WireflowPolicy{
+	res := &v1alpha1.WireflowPolicy{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "WireflowPolicy",
 			APIVersion: "wireflowcontroller.wireflow.run/v1alpha1",
@@ -46,41 +44,27 @@ func (p *policyService) DeletePolicy(ctx context.Context, name string) error {
 			Namespace: workspace.Namespace,
 		},
 	}
-
-	err = p.client.Delete(ctx, resource)
-	if err != nil {
-		return err
-	}
-
-	return nil
-
+	return p.client.Delete(ctx, res)
 }
 
 func (p *policyService) ListPolicy(ctx context.Context, pageParam *dto.PageRequest) (*dto.PageResult[vo.PolicyVo], error) {
-	var (
-		policyList v1alpha1.WireflowPolicyList
-		err        error
-	)
-
 	workspaceV := ctx.Value(infra.WorkspaceKey)
 	var workspaceId string
 	if workspaceV != nil {
 		workspaceId = workspaceV.(string)
 	}
 
-	workspace, err := p.workspaceRepo.GetByID(ctx, workspaceId)
+	workspace, err := p.store.Workspaces().GetByID(ctx, workspaceId)
 	if err != nil {
 		return nil, err
 	}
 
-	err = p.client.GetAPIReader().List(ctx, &policyList, client.InNamespace(workspace.Namespace))
-
-	if err != nil {
+	var policyList v1alpha1.WireflowPolicyList
+	if err = p.client.GetAPIReader().List(ctx, &policyList, client.InNamespace(workspace.Namespace)); err != nil {
 		return nil, err
 	}
 
-	// 2. 获取全量数据（模拟）
-	allPolicies := []*vo.PolicyVo{ /* ... 很多数据 ... */ }
+	allPolicies := []*vo.PolicyVo{}
 
 	for _, n := range policyList.Items {
 		allPolicies = append(allPolicies, &vo.PolicyVo{
@@ -91,15 +75,10 @@ func (p *policyService) ListPolicy(ctx context.Context, pageParam *dto.PageReque
 		})
 	}
 
-	// 3. 逻辑过滤（搜索）
 	var filteredPolicies []*vo.PolicyVo
 	if pageParam.Keyword != "" {
 		for _, n := range allPolicies {
-
-			policyType := n.Action
-			description := n.Description
-
-			if strings.Contains(n.Name, pageParam.Keyword) || strings.Contains(policyType, pageParam.Keyword) || strings.Contains(description, pageParam.Keyword) {
+			if strings.Contains(n.Name, pageParam.Keyword) || strings.Contains(n.Action, pageParam.Keyword) || strings.Contains(n.Description, pageParam.Keyword) {
 				filteredPolicies = append(filteredPolicies, n)
 			}
 		}
@@ -107,12 +86,9 @@ func (p *policyService) ListPolicy(ctx context.Context, pageParam *dto.PageReque
 		filteredPolicies = allPolicies
 	}
 
-	// 4. 执行内存切片分页
 	total := len(filteredPolicies)
 	start := (pageParam.Page - 1) * pageParam.PageSize
 	end := start + pageParam.PageSize
-
-	// 防止切片越界越界
 	if start > total {
 		start = total
 	}
@@ -120,13 +96,8 @@ func (p *policyService) ListPolicy(ctx context.Context, pageParam *dto.PageReque
 		end = total
 	}
 
-	// 截取
-	data := filteredPolicies[start:end]
-	var res []*vo.PolicyVo
-	res = append(res, data...)
-
 	var vos []vo.PolicyVo
-	for _, n := range res {
+	for _, n := range filteredPolicies[start:end] {
 		vos = append(vos, *n)
 	}
 
@@ -139,9 +110,8 @@ func (p *policyService) ListPolicy(ctx context.Context, pageParam *dto.PageReque
 }
 
 func (p *policyService) CreateOrUpdatePolicy(ctx context.Context, policyDto *dto.PolicyDto) (*vo.PolicyVo, error) {
-
 	wsId := ctx.Value(infra.WorkspaceKey).(string)
-	workspace, err := p.workspaceRepo.GetByID(ctx, wsId)
+	workspace, err := p.store.Workspaces().GetByID(ctx, wsId)
 	if err != nil {
 		return nil, err
 	}
@@ -152,62 +122,34 @@ func (p *policyService) CreateOrUpdatePolicy(ctx context.Context, policyDto *dto
 			Kind:       "WireflowPolicy",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      policyDto.Name,      // 强制使用 DTO 外层的名字
-			Namespace: workspace.Namespace, // 或者从上下文获取
-			Labels: map[string]string{
-				"action": policyDto.Action,
-			},
+			Name:      policyDto.Name,
+			Namespace: workspace.Namespace,
+			Labels:    map[string]string{"action": policyDto.Action},
 			Annotations: map[string]string{
 				"description": policyDto.Description,
 			},
 		},
-		// 关键点：直接把嵌入的指针赋值给 Spec
 		Spec: policyDto.WireflowPolicySpec,
 	}
 
-	// 使用SSA模式
 	manager := client.FieldOwner("wireflow-controller-manager")
-
-	err = p.client.Patch(ctx, newPolicy, client.Apply, manager)
-	if err != nil {
+	if err = p.client.Patch(ctx, newPolicy, client.Apply, manager); err != nil {
 		return nil, err
 	}
-	policyVo := vo.PolicyVo{
+
+	return &vo.PolicyVo{
 		Name:               newPolicy.Name,
 		Action:             newPolicy.Spec.Action,
 		Description:        policyDto.Description,
 		Namespace:          policyDto.Namespace,
 		WireflowPolicySpec: &newPolicy.Spec,
-	}
-
-	return &policyVo, nil
+	}, nil
 }
 
-func NewPolicyService(client *resource.Client) PolicyService {
+func NewPolicyService(client *resource.Client, st store.Store) PolicyService {
 	return &policyService{
-		log:           log.GetLogger("policy-service"),
-		client:        client,
-		workspaceRepo: repository.NewWorkspaceRepository(database.DB),
-	}
-}
-
-// nolint:all
-func buildPolicyFromArgs(namespace, name string, peerSelector metav1.LabelSelector, IngressRule []v1alpha1.IngressRule, EgressRule []v1alpha1.EgressRule, action string) v1alpha1.WireflowPolicy {
-	return v1alpha1.WireflowPolicy{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "WireflowNetwork",
-			APIVersion: "wireflowcontroller.wireflow.run/v1alpha1",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: namespace,
-			Name:      name,
-		},
-		Spec: v1alpha1.WireflowPolicySpec{
-			PeerSelector: peerSelector,
-			Ingress:      IngressRule,
-			Egress:       EgressRule,
-			Action:       action,
-			Network:      "wireflow-default-net",
-		},
+		log:    log.GetLogger("policy-service"),
+		client: client,
+		store:  st,
 	}
 }

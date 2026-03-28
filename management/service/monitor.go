@@ -10,6 +10,7 @@ import (
 	"wireflow/monitor"
 	"wireflow/pkg/utils"
 
+	"github.com/patrickmn/go-cache"
 	"github.com/prometheus/client_golang/api"
 	"github.com/prometheus/client_golang/api/prometheus/v1"
 	"github.com/prometheus/common/model"
@@ -26,6 +27,7 @@ type monitorService struct {
 	api     v1.API
 	log     *log.Logger
 	timeout time.Duration
+	cache   *cache.Cache
 }
 
 // ... existing code ...

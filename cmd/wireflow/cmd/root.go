@@ -33,18 +33,6 @@ var rootCmd = &cobra.Command{
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 		return cfgManager.LoadConf(cmd)
 	},
-	PersistentPostRunE: func(cmd *cobra.Command, args []string) error {
-		// 检查 --save 是否被触发
-		save, _ := cmd.Flags().GetBool("save")
-		if save {
-			if err := cfgManager.Viper().WriteConfigAs(".wireflow.yaml"); err != nil {
-				fmt.Printf("cann't save config: %v\n", err)
-			} else {
-				fmt.Println("save success to config")
-			}
-		}
-		return nil
-	},
 	Run: func(cmd *cobra.Command, args []string) {
 		isVersion, _ := cmd.Flags().GetBool("version")
 		if isVersion {
@@ -73,6 +61,7 @@ func Execute() {
 
 func init() {
 	fs := rootCmd.PersistentFlags()
+	fs.StringP("config-dir", "", "", "config directory (default ~/.wireflow)")
 	fs.StringP("server-url", "", "", "management server url")
 	fs.StringP("signaling-url", "", "", "signaling server url")
 	fs.BoolP("version", "", false, "Print version information")

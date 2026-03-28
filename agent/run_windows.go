@@ -36,7 +36,7 @@ import (
 	"golang.zx2c4.com/wireguard/wgctrl"
 )
 
-func Start(ctx context.Context, flags *config.Flags) error {
+func Start(ctx context.Context, flags *config.Config) error {
 	var (
 		logFile *os.File
 		path    string
@@ -219,7 +219,7 @@ func Start(ctx context.Context, flags *config.Flags) error {
 }
 
 // Stop stop wireflow daemon
-func Stop(flags *config.Flags) error {
+func Stop(flags *config.Config) error {
 	interfaceName := flags.InterfaceName
 	if flags.InterfaceName == "" {
 		ctr, err := wgctrl.New()
@@ -243,7 +243,7 @@ func Stop(flags *config.Flags) error {
 
 }
 
-func Status(flags *config.Flags) error {
+func Status(flags *config.Config) error {
 	interfaceName := flags.InterfaceName
 	if flags.InterfaceName == "" {
 		ctr, err := wgctrl.New()

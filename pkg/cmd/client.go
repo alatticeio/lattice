@@ -15,7 +15,7 @@ type Client struct {
 }
 
 func NewClient(signalUrl string) (*Client, error) {
-	natsClient, err := nats.NewNatsService(context.Background(), signalUrl)
+	natsClient, err := nats.NewNatsService(context.Background(), "client", "client", signalUrl)
 	if err != nil {
 		return nil, err
 	}

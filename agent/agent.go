@@ -46,6 +46,7 @@ type Agent struct {
 	iface       *wg.Device
 	bind        *infra.DefaultBind
 	provisioner infra.Provisioner
+	natsService infra.SignalService
 
 	GetNetworkMap func() (*infra.Message, error)
 	ctrClient     *ctrclient.Client
@@ -55,8 +56,6 @@ type Agent struct {
 		turnManager *internal.TurnManager
 		peerManager *infra.PeerManager
 	}
-
-	peerStore *infra.PeerStore
 
 	current *infra.Peer
 
@@ -75,7 +74,7 @@ type AgentConfig struct {
 	ForceRelay    bool
 	ShowLog       bool
 	Token         string
-	Flags         *config.Flags
+	Flags         *config.Config
 }
 
 // NewAgent create a new Agent instance.
@@ -108,16 +107,18 @@ func NewAgent(ctx context.Context, cfg *AgentConfig) (*Agent, error) {
 
 	universalUdpMuxDefault := infra.NewUdpMux(v4conn, cfg.ShowLog)
 
-	natsSignalService, err := nats.NewNatsService(ctx, config.Conf.SignalingURL)
+	natsSignalService, err := nats.NewNatsService(ctx, config.Conf.AppId, "client", config.Conf.SignalingURL)
 	if err != nil {
 		return nil, err
 	}
+	agent.natsService = natsSignalService
 
 	agent.ctrClient, err = ctrclient.NewClient(natsSignalService)
 	if err != nil {
 		return nil, err
 	}
 
+	fmt.Println("registering")
 	agent.current, err = agent.ctrClient.Register(ctx, cfg.Token, agent.Name)
 	if err != nil {
 		return nil, err
@@ -129,24 +130,21 @@ func NewAgent(ctx context.Context, cfg *AgentConfig) (*Agent, error) {
 	}
 	agent.manager.keyManager = infra.NewKeyManager(privateKey)
 
-	localId := infra.FromKey(agent.manager.keyManager.GetPublicKey())
+	localIdentity := infra.NewPeerIdentity(agent.current.AppID, privateKey.PublicKey())
 
 	// add self to peerManager
-	agent.manager.peerManager.AddPeer(localId.ToUint64(), agent.current)
-	agent.peerStore = infra.NewPeerStore()
-	agent.peerStore.AddPeer(privateKey.PublicKey())
+	agent.manager.peerManager.AddPeer(agent.current.AppID, agent.current)
 
 	probeFactory := transport.NewProbeFactory(&transport.ProbeFactoryConfig{
-		LocalId:                localId,
+		LocalId:                localIdentity,
 		Signal:                 natsSignalService,
 		PeerManager:            agent.manager.peerManager,
-		PeerStore:              agent.peerStore,
 		UniversalUdpMuxDefault: universalUdpMuxDefault,
 		Provisioner:            agent.provisioner,
 	})
 
 	//subscribe
-	if err = natsSignalService.Subscribe(fmt.Sprintf("%s.%s", "wireflow.signals.peers", localId), probeFactory.Handle); err != nil {
+	if err = natsSignalService.Subscribe(fmt.Sprintf("%s.%s", "wireflow.signals.peers", localIdentity), probeFactory.Handle); err != nil {
 		return nil, err
 	}
 
@@ -162,7 +160,7 @@ func NewAgent(ctx context.Context, cfg *AgentConfig) (*Agent, error) {
 		}
 
 		if wrrpUrl != "" {
-			wrrp, err = wrrper.NewWrrpClient(localId, wrrpUrl)
+			wrrp, err = wrrper.NewWrrpClient(localIdentity.ID(), wrrpUrl)
 			if err != nil {
 				return nil, err
 			}
@@ -183,7 +181,7 @@ func NewAgent(ctx context.Context, cfg *AgentConfig) (*Agent, error) {
 	agent.iface = wg.NewDevice(iface, agent.bind, cfg.WgLogger)
 
 	agent.provisioner = infra.NewProvisioner(infra.NewRouteProvisioner(cfg.Logger),
-		infra.NewRuleProvisioner(cfg.Logger), &infra.Params{
+		infra.NewRuleProvisioner(cfg.Logger, agent.Name), &infra.Params{
 			Device:    agent.iface,
 			IfaceName: agent.Name,
 		})
@@ -202,13 +200,6 @@ func (c *Agent) Start(ctx context.Context) error {
 		return err
 	}
 
-	if c.current.Address != nil {
-		// 设置Device
-		if err := c.provisioner.ApplyIP("add", *c.current.Address, c.provisioner.GetIfaceName()); err != nil {
-			return err
-		}
-	}
-
 	if err := c.provisioner.SetupInterface(&infra.DeviceConfig{
 		PrivateKey: c.current.PrivateKey,
 	}); err != nil {
@@ -225,6 +216,13 @@ func (c *Agent) Start(ctx context.Context) error {
 }
 
 func (c *Agent) Stop() error {
+	// Drain NATS first so the server immediately removes this client's subscriptions,
+	// preventing "no responders" on the next restart.
+	if c.natsService != nil {
+		if err := c.natsService.Close(); err != nil {
+			c.logger.Warn("nats drain failed", "err", err)
+		}
+	}
 	c.iface.Close()
 	return nil
 }
@@ -246,18 +244,13 @@ func (c *Agent) SetConfig(conf *infra.DeviceConf) error {
 	return c.iface.IpcSetOperation(reader)
 }
 
+// nolint:unused
 func (c *Agent) close() {
 	c.logger.Debug("deviceManager closed")
 }
 
 func (c *Agent) AddPeer(peer *infra.Peer) error {
-	publicKey, err := utils.ParseKey(peer.PublicKey)
-	if err != nil {
-		return err
-	}
-	remoteId := infra.FromKey(publicKey)
-	c.manager.peerManager.AddPeer(remoteId.ToUint64(), peer)
-	c.peerStore.AddPeer(publicKey)
+	c.manager.peerManager.AddPeer(peer.AppID, peer)
 	if peer.PublicKey == c.current.PublicKey {
 		return nil
 	}

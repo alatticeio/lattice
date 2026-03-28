@@ -56,6 +56,7 @@ type PeerReconciler struct {
 	Recorder record.EventRecorder
 }
 
+// +kubebuilder:rbac:groups="",resources=events,verbs=create;patch
 // +kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=wireflowcontroller.wireflow.run,resources=wireflowpeers,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=wireflowcontroller.wireflow.run,resources=wireflowpeers/status,verbs=get;update;patch
@@ -147,6 +148,12 @@ func (r *PeerReconciler) reconcileJoinNetwork(ctx context.Context, peer *v1alpha
 		if labels == nil {
 			labels = make(map[string]string)
 		}
+		// 切换网络时，先删除所有旧的 network label，再添加新的，避免 peer 同时出现在多个网络
+		for label := range labels {
+			if strings.HasPrefix(label, "wireflow.run/network-") {
+				delete(labels, label)
+			}
+		}
 		labels[fmt.Sprintf("wireflow.run/network-%s", network.Name)] = "true"
 		node.SetLabels(labels)
 
@@ -159,6 +166,8 @@ func (r *PeerReconciler) reconcileJoinNetwork(ctx context.Context, peer *v1alpha
 
 			node.Spec.PrivateKey = key.String()
 			node.Spec.PublicKey = key.PublicKey().String()
+			// generate peerId
+			node.Spec.PeerId = fmt.Sprintf("%d", infra.FromKey(key.PublicKey()).ToUint64())
 		}
 
 		return nil
@@ -189,8 +198,14 @@ func (r *PeerReconciler) reconcileJoinNetwork(ctx context.Context, peer *v1alpha
 	}
 
 	var network v1alpha1.WireflowNetwork
-	if err = r.Get(ctx, types.NamespacedName{Name: fmt.Sprintf("%s/%s", peer.Namespace, *peer.Spec.Network)}, &network); err != nil {
+	if err = r.Get(ctx, types.NamespacedName{Namespace: peer.Namespace, Name: *peer.Spec.Network}, &network); err != nil {
 		return ctrl.Result{}, err
+	}
+
+	// 等待 Network 就绪（ActiveCIDR 已分配）
+	if network.Status.ActiveCIDR == "" {
+		log.Info("Network not ready yet, waiting for ActiveCIDR", "network", network.Name)
+		return ctrl.Result{}, nil
 	}
 
 	// allocate ip
@@ -310,14 +325,15 @@ func (r *PeerReconciler) newConfigmap(namespace, configMapName, message, hash st
 }
 
 func computeMessageHash(msg *infra.Message) (string, error) {
-	// 定义一个临时的包装结构体
-	// 将 Version 字段标记为 "-"，JSON 序列化时会忽略它
+	// 排除 ConfigVersion 和 Timestamp，避免这两个字段每次变化导致 hash 不稳定
 	tmp := struct {
 		*infra.Message
-		ConfigVersion interface{} `json:"configVersion,omitempty"` // 覆盖原有的 version
+		ConfigVersion interface{} `json:"configVersion,omitempty"` // 覆盖排除
+		Timestamp     interface{} `json:"timestamp,omitempty"`     // 覆盖排除
 	}{
 		Message:       msg,
-		ConfigVersion: nil, // 显式设为 nil
+		ConfigVersion: nil,
+		Timestamp:     nil,
 	}
 
 	b, err := json.Marshal(tmp)
@@ -387,6 +403,21 @@ func (r *PeerReconciler) reconcileLeaveNetwork(ctx context.Context, peer *v1alph
 		return ctrl.Result{}, err
 	}
 
+	// 清空 ActiveNetwork 和 AllocatedAddress，防止下次 reconcile 重复走 LeaveNetwork 路径
+	if peer.Status.ActiveNetwork != nil || peer.Status.AllocatedAddress != nil {
+		ok, err = r.updateStatus(ctx, peer, func(node *v1alpha1.WireflowPeer) {
+			node.Status.ActiveNetwork = nil
+			node.Status.AllocatedAddress = nil
+			node.Status.Phase = v1alpha1.NodePhaseReady
+		})
+		if err != nil {
+			return ctrl.Result{}, err
+		}
+		if ok {
+			return ctrl.Result{}, nil
+		}
+	}
+
 	return r.lastReconcile(ctx, peer, req)
 }
 
@@ -400,7 +431,10 @@ func (r *PeerReconciler) updateSpec(ctx context.Context, node *v1alpha1.Wireflow
 	nodeCopy := node.DeepCopy()
 
 	// 添加network spec
-	_ = updateFunc(nodeCopy)
+	if err := updateFunc(nodeCopy); err != nil {
+		log.Error(err, "Failed to build WireflowPeer Spec update")
+		return false, err
+	}
 
 	// 使用 Patch 发送差异。client.MergeFrom 会自动检查 nodeCopy 和 node 之间的差异。
 	if err := r.Patch(ctx, nodeCopy, client.MergeFrom(node)); err != nil {
@@ -501,17 +535,21 @@ func (r *PeerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		r.generator = NewGenerator(mgr.GetClient())
 	}
 
+	ownedCMPredicate := predicate.NewPredicateFuncs(func(obj client.Object) bool {
+		return obj.GetLabels()["app.kubernetes.io/managed-by"] == "wireflow-controller"
+	})
+
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&v1alpha1.WireflowPeer{}).
 		Watches(&v1alpha1.WireflowNetwork{},
 			handler.EnqueueRequestsFromMapFunc(r.mapNetworkForNodes),
-			builder.WithPredicates(predicate.ResourceVersionChangedPredicate{})).
+			builder.WithPredicates(predicate.GenerationChangedPredicate{})).
 		Watches(&v1alpha1.WireflowEndpoint{},
 			handler.EnqueueRequestsFromMapFunc(r.mapEndpointForNodes),
 			builder.WithPredicates(predicate.ResourceVersionChangedPredicate{})).
 		Watches(&corev1.ConfigMap{},
 			handler.EnqueueRequestsFromMapFunc(r.mapConfigMapForNodes),
-			builder.WithPredicates(predicate.ResourceVersionChangedPredicate{})).
+			builder.WithPredicates(predicate.And(predicate.ResourceVersionChangedPredicate{}, ownedCMPredicate))).
 		Watches(&v1alpha1.WireflowPolicy{},
 			handler.EnqueueRequestsFromMapFunc(r.mapPolicyForNodes),
 			builder.WithPredicates(predicate.ResourceVersionChangedPredicate{})).Named("node").Complete(r)
@@ -522,9 +560,10 @@ func (r *PeerReconciler) mapNetworkForNodes(ctx context.Context, obj client.Obje
 	network := obj.(*v1alpha1.WireflowNetwork)
 	var requests []reconcile.Request
 
-	// 1. 获取所有 WireflowPeer (或只获取匹配 WireflowNetwork.Spec.PeerSelector 的 WireflowPeer)
+	// 只获取真正加入了该网络的 WireflowPeer（通过网络标签），避免空 PeerSelector 匹配所有 peer
+	networkLabel := fmt.Sprintf("wireflow.run/network-%s", network.Name)
 	nodeList := &v1alpha1.WireflowPeerList{}
-	if err := r.List(ctx, nodeList, client.MatchingLabels(network.Spec.PeerSelector)); err != nil {
+	if err := r.List(ctx, nodeList, client.InNamespace(network.Namespace), client.MatchingLabels(map[string]string{networkLabel: "true"})); err != nil {
 		return nil
 	}
 

@@ -18,8 +18,10 @@ import (
 	"context"
 	"log/slog"
 	"os"
+	"runtime"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/lmittmann/tint"
 )
@@ -43,13 +45,19 @@ type Logger struct {
 	*slog.Logger
 }
 
-// 重写 Error 方法
+// 重写 Error 方法，修正 source 定位到真正的调用方
 func (l *Logger) Error(msg string, err error, args ...any) {
+	if !l.Logger.Enabled(context.Background(), slog.LevelError) {
+		return
+	}
 	if err != nil {
-		// 显式地组合成 key-value，既能触发我们的 AutoHandler
 		args = append([]any{"err", err}, args...)
 	}
-	l.Logger.Error(msg, args...)
+	var pcs [1]uintptr
+	runtime.Callers(2, pcs[:]) // skip: runtime.Callers、本函数，定位到调用方
+	r := slog.NewRecord(time.Now(), slog.LevelError, msg, pcs[0])
+	r.Add(args...)
+	_ = l.Logger.Handler().Handle(context.Background(), r)
 }
 
 // AutoErrHandler 包装了原有的 Handler

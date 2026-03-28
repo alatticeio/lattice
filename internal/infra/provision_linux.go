@@ -15,6 +15,7 @@
 package infra
 
 import (
+	"bytes"
 	"fmt"
 	"log"
 	"os/exec"
@@ -26,7 +27,7 @@ func (r *routeProvisioner) ApplyRoute(action, address, name string) error {
 	switch action {
 	case "add":
 		//ExecCommand("/bin/sh", "-c", fmt.Sprintf("ip address add dev %s %s", name, address))
-		if err := ExecCommand("/bin/sh", "-c", fmt.Sprintf("iptables -A FORWARD -i %s -j ACCEPT; iptables -A FORWARD -o %s -j ACCEPT; iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE", name, name)); err != nil {
+		if err := ExecCommand("/bin/sh", "-c", fmt.Sprintf("iptables -w 5 -A FORWARD -i %s -j ACCEPT; iptables -A FORWARD -o %s -j ACCEPT; iptables -w 5 -t nat -A POSTROUTING -o eth0 -j MASQUERADE", name, name)); err != nil {
 			return err
 		}
 
@@ -46,7 +47,7 @@ func (r *routeProvisioner) ApplyRoute(action, address, name string) error {
 func (r *routeProvisioner) ApplyIP(action, address, name string) error {
 	switch action {
 	case "add":
-		if err := ExecCommand("/bin/sh", "-c", fmt.Sprintf("ip address add dev %s %s", name, address)); err != nil {
+		if err := ExecCommand("/bin/sh", "-c", fmt.Sprintf("ip address replace %s dev %s", address, name)); err != nil {
 			return err
 		}
 		if err := ExecCommand("/bin/sh", "-c", fmt.Sprintf("ip link set dev %s up", name)); err != nil {
@@ -119,21 +120,44 @@ func (r *ruleProvisioner) Provision(rule *FirewallRule) error {
 
 // 内部辅助：确保链存在并挂载
 func (p *ruleProvisioner) initChain(chain, parent, flag string) {
-	if err := exec.Command("iptables", "-N", chain).Run(); err != nil {
-		p.logger.Error("init iptables failed", err)
-		return
+	// 1. 创建链：使用 -w 避免锁竞争
+	// 技巧：先检查链是否存在，或者直接运行并捕获错误
+	cmd := exec.Command("iptables", "-w", "5", "-N", chain)
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+
+	if err := cmd.Run(); err != nil {
+		// 如果错误信息包含 "already exists"，说明链是好的，可以继续
+		if strings.Contains(stderr.String(), "already exists") {
+			p.logger.Debug("iptables chain already exists, skipping creation", "chain", chain)
+		} else {
+			p.logger.Error("init iptables failed", err, "stderr", stderr.String())
+			// 如果不是因为已存在而失败，才 return
+			return
+		}
 	}
-	// 检查是否已挂载，未挂载则插入到第一条
-	if err := exec.Command("iptables", "-C", parent, flag, p.interfaceName, "-j", chain).Run(); err != nil {
-		if err = exec.Command("iptables", "-I", parent, "1", flag, p.interfaceName, "-j", chain).Run(); err != nil {
-			p.logger.Error("init iptables failed", err)
+
+	// 2. 检查是否已挂载到父链 (-C 是 Check)
+	// 同样加上 -w 5
+	checkCmd := exec.Command("iptables", "-w", "5", "-C", parent, flag, p.interfaceName, "-j", chain)
+	if err := checkCmd.Run(); err != nil {
+		// 如果 Check 失败（说明没挂载），则执行插入 (-I)
+		insertCmd := exec.Command("iptables", "-w", "5", "-I", parent, "1", flag, p.interfaceName, "-j", chain)
+		if err := insertCmd.Run(); err != nil {
+			p.logger.Error("failed to bind chain to parent", err, "parent", parent)
 		}
 	}
 }
 
-// 内部辅助：添加单条规则
+// 内部辅助：添加单条规则。
+// 当 Protocol 或 Port 未指定（零值）时，省略 -p/--dport，允许该 IP 的所有流量。
 func (p *ruleProvisioner) addRule(chain, dir, ip string, tr TrafficRule) error {
-	args := []string{"-A", chain, dir, ip, "-p", strings.ToLower(tr.Protocol), "--dport", fmt.Sprintf("%d", tr.Port), "-j", "ACCEPT"}
+	var args []string
+	if tr.Protocol != "" && tr.Port != 0 {
+		args = []string{"-A", chain, dir, ip, "-p", strings.ToLower(tr.Protocol), "--dport", fmt.Sprintf("%d", tr.Port), "-j", "ACCEPT"}
+	} else {
+		args = []string{"-A", chain, dir, ip, "-j", "ACCEPT"}
+	}
 	return exec.Command("iptables", args...).Run()
 }
 
@@ -149,9 +173,9 @@ func (r *ruleProvisioner) SetupNAT(interfaceName string) error {
 	// -A FORWARD -j ACCEPT: 允许通过容器进行流量转发
 
 	cmds := []string{
-		fmt.Sprintf("iptables -t nat -A POSTROUTING -o wf0 -j MASQUERADE\n"),
-		fmt.Sprintf("iptables -A FORWARD -j ACCEPT\n"),
-		fmt.Sprintf("iptables -A FORWARD -i wf0 -o eth0 -m state --state RELATED,ESTABLISHED -j ACCEPT"),
+		fmt.Sprintf("iptables -w 5 -t nat -A POSTROUTING -o %s -j MASQUERADE", interfaceName),
+		"iptables -w 5 -A FORWARD -j ACCEPT",
+		fmt.Sprintf("iptables -w 5 -A FORWARD -i %s -o eth0 -m state --state RELATED,ESTABLISHED -j ACCEPT", interfaceName),
 	}
 
 	for _, args := range cmds {

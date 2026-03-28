@@ -99,7 +99,6 @@ spec:
               activeCIDR:
                 type: string
               allocatedCount:
-                description: 已分配的 IP 列表
                 type: integer
               availableIPs:
                 description: 可用 IP 数量

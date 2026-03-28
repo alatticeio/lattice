@@ -24,7 +24,7 @@ import (
 
 // nolint:all
 func stop() *cobra.Command {
-	var flags config.Flags
+	var flags config.Config
 	cmd := &cobra.Command{
 		Short:        "down",
 		Use:          "down",
@@ -42,7 +42,7 @@ func stop() *cobra.Command {
 }
 
 // nolint:all
-func stopWireflowd(flags *config.Flags) error {
+func stopWireflowd(flags *config.Config) error {
 	if flags.Level == "" {
 		flags.Level = "error"
 	}

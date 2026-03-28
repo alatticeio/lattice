@@ -6,16 +6,16 @@ import (
 )
 
 type Dialer interface {
-	// Prepare prepare offer will send to remoteId.`
-	Prepare(ctx context.Context, remoteId PeerID) error
+	// Prepare prepares to send offer to remoteId.
+	Prepare(ctx context.Context, remoteId PeerIdentity) error
 
-	// Handle using for handle si
-	Handle(ctx context.Context, remoteId PeerID, packet *grpc.SignalPacket) error
+	// Handle handles incoming signal packets from remoteId.
+	Handle(ctx context.Context, remoteId PeerIdentity, packet *grpc.SignalPacket) error
 
-	// Dial dial remoteId when receive offer
+	// Dial dials remoteId when offer is received.
 	Dial(ctx context.Context) (Transport, error)
 
-	// Type return the dialer type
+	// Type returns the dialer type.
 	Type() DialerType
 }
 

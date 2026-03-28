@@ -1,0 +1,12 @@
+database:
+  driver: "sqlite"
+  dsn: wireflow.db
+
+#dex:
+#  issur: http://localhost:5556/dex/auth
+#  providerUrl: http://localhost:5556/dex
+
+#monitor:
+#  address: http://101.36.119.12:8428
+
+signaling-url: nats://localhost:4222

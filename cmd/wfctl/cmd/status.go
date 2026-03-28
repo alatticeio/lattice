@@ -24,7 +24,7 @@ import (
 
 // nolint
 func status() *cobra.Command {
-	var flags config.Flags
+	var flags config.Config
 	cmd := &cobra.Command{
 		Short:        "status",
 		Use:          "status",
@@ -42,7 +42,7 @@ func status() *cobra.Command {
 }
 
 // nolint:all
-func wireflowInfo(flags *config.Flags) error {
+func wireflowInfo(flags *config.Config) error {
 	if flags.Level == "" {
 		flags.Level = "error"
 	}

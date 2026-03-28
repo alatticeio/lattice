@@ -52,7 +52,7 @@ build-all: ## 构建所有服务
 	done
 
 .PHONY: build
-build: fmt vet ## 构建单个服务 (使用: make build SERVICE=wireflow)
+build: fmt vet build-ui## 构建单个服务 (使用: make build SERVICE=wireflow)
 	@if [ -z "$(SERVICE)" ]; then \
 		echo "❌ Error: SERVICE is required. Usage: make build SERVICE=wireflow"; \
 		exit 1; \
@@ -112,27 +112,83 @@ vet: ## Run go vet against code.
 test: manifests generate fmt vet setup-envtest ## Run tests.
 	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test $$(go list ./... | grep -v /e2e) -coverprofile cover.out
 
-# 变量定义
-TEST_NS_A ?= wireflow-e2e-source
-TEST_NS_B ?= wireflow-e2e-target
+
+# ============ E2E 配置 ============
+MANAGE_URL          ?= http://localhost:8080
+MANAGE_NS           ?= wireflow-system
+MANAGE_SVC          ?= wireflow-api-service
+NATS_SVC            ?= wireflow-nats-service
+MANAGE_PORT         ?= 8080
+NATS_PORT           ?= 8222
+LOCAL_AGENT_IMAGE   ?= $(REGISTRY)/wireflow:$(TAG)
+LOCAL_MANAGER_IMAGE ?= $(REGISTRY)/manager:$(TAG)
+LOCAL_CLUSTER_NAME  ?= wf-e2e
+# 独立 kubeconfig，避免与 ~/.kube/config 中其他集群的 context 冲突
+# CI 中通过 `make ... E2E_KUBECONFIG=/tmp/wf-e2e.kubeconfig` 传入
+E2E_KUBECONFIG      ?= /tmp/$(LOCAL_CLUSTER_NAME).kubeconfig
+# kubectl 封装：所有 e2e 相关命令使用隔离的 kubeconfig
+E2E_KUBECTL         := kubectl --kubeconfig=$(E2E_KUBECONFIG)
+
+.PHONY: e2e-setup
+e2e-setup: kustomize ## 一键搭建本地 E2E 环境 (k3d 集群 + 构建/导入镜像 + 部署 Manager)
+	@echo "====> [1/5] 创建 k3d 集群 ($(LOCAL_CLUSTER_NAME))..."
+	k3d cluster list 2>/dev/null | grep -q "$(LOCAL_CLUSTER_NAME)" || \
+		k3d cluster create $(LOCAL_CLUSTER_NAME) \
+			--agents 1 --no-lb \
+			--k3s-arg "--disable=traefik@server:*"
+	@echo "====> [2/5] 导出 kubeconfig → $(E2E_KUBECONFIG)"
+	k3d kubeconfig get $(LOCAL_CLUSTER_NAME) > $(E2E_KUBECONFIG)
+	@echo "====> [3/5] 构建镜像 manager & wireflow ..."
+	$(MAKE) docker-build SERVICE=manager  TAG=$(TAG)
+	$(MAKE) docker-build SERVICE=wireflow TAG=$(TAG)
+	@echo "====> [4/5] 导入镜像到 k3d ..."
+	k3d image import $(LOCAL_MANAGER_IMAGE) -c $(LOCAL_CLUSTER_NAME)
+	k3d image import $(LOCAL_AGENT_IMAGE)   -c $(LOCAL_CLUSTER_NAME)
+	@echo "====> [5/5] 部署 Wireflow Manager (ENV=dev) ..."
+	$(MAKE) deploy ENV=dev IMG=$(LOCAL_MANAGER_IMAGE) KUBECTL="$(E2E_KUBECTL)"
+	$(E2E_KUBECTL) rollout status deployment -n $(MANAGE_NS) --timeout=120s
+	@echo "✅ E2E 环境就绪。kubeconfig: $(E2E_KUBECONFIG)"
+	@echo "   运行测试: make test-e2e"
+	@echo "   销毁集群: make e2e-teardown"
 
 .PHONY: test-e2e
-test-e2e: ## 运行跨 Namespace 连通性集成测试
-	@echo "====> Prepare test env..."
-	kubectl create namespace $(TEST_NS_A) --dry-run=client -o yaml | kubectl apply -f -
-	kubectl create namespace $(TEST_NS_B) --dry-run=client -o yaml | kubectl apply -f -
-	@echo "====> Deploy tests resources (Token/Peers)..."
-	# 这里可以根据你的需求，用 sed 替换模板生成 Token 资源
-	# kubectl apply -f config/samples/test_token.yaml -n $(TEST_NS_B)
-	@echo "====> tests connectivity..."
-	chmod +x ./scripts/test-connectivity.sh
-	./scripts/test-connectivity.sh $(TEST_NS_A) $(TEST_NS_B)
-	@$(MAKE) test-e2e-cleanup
+test-e2e: ## 运行 E2E 集成测试（自动 port-forward，测试结束后停止）
+	@echo "====> 启动 port-forward: $(MANAGE_NS)/svc/$(MANAGE_SVC) -> localhost:$(MANAGE_PORT)"; \
+	kubectl port-forward -n $(MANAGE_NS) svc/$(MANAGE_SVC) $(MANAGE_PORT):$(MANAGE_PORT) & \
+	PF_PID=$$!; \
+	for i in $$(seq 1 15); do \
+		nc -z localhost $(MANAGE_PORT) 2>/dev/null && break; \
+		echo "  等待 port-forward 就绪... ($$i/15)"; \
+		sleep 2; \
+	done; \
+	echo "====> 运行 E2E 测试"; \
+	go test ./test/e2e/... -v -timeout 15m -args \
+		--agent-image=$(LOCAL_AGENT_IMAGE) \
+		--manage-url=$(MANAGE_URL) \
+		--kubeconfig=$(E2E_KUBECONFIG); \
+	TEST_EXIT=$$?; \
+	echo "====> 停止 port-forward (PID: $$PF_PID)"; \
+	kill $$PF_PID 2>/dev/null || true; \
+	exit $$TEST_EXIT
+
+.PHONY: e2e
+e2e: e2e-setup test-e2e ## 一键运行完整 E2E（搭建环境 + 测试）；完成后集群保留，可用 make e2e-teardown 清理
+
+.PHONY: e2e-teardown
+e2e-teardown: ## 销毁 E2E 测试用的 k3d 集群并清理 kubeconfig
+	k3d cluster delete $(LOCAL_CLUSTER_NAME) || true
+	rm -f $(E2E_KUBECONFIG)
+	@echo "✅ E2E 集群已销毁"
+
+.PHONY: test-e2e-load
+test-e2e-load: ## 仅构建并导入 wireflow agent 镜像（适合镜像变更后快速重跑）
+	$(MAKE) docker-build SERVICE=wireflow TAG=$(TAG)
+	k3d image import $(LOCAL_AGENT_IMAGE) -c $(LOCAL_CLUSTER_NAME)
 
 .PHONY: test-e2e-cleanup
-test-e2e-cleanup: ## 清理测试残留
+test-e2e-cleanup: ## 清理 E2E 残留的测试 Namespace (前缀 wf-test-)
 	@echo "====> 清理测试 Namespace..."
-	kubectl delete namespace $(TEST_NS_A) $(TEST_NS_B) --ignore-not-found=true
+	$(E2E_KUBECTL) get ns -o name | grep "namespace/wf-test-" | xargs -r $(E2E_KUBECTL) delete --ignore-not-found=true
 
 
 .PHONY: lint
@@ -153,8 +209,12 @@ lint-config: golangci-lint ## Verify golangci-lint linter configuration
 run: manifests generate fmt vet ## Run a controller from your host.
 	go run ./cmd/main.go
 
-
-
+# ============ Web / Full-stack ============
+.PHONY: build-ui
+build-ui: ## 打包前端 Vue3 产物（输出到 internal/web/dist，供 go:embed 使用）
+	@echo ">>> Building UI..."
+	cd web && npm install --prefer-offline && npm run build
+	@echo ">>> UI built → internal/web/dist"
 
 
 # ============ Docker 构建 ============
@@ -172,6 +232,11 @@ docker-build: ## 构建单个服务的 Docker 镜像 (使用: make docker-build 
 		exit 1; \
 	fi
 	@echo " Building Docker image for $(SERVICE)..."
+	@# 如果构建的是 manager，先执行 UI 构建
+	@if [ "$(SERVICE)" = "manager" ]; then \
+		echo "📦 Service is manager, building UI first..."; \
+		$(MAKE) build-ui; \
+	fi
 	$(CONTAINER_TOOL) build \
 		--build-arg TARGETSERVICE=$(SERVICE) \
 		--build-arg TARGETOS=$(TARGETOS) \

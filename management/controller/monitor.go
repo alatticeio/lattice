@@ -37,11 +37,29 @@ func (m *monitorController) GetTopologySnapshot(ctx context.Context) ([]monitor.
 	return m.monitorService.GetTopologySnapshot(ctx)
 }
 
+// noopMonitorController 是 Monitor 不可用时的降级实现，所有查询返回空结果。
+type noopMonitorController struct{}
+
+func (n *noopMonitorController) GetTopologySnapshot(_ context.Context) ([]monitor.PeerSnapshot, error) {
+	return nil, nil
+}
+func (n *noopMonitorController) GetNodeSnapshot(_ context.Context) ([]models.NodeSnapshot, error) {
+	return nil, nil
+}
+func (n *noopMonitorController) GetWorkspaceAggregatedMonitor(_ context.Context, _ string) (*models.AggregatedMonitorResponse, error) {
+	return nil, nil
+}
+
 func NewMonitorController(address string) MonitorController {
 	logger := log.GetLogger("monitor-controller")
+	if address == "" {
+		logger.Warn("monitor address is empty, monitor controller disabled (noop)")
+		return &noopMonitorController{}
+	}
 	svc, err := service.NewMonitorService(address)
 	if err != nil {
-		logger.Error("init monitor service failed", err)
+		logger.Warn("init monitor service failed, falling back to noop", "err", err)
+		return &noopMonitorController{}
 	}
 	return &monitorController{
 		monitorService: svc,

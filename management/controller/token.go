@@ -2,15 +2,13 @@ package controller
 
 import (
 	"context"
+	"wireflow/internal/store"
 	"wireflow/management/resource"
 	"wireflow/management/service"
 )
 
 type TokenController interface {
-
-	// Create token for web
-	Create(ctx context.Context) error
-
+	Create(ctx context.Context) (string, error)
 	Delete(ctx context.Context, token string) error
 }
 
@@ -22,12 +20,12 @@ func (t *tokenController) Delete(ctx context.Context, token string) error {
 	return t.tokenService.Delete(ctx, token)
 }
 
-func (t *tokenController) Create(ctx context.Context) error {
+func (t *tokenController) Create(ctx context.Context) (string, error) {
 	return t.tokenService.Create(ctx)
 }
 
-func NewTokenController(client *resource.Client) TokenController {
+func NewTokenController(client *resource.Client, st store.Store) TokenController {
 	return &tokenController{
-		tokenService: service.NewTokenService(client),
+		tokenService: service.NewTokenService(client, st),
 	}
 }

@@ -24,7 +24,6 @@ import (
 	"wireflow/internal/grpc"
 	"wireflow/internal/infra"
 	"wireflow/internal/log"
-	"wireflow/pkg/utils"
 	"wireflow/pkg/wrrp"
 
 	"github.com/wireflowio/ice"
@@ -36,64 +35,59 @@ var (
 )
 
 type wrrpDialer struct {
-	mu          sync.Mutex
-	log         *log.Logger
-	localId     infra.PeerID
-	remoteId    infra.PeerID
-	wrrp        infra.Wrrp
-	readyChan   chan struct{}
-	closeOnce   sync.Once
-	cancel      context.CancelFunc
-	sender      func(ctx context.Context, peerId infra.PeerID, data []byte) error
-	peerStore   *infra.PeerStore
-	peerManager *infra.PeerManager
-	sm          *SessionManager
+	mu             sync.Mutex
+	log            *log.Logger
+	localId        infra.PeerIdentity
+	remoteId       infra.PeerIdentity
+	wrrp           infra.Wrrp
+	readyChan      chan struct{}
+	closeOnce      sync.Once
+	cancel         context.CancelFunc
+	sender         func(ctx context.Context, peerId infra.PeerID, data []byte) error
+	localPeer      *infra.Peer
+	onPeerReceived func(peer infra.Peer)
+	sm             *SessionManager
 }
 
 type WrrpDialerConfig struct {
-	LocalId     infra.PeerID
-	RemoteId    infra.PeerID
-	Wrrp        infra.Wrrp
-	SM          *SessionManager
-	SessionId   uint64
-	PeerManager *infra.PeerManager
-	PeerStore   *infra.PeerStore
+	LocalId        infra.PeerIdentity
+	RemoteId       infra.PeerIdentity
+	Wrrp           infra.Wrrp
+	SM             *SessionManager
+	SessionId      uint64
+	LocalPeer      *infra.Peer
+	OnPeerReceived func(peer infra.Peer)
 
 	Sender func(ctx context.Context, peerId infra.PeerID, data []byte) error
 }
 
 func NewWrrpDialer(cfg *WrrpDialerConfig) (infra.Dialer, error) {
-	dialer := &wrrpDialer{
-		log:         log.GetLogger("wrrp-dialer"),
-		localId:     cfg.LocalId,
-		remoteId:    cfg.RemoteId,
-		wrrp:        cfg.Wrrp,
-		readyChan:   make(chan struct{}),
-		sm:          cfg.SM,
-		sender:      cfg.Sender,
-		peerStore:   cfg.PeerStore,
-		peerManager: cfg.PeerManager,
-	}
-
-	return dialer, nil
+	return &wrrpDialer{
+		log:            log.GetLogger("wrrp-dialer"),
+		localId:        cfg.LocalId,
+		remoteId:       cfg.RemoteId,
+		wrrp:           cfg.Wrrp,
+		readyChan:      make(chan struct{}),
+		sm:             cfg.SM,
+		sender:         cfg.Sender,
+		localPeer:      cfg.LocalPeer,
+		onPeerReceived: cfg.OnPeerReceived,
+	}, nil
 }
 
-func (w *wrrpDialer) Prepare(ctx context.Context, remoteId infra.PeerID) error {
+func (w *wrrpDialer) Prepare(ctx context.Context, remoteId infra.PeerIdentity) error {
 	// only send syn when localId > remoteId
 	if w.localId.String() < remoteId.String() {
 		w.log.Debug("localId < remoteId, ignore prepare")
 		return nil
 	}
 
-	// send syn
 	go func() {
-		// send syn
 		ticker := time.NewTicker(2 * time.Second)
 		defer ticker.Stop()
 		newCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
 		defer cancel()
 
-		// safe
 		w.mu.Lock()
 		if w.cancel != nil {
 			w.cancel()
@@ -107,8 +101,7 @@ func (w *wrrpDialer) Prepare(ctx context.Context, remoteId infra.PeerID) error {
 				return
 			case <-ticker.C:
 				w.log.Debug("send syn", "ctx", fmt.Sprintf("%p", newCtx))
-				err := w.sendPacket(ctx, remoteId, grpc.PacketType_HANDSHAKE_SYN, nil)
-				if err != nil {
+				if err := w.sendPacket(ctx, remoteId, grpc.PacketType_HANDSHAKE_SYN, nil); err != nil {
 					w.log.Error("send syn failed", err)
 				}
 			}
@@ -118,11 +111,11 @@ func (w *wrrpDialer) Prepare(ctx context.Context, remoteId infra.PeerID) error {
 	return nil
 }
 
-func (w *wrrpDialer) sendPacket(ctx context.Context, remoteId infra.PeerID, packetType grpc.PacketType, candidate ice.Candidate) error {
+func (w *wrrpDialer) sendPacket(ctx context.Context, remoteId infra.PeerIdentity, packetType grpc.PacketType, candidate ice.Candidate) error {
 	p := &grpc.SignalPacket{
 		Type:     packetType,
 		Dialer:   grpc.DialerType_WRRP,
-		SenderId: w.localId.ToUint64(),
+		SenderId: w.localId.ID().ToUint64(),
 	}
 
 	switch packetType {
@@ -140,27 +133,21 @@ func (w *wrrpDialer) sendPacket(ctx context.Context, remoteId infra.PeerID, pack
 	}
 
 	w.log.Debug("send packet", "localId", w.localId, "remoteId", remoteId, "packetType", packetType)
-	return w.sender(ctx, remoteId, data)
+	return w.sender(ctx, remoteId.ID(), data)
 }
 
 func (w *wrrpDialer) sendOfferFromWrrp(ctx context.Context, offerType grpc.PacketType) error {
-	currentKey, b := w.peerStore.GetKeyByID(w.localId)
-	if !b {
-		return fmt.Errorf("peer not found: %s", w.localId)
-	}
-
-	peer := w.peerManager.GetPeer(w.localId.ToUint64())
-	data, err := json.Marshal(peer)
+	data, err := json.Marshal(w.localPeer)
 	if err != nil {
 		return err
 	}
 	p := &grpc.SignalPacket{
 		Type:     offerType,
 		Dialer:   grpc.DialerType_WRRP,
-		SenderId: w.localId.ToUint64(),
+		SenderId: w.localId.ID().ToUint64(),
 		Payload: &grpc.SignalPacket_Offer{
 			Offer: &grpc.Offer{
-				PublicKey: currentKey.String(),
+				PublicKey: w.localId.PublicKey.String(), // directly from PeerIdentity
 				Current:   data,
 			},
 		},
@@ -170,10 +157,10 @@ func (w *wrrpDialer) sendOfferFromWrrp(ctx context.Context, offerType grpc.Packe
 	if err != nil {
 		return err
 	}
-	return w.wrrp.Send(ctx, w.remoteId.ToUint64(), wrrp.Probe, offerData)
+	return w.wrrp.Send(ctx, w.remoteId.ID().ToUint64(), wrrp.Probe, offerData)
 }
 
-func (w *wrrpDialer) Handle(ctx context.Context, remoteId infra.PeerID, packet *grpc.SignalPacket) error {
+func (w *wrrpDialer) Handle(ctx context.Context, remoteId infra.PeerIdentity, packet *grpc.SignalPacket) error {
 	if packet.Dialer != grpc.DialerType_WRRP {
 		return nil
 	}
@@ -189,17 +176,10 @@ func (w *wrrpDialer) Handle(ctx context.Context, remoteId infra.PeerID, packet *
 		if err := json.Unmarshal(offer.Current, &peer); err != nil {
 			return err
 		}
-
-		remoteKey, err := utils.ParseKey(offer.PublicKey)
-		if err != nil {
-			return err
-		}
-		w.peerStore.AddPeer(remoteKey)
-		w.peerManager.AddPeer(w.remoteId.ToUint64(), &peer)
+		w.onPeerReceived(peer)
 		w.closeOnce.Do(func() {
 			close(w.readyChan)
 		})
-
 		return w.sendOfferFromWrrp(ctx, grpc.PacketType_ANSWER)
 	case grpc.PacketType_ANSWER:
 		offer := packet.GetOffer()
@@ -207,13 +187,7 @@ func (w *wrrpDialer) Handle(ctx context.Context, remoteId infra.PeerID, packet *
 		if err := json.Unmarshal(offer.Current, &peer); err != nil {
 			return err
 		}
-
-		remoteKey, err := utils.ParseKey(offer.PublicKey)
-		if err != nil {
-			return err
-		}
-		w.peerStore.AddPeer(remoteKey)
-		w.peerManager.AddPeer(w.remoteId.ToUint64(), &peer)
+		w.onPeerReceived(peer)
 		w.closeOnce.Do(func() {
 			close(w.readyChan)
 		})

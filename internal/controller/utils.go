@@ -16,6 +16,7 @@ package controller
 
 import (
 	"fmt"
+	"strconv"
 	wireflowv1alpha1 "wireflow/api/v1alpha1"
 	"wireflow/internal/infra"
 )
@@ -95,7 +96,12 @@ func stringSliceEqual(a, b []string) bool {
 }
 
 func transferToPeer(peer *wireflowv1alpha1.WireflowPeer) *infra.Peer {
+	var peerID uint64
+	if peer.Spec.PeerId != "" {
+		peerID, _ = strconv.ParseUint(peer.Spec.PeerId, 10, 64)
+	}
 	p := &infra.Peer{
+		PeerID:        peerID,
 		Name:          peer.Name,
 		AppID:         peer.Spec.AppId,
 		Platform:      peer.Spec.Platform,

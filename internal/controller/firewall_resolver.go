@@ -49,50 +49,68 @@ func (r *firewallRuleResolver) ResolveRules(ctx context.Context, currentPeer *in
 		Egress:   make([]infra.TrafficRule, 0),
 	}
 
-	// [Step 1] 筛选出适用于当前 Peer 的策略
-	appliedPolicies := allPolicies
+	// [Step 1] 构建当前网络内所有 Peer 的 IP 集合。
+	// getPeerFromLabels 会跨全集群查询，这里用网络内的 IP 做二次过滤，
+	// 确保只有同一网络内的 Peer IP 才会写入防火墙规则。
+	networkPeerIPs := make(map[string]struct{}, len(network.Peers))
+	for _, p := range network.Peers {
+		if p.Address != nil {
+			networkPeerIPs[cleanIP(p.Address)] = struct{}{}
+		}
+	}
 
 	// [Step 2] 处理 Ingress 规则 (INPUT 链：别人 -> 我)
-	for _, policy := range appliedPolicies {
+	for _, policy := range allPolicies {
+		result.PolicyName = policy.PolicyName // 最后一条策略名；多策略时作日志用途
 		for _, rule := range policy.Ingress {
 			for _, sourcePeer := range rule.Peers {
 				if sourcePeer.Address == nil || sourcePeer.Name == currentPeer.Name {
 					continue
 				}
-
 				srcIP := cleanIP(sourcePeer.Address)
+				if srcIP == "" {
+					continue
+				}
+				// 只允许同一网络内的 Peer，过滤掉来自其他网络的 IP
+				if _, inNetwork := networkPeerIPs[srcIP]; !inNetwork {
+					log.Info("Skipping peer not in current network", "peer", sourcePeer.Name, "ip", srcIP)
+					continue
+				}
 				trafficRule := infra.TrafficRule{
 					ChainName: "WIREFLOW-INGRESS",
-					Peers:     make([]string, 0),
+					Peers:     []string{srcIP},
 					Port:      rule.Port,
 					Protocol:  rule.Protocol,
 					Action:    "ACCEPT",
 				}
-				trafficRule.Peers = append(trafficRule.Peers, srcIP)
 				result.Ingress = append(result.Ingress, trafficRule)
 			}
 		}
 	}
 
 	// [Step 3] 处理 Egress 规则 (OUTPUT 链：我 -> 别人)
-	for _, policy := range appliedPolicies {
+	for _, policy := range allPolicies {
 		for _, rule := range policy.Egress {
 			for _, destPeer := range rule.Peers {
 				if destPeer.Address == nil || destPeer.Name == currentPeer.Name {
 					continue
 				}
-
 				destIP := cleanIP(destPeer.Address)
+				if destIP == "" {
+					continue
+				}
+				if _, inNetwork := networkPeerIPs[destIP]; !inNetwork {
+					log.Info("Skipping peer not in current network", "peer", destPeer.Name, "ip", destIP)
+					continue
+				}
 				trafficRule := infra.TrafficRule{
 					ChainName: "WIREFLOW-EGRESS",
-					Peers:     make([]string, 0),
+					Peers:     []string{destIP},
 					Port:      rule.Port,
 					Protocol:  rule.Protocol,
 					Action:    "ACCEPT",
 				}
-				trafficRule.Peers = append(trafficRule.Peers, destIP)
 				result.Egress = append(result.Egress, trafficRule)
-
 			}
 		}
 	}
@@ -101,11 +119,13 @@ func (r *firewallRuleResolver) ResolveRules(ctx context.Context, currentPeer *in
 }
 
 // cleanIP 辅助函数：去除 CIDR 后缀 (例如 "10.0.0.1/32" -> "10.0.0.1")
+// 若不含 CIDR 后缀则原样返回；若 ip 为 nil 则返回空字符串。
 func cleanIP(ip *string) string {
-	if ip != nil {
-		if strings.Contains(*ip, "/") {
-			return strings.Split(*ip, "/")[0]
-		}
+	if ip == nil {
+		return ""
 	}
-	return ""
+	if strings.Contains(*ip, "/") {
+		return strings.Split(*ip, "/")[0]
+	}
+	return *ip
 }

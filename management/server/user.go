@@ -16,7 +16,7 @@ func (s *Server) userRouter() {
 	//userApi.Use(dex.AuthMiddleware())
 	{
 		userApi.POST("/register", s.RegisterUser) //注册用户
-		userApi.POST("/login", s.login)           //注册用户
+		userApi.POST("/login", s.login)           //登陆
 		userApi.GET("/getme", middleware.AuthMiddleware(), s.getMe())
 		userApi.GET("/list", middleware.AuthMiddleware(), s.listUser())
 

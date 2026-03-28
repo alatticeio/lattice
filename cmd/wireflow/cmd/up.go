@@ -22,7 +22,6 @@ import (
 	"wireflow/pkg/utils"
 
 	"github.com/spf13/cobra"
-	"sigs.k8s.io/controller-runtime/pkg/manager/signals"
 )
 
 func upCmd() *cobra.Command {
@@ -32,6 +31,11 @@ func upCmd() *cobra.Command {
 		Short:   "wireflow startup command",
 		Example: "wireflow up --token <token> --server-url <server-url> --signaling-url <signaling-url> --wrrp-url <wrrp-url>",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// pre-flight: 严格校验客户端必须配置项（signaling-url / server-url / token）
+			if err := config.ValidateAndReport(config.Conf, false); err != nil {
+				return err
+			}
+
 			// check appId is empty
 			if config.Conf.AppId == "" {
 				fmt.Println("未检测到 AppId，正在生成...")
@@ -70,9 +74,7 @@ func upCmd() *cobra.Command {
 				fmt.Printf("Config saved to: %s\n", config.GetConfigFilePath())
 			}
 
-			ctx := signals.SetupSignalHandler()
-
-			return agent.Start(ctx, config.Conf)
+			return agent.Start(config.Conf)
 		},
 	}
 

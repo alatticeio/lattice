@@ -2,6 +2,7 @@ resources:
 - ../../base
 - ../../components/dex
 - ../../components/nats
+- ../../components/database
 - ../../rbac
 
 # 1. 动态修改所有资源的命名空间

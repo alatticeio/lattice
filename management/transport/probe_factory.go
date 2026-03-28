@@ -16,6 +16,7 @@ package transport
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"sync"
 	"wireflow/internal/grpc"
@@ -26,10 +27,11 @@ import (
 )
 
 type ProbeFactory struct {
-	localId infra.PeerID
+	// localId is the full identity of this node (AppID + PublicKey).
+	localId infra.PeerIdentity
 
 	mu     sync.RWMutex
-	probes map[uint64]*Probe
+	probes map[string]*Probe // keyed by remote AppID
 
 	wrrpProbes map[string]*Probe // nolint
 
@@ -41,17 +43,15 @@ type ProbeFactory struct {
 	onMessage   func(context.Context, *infra.Message) error
 	peerManager *infra.PeerManager
 	wrrp        infra.Wrrp
-	peerStore   *infra.PeerStore
 
 	UniversalUdpMuxDefault *ice.UniversalUDPMuxDefault
 }
 
 type ProbeFactoryConfig struct {
-	LocalId                infra.PeerID
+	LocalId                infra.PeerIdentity
 	Signal                 infra.SignalService
 	OnMessage              func(context.Context, *infra.Message)
 	PeerManager            *infra.PeerManager
-	PeerStore              *infra.PeerStore
 	Wrrp                   infra.Wrrp
 	UniversalUdpMuxDefault *ice.UniversalUDPMuxDefault
 	Provisioner            infra.Provisioner
@@ -88,23 +88,22 @@ func NewProbeFactory(cfg *ProbeFactoryConfig) *ProbeFactory {
 		log:                    log.GetLogger("probe-factory"),
 		localId:                cfg.LocalId,
 		signal:                 cfg.Signal,
-		probes:                 make(map[uint64]*Probe),
+		probes:                 make(map[string]*Probe),
 		peerManager:            cfg.PeerManager,
 		wrrp:                   cfg.Wrrp,
-		peerStore:              cfg.PeerStore,
 		UniversalUdpMuxDefault: cfg.UniversalUdpMuxDefault,
 	}
 }
 
-func (f *ProbeFactory) Register(remoteId infra.PeerID, probe *Probe) {
-	f.probes[remoteId.ToUint64()] = probe
+func (f *ProbeFactory) Register(remoteId infra.PeerIdentity, probe *Probe) {
+	f.probes[remoteId.AppID] = probe
 }
 
-func (f *ProbeFactory) Get(remoteId infra.PeerID) (*Probe, error) {
+func (f *ProbeFactory) Get(remoteId infra.PeerIdentity) (*Probe, error) {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
 	var err error
-	probe := f.probes[remoteId.ToUint64()]
+	probe := f.probes[remoteId.AppID]
 	if probe == nil {
 		probe, err = f.NewProbe(remoteId)
 		if err != nil {
@@ -114,31 +113,41 @@ func (f *ProbeFactory) Get(remoteId infra.PeerID) (*Probe, error) {
 	return probe, err
 }
 
-func (f *ProbeFactory) Remove(remoteId uint64) {
+func (f *ProbeFactory) Remove(appId string) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	delete(f.probes, remoteId)
+	delete(f.probes, appId)
 }
 
-func (p *ProbeFactory) NewProbe(remoteId infra.PeerID) (*Probe, error) {
+func (p *ProbeFactory) NewProbe(remoteId infra.PeerIdentity) (*Probe, error) {
+	localPeer := p.peerManager.GetPeer(p.localId.AppID)
+	if localPeer != nil && localPeer.AllowedIPs == "" && localPeer.Address != nil {
+		peerCopy := *localPeer
+		peerCopy.AllowedIPs = fmt.Sprintf("%s/32", *localPeer.Address)
+		localPeer = &peerCopy
+	}
+
+	var mu sync.Mutex
+	var remotePeer *infra.Peer
+	onPeerReceived := func(peer infra.Peer) {
+		mu.Lock()
+		p.peerManager.AddPeer(peer.AppID, &peer)
+		remotePeer = &peer
+		mu.Unlock()
+	}
+
 	wrrpDialer, err := NewWrrpDialer(&WrrpDialerConfig{
-		LocalId:     p.localId,
-		RemoteId:    remoteId,
-		Wrrp:        p.wrrp,
-		Sender:      p.signal.Send,
-		PeerStore:   p.peerStore,
-		PeerManager: p.peerManager,
+		LocalId:        p.localId,
+		RemoteId:       remoteId,
+		Wrrp:           p.wrrp,
+		Sender:         p.signal.Send,
+		LocalPeer:      localPeer,
+		OnPeerReceived: onPeerReceived,
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	remoteKey, b := p.peerStore.GetKeyByID(remoteId)
-	if !b {
-		return nil, fmt.Errorf("peer not found: %s", remoteId)
-	}
-
-	peer := p.peerManager.GetPeer(remoteId.ToUint64())
 	probe := &Probe{
 		log:      p.log,
 		localId:  p.localId,
@@ -146,15 +155,20 @@ func (p *ProbeFactory) NewProbe(remoteId infra.PeerID) (*Probe, error) {
 		signal:   p.signal,
 		state:    ice.ConnectionStateNew,
 		onSuccess: func(transport infra.Transport) error {
-			p.log.Info("connection established", "transportTypoe", transport.Type(), "remoteAddr", transport.RemoteAddr())
+			mu.Lock()
+			rp := remotePeer
+			mu.Unlock()
+			if rp == nil {
+				return fmt.Errorf("remote peer info not yet received for %s", remoteId.AppID)
+			}
+			p.log.Info("connection established", "transportType", transport.Type(), "remoteAddr", transport.RemoteAddr())
 			setPeer := &infra.SetPeer{
-				//Endpoint:             transport.RemoteAddr(),
-				PublicKey:            remoteKey.String(),
+				PublicKey:            remoteId.PublicKey.String(),
 				PersistentKeepalived: infra.PersistentKeepalive,
-				AllowedIPs:           peer.AllowedIPs,
+				AllowedIPs:           rp.AllowedIPs,
 			}
 			if transport.Type() == infra.WRRP {
-				setPeer.Endpoint = fmt.Sprintf("wrrp://%d", remoteId.ToUint64())
+				setPeer.Endpoint = fmt.Sprintf("wrrp://%d", remoteId.ID().ToUint64())
 			} else {
 				setPeer.Endpoint = transport.RemoteAddr()
 			}
@@ -164,21 +178,21 @@ func (p *ProbeFactory) NewProbe(remoteId infra.PeerID) (*Probe, error) {
 				return err
 			}
 
-			err = p.provisioner.ApplyRoute("add", *peer.Address, p.provisioner.GetIfaceName())
+			err = p.provisioner.ApplyRoute("add", *rp.Address, p.provisioner.GetIfaceName())
 			if err != nil {
 				p.log.Error("probe apply route failed", err)
 				return err
 			}
 
-			return p.provisioner.SetupNAT(peer.InterfaceName)
+			return p.provisioner.SetupNAT(rp.InterfaceName)
 		},
 
 		iceDialer: NewIceDialer(&ICEDialerConfig{
 			LocalId:                p.localId,
 			RemoteId:               remoteId,
 			Sender:                 p.signal.Send,
-			PeerManager:            p.peerManager,
-			PeerStore:              p.peerStore,
+			LocalPeer:              localPeer,
+			OnPeerReceived:         onPeerReceived,
 			UniversalUdpMuxDefault: p.UniversalUdpMuxDefault,
 		}),
 		wrrpDialer: wrrpDialer,
@@ -188,13 +202,32 @@ func (p *ProbeFactory) NewProbe(remoteId infra.PeerID) (*Probe, error) {
 	return probe, nil
 }
 
+// Handle is the NATS SignalHandler boundary: remoteId is PeerID from packet.SenderId.
+// It resolves to a full PeerIdentity via PeerManager before passing down.
 func (p *ProbeFactory) Handle(ctx context.Context, remoteId infra.PeerID, packet *grpc.SignalPacket) error {
-	p.log.Info("Handle packet", "remoteId", remoteId, "packet", packet)
-	probe, err := p.Get(remoteId)
+	p.log.Debug("Handle packet", "remoteId", remoteId, "packet", packet)
+
+	// Config messages pushed from the management server (not peer-to-peer ICE packets).
+	if packet.Type == grpc.PacketType_MESSAGE {
+		if p.onMessage == nil {
+			return nil
+		}
+		var msg infra.Message
+		if err := json.Unmarshal(packet.GetMessage().Content, &msg); err != nil {
+			return fmt.Errorf("handle MESSAGE: unmarshal: %w", err)
+		}
+		return p.onMessage(ctx, &msg)
+	}
+
+	remoteIdentity, ok := p.peerManager.GetIdentity(remoteId)
+	if !ok {
+		return fmt.Errorf("unknown peer: %s", remoteId)
+	}
+	probe, err := p.Get(remoteIdentity)
 	if err != nil {
 		return err
 	}
-	return probe.Handle(ctx, remoteId, packet)
+	return probe.Handle(ctx, remoteIdentity, packet)
 }
 
 func (p *ProbeFactory) OnReceive(sessionId [28]byte, data []byte) error {

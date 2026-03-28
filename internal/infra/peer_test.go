@@ -18,10 +18,23 @@ import (
 	"fmt"
 	"net/netip"
 	"testing"
+
+	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 )
 
 func TestPrefix(t *testing.T) {
 	s := "10.0.0.2/32"
 	prefix, err := netip.ParsePrefix(s)
 	fmt.Println(prefix, err)
+}
+
+func TestFromKey(t *testing.T) {
+	str := "08v7fO4FCBQutPFgUEZvUNj8KYE3IvOynDJD7OYAemc="
+	key, err := wgtypes.ParseKey(str)
+	if err != nil {
+		t.Fatal(err)
+	}
+	localId := FromKey(key)
+	t.Log(localId.ToUint64())
+	t.Log(int64(localId.ToUint64()))
 }
