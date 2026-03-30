@@ -13,7 +13,7 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	peerManager := infra.NewPeerManager()
-	runner := monitor.NewMonitorRunner(peerManager)
+	runner := monitor.NewMonitorRunner(peerManager, "wg0")
 	err := runner.Run(ctx)
 	if err != nil {
 		panic(err)

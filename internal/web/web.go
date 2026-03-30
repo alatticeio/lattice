@@ -44,7 +44,7 @@ func RegisterHandlers(r *gin.Engine) {
 			// SPA fallback: any unknown path is handled by Vue Router.
 			filePath = "index.html"
 		} else {
-			f.Close()
+			f.Close() //nolint:errcheck
 		}
 
 		// Read and serve the file directly to avoid http.FileServer's 301 redirects.

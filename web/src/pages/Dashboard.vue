@@ -59,7 +59,7 @@ onMounted(() => {
           <span class="text-[10px] font-bold text-base-content/20 font-mono">{{ s.unit }}</span>
         </div>
         <div class="mt-4 h-1 w-full bg-base-300 rounded-full overflow-hidden">
-          <div class="h-full bg-primary transition-all duration-1000" :class="s.barWidth"></div>
+          <div class="h-full bg-primary transition-all duration-1000" :style="{ width: s.barWidth }"></div>
         </div>
       </div>
     </div>

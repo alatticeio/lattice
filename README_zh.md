@@ -35,56 +35,92 @@ Wireflow 旨在简化跨云、跨数据中心以及边缘设备的 覆盖网络 
 
 ## 快速上手
 
-### 安装控制面 (Control Plane)
+### 一键本地部署（推荐）
 
-你需要一个配置好 `kubectl` 的 Kubernetes 集群。我们推荐使用 k3d 来部署你自己的 Wireflow 控制面：
+最快速地在本地运行完整 Wireflow 控制面，只需安装 **Docker** — 脚本会自动安装 k3d 和 kubectl。
+
+```bash
+curl -sSL https://raw.githubusercontent.com/wireflowio/wireflow/master/hack/quickstart.sh | bash
+```
+
+脚本执行流程：
+1. **前置检查**：验证 Docker、k3d、kubectl 是否就绪（缺失工具自动安装）。
+2. **端口检查**：确认 **8080**（Dashboard/API）和 **4222**（NATS 信令）端口空闲。
+3. **创建集群**：建立名为 `wireflow` 的 k3d 集群，并自动完成宿主机端口映射。
+4. **顺序加载**：按 CRDs → RBAC → Service → Deployment 的顺序部署资源。
+5. **健康探测**：等待 Pod 就绪并探测 API 健康接口。
+6. **打印连接串**：输出包含 NATS 地址和初始 Token 的 **Agent 一键接入命令**。
+
+脚本执行完毕后，在浏览器打开控制台：
+
+```
+http://localhost:8080
+```
+
+### 安装控制面（使用已有集群）
+
+如果你已有配置好 `kubectl` 的 Kubernetes 集群：
 
 ```bash
 curl -sSL https://raw.githubusercontent.com/wireflowio/wireflow/master/hack/install-k3d.sh | bash
 ```
 
-### 安装数据面 (Data Plane)
+### 安装数据面 (Agent)
 
 ```bash
 curl -sSL https://raw.githubusercontent.com/wireflowio/wireflow/master/hack/install.sh | bash
 ```
 
-#### 使用Docker运行数据面
+#### 使用 Docker 运行 Agent
+
 ```bash
 docker run -d --name wireflow --restart=always ghcr.io/wireflowio/wireflow:latest up
 ```
-## 令牌(Token)管理
-Wireflow 使用基于 Token 的认证系统来安全地管理节点和访问策略。Token 用于对控制面 API 的请求进行身份验证和授权。如果还没有 Token，可以创建一个：
+
+## 令牌 (Token) 管理
+
+Wireflow 使用基于 Token 的认证系统安全管理节点入网授权。如果还没有 Token，可以创建一个：
+
 ```bash
-wireflow token create dev-team -n test --limit 5 --expiry 168h
+wireflow token create dev-team \
+  --signaling-url nats://localhost:4222 \
+  -n test --limit 5 --expiry 168h
 ```
 
-说明： 
-- dev-team: 令牌所属的团队名称
-- test: 令牌使用的命名空间名称 
-- 5: 该令牌允许的最大并发连接数 
-- 168h: 令牌的最长有效期 
+参数说明：
+- `dev-team`：令牌名称
+- `test`：令牌作用的命名空间
+- `5`：该令牌允许的最大并发连接数
+- `168h`：令牌有效期
 
-现在你可以使用该令牌运行：
+### 使用令牌接入网络
+
 ```bash
-wireflow up --token <token>
-```
-在docker里: 
-```bash
-docker run -d --name wireflow --restart=always ghcr.io/wireflowio/wireflow:latest up --token <token>
+wireflow up --signaling-url nats://localhost:4222 --token <token>
 ```
 
-然后可以在控制面查看节点注册以及分配的IP:
+在 Docker 中运行：
+
+```bash
+docker run -d --name wireflow --restart=always \
+  ghcr.io/wireflowio/wireflow:latest up \
+  --signaling-url nats://localhost:4222 --token <token>
+```
+
+### 在控制面查看节点
+
 ```bash
 kubectl get wfpeer -n test
 ```
-当另一个节点加入网络时，它会自动与网络中的其他节点建立连接, 节点之间自动组网成功。
+
+当另一个节点加入网络时，它会自动与网络中的其他节点建立连接，节点之间自动组网成功。
 
 ## 卸载
-移除控制面并清理环境：
+
+移除控制面并清理本地 k3d 集群：
 
 ```bash
-curl -sSL -f https://raw.githubusercontent.com/wireflowio/wireflow/master/hack/uninstall-k3d.sh | bash
+k3d cluster delete wireflow
 ```
 
 ## 开发指南

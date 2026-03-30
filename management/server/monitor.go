@@ -60,8 +60,8 @@ func (s *Server) StartStatusTick() {
 				s.logger.Error("list workspace error", err)
 			}
 			for _, item := range res.List {
-				// TODO change to real ws
-				internal.WorkspaceResourceUsage.WithLabelValues("ws-01", "used", "nodes").Set(float64(item.QuotaUsage))
+				internal.WorkspaceResourceUsage.WithLabelValues(item.ID, "", "nodes").Set(float64(item.QuotaUsage))
+				internal.WorkspaceResourceTotal.WithLabelValues(item.ID, "", "nodes").Set(float64(item.NodeCount))
 			}
 		}
 	}()

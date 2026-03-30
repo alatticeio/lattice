@@ -69,11 +69,11 @@ func (r *workspaceMemberRepo) AddMember(ctx context.Context, member *models.Work
 }
 
 func (r *workspaceMemberRepo) RemoveMember(ctx context.Context, workspaceID, userID string) error {
-	return r.BaseRepository.Delete(ctx, repository.WithWorkspaceID(workspaceID), repository.WithUserID(userID))
+	return r.Delete(ctx, repository.WithWorkspaceID(workspaceID), repository.WithUserID(userID))
 }
 
 func (r *workspaceMemberRepo) DeleteByWorkspace(ctx context.Context, workspaceID string) error {
-	return r.BaseRepository.Delete(ctx, repository.WithWorkspaceID(workspaceID))
+	return r.Delete(ctx, repository.WithWorkspaceID(workspaceID))
 }
 
 func (r *workspaceMemberRepo) ListMembers(ctx context.Context, workspaceID string) ([]*models.WorkspaceMember, error) {

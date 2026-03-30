@@ -1,0 +1,42 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# ─── All-in-One 部署模式 ─────────────────────────────────────────────────────
+# 适用场景：已有 K8s 集群，不需要独立的 NATS / MariaDB / Dex 组件。
+# wireflowd 单 Pod 内嵌 NATS（端口 4222）和 SQLite，开箱即用。
+#
+# 与分离式部署的区别：
+#   分离式 (dev/production overlay)  = base + components/nats + components/database + components/dex
+#   All-in-one (本 overlay)          = wireflowd（内嵌一切）+ web 前端
+#
+# 部署命令：
+#   kubectl apply -k config/wireflow/overlays/all-in-one
+# ─────────────────────────────────────────────────────────────────────────────
+
+namespace: wireflow-system
+namePrefix: wireflow-
+
+resources:
+  # K8s controller 所需的细粒度 RBAC（Role / RoleBinding / ClusterRole 等）
+  - ../../rbac
+  # all-in-one 专属资源（不引用 base，避免拉入 enterprise 组件依赖）
+  - service_account.yaml
+  - role_binding.yaml
+  - configmap.yaml
+  - pvc.yaml
+  - deployment.yaml
+  - service.yaml
+  - ip_pool.yaml
+
+images:
+  - name: ghcr.io/wireflowio/wireflowd
+    newTag: latest
+  - name: ghcr.io/wireflowio/wireflow-web
+    newTag: latest
+
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: wireflow
+      app.kubernetes.io/managed-by: kustomize
+    includeSelectors: false
+    includeTemplates: true

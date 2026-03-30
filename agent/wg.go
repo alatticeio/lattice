@@ -41,7 +41,7 @@ func NewDeviceManager(logger *log.Logger, device *wg.Device, signal chan struct{
 	return &DeviceManager{logger: logger, device: device, stopCh: signal}
 }
 func (c *DeviceManager) IpcHandle(socket net.Conn) {
-	defer socket.Close()
+	defer socket.Close() //nolint:errcheck
 
 	buffered := func(s io.ReadWriter) *bufio.ReadWriter {
 		reader := bufio.NewReader(s)
@@ -93,11 +93,11 @@ func (c *DeviceManager) IpcHandle(socket net.Conn) {
 		}
 		if status != nil {
 			c.logger.Error("status", status)
-			fmt.Fprintf(buffered, "errno=%d\n\n", status.ErrorCode())
+			fmt.Fprintf(buffered, "errno=%d\n\n", status.ErrorCode()) //nolint:errcheck
 		} else {
-			fmt.Fprintf(buffered, "errno=0\n\n")
+			fmt.Fprintf(buffered, "errno=0\n\n") //nolint:errcheck
 		}
-		buffered.Flush()
+		buffered.Flush() //nolint:errcheck
 	}
 
 }

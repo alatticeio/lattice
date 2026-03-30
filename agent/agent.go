@@ -284,3 +284,7 @@ func (c *Agent) RemoveAllPeers() {
 func (c *Agent) GetDeviceName() string {
 	return c.Name
 }
+
+func (c *Agent) GetPeerManager() *infra.PeerManager {
+	return c.manager.peerManager
+}

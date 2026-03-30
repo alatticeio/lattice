@@ -68,7 +68,7 @@ func ParseToken(tokenString string) (*models.WireFlowClaims, error) {
 		return claims, nil
 	}
 
-	return nil, errors.New("Token 验证失败：无效的凭证")
+	return nil, errors.New("token 验证失败：无效的凭证")
 }
 
 // 建议从环境变量读取，不要硬编码

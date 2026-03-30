@@ -9,12 +9,14 @@ import (
 )
 
 type PeerStatusCollector struct {
-	peerManager *infra.PeerManager
+	peerManager   *infra.PeerManager
+	interfaceName string
 }
 
-func NewPeerStatusCollector() *PeerStatusCollector {
+func NewPeerStatusCollector(peerManager *infra.PeerManager, interfaceName string) *PeerStatusCollector {
 	return &PeerStatusCollector{
-		peerManager: infra.NewPeerManager(),
+		peerManager:   peerManager,
+		interfaceName: interfaceName,
 	}
 }
 
@@ -30,10 +32,10 @@ func (c *PeerStatusCollector) Collect() ([]Metric, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to init wgctrl: %v", err)
 	}
-	defer client.Close()
+	defer client.Close() //nolint:errcheck
 
 	// 1. 获取 WireGuard 设备信息
-	device, err := client.Device("wg0") // 建议 wg0 做成可配置的
+	device, err := client.Device(c.interfaceName)
 	if err != nil {
 		return nil, err
 	}
@@ -57,12 +59,18 @@ func (c *PeerStatusCollector) Collect() ([]Metric, error) {
 			status = 1.0
 		}
 
-		// 4. 封装为你的通用 Metric 结构
-		// 增加更多维度的标签，方便在 Grafana 里进行筛选
+		// 4. 公网 endpoint（握手时协商的对端地址）
+		endpoint := ""
+		if peer.Endpoint != nil {
+			endpoint = peer.Endpoint.String()
+		}
+
+		// 5. 封装为通用 Metric 结构
 		labels := map[string]string{
-			"peer_id": peerID.String(), // 取公钥前8位作为 ID
-			"alias":   alias,                     // 节点别名
-			"ip":      internalIP,                // 隧道内 IP
+			"peer_id":  peerID.String(),
+			"alias":    alias,
+			"ip":       internalIP,
+			"endpoint": endpoint,
 		}
 
 		metrics = append(metrics, NewSimpleMetric(

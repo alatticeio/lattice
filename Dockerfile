@@ -29,13 +29,14 @@ RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} go build -o $TARG
 # Refer to https://github.com/GoogleContainerTools/distroless for more details
 #FROM gcr.io/distroless/static:nonroot
 FROM alpine:latest
-# 安装必要的网络工具，方便调试权限
-RUN apk add --no-cache wireguard-tools iptables iproute2
 ARG TARGETSERVICE
 
-# 核心逻辑：根据服务名称动态安装工具
-RUN if [ "$TARGETSERVICE" = "wireflow" ]; then \
-        apk add --no-cache wireguard-tools iptables iproute2; \
+# 根据服务名称动态安装依赖：
+#   wireflow  (edge agent)  -> 需要 WireGuard / iptables / iproute2
+#   wireflowd (all-in-one)  -> 同上，另需 ca-certificates（HTTPS 出向请求）
+#   manager   (K8s operator) -> 仅需 ca-certificates
+RUN if [ "$TARGETSERVICE" = "wireflow" ] || [ "$TARGETSERVICE" = "wireflowd" ]; then \
+        apk add --no-cache wireguard-tools iptables iproute2 ca-certificates; \
     else \
         apk add --no-cache ca-certificates; \
     fi

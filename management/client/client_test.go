@@ -23,5 +23,5 @@ func TestKey(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	fmt.Println(src)
+	fmt.Println(string(src))
 }

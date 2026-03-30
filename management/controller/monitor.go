@@ -13,6 +13,7 @@ type MonitorController interface {
 	GetTopologySnapshot(ctx context.Context) ([]monitor.PeerSnapshot, error)
 	GetNodeSnapshot(ctx context.Context) ([]models.NodeSnapshot, error)
 	GetWorkspaceAggregatedMonitor(ctx context.Context, wsID string) (*models.AggregatedMonitorResponse, error)
+	GetGlobalDashboard(ctx context.Context) (*models.DashboardResponse, error)
 }
 
 type monitorController struct {
@@ -22,6 +23,10 @@ type monitorController struct {
 
 func (m *monitorController) GetWorkspaceAggregatedMonitor(ctx context.Context, wsID string) (*models.AggregatedMonitorResponse, error) {
 	return m.monitorService.GetWorkspaceAggregatedMonitor(ctx, wsID)
+}
+
+func (m *monitorController) GetGlobalDashboard(ctx context.Context) (*models.DashboardResponse, error) {
+	return m.monitorService.GetGlobalDashboard(ctx)
 }
 
 func (m *monitorController) GetNodeSnapshot(ctx context.Context) ([]models.NodeSnapshot, error) {
@@ -48,6 +53,14 @@ func (n *noopMonitorController) GetNodeSnapshot(_ context.Context) ([]models.Nod
 }
 func (n *noopMonitorController) GetWorkspaceAggregatedMonitor(_ context.Context, _ string) (*models.AggregatedMonitorResponse, error) {
 	return nil, nil
+}
+
+func (n *noopMonitorController) GetGlobalDashboard(_ context.Context) (*models.DashboardResponse, error) {
+	return &models.DashboardResponse{
+		GlobalStats:    []models.GlobalStatItem{},
+		WorkspaceUsage: []models.WorkspaceUsageRow{},
+		GlobalEvents:   []models.GlobalEventItem{},
+	}, nil
 }
 
 func NewMonitorController(address string) MonitorController {

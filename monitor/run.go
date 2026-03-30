@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"time"
+	"wireflow/internal/config"
 	"wireflow/internal/infra"
 	"wireflow/internal/log"
 
@@ -12,19 +13,31 @@ import (
 )
 
 type MonitorRunner struct {
-	log   *log.Logger
-	peers *infra.PeerManager
+	log           *log.Logger
+	peers         *infra.PeerManager
+	identity      NodeIdentity
+	interfaceName string
 }
 
-func NewMonitorRunner(peers *infra.PeerManager) *MonitorRunner {
+func NewMonitorRunner(peers *infra.PeerManager, interfaceName string) *MonitorRunner {
+	nodeID := config.GlobalConfig.AppId
+	if nodeID == "" {
+		// Fall back to hostname when AppId is not yet configured.
+		nodeID = "unknown"
+	}
 	return &MonitorRunner{
-		log:   log.GetLogger("monitor"),
-		peers: peers,
+		log:           log.GetLogger("monitor"),
+		peers:         peers,
+		interfaceName: interfaceName,
+		identity: NodeIdentity{
+			WorkspaceID: "", // populated after the agent receives its network map
+			NodeID:      nodeID,
+		},
 	}
 }
 
 func (r *MonitorRunner) Run(ctx context.Context) error {
-	// 1. 初始化监控服务器 (暴露 /metrics)
+	// 1. Expose /metrics endpoint
 	mux := http.NewServeMux()
 	mux.Handle("/metrics", promhttp.Handler())
 	server := &http.Server{
@@ -32,36 +45,32 @@ func (r *MonitorRunner) Run(ctx context.Context) error {
 		Handler: mux,
 	}
 
-	// 2. 启动后台采集协程
-	worker := NewMetricWorker()
+	// 2. Start background collection workers
+	worker := NewMetricWorker(r.identity, r.peers, r.interfaceName)
 
 	go func() {
 		<-ctx.Done()
 		fmt.Printf("Metrics shutting down")
-		// 给 Server 5 秒钟处理最后的请求
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		if err := server.Shutdown(shutdownCtx); err != nil {
 			fmt.Printf("Metrics Server 关闭失败: %v\n", err)
 		}
-
 	}()
 
-	// 链路探测：每 15 秒一次
+	// Link probing: every 15 s
 	worker.StartLinkProbing(ctx, 15*time.Second)
 
-	// 系统指标：每 1 分钟一次
+	// System metrics (CPU / memory / uptime): every 10 s
 	worker.StartSystemMetrics(ctx, 10*time.Second)
 
+	// Peer status + traffic: every 15 s
 	worker.StartPeerStatusMetrics(ctx, 15*time.Second)
 
-	// 3. 主线程 hold 住
 	fmt.Printf("Metrics Server 启动在 %s\n", server.Addr)
 	err := server.ListenAndServe()
 	if err == http.ErrServerClosed {
-		// 这是正常关闭，不当作错误返回
 		return nil
 	}
 	return err
-
 }

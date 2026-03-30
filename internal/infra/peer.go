@@ -117,6 +117,17 @@ func (p *PeerManager) GetByPeerID(peerID PeerID) *Peer {
 	return p.byID[peerID]
 }
 
+// GetAll returns a snapshot of all known peers.
+func (p *PeerManager) GetAll() []*Peer {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	result := make([]*Peer, 0, len(p.peers))
+	for _, peer := range p.peers {
+		result = append(result, peer)
+	}
+	return result
+}
+
 // GetIdentity resolves a PeerID to a full PeerIdentity.
 // Used at the NATS boundary where only PeerID is available from the packet.
 func (p *PeerManager) GetIdentity(peerID PeerID) (PeerIdentity, bool) {

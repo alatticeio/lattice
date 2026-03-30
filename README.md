@@ -35,17 +35,37 @@ For more information, please visit our [official website](https://wireflow.run)
 
 ## Quick Start
 
-### Install Control Plane
+### One-Click Local Deployment (Recommended)
 
-You need a Kubernetes cluster with kubectl configured. We recommend using k3d for local deployment:
+The fastest way to run a full Wireflow control plane locally. Requires only **Docker** — the script installs k3d and kubectl automatically.
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/wireflowio/wireflow/master/hack/install-k3d.yaml | bash
+curl -sSL https://raw.githubusercontent.com/wireflowio/wireflow/master/hack/quickstart.sh | bash
 ```
 
-### Install Data Plane
+The script will:
+1. Verify Docker, k3d, and kubectl are present (installing missing tools automatically).
+2. Check that ports **8080** (Dashboard/API) and **4222** (NATS signaling) are free.
+3. Create a local k3d cluster named `wireflow` with host-port mappings for both ports.
+4. Apply CRDs → RBAC → Service → Deployment in order.
+5. Wait for the pod to become ready and probe the API health endpoint.
+6. Print a ready-to-use **one-click agent connect command** with NATS address and initial token.
 
-- latest version
+Once the script completes you can open the dashboard in your browser:
+
+```
+http://localhost:8080
+```
+
+### Install Control Plane (Existing Cluster)
+
+If you already have a Kubernetes cluster with `kubectl` configured:
+
+```bash
+curl -sSL https://raw.githubusercontent.com/wireflowio/wireflow/master/hack/install-k3d.sh | bash
+```
+
+### Install Data Plane (Agent)
 
 ```bash
 curl -sSL https://raw.githubusercontent.com/wireflowio/wireflow/master/hack/install.sh | bash
@@ -54,44 +74,41 @@ curl -sSL https://raw.githubusercontent.com/wireflowio/wireflow/master/hack/inst
 kubectl get pods -n wireflow-system
 ```
 
+## Token Management
+
+Wireflow uses a token-based authentication system. Tokens are required to authorize agents to join a network.
+
+```bash
+wireflow token create dev-team -n test --limit 5 --expiry 168h \
+  --signaling-url nats://localhost:4222
+```
+
+Parameters:
+- `dev-team`: token name
+- `test`: namespace the token is scoped to
+- `5`: maximum concurrent connections allowed
+- `168h`: token lifetime
+
+### Connect an Agent
+
+```bash
+wireflow up --signaling-url nats://localhost:4222 --token <token>
+```
+
 Run via Docker:
 
 ```bash
-docker run -d --name wireflow --restart=always ghcr.io/wireflowio/wireflow:latest up
+docker run -d --name wireflow --restart=always ghcr.io/wireflowio/wireflow:latest up --signaling-url nats://localhost:4222 --token <token>
 ```
 
-## Token Management
-
-Wireflow uses a token-based authentication system. Tokens are required to authorize requests to the Control Plane API.
-
-```bash
-wireflow token create dev-team -n test --limit 5 --expiry 168h
-```
-
-Note: 
-- dev-team: the name of the team that the token belongs to
-- test: the name of the namespace that the token will be used for
-- 5: the maximum number of concurrent connections allowed for the token
-- 168h: the maximum lifetime of the token
-
-### Run With Token:
-```bash
-wireflow up --token <token>
-```
-
-### Show Info In Control Plane
-
-```aiignore
-kubectl get wfpeer -n test
-```
 
 ### Uninstall
 
-To remove the Control Plane and cleanup:
+Remove the control plane and local k3d cluster:
 
 ```bash
-curl -sSL -f https://raw.githubusercontent.com/wireflowio/wireflow/master/hack/uinstall-k3d.sh | bash
-`````
+k3d cluster delete wireflow
+```
 
 ## Development
 

@@ -18,10 +18,8 @@ import (
 	"context"
 	"log/slog"
 	"os"
-	"runtime"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/lmittmann/tint"
 )
@@ -32,47 +30,35 @@ var (
 	once        sync.Once
 )
 
+func init() {
+	level.Set(slog.LevelInfo)
+}
+
 func SetLevel(logLevel string) {
 	level.Set(GetLogLevel(logLevel))
 }
 
-func init() {
-	// 默认设置为 Info
-	level.Set(slog.LevelDebug)
+// Err returns a slog.Attr for an error, for use with structured logging.
+// e.g. log.Info("msg", log.Err(err))
+func Err(err error) slog.Attr {
+	return slog.Any("err", err)
 }
 
 type Logger struct {
 	*slog.Logger
 }
 
-// 重写 Error 方法，修正 source 定位到真正的调用方
-func (l *Logger) Error(msg string, err error, args ...any) {
-	if !l.Logger.Enabled(context.Background(), slog.LevelError) {
-		return
-	}
-	if err != nil {
-		args = append([]any{"err", err}, args...)
-	}
-	var pcs [1]uintptr
-	runtime.Callers(2, pcs[:]) // skip: runtime.Callers、本函数，定位到调用方
-	r := slog.NewRecord(time.Now(), slog.LevelError, msg, pcs[0])
-	r.Add(args...)
-	_ = l.Logger.Handler().Handle(context.Background(), r)
-}
-
-// AutoErrHandler 包装了原有的 Handler
+// AutoErrHandler wraps a Handler and rewrites bare error values that arrive
+// with an empty or "!BADKEY" key to use the canonical "err" key instead.
 type AutoErrHandler struct {
 	slog.Handler
 }
 
 func (h *AutoErrHandler) Handle(ctx context.Context, r slog.Record) error {
-	// 创建一个新的 Record 用于修改
 	newR := slog.NewRecord(r.Time, r.Level, r.Message, r.PC)
-
 	r.Attrs(func(a slog.Attr) bool {
-		// 处理 bad key 的逻辑
 		if err, ok := a.Value.Any().(error); ok && (a.Key == "!BADKEY" || a.Key == "") {
-			newR.AddAttrs(slog.Any("err", err.Error()))
+			newR.AddAttrs(slog.String("err", err.Error()))
 		} else {
 			newR.AddAttrs(a)
 		}
@@ -83,23 +69,31 @@ func (h *AutoErrHandler) Handle(ctx context.Context, r slog.Record) error {
 
 func getHandler() slog.Handler {
 	once.Do(func() {
-		// 所有的 Logger 共享这一个 Handler 实例
-		rootHandler = tint.NewHandler(os.Stdout, &tint.Options{
-			AddSource:  true,
-			Level:      level,
-			TimeFormat: "2006-01-02 15:04:05.000",
-		})
-
-		// 嵌套我们的自动错误处理器
+		var inner slog.Handler
+		if os.Getenv("LOG_FORMAT") == "json" {
+			inner = slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+				AddSource: true,
+				Level:     level,
+			})
+		} else {
+			inner = tint.NewHandler(os.Stdout, &tint.Options{
+				AddSource:  true,
+				Level:      level,
+				TimeFormat: "2006-01-02 15:04:05.000",
+			})
+		}
+		rootHandler = &AutoErrHandler{Handler: inner}
 	})
-	handler := &AutoErrHandler{Handler: rootHandler}
-	return handler
+	return rootHandler
+}
+
+func (l *Logger) Error(msg string, err error, args ...any) {
+	l.Logger.Error(msg, append([]any{"err", err}, args...)...)
 }
 
 func GetLogger(module string) *Logger {
-	// 每次调用只是基于同一个 Handler 包装一个新的“标签”
-	loger := slog.New(getHandler()).With("mod", module)
-	return &Logger{loger}
+	logger := slog.New(getHandler()).With("mod", module)
+	return &Logger{logger}
 }
 
 func GetLogLevel(level string) slog.Level {

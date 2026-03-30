@@ -73,13 +73,6 @@ func Start(flags *config.Config) error {
 
 	g, gCtx := errgroup.WithContext(ctx)
 
-	if flags.EnableMetric {
-		g.Go(func() error {
-			runner := monitor.NewMonitorRunner(infra.NewPeerManager())
-			return runner.Run(gCtx)
-		})
-	}
-
 	if flags.EnableDNS {
 		go func() {
 			nativeDNS := dns.NewNativeDNS(&dns.DNSConfig{})
@@ -108,6 +101,14 @@ func Start(flags *config.Config) error {
 	}
 
 	logger.Debug("Interface name", "name", c.Name)
+
+	if flags.EnableMetric {
+		g.Go(func() error {
+			runner := monitor.NewMonitorRunner(c.GetPeerManager(), c.GetDeviceName())
+			return runner.Run(gCtx)
+		})
+	}
+
 	fileUAPI, err := ipc.UAPIOpen(c.Name)
 	if err != nil {
 		return fmt.Errorf("failed to open UAPI socket: %w", err)
@@ -212,7 +213,7 @@ func startDaemon(flags *config.Config, logger *log.Logger) error {
 	if err = process.Release(); err != nil {
 		return fmt.Errorf("failed to release process: %w", err)
 	}
-	
+
 	logger.Info("daemon started", "pid", process.Pid)
 	os.Exit(0)
 	return nil // unreachable

@@ -35,5 +35,5 @@ func (c *ReadWriterConn) Write(p []byte) (int, error) {
 		return n, err
 	}
 	// 确保数据立即发出，而不是留在 bufio 的写缓存里
-	return n, c.ReadWriter.Flush()
+	return n, c.Flush()
 }

@@ -149,7 +149,7 @@ func (c *Client) GetNetworkMap(ctx context.Context, tokenStr, name string) (*inf
 	}
 
 	if len(list.Items) == 0 {
-		return nil, fmt.Errorf("Token not exists")
+		return nil, fmt.Errorf("token not exists")
 	}
 
 	var token *v1alpha1.WireflowEnrollmentToken
@@ -160,7 +160,7 @@ func (c *Client) GetNetworkMap(ctx context.Context, tokenStr, name string) (*inf
 	}
 
 	if token == nil {
-		return nil, fmt.Errorf("Token not exists")
+		return nil, fmt.Errorf("token not exists")
 	}
 
 	var node v1alpha1.WireflowPeer

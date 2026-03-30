@@ -141,5 +141,5 @@ func (e *MagicEndpoint) DstToString() string {
 }
 
 func (e *MagicEndpoint) SrcToString() string {
-	return e.src.Addr.String()
+	return e.src.String()
 }

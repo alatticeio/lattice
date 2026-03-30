@@ -19,7 +19,6 @@ import (
 	"time"
 
 	"github.com/redis/go-redis/v9"
-	_ "github.com/redis/go-redis/v9"
 )
 
 type RedisClient struct {

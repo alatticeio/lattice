@@ -32,7 +32,7 @@ Status Management: 必须包含 Ready, Connected, LastHandshake 等条件（Cond
 Finalizers: 所有的 CR 必须实现 Finalizer，以确保在删除时清理物理接口、路由表及 NATS 中的持久化消息。
 
 5. 开发准则 (Invariants)
-   Idempotency First: 所有的 Reconcile 逻辑必须是幂等的。
+Idempotency First: 所有的 Reconcile 逻辑必须是幂等的。
 
 Zero-Trust: 默认拒绝所有流量，仅允许 AllowedIPs 定义的范围。
 

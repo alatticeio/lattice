@@ -19,7 +19,10 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"sync"
 )
+
+var pfMu sync.Mutex
 
 func (r *routeProvisioner) ApplyRoute(action, address, interfaceName string) error {
 	//example: sudo route -nv add -net 192.168.10.1 -netmask 255.255.255.0 -interface en0
@@ -56,9 +59,37 @@ func (r *routeProvisioner) ApplyIP(action, address, name string) error {
 
 func (r *ruleProvisioner) Name() string { return "pfctl" }
 
+func ensurePFReady(anchor string) error {
+	// 确保 pf 已启用
+	exec.Command("sudo", "pfctl", "-e").Run() //nolint:errcheck
+
+	// 检查 anchor 是否已在主 ruleset 中
+	out, _ := exec.Command("sudo", "pfctl", "-sr").Output()
+	if strings.Contains(string(out), `anchor "`+anchor+`"`) {
+		return nil
+	}
+
+	// 将 anchor 追加到主 ruleset 并重载
+	existing := strings.TrimRight(string(out), "\n")
+	merged := existing + fmt.Sprintf("\nanchor \"%s\"\n", anchor)
+	cmd := exec.Command("sudo", "pfctl", "-f", "-")
+	cmd.Stdin = strings.NewReader(merged)
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("failed to register pf anchor: %w\n%s", err, output)
+	}
+	return nil
+}
+
 func (r *ruleProvisioner) Provision(rule *FirewallRule) error {
+	pfMu.Lock()
+	defer pfMu.Unlock()
+
 	var sb strings.Builder
 	anchor := "wireflow"
+
+	if err := ensurePFReady(anchor); err != nil {
+		return err
+	}
 
 	// 1. 默认拒绝 (零信任封口)
 	// 注意：PF 是 last-match-wins，block 必须写在 pass 之前作为兜底

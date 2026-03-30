@@ -115,12 +115,12 @@ func printDiagnostic(fields []configField, missing []string) {
 	w := os.Stderr
 
 	// 1. 标题头：使用加粗或简单的分隔符
-	fmt.Fprintln(w, "\n--- WIREFLOW SETUP ASSISTANT (Agent Mode) ---")
-	fmt.Fprintf(w, "Error: Required configuration is missing. [Config: %s]\n\n", GetConfigFilePath())
+	fmt.Fprintln(w, "\n--- WIREFLOW SETUP ASSISTANT (Agent Mode) ---")                                //nolint:errcheck
+	fmt.Fprintf(w, "Error: Required configuration is missing. [Config: %s]\n\n", GetConfigFilePath()) //nolint:errcheck
 
 	// 2. 配置状态表：简单的列对齐
-	fmt.Fprintf(w, "%-20s %-12s %s\n", "COMPONENT", "STATUS", "SUGGESTION")
-	fmt.Fprintln(w, strings.Repeat("-", 60))
+	fmt.Fprintf(w, "%-20s %-12s %s\n", "COMPONENT", "STATUS", "SUGGESTION") //nolint:errcheck
+	fmt.Fprintln(w, strings.Repeat("-", 60))                                //nolint:errcheck
 
 	for _, f := range fields {
 		statusStr := f.status
@@ -128,14 +128,14 @@ func printDiagnostic(fields []configField, missing []string) {
 		if f.status == "MISSING" {
 			statusStr = "[MISSING]"
 		}
-		fmt.Fprintf(w, "%-20s %-12s %s\n", f.name, statusStr, f.suggestion)
+		fmt.Fprintf(w, "%-20s %-12s %s\n", f.name, statusStr, f.suggestion) //nolint:errcheck
 	}
 
 	// 3. 修复引导：直接给出 Copy-Paste 命令
-	fmt.Fprintln(w, "\n QUICK FIX:")
-	fmt.Fprintln(w, "   Run the following command to initialize:")
-	fmt.Fprintf(w, "   %s\n", "wireflow up --signaling-url <NATS_URL> --server-url <API_URL> --token <TOKEN> --save")
+	fmt.Fprintln(w, "\n QUICK FIX:")                                                                                  //nolint:errcheck
+	fmt.Fprintln(w, "   Run the following command to initialize:")                                                    //nolint:errcheck
+	fmt.Fprintf(w, "   %s\n", "wireflow up --signaling-url <NATS_URL> --server-url <API_URL> --token <TOKEN> --save") //nolint:errcheck
 
 	// 4. 环境说明：简短的结语
-	fmt.Fprintln(w, "\n To use environment variables instead, check the documentation.")
+	fmt.Fprintln(w, "\n To use environment variables instead, check the documentation.") //nolint:errcheck
 }

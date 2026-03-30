@@ -1,5 +1,6 @@
-1. K8s 控制循环与幂等性 (Idempotency)
-   [ ] 逻辑闭环： Reconcile 函数是否覆盖了资源的所有状态（Created, Updated, Deleted）？
+# Wireflow Code Review Checklist
+3. K8s 控制循环与幂等性 (Idempotency)
+[ ] 逻辑闭环： Reconcile 函数是否覆盖了资源的所有状态（Created, Updated, Deleted）？
 
 [ ] 状态重入： 如果程序在任意一行崩溃并重启，再次执行 Reconcile 是否会产生副作用（如重复创建接口）？
 
@@ -23,3 +24,12 @@
 [ ] 敏感信息： WireGuard 的私钥（PrivateKey）是否严禁出现在日志、Status 或非加密的 ConfigMap 中？
 
 [ ] 空指针防护： 对 CR.Spec 中的可选字段（Optional Fields）是否做了 nil 检查？
+
+
+
+- [ ] **Cleanup**: 进程退出时是否通过 `defer` 或信号处理清理了 `utun` 和防火墙规则？
+- [ ] **Concurrency**: 在 `all-in-one` 模式下，多个 Goroutine 访问 DB 是否存在竞争？
+- [ ] **Platform**: 涉及 `pfctl` 的代码在 Linux 下是否有对应的空实现或 `netlink` 实现？
+- [ ] **Metrics**: 关键逻辑（如 Peer 状态切换）是否增加了 `prometheus.Counter`？
+- [ ] **Logging**: 错误日志是否包含足够的 Context（如具体的系统调用参数）？
+- [ ] **UX**: 新增的功能是否需要同步更新 Vue 前端界面？

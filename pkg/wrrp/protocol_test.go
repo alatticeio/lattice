@@ -26,7 +26,7 @@ func TestProtocol(t *testing.T) {
 		fmt.Println(h1)
 
 		data1 := h1.Marshal()
-		fmt.Println(data)
-		fmt.Println(data1)
+		fmt.Println(string(data))
+		fmt.Println(string(data1))
 	})
 }

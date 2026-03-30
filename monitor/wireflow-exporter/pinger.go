@@ -8,7 +8,7 @@ import (
 	probing "github.com/prometheus-community/pro-bing"
 )
 
-// 定义一个简单的接口，让核心逻辑传数据进来
+// TargetPeer is the probe target passed in from the core networking layer.
 type TargetPeer struct {
 	ID   string
 	Name string
@@ -23,7 +23,9 @@ func NewTargetPeer(id string, name string, ip string) *TargetPeer {
 	}
 }
 
-func RunCycle(targets []TargetPeer) {
+// RunCycle probes each target peer concurrently and records latency / packet-loss metrics.
+// workspaceID and nodeID are the local node's identity labels.
+func RunCycle(workspaceID, nodeID string, targets []TargetPeer) {
 	var wg sync.WaitGroup
 
 	for _, t := range targets {
@@ -31,26 +33,24 @@ func RunCycle(targets []TargetPeer) {
 		go func(target TargetPeer) {
 			defer wg.Done()
 
-			pinger, err := probing.NewPinger("www.google.com")
+			pinger, err := probing.NewPinger(target.IP)
 			if err != nil {
+				internal.PeerLoss.WithLabelValues(workspaceID, nodeID, target.ID).Set(100)
 				return
 			}
 
-			// 设置探测参数
 			pinger.Count = 3
 			pinger.Timeout = 2 * time.Second
-			pinger.SetPrivileged(false) // 非 Root 运行模式
+			pinger.SetPrivileged(false)
 
-			err = pinger.Run()
-			if err != nil {
-				internal.PeerLoss.WithLabelValues(target.ID).Set(100) // 探测失败视为 100% 丢包
+			if err = pinger.Run(); err != nil {
+				internal.PeerLoss.WithLabelValues(workspaceID, nodeID, target.ID).Set(100)
 				return
 			}
 
 			stats := pinger.Statistics()
-			// 更新 Prometheus 指标
-			internal.PeerLatency.WithLabelValues(target.ID, target.Name, target.IP).Set(float64(stats.AvgRtt.Milliseconds()))
-			internal.PeerLoss.WithLabelValues(target.ID).Set(stats.PacketLoss)
+			internal.PeerLatency.WithLabelValues(workspaceID, nodeID, target.ID, target.Name, target.IP).Set(float64(stats.AvgRtt.Milliseconds()))
+			internal.PeerLoss.WithLabelValues(workspaceID, nodeID, target.ID).Set(stats.PacketLoss)
 		}(t)
 	}
 	wg.Wait()

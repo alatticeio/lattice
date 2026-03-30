@@ -92,7 +92,7 @@ func (n *networkManager) JoinNetwork(ctx context.Context, opts *config.NetworkOp
 		return err
 	}
 
-	fmt.Fprintln(os.Stdout, string(resp))
+	fmt.Fprintln(os.Stdout, string(resp)) //nolint:errcheck
 	return nil
 }
 
@@ -113,7 +113,7 @@ func (n *networkManager) LeaveNetwork(ctx context.Context, opts *config.NetworkO
 		return err
 	}
 
-	fmt.Fprintln(os.Stdout, string(resp))
+	fmt.Fprintln(os.Stdout, string(resp)) //nolint:errcheck
 	return nil
 }
 

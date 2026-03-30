@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: aio-data  # namePrefix 后: wireflow-aio-data
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+  # storageClassName: ""  # 不填则使用集群默认 StorageClass
+  # 测试环境可改用 emptyDir（数据不持久化），删除 pvc 并在
+  # deployment.yaml volumes 中改为:
+  #   - name: data
+  #     emptyDir: {}
+  # 注意：emptyDir 重启后数据丢失

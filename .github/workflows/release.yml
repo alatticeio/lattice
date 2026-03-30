@@ -3,10 +3,11 @@ name: Release
 on:
   push:
     tags:
-      - 'v*' # 当你推送以 v 开头的标签（如 v0.1.0）时触发
+      - 'v*'
 
 permissions:
-  contents: write # 赋予 Action 创建 Release 和上传文件的权限
+  contents: write
+  packages: write
 
 jobs:
   goreleaser:
@@ -15,13 +16,31 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # 必须拉取所有历史记录，以便 GoReleaser 生成 Changelog
+          fetch-depth: 0
 
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.25.0' # 建议与你 go.mod 中的版本一致
+          go-version-file: go.mod
           cache: true
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          platforms: linux/amd64,linux/arm64
+
+      - name: Set up QEMU (for arm64 cross-build)
+        uses: docker/setup-qemu-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build UI (required for manager image)
+        run: make build-ui
 
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v5
@@ -30,5 +49,4 @@ jobs:
           version: latest
           args: release --clean
         env:
-          # GitHub Actions 会自动提供这个 Token，无需手动在后台配置 Secret
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

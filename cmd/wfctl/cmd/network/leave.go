@@ -37,7 +37,7 @@ func newLeaveCmd() *cobra.Command {
 
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 {
-				return fmt.Errorf("Network name is required")
+				return fmt.Errorf("network name is required")
 			}
 			opts.Name = args[0]
 			return runLeave(&opts)

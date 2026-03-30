@@ -121,7 +121,7 @@ func (c *Client) GetRelayInfo(allocated bool) (*internal.RelayInfo, error) {
 }
 
 func (c *Client) Close() {
-	c.relayConn.Close()
+	c.relayConn.Close() //nolint:errcheck
 }
 
 func (c *Client) ReadFrom(buf []byte) (int, net.Addr, error) {

@@ -50,7 +50,7 @@ func CreateTUN(mtu int, logger *log.Logger) (string, tun.Device, error) {
 		copy(ctlInfo.Name[:], []byte(utunControlName))
 		err = unix.IoctlCtlInfo(fd, ctlInfo)
 		if err != nil {
-			unix.Close(fd)
+			unix.Close(fd) //nolint:errcheck
 			return "", nil, fmt.Errorf("IoctlGetCtlInfo: %w", err)
 		}
 
@@ -61,7 +61,7 @@ func CreateTUN(mtu int, logger *log.Logger) (string, tun.Device, error) {
 
 		err = unix.Connect(fd, sc)
 		if err != nil {
-			unix.Close(fd)
+			unix.Close(fd) //nolint:errcheck
 			logger.Error("connect fd failed", err, "index", sc.Unit)
 			ifIndex++
 			continue
@@ -69,7 +69,7 @@ func CreateTUN(mtu int, logger *log.Logger) (string, tun.Device, error) {
 
 		err = unix.SetNonblock(fd, true)
 		if err != nil {
-			unix.Close(fd)
+			unix.Close(fd) //nolint:errcheck
 			logger.Error("set non block failed", err)
 			ifIndex++
 			continue

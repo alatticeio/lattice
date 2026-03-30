@@ -2,12 +2,17 @@ version: 1
 project_name: wireflow
 
 builds:
-  # 第一个二进制文件：主控制器
+  # Edge Agent (bare metal / non-k8s nodes)
   - id: "wireflow"
     binary: "wireflow"
-    main: "./cmd/wireflow/main.go" # 替换为你实际的路径
+    main: "./cmd/wireflow/main.go"
     env:
       - CGO_ENABLED=0
+    ldflags:
+      - -s -w
+      - -X wireflow/pkg/version.Version={{.Version}}
+      - -X wireflow/pkg/version.GitCommit={{.Commit}}
+      - -X wireflow/pkg/version.BuildTime={{.Date}}
     goos:
       - linux
       - darwin
@@ -15,21 +20,118 @@ builds:
       - amd64
       - arm64
 
-  # 第二个二进制文件：边缘 Agent
+  # CLI 工具
   - id: "wireflow-wfctl"
     binary: "wfctl"
-    main: "./cmd/wfctl/main.go" # 替换为你实际的路径
+    main: "./cmd/wfctl/main.go"
     env:
       - CGO_ENABLED=0
+    ldflags:
+      - -s -w
+      - -X wireflow/pkg/version.Version={{.Version}}
+      - -X wireflow/pkg/version.GitCommit={{.Commit}}
+      - -X wireflow/pkg/version.BuildTime={{.Date}}
     goos:
       - linux
       - darwin
+    goarch:
+      - amd64
+      - arm64
+
+  # All-in-One 控制面（嵌入 NATS + SQLite，仅 linux）
+  - id: "wireflowd"
+    binary: "wireflowd"
+    main: "./cmd/wireflowd/main.go"
+    env:
+      - CGO_ENABLED=0
+    ldflags:
+      - -s -w
+      - -X wireflow/pkg/version.Version={{.Version}}
+      - -X wireflow/pkg/version.GitCommit={{.Commit}}
+      - -X wireflow/pkg/version.BuildTime={{.Date}}
+    goos:
+      - linux
     goarch:
       - amd64
       - arm64
 
 archives:
-  - name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
-    # 默认情况下，goreleaser 会把所有编译出的 binary 放到同一个压缩包里
-    # 如果你想把它们分开打包，可以参考下面的配置
-    id: "wireflow-archive"
+  # wireflow + wfctl 打包在一起（面向边缘/终端用户）
+  - id: "wireflow-archive"
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    builds:
+      - wireflow
+      - wireflow-wfctl
+    format_overrides:
+      - goos: windows
+        format: zip
+
+  # wireflowd 单独打包（面向服务端部署）
+  - id: "wireflowd-archive"
+    name_template: "wireflowd_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    builds:
+      - wireflowd
+
+checksum:
+  name_template: "checksums.txt"
+
+dockers:
+  # wireflowd all-in-one 镜像 (amd64)
+  - id: "wireflowd-amd64"
+    ids:
+      - wireflowd
+    goos: linux
+    goarch: amd64
+    image_templates:
+      - "ghcr.io/wireflowio/wireflowd:{{ .Version }}-amd64"
+    dockerfile: Dockerfile
+    build_flag_templates:
+      - "--build-arg=TARGETSERVICE=wireflowd"
+      - "--build-arg=TARGETOS=linux"
+      - "--build-arg=TARGETARCH=amd64"
+      - "--build-arg=VERSION={{ .Version }}"
+      - "--label=org.opencontainers.image.title=wireflowd"
+      - "--label=org.opencontainers.image.version={{ .Version }}"
+      - "--label=org.opencontainers.image.revision={{ .Commit }}"
+      - "--label=org.opencontainers.image.created={{ .Date }}"
+      - "--platform=linux/amd64"
+
+  # wireflowd all-in-one 镜像 (arm64)
+  - id: "wireflowd-arm64"
+    ids:
+      - wireflowd
+    goos: linux
+    goarch: arm64
+    image_templates:
+      - "ghcr.io/wireflowio/wireflowd:{{ .Version }}-arm64"
+    dockerfile: Dockerfile
+    build_flag_templates:
+      - "--build-arg=TARGETSERVICE=wireflowd"
+      - "--build-arg=TARGETOS=linux"
+      - "--build-arg=TARGETARCH=arm64"
+      - "--build-arg=VERSION={{ .Version }}"
+      - "--label=org.opencontainers.image.title=wireflowd"
+      - "--label=org.opencontainers.image.version={{ .Version }}"
+      - "--label=org.opencontainers.image.revision={{ .Commit }}"
+      - "--label=org.opencontainers.image.created={{ .Date }}"
+      - "--platform=linux/arm64"
+
+docker_manifests:
+  - name_template: "ghcr.io/wireflowio/wireflowd:{{ .Version }}"
+    image_templates:
+      - "ghcr.io/wireflowio/wireflowd:{{ .Version }}-amd64"
+      - "ghcr.io/wireflowio/wireflowd:{{ .Version }}-arm64"
+  - name_template: "ghcr.io/wireflowio/wireflowd:latest"
+    image_templates:
+      - "ghcr.io/wireflowio/wireflowd:{{ .Version }}-amd64"
+      - "ghcr.io/wireflowio/wireflowd:{{ .Version }}-arm64"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+      - Merge pull request
+      - Merge branch

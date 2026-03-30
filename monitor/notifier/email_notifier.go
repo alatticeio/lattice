@@ -66,7 +66,7 @@ func (n *EmailNotifier) checkAvailability() bool {
 		n.available = false
 		return false
 	}
-	defer client.Close()
+	defer client.Close() //nolint:errcheck
 
 	// 尝试认证
 	if n.username != "" && n.password != "" {

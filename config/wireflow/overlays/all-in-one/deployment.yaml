@@ -1,0 +1,59 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aio
+  labels:
+    app.kubernetes.io/name: wireflowd
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: wireflowd
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: wireflowd
+    spec:
+      serviceAccountName: wireflow-controller-admin
+      containers:
+        - name: wireflowd
+          image: ghcr.io/wireflowio/wireflowd:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+            - name: nats
+              containerPort: 4222  # 边缘 Agent 通过此端口连接内嵌 NATS
+          volumeMounts:
+            - name: data
+              mountPath: /app/data  # SQLite 落盘目录（WORKDIR=/app，dsn=data/wireflow.db）
+            - name: conf
+              mountPath: /etc/wireflow/wireflow.yaml
+              subPath: wireflow.yaml
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 1000m
+              memory: 512Mi
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: aio-data  # namePrefix 后: wireflow-aio-data
+        - name: conf
+          configMap:
+            name: aio-config  # namePrefix 后: wireflow-aio-config

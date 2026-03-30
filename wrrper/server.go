@@ -139,7 +139,7 @@ func (s *Server) wrrpUpgradeHandler(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleWRRPSession(conn net.Conn, bufrw *bufio.ReadWriter) {
 	// 1. 包装连接，确保 Read/Write 走 bufrw 逻辑
 	stream := &ReadWriterConn{Conn: conn, ReadWriter: bufrw}
-	defer stream.Close()
+	defer stream.Close() //nolint:errcheck
 
 	// 2. 设置读取超时（防止握手阶段无限期阻塞）
 	_ = conn.SetReadDeadline(time.Now().Add(10 * time.Second))

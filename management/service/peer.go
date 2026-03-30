@@ -260,7 +260,7 @@ func (p *peerService) checkToken(ctx context.Context, tokenStr string) (bool, *v
 	}
 
 	if len(list.Items) == 0 {
-		return false, nil, fmt.Errorf("Token not exists")
+		return false, nil, fmt.Errorf("token not exists")
 	}
 
 	var token *v1alpha1.WireflowEnrollmentToken
@@ -271,7 +271,7 @@ func (p *peerService) checkToken(ctx context.Context, tokenStr string) (bool, *v
 	}
 
 	if token == nil {
-		return false, nil, fmt.Errorf("Token not exists")
+		return false, nil, fmt.Errorf("token not exists")
 	}
 
 	if err = retry.RetryOnConflict(retry.DefaultRetry, func() error {

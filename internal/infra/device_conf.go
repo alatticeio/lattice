@@ -63,7 +63,7 @@ func (d *DeviceConfig) String() string {
 		}
 
 		if value != "" {
-			sb.WriteString(fmt.Sprintf("%s=%s\n", key, value))
+			fmt.Fprintf(sb, "%s=%s\n", key, value) //nolint:errcheck
 		}
 	}
 
@@ -99,7 +99,7 @@ func (d *DeviceConf) String() string {
 		}
 
 		if value != "" {
-			sb.WriteString(fmt.Sprintf("%s=%s\n", key, value))
+			fmt.Fprintf(sb, "%s=%s\n", key, value) //nolint:errcheck
 		}
 	}
 

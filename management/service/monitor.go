@@ -3,7 +3,9 @@ package service
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
+	"sync"
 	"time"
 	"wireflow/internal/log"
 	"wireflow/management/models"
@@ -21,6 +23,7 @@ type MonitorService interface {
 	GetTopologySnapshot(ctx context.Context) ([]monitor.PeerSnapshot, error)
 	GetNodeSnapshot(ctx context.Context, wsID string) ([]models.NodeSnapshot, error)
 	GetWorkspaceAggregatedMonitor(ctx context.Context, wsID string) (*models.AggregatedMonitorResponse, error)
+	GetGlobalDashboard(ctx context.Context) (*models.DashboardResponse, error)
 }
 
 type monitorService struct {
@@ -293,26 +296,13 @@ func (s *monitorService) GetWorkspaceAggregatedMonitor(ctx context.Context, wsID
 
 	// 1. 获取实时吞吐量 (TX/RX)
 	eg.Go(func() error {
-		// 查询最近 1 分钟的平均吞吐量
-		//query := fmt.Sprintf(`sum(irate(wireflow_interface_tx_bytes_total{ws_id="%s"}[1m])) * 8 / 1000000`, wsID)
-		//val, _, err := s.api.Query(ctx, query, time.Now())
-		//if err == nil {
-		//	resp.LiveStats[0] = models.StatCard{
-		//		Label: "实时吞吐",
-		//		Value: s.formatVectorValue(val),
-		//		Unit:  "Mbps",
-		//		Color: "text-blue-500",
-		//		Trend: "up",
-		//	}
-		//}
-		//return err
 		resp.LiveStats[0] = s.fetchThroughput(ctx, wsID)
 		return nil
 	})
 
 	// 2. 获取平均延迟
 	eg.Go(func() error {
-		query := fmt.Sprintf(`avg(wireflow_node_latency_ms{ws_id="%s"})`, wsID)
+		query := fmt.Sprintf(`avg(wireflow_peer_latency_ms{workspace_id="%s"})`, wsID)
 		val, _, err := s.api.Query(ctx, query, time.Now())
 		if err == nil {
 			resp.LiveStats[1] = models.StatCard{
@@ -325,55 +315,56 @@ func (s *monitorService) GetWorkspaceAggregatedMonitor(ctx context.Context, wsID
 		return err
 	})
 
-	// 2. 获取丢包率
+	// 3. 获取丢包率
 	eg.Go(func() error {
-		query := fmt.Sprintf(`avg(wireflow_node_latency_ms{ws_id="%s"})`, wsID)
+		query := fmt.Sprintf(`avg(wireflow_peer_packet_loss_percent{workspace_id="%s"})`, wsID)
 		val, _, err := s.api.Query(ctx, query, time.Now())
 		if err == nil {
 			resp.LiveStats[2] = models.StatCard{
 				Label: "丢包率",
 				Value: s.formatVectorValue(val),
-				Unit:  "ms",
+				Unit:  "%",
 				Color: "text-emerald-500",
 			}
 		}
 		return err
 	})
 
-	// 2. 获取平均延迟
+	// 4. 获取活动隧道数
 	eg.Go(func() error {
-		query := fmt.Sprintf(`avg(wireflow_node_latency_ms{ws_id="%s"})`, wsID)
+		query := fmt.Sprintf(`sum(wireflow_workspace_tunnels{workspace_id="%s",status="established"})`, wsID)
 		val, _, err := s.api.Query(ctx, query, time.Now())
 		if err == nil {
 			resp.LiveStats[3] = models.StatCard{
 				Label: "活动隧道",
 				Value: s.formatVectorValue(val),
-				Unit:  "uint",
+				Unit:  "条",
 				Color: "text-emerald-500",
 			}
 		}
 		return err
 	})
 
-	// 3. 获取趋势图数据 (过去 1 小时)
+	// 5. 获取趋势图数据 (过去 1 小时，TX + RX)
 	eg.Go(func() error {
 		r := v1.Range{
 			Start: time.Now().Add(-1 * time.Hour),
 			End:   time.Now(),
 			Step:  time.Minute * 2,
 		}
-		query := fmt.Sprintf(`sum(irate(wireflow_interface_tx_bytes_total{ws_id="%s"}[5m]))`, wsID)
-		result, _, err := s.api.QueryRange(ctx, query, r)
+		txQuery := fmt.Sprintf(`sum(irate(wireflow_peer_traffic_bytes_total{workspace_id="%s",direction="tx"}[5m]))`, wsID)
+		rxQuery := fmt.Sprintf(`sum(irate(wireflow_peer_traffic_bytes_total{workspace_id="%s",direction="rx"}[5m]))`, wsID)
+		txResult, _, err := s.api.QueryRange(ctx, txQuery, r)
 		if err == nil {
-			resp.Trend = s.processMatrixToTrend(result)
+			rxResult, _, _ := s.api.QueryRange(ctx, rxQuery, r)
+			resp.Trend = s.processMatrixToTrendWithRX(txResult, rxResult)
 		}
 		return err
 	})
 
-	// 4. 获取节点列表明细 (通过 VM 里的最新样本判定)
+	// 6. 获取节点列表明细
 	eg.Go(func() error {
-		// 获取各节点的最新流量和模式标签
-		query := fmt.Sprintf(`last_over_time(wireflow_node_info{ws_id="%s"}[5m])`, wsID)
+		query := fmt.Sprintf(`last_over_time(wireflow_peer_status{workspace_id="%s"}[5m])`, wsID)
 		val, _, err := s.api.Query(ctx, query, time.Now())
 		if err == nil {
 			resp.Nodes = s.convertVectorToNodes(val)
@@ -397,30 +388,45 @@ func (s *monitorService) formatVectorValue(val model.Value) string {
 }
 
 // 将 Range Query 的 Matrix 转换为前端波形图格式
+// nolint:unused
 func (s *monitorService) processMatrixToTrend(val model.Value) models.TrendData {
-	matrix, ok := val.(model.Matrix)
-	if !ok || len(matrix) == 0 {
-		return models.TrendData{}
+	return s.processMatrixToTrendWithRX(val, nil)
+}
+
+// processMatrixToTrendWithRX 同时填充 TX 和 RX 趋势数据
+func (s *monitorService) processMatrixToTrendWithRX(txVal model.Value, rxVal model.Value) models.TrendData {
+	trend := models.TrendData{}
+
+	txMatrix, ok := txVal.(model.Matrix)
+	if ok && len(txMatrix) > 0 {
+		for _, sample := range txMatrix[0].Values {
+			trend.Timestamps = append(trend.Timestamps, sample.Timestamp.Time().Format("15:04"))
+			trend.TXData = append(trend.TXData, float64(sample.Value))
+		}
 	}
 
-	trend := models.TrendData{}
-	for _, sample := range matrix[0].Values {
-		trend.Timestamps = append(trend.Timestamps, sample.Timestamp.Time().Format("15:04"))
-		trend.TXData = append(trend.TXData, float64(sample.Value))
+	rxMatrix, ok := rxVal.(model.Matrix)
+	if ok && len(rxMatrix) > 0 {
+		for _, sample := range rxMatrix[0].Values {
+			trend.RXData = append(trend.RXData, float64(sample.Value))
+		}
 	}
+
 	return trend
 }
 
 // 将节点标签信息转换为明细列表
+// 数据来源：wireflow_peer_status，labels: workspace_id, node_id, peer_id, endpoint, alias
 func (s *monitorService) convertVectorToNodes(val model.Value) []models.NodeMonitorDetail {
 	vector, _ := val.(model.Vector)
 	nodes := make([]models.NodeMonitorDetail, 0)
 	for _, sample := range vector {
+		online := float64(sample.Value) == 1
 		nodes = append(nodes, models.NodeMonitorDetail{
-			Name:           string(sample.Metric["node_name"]),
-			VIP:            string(sample.Metric["vip"]),
-			ConnectionType: string(sample.Metric["conn_type"]), // p2p 或 relay
-			Online:         true,                               // 如果能查到最近 5 分钟的样本则视为在线
+			ID:       string(sample.Metric["peer_id"]),
+			Name:     string(sample.Metric["node_id"]),
+			Endpoint: string(sample.Metric["endpoint"]),
+			Online:   online,
 		})
 	}
 	return nodes
@@ -429,7 +435,7 @@ func (s *monitorService) convertVectorToNodes(val model.Value) []models.NodeMoni
 func (s *monitorService) fetchThroughput(ctx context.Context, wsID string) models.StatCard {
 	// 1. 定义查询语句
 	// 使用 irate 获取瞬时速率
-	query := fmt.Sprintf(`sum(irate(wireflow_interface_tx_bytes_total{ws_id="%s"}[1m])) * 8 / 1000000`, wsID)
+	query := fmt.Sprintf(`sum(irate(wireflow_peer_traffic_bytes_total{workspace_id="%s",direction="tx"}[1m])) * 8 / 1000000`, wsID)
 
 	// 2. 执行查询
 	val, _, err := s.api.Query(ctx, query, time.Now())
@@ -479,4 +485,174 @@ func (s *monitorService) getTrend(wsID string, current float64) string {
 		return "down"
 	} // 下降超过5%判定为下降
 	return "stable"
+}
+
+// GetGlobalDashboard 并发查询 VM，聚合全域 Dashboard 数据
+func (s *monitorService) GetGlobalDashboard(ctx context.Context) (*models.DashboardResponse, error) {
+	var (
+		eg             errgroup.Group
+		mu             sync.Mutex
+		activeWs       int
+		onlineNodes    int
+		throughputGbps float64
+		wsNodes        = make(map[string]int)
+		wsTraffic      = make(map[string]float64)
+		wsHealth       = make(map[string]float64)
+	)
+
+	// 1. 活跃工作空间数（有数据上报的空间）
+	eg.Go(func() error {
+		vec, err := s.QueryByTime(ctx, `count(count by (workspace_id) (wireflow_peer_status{workspace_id!=""}))`, time.Now())
+		if err == nil && len(vec) > 0 {
+			activeWs = int(vec[0].Value)
+		}
+		return nil
+	})
+
+	// 2. 全网在线节点数（按 node_id 去重）
+	eg.Go(func() error {
+		vec, err := s.QueryByTime(ctx, `count(count by (node_id) (wireflow_peer_status == 1))`, time.Now())
+		if err == nil && len(vec) > 0 {
+			onlineNodes = int(vec[0].Value)
+		}
+		return nil
+	})
+
+	// 3. 全域总吞吐（Gbps）
+	eg.Go(func() error {
+		vec, err := s.QueryByTime(ctx, `sum(irate(wireflow_peer_traffic_bytes_total{direction="tx"}[2m])) * 8 / 1e9`, time.Now())
+		if err == nil && len(vec) > 0 {
+			throughputGbps = float64(vec[0].Value)
+		}
+		return nil
+	})
+
+	// 4. 每个空间的在线节点数
+	eg.Go(func() error {
+		vec, err := s.QueryByTime(ctx, `count by (workspace_id) (last_over_time(wireflow_node_uptime_seconds[5m]))`, time.Now())
+		if err != nil {
+			return nil
+		}
+		mu.Lock()
+		defer mu.Unlock()
+		for _, sample := range vec {
+			wsID := string(sample.Metric["workspace_id"])
+			wsNodes[wsID] = int(sample.Value)
+		}
+		return nil
+	})
+
+	// 5. 每个空间 24h 发送流量
+	eg.Go(func() error {
+		vec, err := s.QueryByTime(ctx, `sum by (workspace_id) (increase(wireflow_peer_traffic_bytes_total{direction="tx"}[24h]))`, time.Now())
+		if err != nil {
+			return nil
+		}
+		mu.Lock()
+		defer mu.Unlock()
+		for _, sample := range vec {
+			wsID := string(sample.Metric["workspace_id"])
+			wsTraffic[wsID] = float64(sample.Value)
+		}
+		return nil
+	})
+
+	// 6. 每个空间健康度（在线 peer 占比）
+	eg.Go(func() error {
+		vec, err := s.QueryByTime(ctx, `avg by (workspace_id) (wireflow_peer_status) * 100`, time.Now())
+		if err != nil {
+			return nil
+		}
+		mu.Lock()
+		defer mu.Unlock()
+		for _, sample := range vec {
+			wsID := string(sample.Metric["workspace_id"])
+			wsHealth[wsID] = float64(sample.Value)
+		}
+		return nil
+	})
+
+	if err := eg.Wait(); err != nil {
+		return nil, err
+	}
+
+	resp := &models.DashboardResponse{
+		GlobalStats: []models.GlobalStatItem{
+			{
+				Label: "活跃工作空间", Value: strconv.Itoa(activeWs), Unit: "SETS",
+				Trend: "+0", Color: "text-blue-500", BarWidth: calcProgress(activeWs, 20), TrendUp: true,
+			},
+			{
+				Label: "全网在线节点", Value: strconv.Itoa(onlineNodes), Unit: "NODE",
+				Trend: "Live", Color: "text-emerald-500", BarWidth: calcProgress(onlineNodes, 2000), TrendUp: true,
+			},
+			{
+				Label: "全域总吞吐", Value: fmt.Sprintf("%.1f", throughputGbps), Unit: "Gbps",
+				Trend: "Gbps", Color: "text-primary", BarWidth: calcProgress(int(throughputGbps*10), 100), TrendUp: true,
+			},
+			{
+				Label: "未处理告警", Value: "00", Unit: "WARN",
+				Trend: "Healthy", Color: "text-error", BarWidth: "0%", TrendUp: false,
+			},
+		},
+		GlobalEvents: []models.GlobalEventItem{},
+	}
+
+	// 合并 workspace 数据（以有流量或有节点的空间为准）
+	wsIDs := make(map[string]struct{})
+	mu.Lock()
+	for id := range wsNodes {
+		wsIDs[id] = struct{}{}
+	}
+	for id := range wsTraffic {
+		wsIDs[id] = struct{}{}
+	}
+	mu.Unlock()
+
+	for wsID := range wsIDs {
+		health := int(wsHealth[wsID])
+		if health == 0 {
+			health = 100
+		}
+		status := "Running"
+		if health < 90 {
+			status = "Warning"
+		}
+		resp.WorkspaceUsage = append(resp.WorkspaceUsage, models.WorkspaceUsageRow{
+			Name:    wsID, // TODO: 后续 join DB 换成 displayName
+			Type:    "Production",
+			Nodes:   wsNodes[wsID],
+			Traffic: formatTrafficBytes(wsTraffic[wsID]),
+			Health:  health,
+			Status:  status,
+		})
+	}
+
+	return resp, nil
+}
+
+// calcProgress 将 value/max 映射为百分比字符串，如 "65%"
+func calcProgress(value, max int) string {
+	if max <= 0 || value <= 0 {
+		return "0%"
+	}
+	pct := value * 100 / max
+	if pct > 100 {
+		pct = 100
+	}
+	return fmt.Sprintf("%d%%", pct)
+}
+
+// formatTrafficBytes 将字节数格式化为可读字符串
+func formatTrafficBytes(b float64) string {
+	switch {
+	case b >= 1e12:
+		return fmt.Sprintf("%.1f TB", b/1e12)
+	case b >= 1e9:
+		return fmt.Sprintf("%.1f GB", b/1e9)
+	case b >= 1e6:
+		return fmt.Sprintf("%.1f MB", b/1e6)
+	default:
+		return fmt.Sprintf("%.0f B", b)
+	}
 }

@@ -127,7 +127,7 @@ jobs:
           
           echo "Waiting for Wireflow Manager to be ready..."
           # 增加到 5 分钟，并捕获具体错误
-          if ! $KC rollout status deployment -n wireflow-system wireflow-controller-manager --timeout=300s; then
+          if ! $KC rollout status deployment -n wireflow-system wireflow-control --timeout=300s; then
             echo "❌ Manager failed to ready in time. Current Pod status:"
             $KC get pods -n wireflow-system
             $KC describe pods -n wireflow-system -l app.kubernetes.io/name=wireflow-manager

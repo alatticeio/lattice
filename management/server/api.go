@@ -77,6 +77,8 @@ func (s *Server) apiRouter() error {
 
 	s.profileRouter()
 
+	s.dashboardRouter()
+
 	// 实时状态推送 (WebSocket)
 	//r.GET("/ws/status", HandleStatusWS)
 

@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sync"
+	"time"
 	"wireflow/internal/grpc"
 	"wireflow/internal/infra"
 	"wireflow/internal/log"
@@ -148,7 +149,8 @@ func (p *ProbeFactory) NewProbe(remoteId infra.PeerIdentity) (*Probe, error) {
 		return nil, err
 	}
 
-	probe := &Probe{
+	var probe *Probe
+	probe = &Probe{
 		log:      p.log,
 		localId:  p.localId,
 		remoteId: remoteId,
@@ -186,17 +188,39 @@ func (p *ProbeFactory) NewProbe(remoteId infra.PeerIdentity) (*Probe, error) {
 
 			return p.provisioner.SetupNAT(rp.InterfaceName)
 		},
+		onFailure: func(err error) error {
+			p.log.Warn("discover failed, retrying in 10s", "remoteId", remoteId.AppID, "err", err)
+			time.AfterFunc(10*time.Second, probe.restart)
+			return nil
+		},
+		wrrpDialer: wrrpDialer,
+	}
 
-		iceDialer: NewIceDialer(&ICEDialerConfig{
+	// makeIceDialer is a factory that creates a fresh iceDialer, wired to
+	// call probe.restart() on close so reconnection works automatically.
+	makeIceDialer := func() infra.Dialer {
+		return NewIceDialer(&ICEDialerConfig{
 			LocalId:                p.localId,
 			RemoteId:               remoteId,
 			Sender:                 p.signal.Send,
 			LocalPeer:              localPeer,
 			OnPeerReceived:         onPeerReceived,
 			UniversalUdpMuxDefault: p.UniversalUdpMuxDefault,
-		}),
-		wrrpDialer: wrrpDialer,
+			OnClose: func(_ infra.PeerIdentity) {
+				probe.restart()
+			},
+			// After the old session is torn down (remote restarted mid-session),
+			// immediately re-dispatch the triggering SYN to the newly created
+			// dialer so we don't wait for the remote's next 2-second retry cycle.
+			OnSynOnActiveAgent: func(ctx context.Context, rid infra.PeerIdentity, packet *grpc.SignalPacket) {
+				if err := probe.Handle(ctx, rid, packet); err != nil {
+					p.log.Error("re-dispatch SYN to restarted dialer", err)
+				}
+			},
+		})
 	}
+	probe.newIceDialer = makeIceDialer
+	probe.iceDialer = makeIceDialer()
 
 	p.Register(remoteId, probe)
 	return probe, nil

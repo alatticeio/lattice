@@ -2,28 +2,53 @@ package monitor
 
 import (
 	"context"
+	"sync"
 	"time"
 	"wireflow/internal"
+	"wireflow/internal/infra"
 	"wireflow/monitor/collector"
+	wireflow_exporter "wireflow/monitor/wireflow-exporter"
 )
 
-// MetricWorker 定义采集管理结构
-type MetricWorker struct {
-	stopChan            chan struct{}
-	cpuCollector        collector.MetricCollector
-	peerStatusCollector collector.MetricCollector
+// NodeIdentity holds the workspace and node labels applied to every metric emitted by this node.
+type NodeIdentity struct {
+	WorkspaceID string
+	NodeID      string
 }
 
-func NewMetricWorker() *MetricWorker {
+// MetricWorker manages all metric collection goroutines for the local node.
+type MetricWorker struct {
+	stopChan chan struct{}
+	identity NodeIdentity
 
+	cpuCollector        collector.MetricCollector
+	memCollector        collector.MetricCollector
+	peerStatusCollector collector.MetricCollector
+	peerManager         *infra.PeerManager
+	startTime           time.Time
+
+	// traffic delta tracking: WireGuard counters are cumulative,
+	// so we only add the increment since the last sample to the Prometheus Counter.
+	mu          sync.Mutex
+	prevRxBytes map[string]float64 // peerID → last rx bytes
+	prevTxBytes map[string]float64 // peerID → last tx bytes
+}
+
+func NewMetricWorker(identity NodeIdentity, peers *infra.PeerManager, ifName string) *MetricWorker {
 	return &MetricWorker{
 		stopChan:            make(chan struct{}),
+		identity:            identity,
 		cpuCollector:        collector.NewCPUCollector(),
-		peerStatusCollector: collector.NewPeerStatusCollector(),
+		memCollector:        &collector.MemoryCollector{},
+		peerStatusCollector: collector.NewPeerStatusCollector(peers, ifName),
+		peerManager:         peers,
+		startTime:           time.Now(),
+		prevRxBytes:         make(map[string]float64),
+		prevTxBytes:         make(map[string]float64),
 	}
 }
 
-// Start 背景运行：延迟与链路探测
+// StartLinkProbing probes each known peer's VIP with ICMP and records latency / packet loss.
 func (mw *MetricWorker) StartLinkProbing(ctx context.Context, interval time.Duration) {
 	ticker := time.NewTicker(interval)
 	go func() {
@@ -31,10 +56,10 @@ func (mw *MetricWorker) StartLinkProbing(ctx context.Context, interval time.Dura
 		for {
 			select {
 			case <-ticker.C:
-				// 1. 获取最新的 Peer 列表 (从你的 core 模块获取)
-				// targets := core.GetActivePeers()
-				// 2. 执行并发探测
-				// RunCycle(targets)
+				targets := mw.buildTargets()
+				if len(targets) > 0 {
+					wireflow_exporter.RunCycle(mw.identity.WorkspaceID, mw.identity.NodeID, targets)
+				}
 			case <-mw.stopChan:
 				return
 			case <-ctx.Done():
@@ -44,38 +69,61 @@ func (mw *MetricWorker) StartLinkProbing(ctx context.Context, interval time.Dura
 	}()
 }
 
-// Start 系统指标采集（CPU/MEM）
+// buildTargets converts PeerManager entries into TargetPeer probing targets.
+func (mw *MetricWorker) buildTargets() []wireflow_exporter.TargetPeer {
+	peers := mw.peerManager.GetAll()
+	targets := make([]wireflow_exporter.TargetPeer, 0, len(peers))
+	for _, p := range peers {
+		if p.Address == nil || *p.Address == "" {
+			continue
+		}
+		targets = append(targets, *wireflow_exporter.NewTargetPeer(p.AppID, p.Name, *p.Address))
+	}
+	return targets
+}
+
+// StartSystemMetrics collects CPU, memory, and uptime metrics on a fixed interval.
 func (mw *MetricWorker) StartSystemMetrics(ctx context.Context, interval time.Duration) {
 	ticker := time.NewTicker(interval)
+	wsID := mw.identity.WorkspaceID
+	nodeID := mw.identity.NodeID
 	go func() {
 		defer ticker.Stop()
 		for {
 			select {
 			case <-ticker.C:
-				metrics, err := mw.cpuCollector.Collect()
-				if err != nil {
-					// 记录日志，不要让程序崩掉
-					continue
-				}
-
-				for _, m := range metrics {
-					// 获取原始值，并断言为 float64
-					// 注意：gopsutil 返回的百分比通常已经是 float64 了
-					val, ok := m.Value().(float64)
-					if !ok {
-						// 如果断言失败，记录日志或跳过，防止程序崩溃
-						// log.Printf("metric %s has invalid value type", m.Name())
-						continue
-					}
-
-					switch m.Name() {
-					case "cpu_usage_total":
-						internal.NodeCpuUsage.WithLabelValues("ws-01", "macbook-pro.local").Set(val)
-
-					case "cpu_usage_core":
-						internal.NodeCoreUsage.WithLabelValues("ws-01", "macbook-pro.local").Set(val)
+				// --- CPU ---
+				if cpuMetrics, err := mw.cpuCollector.Collect(); err == nil {
+					for _, m := range cpuMetrics {
+						val, ok := m.Value().(float64)
+						if !ok {
+							continue
+						}
+						switch m.Name() {
+						case "cpu_usage_total":
+							internal.NodeCpuUsage.WithLabelValues(wsID, nodeID).Set(val)
+						case "cpu_usage_core":
+							internal.NodeCoreUsage.WithLabelValues(wsID, nodeID).Set(val)
+						}
 					}
 				}
+
+				// --- Memory ---
+				if memMetrics, err := mw.memCollector.Collect(); err == nil {
+					for _, m := range memMetrics {
+						val, ok := m.Value().(float64)
+						if !ok {
+							continue
+						}
+						if m.Name() == "memory_used" {
+							internal.NodeMemUsage.WithLabelValues(wsID, nodeID).Set(val)
+						}
+					}
+				}
+
+				// --- Uptime ---
+				internal.NodeUptime.WithLabelValues(wsID, nodeID).Set(time.Since(mw.startTime).Seconds())
+
 			case <-mw.stopChan:
 				return
 			case <-ctx.Done():
@@ -85,60 +133,46 @@ func (mw *MetricWorker) StartSystemMetrics(ctx context.Context, interval time.Du
 	}()
 }
 
+// StartPeerStatusMetrics collects WireGuard peer connection status and cumulative traffic.
 func (mw *MetricWorker) StartPeerStatusMetrics(ctx context.Context, interval time.Duration) {
 	ticker := time.NewTicker(interval)
+	wsID := mw.identity.WorkspaceID
+	nodeID := mw.identity.NodeID
 	go func() {
 		defer ticker.Stop()
 		for {
 			select {
 			case <-ticker.C:
-				// 1. 调用 Peer 状态采集器（注意这里要换成你对应的 Collector 实例）
 				metrics, err := mw.peerStatusCollector.Collect()
 				if err != nil {
-					// log.Printf("failed to collect peer status: %v", err)
 					continue
 				}
 
-				// 2. 核心操作：在写入这一批次数据前，先重置 Gauge，防止已下线的节点残留
+				// Reset before each cycle so offline peers don't leave stale series.
 				internal.PeerStatus.Reset()
-				// 如果你顺便采集了流量，也在这里重置对应的 Gauge/Counter
-				// exporter.PeerBytesTransmit.Reset()
-				// exporter.PeerBytesReceive.Reset()
 
-				// 3. 遍历并设置指标
 				for _, m := range metrics {
 					val, ok := m.Value().(float64)
 					if !ok {
 						continue
 					}
-
 					labels := m.Labels()
 
-					// 根据指标名称分发数据
 					switch m.Name() {
 					case "peer_status":
-						// 确保这里的 Label 顺序与你定义 PeerStatus 时一致
-						// 建议：peer_id, ip, alias
 						internal.PeerStatus.WithLabelValues(
+							wsID,
+							nodeID,
 							labels["peer_id"],
-							labels["ip"],
+							labels["endpoint"],
 							labels["alias"],
 						).Set(val)
 
-						//TODO should Add traffic datas
-						//case "peer_receive_bytes":
-						//	exporter.PeerBytesReceive.WithLabelValues(
-						//		labels["peer_id"],
-						//		labels["ip"],
-						//		labels["alias"],
-						//	).Set(val)
-						//
-						//case "peer_transmit_bytes":
-						//	exporter.PeerBytesTransmit.WithLabelValues(
-						//		labels["peer_id"],
-						//		labels["ip"],
-						//		labels["alias"],
-						//	).Set(val)
+					case "peer_receive_bytes":
+						mw.addTrafficDelta(wsID, nodeID, labels["peer_id"], "rx", val)
+
+					case "peer_transmit_bytes":
+						mw.addTrafficDelta(wsID, nodeID, labels["peer_id"], "tx", val)
 					}
 				}
 
@@ -149,4 +183,29 @@ func (mw *MetricWorker) StartPeerStatusMetrics(ctx context.Context, interval tim
 			}
 		}
 	}()
+}
+
+// addTrafficDelta adds the byte increment since last sample to the PeerTrafficBytes counter.
+// Negative deltas (counter reset after interface restart) are silently ignored.
+func (mw *MetricWorker) addTrafficDelta(wsID, nodeID, peerID, direction string, current float64) {
+	mw.mu.Lock()
+	defer mw.mu.Unlock()
+
+	var prevMap map[string]float64
+	if direction == "rx" {
+		prevMap = mw.prevRxBytes
+	} else {
+		prevMap = mw.prevTxBytes
+	}
+
+	prev, exists := prevMap[peerID]
+	prevMap[peerID] = current
+	if !exists {
+		return // first sample; nothing to add yet
+	}
+	delta := current - prev
+	if delta <= 0 {
+		return // no change or counter reset
+	}
+	internal.PeerTrafficBytes.WithLabelValues(wsID, nodeID, peerID, direction).Add(delta)
 }

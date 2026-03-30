@@ -52,7 +52,7 @@ var _ = Describe("Wireflow 核心连通性 E2E", Ordered, func() {
 		loginBody, _ := json.Marshal(map[string]string{"username": "admin", "password": "123456"})
 		respLogin, err := httpClient.Post(manageUrl+"/api/v1/users/login", "application/json", bytes.NewBuffer(loginBody))
 		Expect(err).NotTo(HaveOccurred(), "登录请求失败")
-		defer respLogin.Body.Close()
+		defer respLogin.Body.Close() //nolint:errcheck
 
 		var loginData resp.Response
 		Expect(json.NewDecoder(respLogin.Body).Decode(&loginData)).To(Succeed())
@@ -74,7 +74,7 @@ var _ = Describe("Wireflow 核心连通性 E2E", Ordered, func() {
 
 		respWs, err := httpClient.Do(reqWs)
 		Expect(err).NotTo(HaveOccurred(), "创建 Workspace 请求失败")
-		defer respWs.Body.Close()
+		defer respWs.Body.Close() //nolint:errcheck
 
 		var wsData resp.Response
 		Expect(json.NewDecoder(respWs.Body).Decode(&wsData)).To(Succeed())
@@ -93,7 +93,7 @@ var _ = Describe("Wireflow 核心连通性 E2E", Ordered, func() {
 
 		respTk, err := httpClient.Do(reqTk)
 		Expect(err).NotTo(HaveOccurred(), "生成 Token 请求失败")
-		defer respTk.Body.Close()
+		defer respTk.Body.Close() //nolint:errcheck
 
 		var tkData resp.Response
 		Expect(json.NewDecoder(respTk.Body).Decode(&tkData)).To(Succeed())
@@ -140,7 +140,7 @@ var _ = Describe("Wireflow 核心连通性 E2E", Ordered, func() {
 							Containers: []corev1.Container{{
 								Name:            "agent",
 								Image:           agentImage,
-								ImagePullPolicy: corev1.PullIfNotPresent,
+								ImagePullPolicy: corev1.PullAlways,
 								SecurityContext: &corev1.SecurityContext{
 									Privileged:               &privileged,
 									AllowPrivilegeEscalation: &privileged,
@@ -162,6 +162,7 @@ var _ = Describe("Wireflow 核心连通性 E2E", Ordered, func() {
 								Command: []string{
 									"/app/wireflow", "up",
 									"--token", joinToken,
+									"--level", "debug",
 									"--server-url", "wireflow-api-service.wireflow-system.svc.cluster.local:8080",
 									"--signaling-url", "nats://signaling.wireflow.run:4222",
 								},
@@ -303,18 +304,18 @@ var _ = Describe("Wireflow 核心连通性 E2E", Ordered, func() {
 
 // collectDiagnostics 在测试失败时打印关键日志，方便 CI 排查
 func collectDiagnostics(ctx context.Context, namespace string) {
-	fmt.Fprintf(GinkgoWriter, "\n========== E2E 诊断日志 [ns=%s] ==========\n", namespace)
+	fmt.Fprintf(GinkgoWriter, "\n========== E2E 诊断日志 [ns=%s] ==========\n", namespace) //nolint:errcheck
 
 	pods, err := clientset.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{})
 	if err != nil {
-		fmt.Fprintf(GinkgoWriter, "[WARN] 无法列出 Pod: %v\n", err)
+		fmt.Fprintf(GinkgoWriter, "[WARN] 无法列出 Pod: %v\n", err) //nolint:errcheck
 		return
 	}
 
 	for _, pod := range pods.Items {
-		fmt.Fprintf(GinkgoWriter, "\n--- Pod: %s  Phase: %s ---\n", pod.Name, pod.Status.Phase)
+		fmt.Fprintf(GinkgoWriter, "\n--- Pod: %s  Phase: %s ---\n", pod.Name, pod.Status.Phase) //nolint:errcheck
 		for _, cs := range pod.Status.ContainerStatuses {
-			fmt.Fprintf(GinkgoWriter, "  Container %s: ready=%v restarts=%d\n", cs.Name, cs.Ready, cs.RestartCount)
+			fmt.Fprintf(GinkgoWriter, "  Container %s: ready=%v restarts=%d\n", cs.Name, cs.Ready, cs.RestartCount) //nolint:errcheck
 		}
 		// 打印容器日志（最近 100 行）
 		tailLines := int64(100)
@@ -323,16 +324,16 @@ func collectDiagnostics(ctx context.Context, namespace string) {
 		})
 		logStream, err := logReq.Stream(ctx)
 		if err != nil {
-			fmt.Fprintf(GinkgoWriter, "  [WARN] 无法获取日志: %v\n", err)
+			fmt.Fprintf(GinkgoWriter, "  [WARN] 无法获取日志: %v\n", err) //nolint:errcheck
 			continue
 		}
 		var buf bytes.Buffer
 		_, _ = buf.ReadFrom(logStream)
 		_ = logStream.Close()
-		fmt.Fprintf(GinkgoWriter, "%s\n", buf.String())
+		fmt.Fprintf(GinkgoWriter, "%s\n", buf.String()) //nolint:errcheck
 	}
 
-	fmt.Fprintf(GinkgoWriter, "===========================================\n")
+	fmt.Fprintf(GinkgoWriter, "===========================================\n") //nolint:errcheck
 }
 
 // execInPod 通过 SPDY 在指定 Pod 内执行命令并返回 stdout 输出
