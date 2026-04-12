@@ -5,7 +5,6 @@ import { useAction, useTable } from '@/composables/useApi'
 import { useConfirm } from '@/composables/useConfirm'
 import { useWorkspaceStore } from '@/stores/workspace'
 import { useRouter } from 'vue-router'
-import router from "@/router";
 
 export const useWorkspacePageStore = defineStore('workspacePage', () => {
     const router = useRouter()

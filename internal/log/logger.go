@@ -21,12 +21,14 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/lmittmann/tint"
+	charmlog "github.com/charmbracelet/log"
+	"github.com/muesli/termenv"
 )
 
 var (
 	level       = &slog.LevelVar{}
 	rootHandler slog.Handler
+	charmLogger *charmlog.Logger
 	once        sync.Once
 )
 
@@ -35,7 +37,11 @@ func init() {
 }
 
 func SetLevel(logLevel string) {
-	level.Set(GetLogLevel(logLevel))
+	l := GetLogLevel(logLevel)
+	level.Set(l)
+	if charmLogger != nil {
+		charmLogger.SetLevel(charmlog.Level(l))
+	}
 }
 
 // Err returns a slog.Attr for an error, for use with structured logging.
@@ -76,11 +82,18 @@ func getHandler() slog.Handler {
 				Level:     level,
 			})
 		} else {
-			inner = tint.NewHandler(os.Stdout, &tint.Options{
-				AddSource:  true,
-				Level:      level,
-				TimeFormat: "2006-01-02 15:04:05.000",
+			charmLogger = charmlog.NewWithOptions(os.Stdout, charmlog.Options{
+				ReportTimestamp: true,
+				ReportCaller:    true,
+				TimeFormat:      "2006-01-02 15:04:05.000",
+				Level:           charmlog.Level(level.Level()),
 			})
+			// GoLand / other IDE consoles are pipes (not a real TTY), so termenv
+			// auto-detects "no color". Force TrueColor unless explicitly disabled.
+			if os.Getenv("NO_COLOR") == "" {
+				charmLogger.SetColorProfile(termenv.TrueColor)
+			}
+			inner = charmLogger
 		}
 		rootHandler = &AutoErrHandler{Handler: inner}
 	})

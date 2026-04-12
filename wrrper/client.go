@@ -83,12 +83,12 @@ func (c *WRRPClient) probeWorker() {
 	for task := range c.probeChan {
 		var packet grpc.SignalPacket
 		if err := proto.Unmarshal(task.Data, &packet); err != nil {
-			c.log.Error("invalid packet", err)
+			c.log.Error("failed to unmarshal probe packet", err)
 			continue
 		}
 
 		if err := c.onMessage(context.Background(), infra.FromUint64(packet.SenderId), &packet); err != nil {
-			c.log.Error("handle probe failed", err)
+			c.log.Error("probe handler returned error", err)
 		}
 	}
 }
@@ -181,16 +181,16 @@ func (c *WRRPClient) ReceiveFunc() conn.ReceiveFunc {
 		defer wrrp.PutHeaderBuffer(headBufp)
 		headBuf := *headBufp
 		if _, err = io.ReadFull(c.Reader, headBuf); err != nil {
-			c.log.Error("Connection closed by server", err)
+			c.log.Error("server connection lost", err)
 			return
 		}
 
 		header, err := wrrp.Unmarshal(headBuf)
 		if err != nil {
-			c.log.Error("invalid wrrp header", err)
+			c.log.Error("failed to parse WRRP header", err)
 			return 0, err
 		}
-		c.log.Debug("Receiving from wrrp server", "type", header.Cmd, "payloadLen", header.PayloadLen)
+		c.log.Debug("recv", "cmd", header.Cmd, "bytes", header.PayloadLen)
 		switch header.Cmd {
 		case wrrp.Probe:
 			// 1. 读取 Probe 数据到临时缓冲区（不要占用 WireGuard 的 packets[0]）
@@ -198,19 +198,19 @@ func (c *WRRPClient) ReceiveFunc() conn.ReceiveFunc {
 			defer wrrp.PutPayloadBuffer(&bufp)
 			_, err = io.ReadFull(c.Reader, bufp)
 			if err != nil {
-				c.log.Error("Connection closed by server", err)
+				c.log.Error("server connection lost", err)
 				return 0, nil
 			}
 
 			select {
 			case c.probeChan <- &Task{SessionID: header.FromID, Data: bufp}:
 			default:
-				c.log.Warn("Probe channel is full, dropped probe task")
+				c.log.Warn("probe task dropped: channel at capacity")
 			}
 			return 0, nil
 		case wrrp.Forward:
 			if _, err = io.ReadFull(c.Reader, packets[0][:header.PayloadLen]); err != nil {
-				c.log.Error("Connection closed by server", err)
+				c.log.Error("server connection lost", err)
 				return 0, err
 			}
 
@@ -228,11 +228,11 @@ func (c *WRRPClient) ReceiveFunc() conn.ReceiveFunc {
 			if payloadLen > 0 {
 				_, err = io.CopyN(io.Discard, c.Reader, payloadLen)
 				if err != nil {
-					c.log.Error("Connection closed by server", err)
+					c.log.Error("server connection lost", err)
 					return 0, err
 				}
 
-				c.log.Warn("unknow wrrp command discarded", "cmd", header.Cmd)
+				c.log.Warn("unknown WRRP command discarded", "cmd", header.Cmd)
 			}
 		}
 
@@ -264,7 +264,7 @@ func (c *WRRPClient) startKeepAlive(ctx context.Context, interval time.Duration)
 			c.mu.Unlock()
 
 			if err != nil {
-				fmt.Printf("[WRRP] KeepAlive failed: %v\n", err)
+				c.log.Warn("keepalive write failed, exiting", "err", err)
 				return
 			}
 		}

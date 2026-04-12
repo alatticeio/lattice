@@ -251,7 +251,7 @@ run: manifests generate fmt vet ## Run a controller from your host.
 .PHONY: build-ui
 build-ui: ## 打包前端 Vue3 产物（输出到 internal/web/dist，供 go:embed 使用）
 	@echo ">>> Building UI..."
-	cd web && npm install --prefer-offline && npm run build
+	cd web && pnpm install && pnpm build
 	@echo ">>> UI built → internal/web/dist"
 
 
@@ -270,9 +270,9 @@ docker-build: ## 构建单个服务的 Docker 镜像 (使用: make docker-build 
 		exit 1; \
 	fi
 	@echo " Building Docker image for $(SERVICE)..."
-	@# 如果构建的是 manager，先执行 UI 构建
-	@if [ "$(SERVICE)" = "manager" ]; then \
-		echo "📦 Service is manager, building UI first..."; \
+	@# 如果构建的是 manager 或 wireflowd，先执行 UI 构建
+	@if [ "$(SERVICE)" = "manager" ] || [ "$(SERVICE)" = "wireflowd" ]; then \
+		echo "📦 Service is $(SERVICE), building UI first..."; \
 		$(MAKE) build-ui; \
 	fi
 	$(CONTAINER_TOOL) build \

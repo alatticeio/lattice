@@ -1,4 +1,5 @@
-import axios, {
+import axios from 'axios';
+import type {
     InternalAxiosRequestConfig,
     AxiosResponse,
     AxiosInstance,
@@ -26,9 +27,11 @@ service.interceptors.request.use(
             config.headers['Authorization'] = `Bearer ${token}`;
         }
 
-        // 安全获取 workspaceId
-        const params = router.currentRoute?.value?.params;
-        const workspaceId = params?.wsId as string | undefined;
+        // 安全获取 workspaceId：优先取路由 param，回退到全局选中的空间
+        const routeParams = router.currentRoute?.value?.params;
+        const workspaceId = ((routeParams as any)?.wsId as string | undefined)
+            || localStorage.getItem('active_ws_id')
+            || undefined;
 
         if (workspaceId && workspaceId !== 'all' && config.headers) {
             config.headers['X-Workspace-Id'] = workspaceId;

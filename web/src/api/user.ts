@@ -11,15 +11,6 @@ export interface User {
     // ... 其他字段
 }
 
-// --- 数据定义 ---
-interface Binding { ns: string; role: string; quota: string; }
-interface Member {
-    id: number; name: string; email: string; avatar: string;
-    provider: 'local' | 'dex'; role: string; sa: string;
-    status: 'active' | 'pending'; lastActive: string; tenantId: string;
-    vip?: string; bindings: Binding[];
-}
-
 
 export const registerUser = (data?: any) => request.post('/users/register', data);
 export const login = (data:User) => request.post('/users/login', data);
@@ -35,3 +26,4 @@ export const updatePeer = (data?: any) => request.put('/peers/update', data);
 
 export const getMe = (data?: any) => request.get("/users/getme", data)
 export const updateMe = (data?: any) => request.put("/profile/updateProfile", data)
+export const uploadAvatar = (formData: FormData) => request.post<{ data: { url: string } }>('/profile/avatar', formData)

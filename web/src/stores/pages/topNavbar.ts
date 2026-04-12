@@ -28,7 +28,7 @@ export const useNavbarStore = defineStore('navbarPage', () => {
     // 2. COMPUTED (Getters)
     // =========================================================
 
-    const currentWsId = computed(() => route.params.wsId as string)
+    const currentWsId = computed(() => (route.params as any).wsId as string)
     const userInfo = computed(() => userStore.userInfo)
     const currentWorkspace = computed(() => wsStore.currentWorkspace)
 
@@ -38,7 +38,7 @@ export const useNavbarStore = defineStore('navbarPage', () => {
 
     // 核心逻辑：路由变化时，自动从列表里挑出对应的空间对象存入全局 wsStore
     watch(
-        [() => route.params.wsId, rows],
+        [() => (route.params as any).wsId, rows],
         ([newId, newRows]) => {
             if (newId && newRows.length > 0) {
                 const active = newRows.find((item:any) => item.id === newId)

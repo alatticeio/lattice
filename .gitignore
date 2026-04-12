@@ -8,3 +8,7 @@ conf/control-deployment.yaml
 cmd/management/conf/control.yaml
 cmd/management/conf/signaling-deployment.yaml
 .aider*
+.claude
+data
+internal/web/dist/*
+!internal/web/dist/.gitkeep

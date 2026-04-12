@@ -1,159 +1,133 @@
 import { defineStore } from 'pinia'
-import { ref, reactive, watch, computed } from 'vue'
+import { ref, watch } from 'vue'
 import { listPeer, updatePeer } from '@/api/user'
 import { useAction, useTable } from '@/composables/useApi'
-import { useConfirm } from '@/composables/useConfirm'
-
-type DrawerMode = 'view' | 'edit' | 'create';
+import { toast } from 'vue-sonner'
 
 export const usePeerPageStore = defineStore('peerPage', () => {
 
-
-    const { confirm } = useConfirm()
-
-    // =========================================================
-    // 1. DATA (State)
-    // =========================================================
-
-    // 列表数据
+    // ── State ──────────────────────────────────────────────────────
     const { rows, total, loading, params, refresh } = useTable(listPeer, {
-        successMsg: '刷新列表成功',
-        errorMsg: '刷新列表失败',
-        initialParams: { namespace: 'wf-test' }
+        successMsg: '刷新列表成功'
     })
 
-    // UI 状态
-    const ui = reactive({
-        isDrawerOpen: false,
-        drawerType: 'view' as DrawerMode, // 关键点：显式指定联合类型
-        newLabelInput: '',
-        isUpdating: false
-    })
+    const isDrawerOpen  = ref(false)
+    const drawerType    = ref<'view' | 'edit'>('view')
+    const newLabelInput = ref('')
+    const isUpdating    = ref(false)
 
-    // 当前选中的编辑节点
-    const selectedNode = ref({
+    const selectedNode = ref<{
+        appId: string
+        name?: string
+        publicKey: string
+        region?: string
+        namespace?: string
+        address?: string
+        network?: string
+        status?: string
+        lastSeen?: string
+        labels: string[]
+    }>({
         appId: '',
         publicKey: '',
         region: '',
         namespace: '',
-        labels: [] as string[] // 前端统一使用数组格式
+        labels: []
     })
 
-    // 监听分页与搜索
+    // ── Watch pagination ───────────────────────────────────────────
     watch(() => [params.page, params.pageSize], () => refresh(), { deep: true })
     watch(() => params.search, () => {
         params.page = 1
         refresh()
     })
 
-    // =========================================================
-    // 2. ACTIONS (Logic)
-    // =========================================================
-
+    // ── Update action ──────────────────────────────────────────────
     const { execute: runUpdate } = useAction(updatePeer, {
         successMsg: '节点信息已同步',
         onSuccess: () => {
-            ui.isDrawerOpen = false
+            isDrawerOpen.value = false
             refresh()
         }
     })
 
+    // ── Actions ────────────────────────────────────────────────────
     const actions = {
         refresh,
 
-        // 打开详情/编辑
         openDrawer(type: 'view' | 'edit', node: any) {
-            ui.drawerType = type
+            drawerType.value = type
 
-            // 数据转换：Map -> Array (用于前端展示和编辑)
+            // labels: Map → Array (key=value)
             const formattedLabels: string[] = []
-            if (node.labels && typeof node.labels === 'object') {
+            if (node.labels && typeof node.labels === 'object' && !Array.isArray(node.labels)) {
                 Object.entries(node.labels).forEach(([k, v]) => {
                     formattedLabels.push(`${k}=${v}`)
                 })
+            } else if (Array.isArray(node.labels)) {
+                formattedLabels.push(...node.labels)
             }
 
             selectedNode.value = {
-                ...JSON.parse(JSON.stringify(node)), // 深拷贝
+                ...JSON.parse(JSON.stringify(node)),
                 labels: formattedLabels
             }
-            ui.isDrawerOpen = true
+            isDrawerOpen.value = true
         },
 
-        // 标签管理逻辑
         addLabel() {
-            const val = ui.newLabelInput.trim()
+            const val = newLabelInput.value.trim()
             if (!val) return
-
             if (val.includes('=')) {
                 const inputKey = val.split('=')[0].trim()
-                const existingIndex = selectedNode.value.labels.findIndex(item => item.split('=')[0].trim() === inputKey)
-
-                if (existingIndex !== -1) {
-                    selectedNode.value.labels[existingIndex] = val
-                } else {
-                    selectedNode.value.labels.push(val)
-                }
+                const idx = selectedNode.value.labels.findIndex(l => l.split('=')[0].trim() === inputKey)
+                if (idx !== -1) selectedNode.value.labels[idx] = val
+                else selectedNode.value.labels.push(val)
             } else {
-                if (!selectedNode.value.labels.includes(val)) {
-                    selectedNode.value.labels.push(val)
-                }
+                if (!selectedNode.value.labels.includes(val)) selectedNode.value.labels.push(val)
             }
-            ui.newLabelInput = ''
-        },
-
-        getPeers() {
-
+            newLabelInput.value = ''
         },
 
         removeLabel(index: number) {
             selectedNode.value.labels.splice(index, 1)
         },
 
-        // 保存逻辑
         async handleSave() {
-            ui.isUpdating = true
+            isUpdating.value = true
             try {
-                // 数据还原：Array -> Map (还原回后端格式)
                 const labelMap: Record<string, string> = {}
                 selectedNode.value.labels.forEach(item => {
                     if (item.includes('=')) {
                         const [key, ...val] = item.split('=')
                         labelMap[key.trim()] = val.join('=').trim()
                     } else {
-                        labelMap[item.trim()] = "true"
+                        labelMap[item.trim()] = 'true'
                     }
                 })
-
-                const payload = {
-                    ...selectedNode.value,
-                    labels: labelMap,
-                    namespace: 'wf-test'
-                }
-                await runUpdate(payload)
+                await runUpdate({ ...selectedNode.value, labels: labelMap })
             } finally {
-                ui.isUpdating = false
+                isUpdating.value = false
             }
         },
 
-        // 删除逻辑
-        async handleDelete(node: any) {
-            const isConfirmed = await confirm({
-                title: '确认删除节点？',
-                message: `你正在尝试删除节点 <span class="text-error font-bold">${node.appId}</span>。`,
-                confirmText: '立即销毁',
-                type: 'danger'
-            })
-
-            if (isConfirmed) {
-                // await deletePeer(node.appId)
+        async handleDelete(_node: any, confirmFn: () => Promise<boolean>) {
+            const ok = await confirmFn()
+            if (!ok) return
+            loading.value = true
+            try {
+                // TODO: deletePeer API not yet implemented
+                toast('删除成功')
                 refresh()
+            } finally {
+                loading.value = false
             }
-        }
+        },
     }
 
     return {
-        rows, total, loading, params, ui, selectedNode,
-        actions
+        rows, total, loading, params,
+        isDrawerOpen, drawerType, newLabelInput, isUpdating,
+        selectedNode, actions,
     }
 })

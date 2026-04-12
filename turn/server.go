@@ -50,7 +50,7 @@ func (ts *TurnServer) Start() error {
 }
 
 func (ts *TurnServer) start(publicIP string, port int) error {
-	ts.logger.Debug("Starting turn server on", "public-ip", publicIP, "port", port)
+	ts.logger.Info("TURN server starting", "public_ip", publicIP, "port", port)
 
 	// Create a UDP listener to pass into pion/turn
 	// pion/turn itself doesn't allocate any UDP sockets, but lets the user pass them in
@@ -102,7 +102,7 @@ func (ts *TurnServer) start(publicIP string, port int) error {
 	<-sigs
 
 	if err = s.Close(); err != nil {
-		ts.logger.Error("Failed to close turn server: %v", err)
+		ts.logger.Error("failed to close TURN server", err)
 	}
 
 	return nil

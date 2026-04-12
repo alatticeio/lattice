@@ -23,7 +23,7 @@ import (
 	"wireflow/internal/log"
 	"wireflow/internal/store"
 	"wireflow/management/dto"
-	"wireflow/management/models"
+	managementnats "wireflow/management/nats"
 	"wireflow/management/resource"
 	"wireflow/management/vo"
 
@@ -54,9 +54,10 @@ type PeerService interface {
 }
 
 type peerService struct {
-	logger *log.Logger
-	client *resource.Client
-	store  store.Store
+	logger   *log.Logger
+	client   *resource.Client
+	store    store.Store
+	presence *managementnats.NodePresenceStore
 }
 
 func (p *peerService) UpdatePeer(ctx context.Context, peerDto *dto.PeerDto) (*vo.PeerVo, error) {
@@ -119,30 +120,39 @@ func (p *peerService) ListPeers(ctx context.Context, pageParam *dto.PageRequest)
 		return nil, err
 	}
 
-	allPeers := []*models.Peer{}
+	type peerItem struct {
+		name      string
+		appId     string
+		publicKey string
+		namespace string
+		address   *string
+		labels    map[string]string
+	}
 
+	allPeers := make([]peerItem, 0, len(peerList.Items))
 	for _, n := range peerList.Items {
-		allPeers = append(allPeers, &models.Peer{
-			Name:       n.Name,
-			PublicKey:  n.Spec.PublicKey,
-			AppID:      n.Spec.AppId,
-			PrivateKey: n.Spec.PrivateKey,
-			Labels:     n.GetLabels(),
+		allPeers = append(allPeers, peerItem{
+			name:      n.Name,
+			appId:     n.Spec.AppId,
+			publicKey: n.Spec.PublicKey,
+			namespace: n.Namespace,
+			address:   n.Status.AllocatedAddress,
+			labels:    n.GetLabels(),
 		})
 	}
 
-	var filteredNodes []*models.Peer
+	filteredPeers := allPeers
 	if pageParam.Keyword != "" {
+		filteredPeers = filteredPeers[:0]
 		for _, n := range allPeers {
-			if strings.Contains(n.Name, pageParam.Keyword) || (n.Address != nil && strings.Contains(*n.Address, pageParam.Keyword)) {
-				filteredNodes = append(filteredNodes, n)
+			addrMatch := n.address != nil && strings.Contains(*n.address, pageParam.Keyword)
+			if strings.Contains(n.name, pageParam.Keyword) || addrMatch {
+				filteredPeers = append(filteredPeers, n)
 			}
 		}
-	} else {
-		filteredNodes = allPeers
 	}
 
-	total := len(filteredNodes)
+	total := len(filteredPeers)
 	start := (pageParam.Page - 1) * pageParam.PageSize
 	end := start + pageParam.PageSize
 	if start > total {
@@ -153,13 +163,24 @@ func (p *peerService) ListPeers(ctx context.Context, pageParam *dto.PageRequest)
 	}
 
 	var vos []vo.PeerVo
-	for _, n := range filteredNodes[start:end] {
-		vos = append(vos, vo.PeerVo{
-			Name:      n.Name,
-			PublicKey: n.PublicKey,
-			AppID:     n.AppID,
-			Labels:    n.Labels,
-		})
+	for _, n := range filteredPeers[start:end] {
+		pv := vo.PeerVo{
+			Namespace: n.namespace,
+			Name:      n.name,
+			AppID:     n.appId,
+			PublicKey: n.publicKey,
+			Address:   n.address,
+			Labels:    n.labels,
+		}
+		if p.presence != nil {
+			status, lastSeen := p.presence.GetStatus(n.appId)
+			pv.Status = status
+			if lastSeen != nil {
+				t := lastSeen.Format(time.RFC3339)
+				pv.LastSeen = &t
+			}
+		}
+		vos = append(vos, pv)
 	}
 
 	return &dto.PageResult[vo.PeerVo]{
@@ -210,11 +231,12 @@ func (p *peerService) CreateToken(ctx context.Context, tokenDto *dto.TokenDto) (
 	return []byte(token.Spec.Token), nil
 }
 
-func NewPeerService(client *resource.Client, st store.Store) PeerService {
+func NewPeerService(client *resource.Client, st store.Store, presence *managementnats.NodePresenceStore) PeerService {
 	return &peerService{
-		client: client,
-		logger: log.GetLogger("peer-service"),
-		store:  st,
+		client:   client,
+		logger:   log.GetLogger("peer-service"),
+		store:    st,
+		presence: presence,
 	}
 }
 

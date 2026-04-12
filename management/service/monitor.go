@@ -9,7 +9,6 @@ import (
 	"time"
 	"wireflow/internal/log"
 	"wireflow/management/models"
-	"wireflow/monitor"
 	"wireflow/pkg/utils"
 
 	"github.com/patrickmn/go-cache"
@@ -20,7 +19,7 @@ import (
 )
 
 type MonitorService interface {
-	GetTopologySnapshot(ctx context.Context) ([]monitor.PeerSnapshot, error)
+	GetTopologySnapshot(ctx context.Context) ([]models.PeerSnapshot, error)
 	GetNodeSnapshot(ctx context.Context, wsID string) ([]models.NodeSnapshot, error)
 	GetWorkspaceAggregatedMonitor(ctx context.Context, wsID string) (*models.AggregatedMonitorResponse, error)
 	GetGlobalDashboard(ctx context.Context) (*models.DashboardResponse, error)
@@ -107,7 +106,7 @@ func NewMonitorServiceWithOptions(opts MonitorServiceOptions) (MonitorService, e
 //}
 
 // GetPeerStatus 获取所有 Peer 的拓扑状态
-func (v *monitorService) GetTopologySnapshot(ctx context.Context) ([]monitor.PeerSnapshot, error) {
+func (v *monitorService) GetTopologySnapshot(ctx context.Context) ([]models.PeerSnapshot, error) {
 	// 1. 查询所有以 wireflow_node_ 开头的指标
 	query := `last_over_time({__name__=~"wireflow_node_.*"}[5m])`
 	vector, err := v.QueryByTime(ctx, query, time.Now())
@@ -115,7 +114,7 @@ func (v *monitorService) GetTopologySnapshot(ctx context.Context) ([]monitor.Pee
 		return nil, err
 	}
 
-	nodeMap := make(map[string]*monitor.PeerSnapshot)
+	nodeMap := make(map[string]*models.PeerSnapshot)
 
 	for _, s := range vector {
 		nodeID := string(s.Metric["node_id"])
@@ -124,7 +123,7 @@ func (v *monitorService) GetTopologySnapshot(ctx context.Context) ([]monitor.Pee
 
 		// 初始化节点
 		if _, ok := nodeMap[nodeID]; !ok {
-			nodeMap[nodeID] = &monitor.PeerSnapshot{
+			nodeMap[nodeID] = &models.PeerSnapshot{
 				ID:          nodeID,
 				Name:        string(s.Metric["node_id"]),
 				InternalIP:  string(s.Metric["ip"]),
@@ -151,7 +150,7 @@ func (v *monitorService) GetTopologySnapshot(ctx context.Context) ([]monitor.Pee
 	}
 
 	// 转为切片
-	var result []monitor.PeerSnapshot
+	var result []models.PeerSnapshot
 	for _, node := range nodeMap {
 		result = append(result, *node)
 	}

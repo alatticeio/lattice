@@ -22,11 +22,13 @@ import (
 	"wireflow/internal/config"
 	"wireflow/internal/controller"
 	"wireflow/internal/db"
-	"wireflow/internal/nats"
+	internalnats "wireflow/internal/nats"
 	"wireflow/management"
 
 	"golang.org/x/sync/errgroup"
 )
+
+const embeddedNATSPort = 4222
 
 func runWireflowd(flags *config.Config) error {
 	// 1. 创建全局上下文，响应系统信号（Ctrl+C）
@@ -35,16 +37,17 @@ func runWireflowd(flags *config.Config) error {
 
 	g, ctx := errgroup.WithContext(ctx)
 
-	fmt.Println("🌊 Wireflowd is starting all-in-one mode...")
+	fmt.Println("Wireflowd is starting all-in-one mode...")
 
-	// 2. 启动嵌入式 NATS (基础设施)
+	// 2. 启动嵌入式 NATS (基础设施)；natsReady 在 NATS 就绪后关闭
+	natsReady := make(chan struct{})
 	g.Go(func() error {
-		fmt.Println("  [1/3] 🔌 Starting embedded NATS server...")
-		return nats.RunEmbedded(ctx, 4222)
+		fmt.Println("Starting embedded NATS server...")
+		return internalnats.RunEmbedded(ctx, embeddedNATSPort, natsReady)
 	})
 
 	// 3. 初始化数据库（SQLite 开源默认，MariaDB 生产环境）
-	fmt.Println("  [2/3] 📂 Initializing storage...")
+	fmt.Println("Initializing storage...")
 	_, err := db.NewStore(flags)
 	if err != nil {
 		return fmt.Errorf("failed to init db: %w", err)
@@ -52,13 +55,22 @@ func runWireflowd(flags *config.Config) error {
 
 	// 4. 启动 K8s 控制器和业务管理器 (逻辑层)
 	g.Go(func() error {
-		fmt.Println("  [3/3] 🧠 Starting Wireflow Controllers...")
-		// 传入数据库实例和 NATS 连接地址
+		fmt.Println("Starting Wireflow Controllers...")
 		return controller.Start(flags)
 	})
 
+	// 5. 等待 NATS 就绪后再启动 management
 	g.Go(func() error {
+		select {
+		case <-natsReady:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
 		fmt.Println("Starting Wireflow Manager...")
+		// all-in-one 模式下，若用户未配置 signaling-url，则使用内嵌 NATS 地址
+		if flags.SignalingURL == "" {
+			flags.SignalingURL = fmt.Sprintf("nats://localhost:%d", embeddedNATSPort)
+		}
 		return management.Start(flags)
 	})
 
@@ -69,6 +81,6 @@ func runWireflowd(flags *config.Config) error {
 		return fmt.Errorf("wireflowd stopped with error: %w", err)
 	}
 
-	fmt.Println(" Wireflowd stopped gracefully.")
+	fmt.Println("Wireflowd stopped gracefully.")
 	return nil
 }

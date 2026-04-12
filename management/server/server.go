@@ -25,7 +25,7 @@ import (
 	"wireflow/internal/log"
 	"wireflow/internal/store"
 	"wireflow/management/controller"
-	"wireflow/management/nats"
+	managementnats "wireflow/management/nats"
 	"wireflow/management/resource"
 	"wireflow/pkg/version"
 
@@ -57,7 +57,8 @@ type Server struct {
 	monitorController controller.MonitorController
 	profileController controller.ProfileController
 
-	store store.Store
+	store    store.Store
+	presence *managementnats.NodePresenceStore
 }
 
 // ServerConfig is the server configuration.
@@ -76,12 +77,12 @@ func NewServer(ctx context.Context, serverConfig *ServerConfig) (*Server, error)
 	var signal infra.SignalService
 	if cfg.SignalingURL == "" {
 		logger.Warn("signaling-url is empty, NATS signal service disabled")
-		signal = nats.NewNoopSignalService()
+		signal = managementnats.NewNoopSignalService()
 	} else {
-		svc, err := nats.NewNatsService(ctx, "wireflow-manager", "server", cfg.SignalingURL)
+		svc, err := managementnats.NewNatsService(ctx, "wireflow-manager", "server", cfg.SignalingURL)
 		if err != nil {
 			logger.Warn("NATS init failed, falling back to noop signal service", "url", cfg.SignalingURL, "err", err)
-			signal = nats.NewNoopSignalService()
+			signal = managementnats.NewNoopSignalService()
 		} else {
 			signal = svc
 		}
@@ -123,6 +124,8 @@ func NewServer(ctx context.Context, serverConfig *ServerConfig) (*Server, error)
 		return nil, fmt.Errorf("failed to init store: %w", err)
 	}
 
+	presence := managementnats.NewNodePresenceStore()
+
 	s := &Server{
 		Engine:              gin.Default(),
 		logger:              logger,
@@ -132,7 +135,8 @@ func NewServer(ctx context.Context, serverConfig *ServerConfig) (*Server, error)
 		cacheReady:          cacheReady,
 		client:              client,
 		cfg:                 cfg,
-		peerController:      controller.NewPeerController(client, st),
+		presence:            presence,
+		peerController:      controller.NewPeerController(client, st, presence),
 		networkController:   controller.NewNetworkController(client, st),
 		userController:      controller.NewUserController(st),
 		policyController:    controller.NewPolicyController(client, st),
@@ -154,9 +158,6 @@ func NewServer(ctx context.Context, serverConfig *ServerConfig) (*Server, error)
 		return nil, err
 	}
 
-	// start monitor
-	s.StartStatusTick()
-
 	return s, nil
 }
 
@@ -171,6 +172,7 @@ func (s *Server) Start(ctx context.Context) error {
 	routes := map[string]Handler{
 		"wireflow.signals.peer.register":       s.Register,
 		"wireflow.signals.peer.GetNetMap":      s.GetNetMap,
+		"wireflow.signals.peer.heartbeat":      s.Heartbeat,
 		"wireflow.signals.service.info":        s.Info,
 		"wireflow.signals.service.createToken": s.CreateToken,
 	}
@@ -219,6 +221,21 @@ func (s *Server) CreateToken(content []byte) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	return s.peerController.CreateToken(ctx, content)
+}
+
+// Heartbeat handles periodic heartbeat requests from agent nodes and updates
+// the in-memory presence store so ListPeers can report real-time online status.
+func (s *Server) Heartbeat(content []byte) ([]byte, error) {
+	var payload struct {
+		AppID string `json:"appId"`
+	}
+	if err := json.Unmarshal(content, &payload); err != nil {
+		return nil, err
+	}
+	if payload.AppID != "" {
+		s.presence.Update(payload.AppID)
+	}
+	return []byte{}, nil
 }
 
 func (s *Server) Shutdown(ctx context.Context) error {

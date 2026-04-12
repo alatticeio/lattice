@@ -23,14 +23,10 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"time"
 	"wireflow/dns"
 	"wireflow/internal/config"
 	"wireflow/internal/infra"
 	"wireflow/internal/log"
-	"wireflow/monitor"
-	"wireflow/monitor/collector"
-
 	wg "golang.zx2c4.com/wireguard/device"
 	"golang.zx2c4.com/wireguard/ipc"
 	"golang.zx2c4.com/wireguard/wgctrl"
@@ -148,19 +144,6 @@ func Start(ctx context.Context, flags *config.Config) error {
 		}
 	}
 
-	// enable metrics
-	if flags.EnableMetric {
-		go func() {
-			metric := monitor.NewNodeMonitor(10*time.Second, collector.NewPrometheusStorage(""), nil)
-			metric.AddCollector(&collector.CPUCollector{})
-			metric.AddCollector(&collector.MemoryCollector{})
-			metric.AddCollector(&collector.DiskCollector{})
-			metric.AddCollector(&collector.TrafficCollector{})
-			metric.Start()
-			fmt.Println("Metrics started")
-		}()
-	}
-
 	// enable DNS
 	if flags.EnableDNS {
 		go func() {
@@ -183,19 +166,22 @@ func Start(ctx context.Context, flags *config.Config) error {
 			return nil, err
 		}
 
-		logger.Debug("Success get net map")
+		logger.Debug("network map fetched")
 
 		return msg, err
 	}
 
 	err = c.Start(ctx)
 
+	// Start heartbeat so the management server can track online status.
+	go c.StartHeartbeat(ctx)
+
 	// open UAPI file
 	logger.Debug("Interface name", "name", c.Name)
 
 	uapi, err := ipc.UAPIListen(c.Name)
 	if err != nil {
-		logger.Error("Failed to listen on uapi socket: %v", err)
+		logger.Error("failed to listen on UAPI socket", err)
 		os.Exit(-1)
 	}
 
@@ -214,7 +200,7 @@ func Start(ctx context.Context, flags *config.Config) error {
 	uapi.Close()
 
 	c.close()
-	logger.Warn("wireflow shutting down")
+	logger.Info("wireflow shutting down")
 	return err
 }
 

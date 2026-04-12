@@ -95,7 +95,7 @@ func NewServer(flags *config.Config) *Server {
 }
 
 func (s *Server) Start() error {
-	s.log.Info("WRRP Server (wrrper) is running", "listen", s.server.Addr)
+	s.log.Info("WRRP relay server listening", "addr", s.server.Addr)
 	if err := s.server.ListenAndServe(); err != nil {
 		return err
 	}
@@ -165,7 +165,7 @@ func (s *Server) handleWRRPSession(conn net.Conn, bufrw *bufio.ReadWriter) {
 	// 5. 握手成功，重置超时（进入长连接模式）
 	_ = conn.SetReadDeadline(time.Time{})
 
-	s.log.Info("[WRRP] New session registered", "fromId", header.FromID, "toId", header.ToID)
+	s.log.Info("session registered", "from", header.FromID, "to", header.ToID)
 
 	// 6. 进入指令处理循环
 	for {
@@ -185,7 +185,7 @@ func (s *Server) handleWRRPSession(conn net.Conn, bufrw *bufio.ReadWriter) {
 		case wrrp.Ping:
 			// 收到 Ping，什么都不用做，上面的 SetReadDeadline 已经完成了“续租”
 			// 如果你想让客户端计算 RTT，也可以回发一个 CmdPong
-			s.log.Debug("[WRRP] Receive Ping", "fromId", fromId)
+			s.log.Debug("keepalive ping received", "from", fromId)
 			keepaliveAck(s.wrrpManager.Get(fromId))
 			continue
 
@@ -195,32 +195,32 @@ func (s *Server) handleWRRPSession(conn net.Conn, bufrw *bufio.ReadWriter) {
 
 			target := s.wrrpManager.Get(targetID)
 			if target == nil {
-				s.log.Warn("[WRRP] Target not found", "targetId", targetID)
-				_, err = io.CopyN(io.Discard, stream, int64(h.PayloadLen)) //
+				s.log.Warn("relay target not found, dropping packet", "target", targetID)
+				_, err = io.CopyN(io.Discard, stream, int64(h.PayloadLen))
 				if err != nil {
-					s.log.Error("copy failed", err)
+					s.log.Error("failed to drain payload after target miss", err, "target", targetID)
 				}
 				continue
 			}
 			// send header
 			_, err = target.Stream.Write(headBuf)
 			if err != nil {
-				s.log.Error("relay packet failed", err)
+				s.log.Error("failed to write relay header", err, "from", fromId, "to", targetID)
 				_, err = io.CopyN(io.Discard, stream, int64(h.PayloadLen))
 				if err != nil {
-					s.log.Error("relay packet failed", err)
+					s.log.Error("failed to drain payload after header write error", err)
 				}
 				continue
 			}
 			_, err = io.CopyN(target.Stream, stream, int64(h.PayloadLen))
 			if err != nil {
-				s.log.Error("relay packet failed", err)
+				s.log.Error("failed to relay packet payload", err, "from", fromId, "to", targetID)
 				if err = target.Stream.Close(); err != nil {
-					s.log.Error("close target stream failed", err)
+					s.log.Error("failed to close relay target stream", err, "target", targetID)
 				}
 			}
 
-			s.log.Debug("[WRRP] Forward successfully", "fromId", fromId, "toId", targetID, "payloadLen", h.PayloadLen)
+			s.log.Debug("packet relayed", "from", fromId, "to", targetID, "bytes", h.PayloadLen)
 		}
 	}
 }

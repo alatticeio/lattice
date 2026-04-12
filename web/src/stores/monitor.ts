@@ -1,6 +1,4 @@
 import {defineStore} from 'pinia'
-import axios from 'axios'
-import {getSnapshot} from "@/api/monitor";
 
 export const useMonitorStore = defineStore('monitor', {
     state: () => ({

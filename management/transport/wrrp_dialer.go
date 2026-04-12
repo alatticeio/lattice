@@ -17,7 +17,6 @@ package transport
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"net"
 	"sync"
 	"time"
@@ -97,10 +96,10 @@ func (w *wrrpDialer) Prepare(ctx context.Context, remoteId infra.PeerIdentity) e
 		for {
 			select {
 			case <-newCtx.Done():
-				w.log.Warn("send syn canceled", "err", ctx.Err(), "ctx", fmt.Sprintf("%p", ctx))
+				w.log.Warn("SYN canceled", "err", ctx.Err())
 				return
 			case <-ticker.C:
-				w.log.Debug("send syn", "ctx", fmt.Sprintf("%p", newCtx))
+				w.log.Debug("sending SYN", "remote", remoteId)
 				if err := w.sendPacket(ctx, remoteId, grpc.PacketType_HANDSHAKE_SYN, nil); err != nil {
 					w.log.Error("send syn failed", err)
 				}

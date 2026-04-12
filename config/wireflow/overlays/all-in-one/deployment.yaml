@@ -18,7 +18,7 @@ spec:
       containers:
         - name: wireflowd
           image: ghcr.io/wireflowio/wireflowd:latest
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           ports:
             - name: http
               containerPort: 8080

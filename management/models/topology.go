@@ -23,3 +23,15 @@ type TopoLink struct {
 	Quality string `json:"quality"` // good, warn, error
 	Latency int    `json:"latency"`
 }
+
+// PeerSnapshot holds all information for a single node in the topology view.
+// Metrics is a free-form map populated dynamically from VM query results.
+type PeerSnapshot struct {
+	ID          string            `json:"id"`
+	Name        string            `json:"name"`
+	Alias       string            `json:"alias"`
+	InternalIP  string            `json:"ip"`
+	Status      string            `json:"status"`      // online, offline
+	Metrics     map[string]string `json:"metrics"`
+	HealthLevel string            `json:"health_level"` // success, warn, error
+}

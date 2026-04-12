@@ -285,9 +285,10 @@ type Config struct {
 	MetricsCertKey       string `mapstructure:"metrics-cert-key"`
 
 	// ── 服务端嵌套配置（YAML 块，环境变量 WIREFLOW_APP_*/WIREFLOW_DATABASE_* 覆盖）
-	App      AppConfig      `mapstructure:"app"`
-	Database DatabaseConfig `mapstructure:"database"`
-	Monitor  MonitorConfig  `mapstructure:"monitor"`
+	App       AppConfig       `mapstructure:"app"`
+	Database  DatabaseConfig  `mapstructure:"database"`
+	Monitor   MonitorConfig   `mapstructure:"monitor"`
+	Telemetry TelemetryConfig `mapstructure:"telemetry"`
 	JWT      JWTConfig      `mapstructure:"jwt"`
 	Dex      DexConfig      `mapstructure:"dex"`
 }
@@ -320,6 +321,15 @@ type NatsConfig struct {
 
 type MonitorConfig struct {
 	Address string `mapstructure:"address"`
+}
+
+// TelemetryConfig configures the lightweight VM telemetry push module in the agent.
+type TelemetryConfig struct {
+	// VMEndpoint is the VictoriaMetrics remote write URL, e.g. "http://vm:8428/api/v1/write".
+	// Push is disabled when empty.
+	VMEndpoint      string `mapstructure:"vm_endpoint"`
+	// IntervalSeconds is the push interval in seconds. Defaults to 30.
+	IntervalSeconds int    `mapstructure:"interval_seconds"`
 }
 
 type JWTConfig struct {

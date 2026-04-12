@@ -87,7 +87,7 @@ func NewClient(signal infra.SignalService, mgr manager.Manager) (*Client, error)
 		Manager:        mgr,
 	}
 
-	client.log.Info("Starting CRD Status Monitoring Agent...")
+	client.log.Info("CRD status monitor starting")
 	// 2. 获取 Informer 并注册事件处理器
 	informer, err := mgr.GetCache().GetInformer(ctx, &corev1.ConfigMap{})
 	if err != nil {
@@ -98,17 +98,12 @@ func NewClient(signal infra.SignalService, mgr manager.Manager) (*Client, error)
 	// 3. 注册事件回调函数
 	_, err = informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
-			logger.Info("Received add event for configMap", "obj", obj)
 			client.handleConfigMapEvent(ctx, obj, "ADD")
 		},
 		UpdateFunc: func(oldObj, newObj interface{}) {
-			// 默认 Informer 即使 RV 没变也会触发 Update。
-			// 实际业务中，您可能需要比较新旧对象的 ResourceVersion 或 Status 字段来过滤。
-			logger.Info("Received update event for configMap", "oldObj", oldObj, "newObj", newObj)
 			client.handleConfigMapEvent(ctx, newObj, "UPDATE")
 		},
 		DeleteFunc: func(obj interface{}) {
-			logger.Info("Received delete event for configMap", "obj", obj)
 			client.handleConfigMapEvent(ctx, obj, "DELETE")
 		},
 	})
@@ -123,13 +118,12 @@ func NewClient(signal infra.SignalService, mgr manager.Manager) (*Client, error)
 func (c *Client) handleConfigMapEvent(ctx context.Context, obj interface{}, eventType string) {
 	cm, ok := obj.(*corev1.ConfigMap)
 	if !ok {
-		c.log.Info("Received object of unexpected type", "obj", obj)
+		c.log.Warn("configmap event: unexpected object type", "type", fmt.Sprintf("%T", obj))
 		return
 	}
 
-	// 打印关键信息，包括 ResourceVersion 来追踪变化
-	c.log.Info(">>> Event Detected <<<",
-		"eventType", eventType,
+	c.log.Debug("configmap event",
+		"type", eventType,
 		"namespace", cm.Namespace,
 		"name", cm.Name,
 		"version", cm.ResourceVersion,
@@ -137,17 +131,17 @@ func (c *Client) handleConfigMapEvent(ctx context.Context, obj interface{}, even
 
 	var message infra.Message
 	if err := json.Unmarshal([]byte(cm.Data["config.json"]), &message); err != nil {
-		c.log.Error("Failed to unmarshal message", err)
+		c.log.Error("failed to unmarshal configmap config", err, "name", cm.Name, "namespace", cm.Namespace)
 		return
 	}
 
 	if message.Current != nil {
 		err := c.pushToNode(ctx, message.Current, &message)
 		if err != nil {
-			c.log.Error("Failed to push message", err)
+			c.log.Error("failed to dispatch config to node", err, "app_id", message.Current.AppID)
 			return
 		}
-		c.log.Info(">>> Message pushed to node success <<<", "namespace", cm.Namespace, "appId", message.Current.AppID, "version", cm.ResourceVersion)
+		c.log.Info("config dispatched to node", "app_id", message.Current.AppID, "namespace", cm.Namespace, "version", cm.ResourceVersion)
 	}
 }
 
@@ -164,7 +158,7 @@ func (c *Client) pushToNode(ctx context.Context, peer *infra.Peer, msg *infra.Me
 	c.hashMu.RUnlock()
 
 	if exists && lastHash == msgHash {
-		c.log.Info("Message unchanged, skipping push", "appId", peer.AppID)
+		c.log.Debug("config unchanged, skipping dispatch", "app_id", peer.AppID)
 		return nil
 	}
 
@@ -205,7 +199,7 @@ func (c *Client) pushToNode(ctx context.Context, peer *infra.Peer, msg *infra.Me
 	c.lastPushedHash[peer.AppID] = msgHash
 	c.hashMu.Unlock()
 
-	c.log.Info("Pushing message success", "appId", peer.AppID, "data", len(data))
+	c.log.Debug("config dispatch acknowledged", "app_id", peer.AppID, "payload_bytes", len(data))
 	return nil
 }
 

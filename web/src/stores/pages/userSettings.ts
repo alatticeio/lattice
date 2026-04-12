@@ -1,6 +1,6 @@
 import {defineStore} from 'pinia'
 import {reactive, ref} from 'vue'
-import {getMe, updateMe} from '@/api/user' // 假设的 API
+import {getMe, updateMe, uploadAvatar} from '@/api/user'
 
 export const useUserSettingsStore = defineStore('userSettings', () => {
     // =========================================================
@@ -64,6 +64,9 @@ export const useUserSettingsStore = defineStore('userSettings', () => {
         handleAvatarUpload() {
             // 接入你的文件上传逻辑
             console.log('Pick avatar triggered')
+        },
+        uploadedAvatar(_url: string) {
+
         },
         // 核心：处理头像选择
         onPickAvatar() {

@@ -1,0 +1,32 @@
+# Git
+.git
+.gitignore
+
+# IDE / editor
+.idea
+.vscode
+.DS_Store
+.aider*
+.claude
+
+# Build outputs (host binaries, not needed in image)
+bin/
+
+# Frontend source & deps (only the built dist/ is needed for go:embed)
+web/node_modules/
+web/dist-ssr/
+
+# Test / coverage
+cover.out
+*.test
+
+# Local config overrides
+conf/control.yaml
+conf/control-deployment.yaml
+cmd/management/conf/control.yaml
+cmd/management/conf/signaling-deployment.yaml
+*.local
+
+# Misc
+*.db
+data/

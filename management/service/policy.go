@@ -67,10 +67,30 @@ func (p *policyService) ListPolicy(ctx context.Context, pageParam *dto.PageReque
 	allPolicies := []*vo.PolicyVo{}
 
 	for _, n := range policyList.Items {
+		// action 存在 Labels 里，description / policyTypes 存在 Annotations 里
+		action := n.Labels["action"]
+		if action == "" {
+			action = n.Spec.Action // 兼容旧数据：spec 里也可能有值
+		}
+
+		// policyTypes 优先读 annotation；若无则从规则推导（兼容旧数据）
+		var policyTypes []string
+		if pt := n.Annotations["policyTypes"]; pt != "" {
+			policyTypes = strings.Split(pt, ",")
+		} else {
+			if len(n.Spec.Ingress) > 0 {
+				policyTypes = append(policyTypes, "Ingress")
+			}
+			if len(n.Spec.Egress) > 0 {
+				policyTypes = append(policyTypes, "Egress")
+			}
+		}
+
 		allPolicies = append(allPolicies, &vo.PolicyVo{
 			Name:               n.Name,
-			Action:             n.Annotations["action"],
+			Action:             action,
 			Description:        n.Annotations["description"],
+			PolicyTypes:        policyTypes,
 			WireflowPolicySpec: &n.Spec,
 		})
 	}
@@ -116,6 +136,9 @@ func (p *policyService) CreateOrUpdatePolicy(ctx context.Context, policyDto *dto
 		return nil, err
 	}
 
+	spec := policyDto.WireflowPolicySpec
+	spec.Action = policyDto.Action // 同步写入 spec，保持一致
+
 	newPolicy := &v1alpha1.WireflowPolicy{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "wireflowcontroller.wireflow.run/v1alpha1",
@@ -127,9 +150,10 @@ func (p *policyService) CreateOrUpdatePolicy(ctx context.Context, policyDto *dto
 			Labels:    map[string]string{"action": policyDto.Action},
 			Annotations: map[string]string{
 				"description": policyDto.Description,
+				"policyTypes": strings.Join(policyDto.PolicyTypes, ","),
 			},
 		},
-		Spec: policyDto.WireflowPolicySpec,
+		Spec: spec,
 	}
 
 	manager := client.FieldOwner("wireflow-controller-manager")
@@ -139,9 +163,10 @@ func (p *policyService) CreateOrUpdatePolicy(ctx context.Context, policyDto *dto
 
 	return &vo.PolicyVo{
 		Name:               newPolicy.Name,
-		Action:             newPolicy.Spec.Action,
+		Action:             policyDto.Action,
 		Description:        policyDto.Description,
 		Namespace:          policyDto.Namespace,
+		PolicyTypes:        policyDto.PolicyTypes,
 		WireflowPolicySpec: &newPolicy.Spec,
 	}, nil
 }

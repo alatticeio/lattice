@@ -1,0 +1,43 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    /* 基础配置 */
+    "target": "ESNext",
+    "useDefineForClassFields": true,
+    "module": "ESNext",                // 必须是 ESNext 以配合 Bundler
+    "moduleResolution": "Bundler",     // 配合 Vite 使用
+    "lib": ["ESNext", "DOM", "DOM.Iterable"],
+    "skipLibCheck": true,
+
+    /* 路径配置 */
+    "baseUrl": ".",
+    "rootDir": ".",                    // 👈 修复 [vue-router] 报错的关键
+    "paths": {
+      "@/*": ["./src/*"]
+    },
+
+    /* 严格模式与检查 */
+    "strict": true,
+    "noImplicitAny": true,
+    "verbatimModuleSyntax": true,      // 强制使用 import type
+    "noUnusedLocals": true,            // 检查未使用的变量
+    "noUnusedParameters": true,        // 检查未使用的参数
+
+    /* 构建配置 */
+    "isolatedModules": true,
+    "jsx": "preserve",
+    "composite": true,                 // 保持 Project References 模式
+    "noEmit": true                     // 仅做类型检查，不生成文件
+  },
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.d.ts",
+    "src/**/*.tsx",
+    "src/**/*.vue"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "src/**/*.vue.d.ts"                // 👈 防止产生重复的 .d.ts 文件
+  ]
+}

@@ -6,11 +6,10 @@ import (
 	"wireflow/internal/log"
 	"wireflow/management/models"
 	"wireflow/management/service"
-	"wireflow/monitor"
 )
 
 type MonitorController interface {
-	GetTopologySnapshot(ctx context.Context) ([]monitor.PeerSnapshot, error)
+	GetTopologySnapshot(ctx context.Context) ([]models.PeerSnapshot, error)
 	GetNodeSnapshot(ctx context.Context) ([]models.NodeSnapshot, error)
 	GetWorkspaceAggregatedMonitor(ctx context.Context, wsID string) (*models.AggregatedMonitorResponse, error)
 	GetGlobalDashboard(ctx context.Context) (*models.DashboardResponse, error)
@@ -38,14 +37,14 @@ func (m *monitorController) GetNodeSnapshot(ctx context.Context) ([]models.NodeS
 	return m.monitorService.GetNodeSnapshot(ctx, wsID)
 }
 
-func (m *monitorController) GetTopologySnapshot(ctx context.Context) ([]monitor.PeerSnapshot, error) {
+func (m *monitorController) GetTopologySnapshot(ctx context.Context) ([]models.PeerSnapshot, error) {
 	return m.monitorService.GetTopologySnapshot(ctx)
 }
 
 // noopMonitorController 是 Monitor 不可用时的降级实现，所有查询返回空结果。
 type noopMonitorController struct{}
 
-func (n *noopMonitorController) GetTopologySnapshot(_ context.Context) ([]monitor.PeerSnapshot, error) {
+func (n *noopMonitorController) GetTopologySnapshot(_ context.Context) ([]models.PeerSnapshot, error) {
 	return nil, nil
 }
 func (n *noopMonitorController) GetNodeSnapshot(_ context.Context) ([]models.NodeSnapshot, error) {

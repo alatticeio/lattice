@@ -177,7 +177,7 @@ step "Step 3  Waiting for Wireflow to become ready"
 
 info "Waiting for wireflowd pod (timeout ${HEALTH_TIMEOUT}s)..."
 kubectl wait --for=condition=Ready pod \
-    -l app=wireflowd \
+    -l app.kubernetes.io/name=wireflowd \
     -n "${NAMESPACE}" \
     --timeout="${HEALTH_TIMEOUT}s" || \
     warn "Pod readiness timed out — still pulling image? Check: kubectl get pods -n ${NAMESPACE}"

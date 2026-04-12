@@ -87,7 +87,7 @@ func (c *DeviceManager) IpcHandle(socket net.Conn) {
 			status = wferrors.IpcErrorf(ipc.IpcErrorUnknown, "other UAPI error: %w", err)
 		}
 		if status != nil {
-			c.logger.Error("status", status)
+			c.logger.Error("UAPI returned non-zero status", status, "code", status.ErrorCode())
 			fmt.Fprintf(buffered, "errno=%d\n\n", status.ErrorCode())
 		} else {
 			fmt.Fprintf(buffered, "errno=0\n\n")

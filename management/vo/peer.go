@@ -27,4 +27,9 @@ type PeerVo struct {
 	LastUpdatedAt       time.Time `json:"lastUpdatedAt"`
 
 	Labels map[string]string `json:"labels,omitempty"`
+
+	// Status is the real-time online status derived from heartbeats: "online", "offline", or "pending".
+	Status string `json:"status,omitempty"`
+	// LastSeen is the RFC3339 timestamp of the last received heartbeat. Nil if never seen.
+	LastSeen *string `json:"lastSeen,omitempty"`
 }

@@ -12,7 +12,7 @@ spec:
     - name: http
       port: 8080
       targetPort: 8080
-  type: ClusterIP
+  type: LoadBalancer
 ---
 # NATS 服务：供边缘 Agent 连接内嵌 NATS
 apiVersion: v1

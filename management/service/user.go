@@ -87,9 +87,9 @@ func (u *userService) InitAdmin(ctx context.Context, admins []config.AdminConfig
 				Role:     dto.RoleAdmin,
 			}
 			if err = u.store.Users().Create(ctx, &newUser); err != nil {
-				u.log.Error("初始化管理员失败", err)
+				u.log.Error("admin bootstrap failed", err, "username", admin.Username)
 			} else {
-				u.log.Info("✅ 初始管理员账号创建成功", "username", newUser.Username)
+				u.log.Info("admin account bootstrapped", "username", newUser.Username)
 			}
 		}
 	}
@@ -114,7 +114,7 @@ func (u *userService) Register(ctx context.Context, userDto dto.UserDto) error {
 func (u *userService) Login(ctx context.Context, username, password string) (*models.User, error) {
 	user, err := u.store.Users().Login(ctx, username, password)
 	if err != nil {
-		return nil, errors.New("用户不存在或密码错误")
+		return nil, errors.New("invalid credentials")
 	}
 	return user, nil
 }

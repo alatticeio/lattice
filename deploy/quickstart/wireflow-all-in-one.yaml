@@ -343,7 +343,7 @@ spec:
     spec:
       containers:
       - image: ghcr.io/wireflowio/wireflowd:latest
-        imagePullPolicy: IfNotPresent
+        imagePullPolicy: Always
         livenessProbe:
           httpGet:
             path: /health

@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref, reactive, computed } from 'vue'
+import { ref, computed } from 'vue'
 import { listPolicy, createPolicy, deletePolicy, updatePolicy } from '@/api/policy'
 import { useTable } from "@/composables/useApi"
 import { useConfirm } from '@/composables/useConfirm'
@@ -10,7 +10,6 @@ export const usePolicyPageStore = defineStore('policyPage', () => {
     // --- 1. State ---
     const { rows, total, loading, params, refresh } = useTable(listPolicy, {
         successMsg: '刷新列表成功',
-        errorMsg: '刷新列表失败',
         // 显式声明初始参数，防止 0, 0 出现
         initialParams: {
             page: 1,
@@ -18,10 +17,8 @@ export const usePolicyPageStore = defineStore('policyPage', () => {
         }
     })
 
-    const ui = reactive({
-        isDrawerOpen: false,
-        drawerType: 'view' as 'view' | 'edit' | 'create',
-    })
+    const isDrawerOpen = ref(false)
+    const drawerType   = ref<'view' | 'edit' | 'create'>('view')
 
     const getEmptyPolicy = () => ({
         name: '',
@@ -77,42 +74,64 @@ export const usePolicyPageStore = defineStore('policyPage', () => {
         refresh,
 
         openDrawer(type: 'view' | 'edit' | 'create', policy?: any) {
-            ui.drawerType = type
+            drawerType.value = type
             if (type === 'create') {
                 form.value = getEmptyPolicy()
                 activePolicy.value = getEmptyPolicy()
             } else {
+                if (!policy) return
                 const data = JSON.parse(JSON.stringify(policy))
                 // 还原辅助字段 _targetLabel
                 const labels = data.peerSelector?.matchLabels || {}
                 const firstKey = Object.keys(labels)[0]
                 data._targetLabel = firstKey ? `${firstKey}=${labels[firstKey]}` : 'app=web'
 
-                // 还原规则中的 _rawLabel
+                // 规范化 action 大小写：ALLOW → Allow，DENY → Deny
+                if (data.action) {
+                    data.action = data.action.charAt(0).toUpperCase() + data.action.slice(1).toLowerCase()
+                }
+
+                // 确保数组字段存在
+                data.policyTypes = Array.isArray(data.policyTypes) ? data.policyTypes : []
+                data.ingress     = Array.isArray(data.ingress)     ? data.ingress     : []
+                data.egress      = Array.isArray(data.egress)      ? data.egress      : []
+
+                // 还原规则中的 _rawLabel，并补全 ports 字段
                 const restoreRaw = (rules: any[], dir: string) => {
-                    return (rules || []).map(r => {
+                    return rules.map(r => {
                         const peerKey = dir === 'ingress' ? 'from' : 'to'
                         const mLabels = r[peerKey]?.[0]?.peerSelector?.matchLabels || {}
                         const k = Object.keys(mLabels)[0]
-                        return { ...r, _rawLabel: k ? `${k}=${mLabels[k]}` : 'app=web' }
+                        return {
+                            ...r,
+                            _rawLabel: k ? `${k}=${mLabels[k]}` : 'app=web',
+                            ports: Array.isArray(r.ports) && r.ports.length
+                                ? r.ports
+                                : [{ protocol: 'TCP', port: '' }],
+                        }
                     })
                 }
                 data.ingress = restoreRaw(data.ingress, 'ingress')
-                data.egress = restoreRaw(data.egress, 'egress')
+                data.egress  = restoreRaw(data.egress,  'egress')
 
                 form.value = data
                 activePolicy.value = data
             }
-            ui.isDrawerOpen = true
+            isDrawerOpen.value = true
         },
 
         addRule(direction: 'ingress' | 'egress') {
+            if (!Array.isArray(form.value[direction])) form.value[direction] = []
             const newRule = {
                 _rawLabel: 'app=web',
                 [direction === 'ingress' ? 'from' : 'to']: [{ peerSelector: { matchLabels: {} } }],
                 ports: [{ protocol: 'TCP', port: '' }]
             }
             form.value[direction].push(newRule)
+        },
+
+        removeRule(direction: 'ingress' | 'egress', index: number) {
+            form.value[direction].splice(index, 1)
         },
 
         applyTemplate(key: string) {
@@ -151,11 +170,11 @@ export const usePolicyPageStore = defineStore('policyPage', () => {
                 process(payload.egress, 'egress')
                 delete payload._targetLabel
 
-                if (ui.drawerType === 'create') await createPolicy(payload)
+                if (drawerType.value === 'create') await createPolicy(payload)
                 else await updatePolicy(payload)
 
                 toast("操作成功")
-                ui.isDrawerOpen = false
+                isDrawerOpen.value = false
                 refresh()
             } catch (e) {
                 toast("请求失败", "error")
@@ -179,5 +198,5 @@ export const usePolicyPageStore = defineStore('policyPage', () => {
         }
     }
 
-    return { rows, total, loading, params, ui, form, activePolicy, yamlPreview, actions }
+    return { rows, total, loading, params, isDrawerOpen, drawerType, form, activePolicy, yamlPreview, actions }
 })

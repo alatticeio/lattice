@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"wireflow/internal/store"
 	"wireflow/management/dto"
+	managementnats "wireflow/management/nats"
 	"wireflow/management/resource"
 	"wireflow/management/service"
 	"wireflow/management/vo"
@@ -41,9 +42,9 @@ type PeerController interface {
 	UpdatePeer(ctx context.Context, peerDto *dto.PeerDto) (*vo.PeerVo, error)
 }
 
-func NewPeerController(client *resource.Client, st store.Store) PeerController {
+func NewPeerController(client *resource.Client, st store.Store, presence *managementnats.NodePresenceStore) PeerController {
 	return &peerController{
-		peerService:   service.NewPeerService(client, st),
+		peerService:   service.NewPeerService(client, st, presence),
 		policyService: service.NewPolicyService(client, st),
 	}
 }

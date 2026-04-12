@@ -82,7 +82,7 @@ func NewTokenService(client *resource.Client, st store.Store) TokenService {
 	return &tokenService{
 		log:           log.GetLogger("token-service"),
 		store:         st,
-		peerService:   NewPeerService(client, st),
+		peerService:   NewPeerService(client, st, nil),
 		policyService: NewPolicyService(client, st),
 		client:        client,
 	}

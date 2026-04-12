@@ -45,7 +45,7 @@ func Start(flags *config.Config) error {
 
 	// 任务 A: 启动 Manager (控制器逻辑)
 	g.Go(func() error {
-		logger.Info("Starting Manager...")
+		logger.Info("management server starting")
 		// hs.Start 内部应该封装了 mgr.Start(ctx)
 		return hs.Start(ctx)
 	})
@@ -53,15 +53,15 @@ func Start(flags *config.Config) error {
 	// 任务 B: 等待缓存同步（若 K8s 可用）后启动 HTTP Server
 	g.Go(func() error {
 		if ch := hs.CacheReady(); ch != nil {
-			logger.Info("Waiting for cache sync...")
+			logger.Info("waiting for informer cache sync")
 			select {
 			case <-ch:
-				logger.Info("Cache synced, starting API Server...")
+				logger.Info("cache synced, starting API server")
 			case <-ctx.Done():
 				return ctx.Err()
 			}
 		} else {
-			logger.Warn("K8s manager not available, starting API server without cache sync")
+			logger.Warn("k8s manager unavailable, starting API server without cache sync")
 		}
 
 		srv := &http.Server{
@@ -72,7 +72,7 @@ func Start(flags *config.Config) error {
 		// 独立协程负责监听 ctx.Done 并执行 Shutdown
 		go func() {
 			<-ctx.Done()
-			logger.Info("Shutting down API Server...")
+			logger.Info("API server shutting down")
 			shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 			_ = srv.Shutdown(shutdownCtx)
@@ -87,7 +87,7 @@ func Start(flags *config.Config) error {
 
 	// 3. 阻塞等待所有任务
 	if err := g.Wait(); err != nil {
-		logger.Error("System exited with error:", err)
+		logger.Error("management server exited with error", err)
 		return err
 	}
 

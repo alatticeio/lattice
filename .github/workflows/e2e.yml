@@ -40,6 +40,12 @@ jobs:
           go-version-file: go.mod
           cache: true
 
+      # --- Node.js & pnpm 环境初始化 ---
+      - name: Install pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 10.32.1 # 精确匹配你的本地版本
+
       # 计算镜像 Tag 和 Owner（强制小写，Docker registry 不接受大写）
       - name: Prepare metadata
         id: meta
