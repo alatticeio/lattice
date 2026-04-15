@@ -113,6 +113,10 @@ for crd in \
 done
 ok "CRDs applied"
 
+info "Creating namespace wireflow-system"
+kubectl create ns wireflow-system > /dev/null
+ok "Namespace wireflow-system created"
+
 info "Applying app manifest (RBAC + Service + Deployment)..."
 kubectl apply -f "${GITHUB_RAW}/deploy/quickstart/wireflow-all-in-one.yaml" >/dev/null
 ok "Manifests applied"

@@ -79,6 +79,7 @@ func init() {
 	fs.BoolP("save", "", false, "persist flags to config file")
 
 	rootCmd.AddCommand(upCmd())
+	rootCmd.AddCommand(statusCmd())
 	rootCmd.AddCommand(token.NewTokenCommand())
 	rootCmd.AddCommand(workspace.NewWorkspaceCommand())
 	rootCmd.AddCommand(policy.NewPolicyCommand())

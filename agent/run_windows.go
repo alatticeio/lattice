@@ -230,27 +230,7 @@ func Stop(flags *config.Config) error {
 }
 
 func Status(flags *config.Config) error {
-	interfaceName := flags.InterfaceName
-	if flags.InterfaceName == "" {
-		ctr, err := wgctrl.New()
-		if err != nil {
-			return nil
-		}
-
-		devices, err := ctr.Devices()
-		if err != nil {
-			return err
-		}
-
-		if len(devices) == 0 {
-			return fmt.Errorf("Could not found WireFlow Devices")
-		}
-
-		interfaceName = devices[0].Name
-	}
-
-	fmt.Printf("Wierflow interface: %s\n", interfaceName)
-	return nil
+	return PrintStatus(flags.InterfaceName)
 }
 
 // stop wireflow daemon via sock file

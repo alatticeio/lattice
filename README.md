@@ -50,37 +50,7 @@ Wireflow is a WireGuard management platform built for Kubernetes. It automates t
 
 ## Quick Start
 
-### Option A — All-in-One (No Kubernetes Required)
-
-The all-in-one image bundles the control plane, embedded NATS, and SQLite into a single container. Ideal for evaluation and small deployments.
-
-**Docker:**
-
-```bash
-docker run -d \
-  --name wireflow \
-  --restart unless-stopped \
-  -p 8080:8080 \
-  -p 4222:4222 \
-  -v wireflow-data:/app/data \
-  ghcr.io/wireflowio/wireflowd:latest
-```
-
-Open the dashboard: [http://localhost:8080](http://localhost:8080)
-Default credentials: `admin` / `changeme` (**change this immediately**)
-
-**Docker Compose:**
-
-```bash
-curl -sSL https://raw.githubusercontent.com/wireflowio/wireflow/master/deploy/aio-compose.yml -o docker-compose.yml
-docker compose up -d
-```
-
----
-
-### Option B — Kubernetes (Recommended for Production)
-
-Requires `kubectl` pointed at an existing cluster. The quickstart script handles everything including k3d for local testing.
+Wireflow's control plane runs on Kubernetes. The quickstart script handles cluster creation and deployment automatically.
 
 ```bash
 curl -sSL https://raw.githubusercontent.com/wireflowio/wireflow/master/hack/quickstart.sh | bash
@@ -206,10 +176,84 @@ kubectl apply -f policy-allow-all.yaml
 
 ### 5. Verify connectivity
 
+Check the local agent status and peer list:
+
 ```bash
-# List connected peers (Dashboard → Nodes)
-# Check agent status
 wireflow status
+```
+
+Example output:
+
+```
+Interface : wg0
+Address   : 10.100.0.1/24
+Public Key: abc123...=
+Port      : 51820
+
+Peers: 2 total, 2 connected
+
+  Peer      : xyz456...=
+  Address   : 10.100.0.2/32
+  Endpoint  : 203.0.113.5:51820
+  Handshake : 8 seconds ago
+  Traffic   : ↑ 1.2 MB  ↓ 3.4 MB
+  Status    : connected
+
+  Peer      : def789...=
+  Address   : 10.100.0.3/32
+  Endpoint  : 198.51.100.7:51820
+  Handshake : 22 seconds ago
+  Traffic   : ↑ 0.5 MB  ↓ 2.1 MB
+  Status    : connected
+```
+
+**Ping between nodes to confirm the tunnel is working:**
+
+On **Node A** (address `10.100.0.1`), ping Node B:
+
+```bash
+ping 10.100.0.2
+```
+
+Expected output when the tunnel is up:
+
+```
+PING 10.100.0.2 (10.100.0.2): 56 data bytes
+64 bytes from 10.100.0.2: icmp_seq=0 ttl=64 time=4.3 ms
+64 bytes from 10.100.0.2: icmp_seq=1 ttl=64 time=3.8 ms
+```
+
+If ping times out, the tunnel has not been established. Common causes:
+- The policy is still default-deny — run `wireflow policy allow-all -n <namespace>` to permit traffic.
+- The peer has not yet completed a WireGuard handshake — check `wireflow status` on both nodes and wait a few seconds.
+- A firewall is blocking UDP on port 51820 — Wireflow will attempt TURN relay fallback automatically.
+
+---
+
+### 6. Clean up resources
+
+Remove a specific agent from the workspace:
+
+```bash
+wireflow token delete <token>
+```
+
+Delete a workspace and all its peers:
+
+```bash
+wireflow workspace remove <namespace> --signaling-url nats://localhost:4222
+```
+
+Remove a policy:
+
+```bash
+wireflow policy remove <name> -n <namespace> --signaling-url nats://localhost:4222
+```
+
+Uninstall the control plane from Kubernetes:
+
+```bash
+kubectl delete -k https://github.com/wireflowio/wireflow/config/wireflow/overlays/all-in-one
 ```
 
 ---
@@ -217,6 +261,13 @@ wireflow status
 ## CLI Reference
 
 All commands accept `--signaling-url nats://<host>:4222` to target the control plane.
+
+### Agent
+
+```bash
+wireflow up     --token <token> --signaling-url <url>
+wireflow status
+```
 
 ### Workspace
 
@@ -277,7 +328,8 @@ database:
 
 - Go 1.24+
 - Docker 20.10+
-- kubectl 1.20+ (for K8s features)
+- k3d 5.x+ (for local cluster)
+- kubectl 1.20+
 
 ### Build from source
 
@@ -285,16 +337,6 @@ database:
 git clone https://github.com/wireflowio/wireflow.git
 cd wireflow
 make build-all
-```
-
-### Run locally (without Kubernetes)
-
-```bash
-# Start control plane in all-in-one mode
-go run ./cmd/manager up --config config/wireflow/overlays/all-in-one/configmap.yaml
-
-# Start an agent
-go run ./cmd/wireflow up --signaling-url nats://localhost:4222 --token <token>
 ```
 
 ---
