@@ -64,11 +64,20 @@ func (s *networkService) ListTokens(ctx context.Context, pageParam *dto.PageRequ
 	allTokens := []*vo.TokenVo{}
 
 	for _, item := range tokenList.Items {
+		workspaceDisplayName := ""
+		if ws, err := s.store.Workspaces().GetByNamespace(ctx, item.Namespace); err == nil && ws != nil {
+			workspaceDisplayName = ws.DisplayName
+		}
 		allTokens = append(allTokens, &vo.TokenVo{
-			Namespace:  item.Namespace,
-			Token:      item.Spec.Token,
-			Expiry:     item.Spec.Expiry,
-			UsageLimit: item.Spec.UsageLimit,
+			Namespace:            item.Namespace,
+			WorkspaceDisplayName: workspaceDisplayName,
+			Token:                item.Status.Token,
+			Expiry:               item.Spec.Expiry,
+			UsageLimit:           item.Spec.UsageLimit,
+			BoundPeers:           item.Status.BoundPeers,
+			UsedCount:            item.Status.UsedCount,
+			IsExpired:            item.Status.IsExpired,
+			Phase:                item.Status.Phase,
 		})
 	}
 

@@ -17,7 +17,9 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"wireflow/cmd/wireflow/cmd/policy"
 	"wireflow/cmd/wireflow/cmd/token"
+	"wireflow/cmd/wireflow/cmd/workspace"
 	"wireflow/internal/config"
 
 	"github.com/spf13/cobra"
@@ -26,8 +28,16 @@ import (
 var cfgManager = config.NewConfigManager()
 
 var rootCmd = &cobra.Command{
-	Use:           "wireflow",
-	Short:         "wireflow: High-performance WireGuard proxy tunneling\n A tool for creating fast and secure network proxies using WireGuard protocol.",
+	Use:   "wireflow",
+	Short: "High-performance WireGuard-based overlay network manager",
+	Long: `Wireflow connects agents across networks using WireGuard tunnels and a
+centralized management plane. Agents join a workspace via enrollment tokens,
+and traffic is governed by explicit allow/deny policies.
+
+Quick start:
+  wireflow workspace add dev
+  wireflow token create dev-team -n <namespace>
+  wireflow up --token <token> --server-url <server-url> --signaling-url <signaling-url>`,
 	SilenceUsage:  true,
 	SilenceErrors: true,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
@@ -61,13 +71,15 @@ func Execute() {
 
 func init() {
 	fs := rootCmd.PersistentFlags()
-	fs.StringP("config-dir", "", "", "config directory (default ~/.wireflow)")
-	fs.StringP("server-url", "", "", "management server url")
-	fs.StringP("signaling-url", "", "", "signaling server url")
-	fs.BoolP("version", "", false, "Print version information")
-	fs.BoolP("show-system-log", "", false, "whether show (wireguard/ice) detail log")
-	fs.BoolP("save", "", false, "whether save config to file")
+	fs.StringP("config-dir", "", "", "config directory (default: ~/.wireflow)")
+	fs.StringP("server-url", "", "", "management server URL")
+	fs.StringP("signaling-url", "", "", "signaling server URL")
+	fs.BoolP("version", "", false, "print version information")
+	fs.BoolP("show-system-log", "", false, "show low-level WireGuard/ICE logs")
+	fs.BoolP("save", "", false, "persist flags to config file")
 
 	rootCmd.AddCommand(upCmd())
 	rootCmd.AddCommand(token.NewTokenCommand())
+	rootCmd.AddCommand(workspace.NewWorkspaceCommand())
+	rootCmd.AddCommand(policy.NewPolicyCommand())
 }

@@ -60,6 +60,16 @@ export const useWorkspaceStore = defineStore('workspace', () => {
             if (code === 200) {
                 rows.value  = Array.isArray(data) ? data : (data?.list ?? data?.items ?? data?.data ?? [])
                 total.value = Array.isArray(data) ? rows.value.length : (data?.total ?? rows.value.length)
+                // 调试：输出网络信息
+                if (rows.value.length > 0) {
+                    console.log('📡 Workspace网络信息:', rows.value.map(w => ({
+                        name: w.displayName,
+                        networkName: w.networkName,
+                        networkCIDR: w.networkCIDR,
+                        networkStatus: w.networkStatus,
+                        createdAt: w.createdAt,
+                    })))
+                }
             }
         } catch {
             toast.error('获取工作空间列表失败')

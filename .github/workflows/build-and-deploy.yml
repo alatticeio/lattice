@@ -2,17 +2,16 @@ name: CI/CD Pipeline
 
 on:
   pull_request_target:
-    types: [labeled, synchronize] # 只有打标签或 PR 更新时触发
+    types: [labeled, synchronize]
 
 jobs:
   # 1. 在 GitHub 免费资源上构建并推送
   build-and-push:
-    # 仅当 PR 带有 'ok-to-test' 标签，或者是组织内部成员提交时运行
     if: |
       contains(github.event.pull_request.labels.*.name, 'ok-to-test') ||
       github.event.pull_request.author_association == 'MEMBER' ||
       github.event.pull_request.author_association == 'OWNER'
-    runs-on: ubuntu-latest  # 使用 GitHub 免费算力
+    runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
@@ -33,24 +32,29 @@ jobs:
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GHCR_PAT }}
 
-      # --- Node.js & pnpm 环境初始化 ---
       - name: Install pnpm
         uses: pnpm/action-setup@v3
         with:
-          version: 10.32.1 # 精确匹配你的本地版本
+          version: 10.32.1
 
+      # 只构建并推送 wireflowd（all-in-one）和 wireflow（边缘 agent）
       - name: Build and Push Images
         run: |
           OWNER_LOWER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
-          # 镜像打上 pr-xxx 的标签
-          make docker-all REGISTRY=ghcr.io/${OWNER_LOWER} TAG=pr-${{ github.event.pull_request.number }}
+          TAG="pr-${{ github.event.pull_request.number }}"
+          REGISTRY="ghcr.io/${OWNER_LOWER}"
 
-  # 2. 在你的 Self-hosted 服务器上部署
+          make docker-build SERVICE=wireflowd TAG="$TAG" REGISTRY="$REGISTRY"
+          make docker-build SERVICE=wireflow  TAG="$TAG" REGISTRY="$REGISTRY"
+          make docker-push  SERVICE=wireflowd TAG="$TAG" REGISTRY="$REGISTRY"
+          make docker-push  SERVICE=wireflow  TAG="$TAG" REGISTRY="$REGISTRY"
+
+  # 2. 在 Self-hosted 服务器上部署 all-in-one
   deploy:
     needs: build-and-push
-    runs-on: self-hosted    # 切换到你自己的服务器
+    runs-on: self-hosted
+
     steps:
-      # 第一步：直接拉取当前 PR 的最新代码
       - name: Checkout PR Code
         uses: actions/checkout@v4
         with:
@@ -59,21 +63,17 @@ jobs:
       - name: Deploy to K3s/K8s
         run: |
           export PATH=$PATH:/usr/local/go/bin:$(go env GOPATH)/bin
-          
-          echo "Current PATH: $PATH"
-          go version # 打印一下确认
-          
-          OWNER_LOWER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
-          PR_TAG="pr-${{ github.event.pull_request.number }}"
-          NAMESPACE="wireflow-pr-${{ github.event.pull_request.number }}"
-          
-          echo "🚀 Deploying pr-${{ github.event.pull_request.number }}"
-          
-          # 这里的 make deploy 需要支持传入 REGISTRY, TAG 和 NAMESPACE
-          make deploy-aio IMG=ghcr.io/wireflowio/wireflowd:$PR_TAG
-          kubectl rollout restart deployment -n wireflow-system wireflow-aio
 
-      # 在 GitHub Action 的步骤里加入判断
-      - name: Run E2E Tests
-        if: contains(github.event.pull_request.labels.*.name, 'run-e2e')
-        run: make test-e2e
+          OWNER_LOWER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          TAG="pr-${{ github.event.pull_request.number }}"
+
+          echo "🚀 Deploying pr-${{ github.event.pull_request.number }}"
+          make undeploy-aio
+          make deploy-aio IMG="ghcr.io/${OWNER_LOWER}/wireflowd:${TAG}"
+
+#      - name: Run E2E Tests
+#        if: contains(github.event.pull_request.labels.*.name, 'run-e2e')
+#        run: |
+#          OWNER_LOWER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+#          TAG="pr-${{ github.event.pull_request.number }}"
+#          make test-e2e LOCAL_AGENT_IMAGE="ghcr.io/${OWNER_LOWER}/wireflow:${TAG}"

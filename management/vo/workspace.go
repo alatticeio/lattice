@@ -21,5 +21,13 @@ type WorkspaceVo struct {
 	// 状态
 	Status string `json:"status"` // active, terminating, frozen
 
+	// 创建时间
+	CreatedAt string `json:"createdAt,omitempty"`
+
+	// 网络信息
+	NetworkName   string `json:"networkName,omitempty"`
+	NetworkCIDR   string `json:"networkCIDR,omitempty"`
+	NetworkStatus string `json:"networkStatus,omitempty"`
+
 	Members []UserVo `json:"members,omitempty"`
 }

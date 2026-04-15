@@ -24,10 +24,10 @@ func RunEmbedded(ctx context.Context, port int, ready chan<- struct{}) error {
 	}
 
 	opts := &server.Options{
-		Host:     "0.0.0.0",
-		Port:     port,
-		NoSigs:   true, // 由外部 ctx 控制生命周期，禁止 NATS 自行捕获信号
-		NoLog:    true, // 嵌入模式下屏蔽 NATS 内部日志，避免刷屏
+		Host:   "0.0.0.0",
+		Port:   port,
+		NoSigs: true, // 由外部 ctx 控制生命周期，禁止 NATS 自行捕获信号
+		NoLog:  true, // 嵌入模式下屏蔽 NATS 内部日志，避免刷屏
 
 		// JetStream 持久化
 		JetStream: true,

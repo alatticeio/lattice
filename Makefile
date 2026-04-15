@@ -252,6 +252,7 @@ run: manifests generate fmt vet ## Run a controller from your host.
 build-ui: ## 打包前端 Vue3 产物（输出到 internal/web/dist，供 go:embed 使用）
 	@echo ">>> Building UI..."
 	cd web && pnpm install && pnpm build
+	touch internal/web/dist/.gitkeep
 	@echo ">>> UI built → internal/web/dist"
 
 
@@ -371,13 +372,17 @@ uninstall: manifests kustomize ## Uninstall CRDs from the K8s cluster specified 
 	$(KUSTOMIZE) build config/crd | $(KUBECTL) delete --ignore-not-found=$(ignore-not-found) -f -
 
 .PHONY: deploy-aio
-deploy-aio: kustomize ## 部署 all-in-one 模式到已有 K8s 集群 (usage: make deploy-aio TAG=v0.1.0)
+deploy-aio: manifests kustomize ## 部署 all-in-one 模式到已有 K8s 集群 (usage: make deploy-aio IMG=ghcr.io/wireflowio/wireflowd:v0.1.0)
 	$(KUBECTL) create namespace wireflow-system --dry-run=client -o yaml | $(KUBECTL) apply -f -
-	@echo "正在部署 all-in-one wireflowd (TAG=$(TAG))..."
-	cd config/wireflow/overlays/all-in-one && $(KUSTOMIZE) edit set image ghcr.io/wireflowio/wireflowd:$(TAG)
+	@echo "正在安装 CRDs..."
+	$(KUSTOMIZE) build config/crd | $(KUBECTL) apply -f -
+	@echo "等待 CRDs 就绪..."
+	$(KUBECTL) wait --for=condition=Established crd --all --timeout=60s
+	@echo "正在部署 all-in-one wireflowd (IMG=$(IMG))..."
+	cd config/wireflow/overlays/all-in-one && $(KUSTOMIZE) edit set image ghcr.io/wireflowio/wireflowd=$(IMG)
 	$(KUSTOMIZE) build config/wireflow/overlays/all-in-one | $(KUBECTL) apply -f -
 	git checkout config/wireflow/overlays/all-in-one/kustomization.yaml
-	$(KUBECTL) rollout status deployment/wireflow-aio -n wireflow-system --timeout=120s
+	$(KUBECTL) rollout status deployment/wireflow-aio -n wireflow-system --timeout=180s
 	@echo "✅ All-in-one 部署完成。API: $(KUBECTL) port-forward svc/wireflow-api-service 8080:8080 -n wireflow-system"
 
 .PHONY: undeploy-aio
@@ -395,8 +400,8 @@ deploy: manifests kustomize ## 根据 ENV 部署 (usage: make deploy ENV=product
 
 	# 2. 部署 CRD (通常 CRD 是全局的，可以继续用 base)
 	$(KUSTOMIZE) build config/crd | $(KUBECTL) apply -f -
-	@echo "等待5秒，让CRD完成初始化..."
-	@sleep 5
+	@echo "等待 CRDs 就绪..."
+	kubectl wait --for=condition=Established crd --all --timeout=60s
 
 	# 3. 部署指定环境的完整资源
 	$(KUSTOMIZE) build $(OVERLAYS_PATH) | $(KUBECTL) apply -f -

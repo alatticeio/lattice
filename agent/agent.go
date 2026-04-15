@@ -118,7 +118,6 @@ func NewAgent(ctx context.Context, cfg *AgentConfig) (*Agent, error) {
 		return nil, err
 	}
 
-	fmt.Println("registering")
 	agent.current, err = agent.ctrClient.Register(ctx, cfg.Token, agent.Name)
 	if err != nil {
 		return nil, err

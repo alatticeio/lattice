@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"wireflow/api/v1alpha1"
 	"wireflow/internal/infra"
 	"wireflow/internal/log"
@@ -28,7 +29,11 @@ type tokenService struct {
 }
 
 func (t *tokenService) Delete(ctx context.Context, token string) error {
-	wsId := ctx.Value(infra.WorkspaceKey).(string)
+	workspaceV := ctx.Value(infra.WorkspaceKey)
+	wsId, _ := workspaceV.(string)
+	if wsId == "" {
+		return fmt.Errorf("workspaceId missing in context")
+	}
 	workspace, err := t.store.Workspaces().GetByID(ctx, wsId)
 	if err != nil {
 		return err
@@ -44,7 +49,11 @@ func (t *tokenService) Delete(ctx context.Context, token string) error {
 }
 
 func (t *tokenService) Create(ctx context.Context) (string, error) {
-	wsId := ctx.Value(infra.WorkspaceKey).(string)
+	workspaceV := ctx.Value(infra.WorkspaceKey)
+	wsId, _ := workspaceV.(string)
+	if wsId == "" {
+		return "", fmt.Errorf("workspaceId missing in context")
+	}
 
 	workspace, err := t.store.Workspaces().GetByID(ctx, wsId)
 	if err != nil {

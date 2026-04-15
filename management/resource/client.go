@@ -237,7 +237,21 @@ func NewManager() (manager.Manager, error) {
 	}
 
 	ctx := context.Background()
-	// 注册索引： spec.token
+	// 注册索引： status.token
+	if err = mgr.GetFieldIndexer().IndexField(ctx, &v1alpha1.WireflowEnrollmentToken{}, "status.token", func(rawObj client.Object) []string {
+		token, ok := rawObj.(*v1alpha1.WireflowEnrollmentToken)
+		if !ok {
+			return nil
+		}
+		if token.Status.Token == "" {
+			return nil
+		}
+		return []string{token.Status.Token}
+	}); err != nil {
+		return nil, err
+	}
+
+	// 注册索引： spec.token（兼容旧逻辑）
 	if err = mgr.GetFieldIndexer().IndexField(ctx, &v1alpha1.WireflowEnrollmentToken{}, "spec.token", func(rawObj client.Object) []string {
 		// 1. 断言对象类型
 		token, ok := rawObj.(*v1alpha1.WireflowEnrollmentToken)

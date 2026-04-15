@@ -9,7 +9,8 @@ import {
 import {
   Search, Plus, RefreshCw, MoreHorizontal,
   Layers, Key, ArrowRight, Pencil, Trash2,
-  ChevronLeft, ChevronRight, Server, CheckCircle2,
+  ChevronLeft, ChevronRight, Server,
+  Wifi, WifiOff, Network, ArrowUpRight, ArrowDownRight,
 } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -74,8 +75,37 @@ function slugify(v: string) {
 }
 
 // ── Helpers ──────────────────────────────────────────────────────
-const usagePct = (ws: Workspace) =>
-  ws.maxNodeCount ? Math.round((ws.nodeCount / ws.maxNodeCount) * 100) : 0
+const usagePct = (ws: Workspace) => {
+  const used = ws.quotaUsage ?? 0
+  const max = ws.nodeCount ?? ws.maxNodeCount ?? 0
+  return max > 0 ? Math.round((used / max) * 100) : 0
+}
+
+// 格式化创建时间
+function formatCreatedAt(isoStr: string | undefined | null): string {
+  if (!isoStr) return '—'
+  try {
+    const date = new Date(isoStr)
+    if (isNaN(date.getTime())) return '—'
+    // 格式: YYYY-MM-DD HH:mm
+    const year = date.getFullYear()
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const day = String(date.getDate()).padStart(2, '0')
+    const hours = String(date.getHours()).padStart(2, '0')
+    const minutes = String(date.getMinutes()).padStart(2, '0')
+    return `${year}-${month}-${day} ${hours}:${minutes}`
+  } catch {
+    return '—'
+  }
+}
+
+// 网络状态映射
+const networkStatusLabel: Record<string, string> = {
+  Ready: '就绪',
+  Pending: '等待中',
+  Error: '错误',
+  Failed: '失败',
+}
 
 // ── Stats ────────────────────────────────────────────────────────
 const stats = computed(() => {
@@ -83,15 +113,18 @@ const stats = computed(() => {
   const active   = rows.filter(w => w.status === 'active').length
   const inactive = rows.filter(w => w.status === 'inactive').length
   const total    = rows.length
-  const totalNodes = rows.reduce((s, w) => s + w.nodeCount, 0)
-  const topWs = [...rows].sort((a, b) => b.nodeCount - a.nodeCount)[0]
+  // 使用 quotaUsage（实际使用量）而不是 nodeCount（配额限制）
+  const totalNodes = rows.reduce((s, w) => s + (w.quotaUsage ?? 0), 0)
+  const topWs = [...rows].sort((a, b) => (b.quotaUsage ?? 0) - (a.quotaUsage ?? 0))[0]
+  const networksReady = rows.filter(w => w.networkStatus === 'Ready').length
   return {
-    total, active, inactive, totalNodes,
+    total, active, inactive, totalNodes, networksReady,
     activeRate:  total ? Math.round((active / total) * 100) : 0,
     avgNodes:    total ? (totalNodes / total).toFixed(1) : '0',
     topWsName:   topWs?.displayName ?? '—',
-    topWsNodes:  topWs?.nodeCount ?? 0,
+    topWsNodes:  topWs?.quotaUsage ?? 0,
     initials:    rows.slice(0, 3).map(w => ({ label: getWsInitials(w.displayName), color: getWsColor(w.displayName) })),
+    networkReadyRate: total ? Math.round((networksReady / total) * 100) : 0,
   }
 })
 
@@ -104,7 +137,7 @@ const columns: ColumnDef<Workspace>[] = [
       const ws = row.original
       return h('div', { class: 'flex items-center gap-3' }, [
         h('div', {
-          class: `size-9 rounded-lg flex items-center justify-center shrink-0 text-xs font-bold ${getWsColor(ws.displayName)}`,
+          class: `size-9 rounded-lg flex items-center justify-center shrink-0 text-xs font-bold bg-primary/10 text-primary ring-1 ring-primary/20 ${getWsColor(ws.displayName)}`,
         }, getWsInitials(ws.displayName)),
         h('div', { class: 'min-w-0' }, [
           h('p', { class: 'font-semibold text-sm leading-none' }, ws.displayName),
@@ -133,13 +166,20 @@ const columns: ColumnDef<Workspace>[] = [
   },
   {
     accessorKey: 'nodeCount',
-    header: '节点数',
-    cell: ({ row }) => h('span', { class: 'font-semibold tabular-nums text-sm' }, String(row.original.nodeCount)),
-  },
-  {
-    accessorKey: 'maxNodeCount',
-    header: '限额',
-    cell: ({ row }) => h('span', { class: 'tabular-nums text-sm text-muted-foreground' }, String(row.original.maxNodeCount)),
+    header: '节点使用',
+    cell: ({ row }) => {
+      const ws = row.original
+      // 后端 nodeCount 实际是 Hard（最大值），quotaUsage 是 Used（当前使用量）
+      const used = ws.quotaUsage ?? 0
+      const max = ws.nodeCount ?? ws.maxNodeCount ?? 0
+      return h('div', { class: 'flex flex-col gap-0.5' }, [
+        h('div', { class: 'flex items-baseline gap-1' }, [
+          h('span', { class: 'font-semibold tabular-nums text-sm' }, String(used)),
+          max > 0 && h('span', { class: 'text-[11px] text-muted-foreground/60' }, `/ ${max}`),
+        ]),
+        max > 0 && h('span', { class: 'text-[10px] text-muted-foreground/50' }, `${Math.round((used / max) * 100)}% 已用`),
+      ])
+    },
   },
   {
     id: 'usage',
@@ -166,9 +206,58 @@ const columns: ColumnDef<Workspace>[] = [
       ]),
   },
   {
+    id: 'network',
+    header: '网络信息',
+    cell: ({ row }) => {
+      const ws = row.original
+      const status = ws.networkStatus
+
+      // 如果完全没有网络信息
+      if (!ws.networkName && !ws.networkCIDR && !status) {
+        return h('div', { class: 'flex items-center gap-1.5' }, [
+          h(WifiOff, { class: 'size-3 shrink-0 text-muted-foreground/40' }),
+          h('span', { class: 'text-xs text-muted-foreground/40' }, '未配置'),
+        ])
+      }
+
+      // 状态颜色和图标
+      const statusColor = status === 'Ready' ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 ring-1 ring-emerald-500/20'
+        : status === 'Pending' ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 ring-1 ring-amber-500/20'
+        : status === 'Error' || status === 'Failed' ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400 ring-1 ring-rose-500/20'
+        : 'bg-zinc-500/10 text-zinc-600 dark:text-zinc-400 ring-1 ring-zinc-500/20'
+
+      const statusText = status ? (networkStatusLabel[status] || status) : '初始化中'
+      const statusIcon = status === 'Ready' ? Wifi : status === 'Pending' ? Network : WifiOff
+
+      return h('div', { class: 'flex flex-col gap-1.5' }, [
+        // 网络名称
+        ws.networkName ? h('div', { class: 'flex items-center gap-1.5' }, [
+          h(statusIcon, { class: 'size-3 shrink-0 text-muted-foreground' }),
+          h('span', { class: 'text-xs font-medium leading-none' }, ws.networkName),
+        ]) : h('div', { class: 'flex items-center gap-1.5' }, [
+          h(Network, { class: 'size-3 shrink-0 text-muted-foreground/40' }),
+          h('span', { class: 'text-xs text-muted-foreground/40 leading-none' }, '网络配置中'),
+        ]),
+        // CIDR 网段
+        ws.networkCIDR ? h('span', { class: 'font-mono text-[11px] text-muted-foreground/70 leading-none' }, ws.networkCIDR) : null,
+        // 状态徽章
+        h('div', { class: 'flex items-center gap-1 mt-0.5' }, [
+          h('span', { class: `text-[10px] font-medium px-1.5 py-0.5 rounded-full leading-none ${statusColor}` }, statusText),
+        ]),
+      ])
+    },
+  },
+  {
     accessorKey: 'createdAt',
     header: '创建时间',
-    cell: ({ row }) => h('span', { class: 'text-xs text-muted-foreground tabular-nums' }, row.original.createdAt),
+    cell: ({ row }) => {
+      const timeStr = formatCreatedAt(row.original.createdAt)
+      if (timeStr === '—') return h('span', { class: 'text-xs text-muted-foreground/40' }, '—')
+      return h('span', {
+        class: 'text-xs text-muted-foreground tabular-nums',
+        title: row.original.createdAt
+      }, timeStr)
+    },
   },
   {
     id: 'actions',
@@ -248,127 +337,113 @@ function handleRefresh() {
   <div class="flex flex-col gap-5 p-6 animate-in fade-in duration-300">
 
     <!-- ── Stat cards ─────────────────────────────────────────────── -->
-    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
 
       <!-- 全部空间 -->
       <button
-        class="relative bg-card border border-border rounded-xl p-4 text-left hover:border-primary/30 hover:shadow-sm transition-all group overflow-hidden"
-        :class="statusFilter === 'all' ? 'border-primary/40 ring-1 ring-primary/10' : ''"
+        class="border-border bg-card text-card-foreground rounded-xl border p-5 shadow-sm text-left hover:shadow-md transition-shadow"
+        :class="statusFilter === 'all' ? 'ring-2 ring-primary/20 border-primary/30' : ''"
         @click="setStatusFilter('all')"
       >
-        <div class="absolute -right-3 -top-3 size-16 rounded-full bg-primary/5 group-hover:bg-primary/8 transition-colors" />
-        <div class="relative">
-          <div class="flex items-center justify-between mb-3">
-            <span class="text-xs font-semibold text-muted-foreground uppercase tracking-wider">全部空间</span>
-            <div class="size-7 rounded-lg bg-primary/10 flex items-center justify-center">
-              <Layers class="size-3.5 text-primary" />
-            </div>
+        <div class="flex items-start justify-between">
+          <div class="flex flex-col gap-1">
+            <span class="text-muted-foreground text-sm font-medium">全部空间</span>
+            <span class="text-2xl font-bold tracking-tight tabular-nums">{{ stats.total }}</span>
           </div>
-          <p class="text-3xl font-black tracking-tighter tabular-nums">{{ stats.total }}</p>
-
-          <!-- Workspace initials stack -->
-          <div class="flex items-center gap-2 mt-3">
-            <div class="flex -space-x-2">
-              <div
-                v-for="(ws, i) in stats.initials" :key="i"
-                class="size-6 rounded-lg ring-2 ring-card flex items-center justify-center text-[9px] font-black shrink-0"
-                :class="ws.color"
-              >{{ ws.label }}</div>
-            </div>
-            <span v-if="stats.total > 3" class="text-[10px] text-muted-foreground/60">+{{ stats.total - 3 }}</span>
+          <div class="bg-muted rounded-lg p-2">
+            <Layers class="size-4 text-muted-foreground" />
           </div>
+        </div>
 
-          <!-- Active / inactive bar -->
-          <div class="mt-3 space-y-1.5">
-            <div class="flex h-1.5 rounded-full overflow-hidden bg-muted/50 gap-px">
-              <div class="bg-emerald-500 transition-all" :style="{ width: `${stats.activeRate}%` }" />
-              <div class="bg-zinc-300 dark:bg-zinc-600 transition-all" :style="{ width: `${100 - stats.activeRate}%` }" />
-            </div>
-            <div class="flex items-center justify-between text-[10px] text-muted-foreground/60">
-              <span class="flex items-center gap-1"><span class="size-1.5 rounded-full bg-emerald-500 inline-block" />{{ stats.active }} 运行中</span>
-              <span class="flex items-center gap-1"><span class="size-1.5 rounded-full bg-zinc-400 inline-block" />{{ stats.inactive }} 已停用</span>
-            </div>
+        <!-- Workspace initials stack -->
+        <div class="flex items-center gap-2 mt-3">
+          <div class="flex -space-x-2">
+            <div
+              v-for="(ws, i) in stats.initials" :key="i"
+              class="size-6 rounded-lg ring-2 ring-card flex items-center justify-center text-[9px] font-black shrink-0 bg-primary/10 text-primary"
+              :class="ws.color"
+            >{{ ws.label }}</div>
+          </div>
+          <span v-if="stats.total > 3" class="text-[10px] text-muted-foreground/60">+{{ stats.total - 3 }}</span>
+        </div>
+
+        <!-- Active / inactive bar -->
+        <div class="mt-3 space-y-1.5">
+          <div class="flex h-1.5 rounded-full overflow-hidden bg-muted/50 gap-px">
+            <div class="bg-emerald-500 transition-all" :style="{ width: `${stats.activeRate}%` }" />
+            <div class="bg-zinc-300 dark:bg-zinc-600 transition-all" :style="{ width: `${100 - stats.activeRate}%` }" />
+          </div>
+          <div class="flex items-center justify-between text-[10px] text-muted-foreground/60">
+            <span class="flex items-center gap-1"><span class="size-1.5 rounded-full bg-emerald-500 inline-block" />{{ stats.active }} 运行中</span>
+            <span class="flex items-center gap-1"><span class="size-1.5 rounded-full bg-zinc-400 inline-block" />{{ stats.inactive }} 已停用</span>
           </div>
         </div>
       </button>
 
       <!-- 运行中 -->
       <button
-        class="relative bg-card border border-border rounded-xl p-4 text-left hover:border-emerald-500/30 hover:shadow-sm transition-all group overflow-hidden"
-        :class="statusFilter === 'active' ? 'border-emerald-500/40 ring-1 ring-emerald-500/10' : ''"
+        class="border-border bg-card text-card-foreground rounded-xl border p-5 shadow-sm text-left hover:shadow-md transition-shadow"
+        :class="statusFilter === 'active' ? 'ring-2 ring-emerald-500/20 border-emerald-500/30' : ''"
         @click="setStatusFilter('active')"
       >
-        <div class="absolute -right-3 -top-3 size-16 rounded-full bg-emerald-500/5 group-hover:bg-emerald-500/10 transition-colors" />
-        <div class="relative">
-          <div class="flex items-center justify-between mb-3">
-            <span class="text-xs font-semibold text-muted-foreground uppercase tracking-wider">运行中</span>
-            <div class="size-7 rounded-lg bg-emerald-500/10 flex items-center justify-center">
-              <span class="relative flex size-2">
-                <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />
-                <span class="relative inline-flex size-2 rounded-full bg-emerald-500" />
-              </span>
-            </div>
+        <div class="flex items-start justify-between">
+          <div class="flex flex-col gap-1">
+            <span class="text-muted-foreground text-sm font-medium">运行中</span>
+            <span class="text-2xl font-bold tracking-tight tabular-nums">{{ stats.active }}</span>
           </div>
-          <p class="text-3xl font-black tracking-tighter tabular-nums text-emerald-500">{{ stats.active }}</p>
-          <p class="text-[11px] text-muted-foreground/60 mt-1">
-            健康率 <span class="font-bold text-emerald-500">{{ stats.activeRate }}%</span>
-          </p>
-          <div class="mt-3 space-y-1.5">
-            <div class="flex h-1.5 rounded-full overflow-hidden bg-muted/50">
-              <div class="bg-emerald-500 rounded-full transition-all duration-700" :style="{ width: `${stats.activeRate}%` }" />
-            </div>
-            <p class="text-[10px] text-muted-foreground/50">节点总量 <span class="font-semibold text-foreground">{{ stats.totalNodes }}</span> · 均 <span class="font-semibold text-foreground">{{ stats.avgNodes }}</span> 个/空间</p>
+          <div class="bg-muted rounded-lg p-2">
+            <Wifi class="size-4 text-muted-foreground" />
           </div>
+        </div>
+        <div class="mt-3 flex items-center gap-1 text-sm">
+          <ArrowUpRight class="text-emerald-600 size-4 shrink-0" />
+          <span class="text-emerald-600 font-semibold">{{ stats.activeRate }}%</span>
+          <span class="text-muted-foreground">健康率</span>
         </div>
       </button>
 
       <!-- 已停用 -->
       <button
-        class="relative bg-card border border-border rounded-xl p-4 text-left hover:border-zinc-400/30 hover:shadow-sm transition-all group overflow-hidden"
-        :class="statusFilter === 'inactive' ? 'border-zinc-400/40 ring-1 ring-zinc-400/10' : ''"
+        class="border-border bg-card text-card-foreground rounded-xl border p-5 shadow-sm text-left hover:shadow-md transition-shadow"
+        :class="statusFilter === 'inactive' ? 'ring-2 ring-zinc-400/20 border-zinc-400/30' : ''"
         @click="setStatusFilter('inactive')"
       >
-        <div class="absolute -right-3 -top-3 size-16 rounded-full bg-zinc-400/5 group-hover:bg-zinc-400/10 transition-colors" />
-        <div class="relative">
-          <div class="flex items-center justify-between mb-3">
-            <span class="text-xs font-semibold text-muted-foreground uppercase tracking-wider">已停用</span>
-            <div class="size-7 rounded-lg bg-muted flex items-center justify-center">
-              <span class="size-2 rounded-full bg-zinc-400" />
-            </div>
+        <div class="flex items-start justify-between">
+          <div class="flex flex-col gap-1">
+            <span class="text-muted-foreground text-sm font-medium">已停用</span>
+            <span class="text-2xl font-bold tracking-tight tabular-nums">{{ stats.inactive }}</span>
           </div>
-          <p class="text-3xl font-black tracking-tighter tabular-nums text-muted-foreground">{{ stats.inactive }}</p>
-          <div class="mt-3">
-            <div v-if="stats.inactive === 0"
-              class="inline-flex items-center gap-1.5 text-[10px] font-semibold px-2 py-1 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 ring-1 ring-emerald-500/20">
-              <CheckCircle2 class="size-3" /> 全部空间运行中
-            </div>
-            <p v-else class="text-[10px] text-muted-foreground/50 mt-1">
-              占全部空间 <span class="font-semibold text-foreground">{{ stats.total ? Math.round((stats.inactive / stats.total) * 100) : 0 }}%</span>
-            </p>
+          <div class="bg-muted rounded-lg p-2">
+            <WifiOff class="size-4 text-muted-foreground" />
           </div>
+        </div>
+        <div class="mt-3 flex items-center gap-1 text-sm">
+          <component
+            :is="stats.inactive === 0 ? ArrowUpRight : ArrowDownRight"
+            :class="stats.inactive === 0 ? 'text-emerald-600' : 'text-rose-500'"
+            class="size-4 shrink-0"
+          />
+          <span :class="stats.inactive === 0 ? 'text-emerald-600 font-semibold' : 'text-rose-500 font-semibold'">
+            {{ stats.inactive === 0 ? '全部运行中' : stats.inactive + ' 个已停用' }}
+          </span>
+          <span class="text-muted-foreground">{{ stats.inactive === 0 ? '状态健康' : '需要检查' }}</span>
         </div>
       </button>
 
       <!-- 在线节点 -->
-      <div class="relative bg-card border border-border rounded-xl p-4 text-left overflow-hidden">
-        <div class="absolute -right-3 -top-3 size-16 rounded-full bg-primary/5" />
-        <div class="relative">
-          <div class="flex items-center justify-between mb-3">
-            <span class="text-xs font-semibold text-muted-foreground uppercase tracking-wider">在线节点</span>
-            <div class="size-7 rounded-lg bg-primary/10 flex items-center justify-center">
-              <Server class="size-3.5 text-primary" />
-            </div>
+      <div class="border-border bg-card text-card-foreground rounded-xl border p-5 shadow-sm text-left">
+        <div class="flex items-start justify-between">
+          <div class="flex flex-col gap-1">
+            <span class="text-muted-foreground text-sm font-medium">在线节点</span>
+            <span class="text-2xl font-bold tracking-tight tabular-nums">{{ stats.totalNodes }}</span>
           </div>
-          <p class="text-3xl font-black tracking-tighter tabular-nums text-primary">{{ stats.totalNodes }}</p>
-          <p class="text-[11px] text-muted-foreground/60 mt-1">
-            均 <span class="font-bold text-foreground">{{ stats.avgNodes }}</span> 节点/空间
-          </p>
-          <div class="mt-3 pt-3 border-t border-border/60">
-            <p class="text-[10px] text-muted-foreground/50">最多节点</p>
-            <p class="text-[11px] font-semibold truncate mt-0.5">{{ stats.topWsName }}
-              <span class="text-muted-foreground/50 font-normal">· {{ stats.topWsNodes }} 个</span>
-            </p>
+          <div class="bg-muted rounded-lg p-2">
+            <Server class="size-4 text-muted-foreground" />
           </div>
+        </div>
+        <div class="mt-3 flex items-center gap-1 text-sm">
+          <Network class="text-muted-foreground size-4 shrink-0" />
+          <span class="text-muted-foreground">均 <span class="font-semibold text-foreground">{{ stats.avgNodes }}</span> 节点/空间</span>
         </div>
       </div>
 
@@ -397,12 +472,14 @@ function handleRefresh() {
       <Table>
         <TableHeader>
           <TableRow v-for="headerGroup in table.getHeaderGroups()" :key="headerGroup.id">
-            <TableHead v-for="header in headerGroup.headers" :key="header.id">
-              <FlexRender
-                v-if="!header.isPlaceholder"
-                :render="header.column.columnDef.header"
-                :props="header.getContext()"
-              />
+            <TableHead v-for="header in headerGroup.headers" :key="header.id" class="text-left align-middle">
+              <div class="flex w-full items-center justify-start text-left">
+                <FlexRender
+                  v-if="!header.isPlaceholder"
+                  :render="header.column.columnDef.header"
+                  :props="header.getContext()"
+                />
+              </div>
             </TableHead>
           </TableRow>
         </TableHeader>
@@ -413,8 +490,10 @@ function handleRefresh() {
               :key="row.id"
               :data-state="row.getIsSelected() ? 'selected' : undefined"
             >
-              <TableCell v-for="cell in row.getVisibleCells()" :key="cell.id">
-                <FlexRender :render="cell.column.columnDef.cell" :props="cell.getContext()" />
+              <TableCell v-for="cell in row.getVisibleCells()" :key="cell.id" class="text-left align-middle">
+                <div class="flex w-full items-center justify-start text-left">
+                  <FlexRender :render="cell.column.columnDef.cell" :props="cell.getContext()" />
+                </div>
               </TableCell>
             </TableRow>
           </template>

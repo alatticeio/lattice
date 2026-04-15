@@ -56,6 +56,10 @@ const data = {
           url: "/manage/workspaces",
         },
         {
+          title: "Tokens",
+          url: "/manage/tokens",
+        },
+        {
           title: "Policies",
           url: "/manage/policies",
         },

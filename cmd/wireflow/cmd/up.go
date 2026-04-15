@@ -19,17 +19,33 @@ import (
 	"os"
 	"wireflow/agent"
 	"wireflow/internal/config"
+	wflog "wireflow/internal/log"
 	"wireflow/pkg/utils"
 
 	"github.com/spf13/cobra"
 )
 
+var log = wflog.GetLogger("agent")
+
 func upCmd() *cobra.Command {
-	// upCmd 代表 config 顶层命令
 	var cmd = &cobra.Command{
-		Use:     "up",
-		Short:   "wireflow startup command",
-		Example: "wireflow up --token <token> --server-url <server-url> --signaling-url <signaling-url> --wrrp-url <wrrp-url>",
+		Use:   "up",
+		Short: "Connect this agent to a Wireflow workspace",
+		Long: `Start the Wireflow agent and establish a WireGuard tunnel to the workspace
+identified by the enrollment token. The agent will register with the management
+server, negotiate peer connections via the signaling server, and apply the
+workspace's network policies.
+
+Configuration is read from ~/.wireflow/config.yaml. CLI flags override file values.
+Use --save to persist the current flags back to the config file.`,
+		Example: `  # minimal startup
+  wireflow up --token <token> --server-url <server-url> --signaling-url <signaling-url>
+
+  # save flags to config file for future runs
+  wireflow up --token <token> --server-url <server-url> --signaling-url <signaling-url> --save
+
+  # enable the WRRP relay for restrictive NAT environments
+  wireflow up --token <token> --server-url <server-url> --signaling-url <signaling-url> --enable-wrrp --wrrper-url <wrrp-url>`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// pre-flight: 严格校验客户端必须配置项（signaling-url / server-url / token）
 			if err := config.ValidateAndReport(config.Conf, false); err != nil {
@@ -38,40 +54,38 @@ func upCmd() *cobra.Command {
 
 			// check appId is empty
 			if config.Conf.AppId == "" {
-				fmt.Println("未检测到 AppId，正在生成...")
+				log.Info("no AppId detected, generating one")
 
-				// create appId
 				hostName, err := os.Hostname()
 				if err != nil {
 					return err
 				}
 				newId := utils.StringFormatter(hostName)
 
-				// set appId
-				cfgManager.Viper().Set("app-id", newId) // 注入 Viper，确保 WriteConfig 时能写进文件
-				config.Conf.AppId = newId               // 同步到内存结构体，方便本次运行后续逻辑使用
+				cfgManager.Viper().Set("app-id", newId)
+				config.Conf.AppId = newId
 
-				// save appId
-				err = cfgManager.Viper().WriteConfig()
-				if err != nil {
-					fmt.Printf("cann't save appId: %v\n", err)
+				if err = cfgManager.Viper().WriteConfig(); err != nil {
 					return err
-				} else {
-					fmt.Println("save appId to file successfully")
 				}
+				log.Info("AppId saved to config file", "app-id", newId)
 			}
 
 			// 1. 检查用户是否传了 --save
 			save, _ := cmd.Flags().GetBool("save")
 			if save {
-				// 2. 执行保存
-				fmt.Println("Saving configuration...")
-
 				if err := cfgManager.Save(); err != nil {
 					return fmt.Errorf("failed to save config: %w", err)
 				}
+				log.Info("config saved", "path", config.GetConfigFilePath())
+			}
 
-				fmt.Printf("Config saved to: %s\n", config.GetConfigFilePath())
+			// Propagate flat CLI flags into nested config fields.
+			// BindPFlags binds "vm-endpoint" → Viper key "vm-endpoint" (flat),
+			// but Unmarshal reads from "telemetry.vmendpoint" (nested), so they
+			// never match. Manually forward the value here.
+			if ep, _ := cmd.Flags().GetString("vm-endpoint"); ep != "" {
+				config.Conf.Telemetry.VMEndpoint = ep
 			}
 
 			return agent.Start(config.Conf)
@@ -79,10 +93,11 @@ func upCmd() *cobra.Command {
 	}
 
 	fs := cmd.Flags()
-	fs.StringP("token", "", "", "token using for creating or joining network")
-	fs.StringP("level", "", "", "log level (debug, info, warn, error)")
-	fs.StringP("wrrper-url", "", "", "wrrper server url connect to")
-	fs.BoolP("enable-wrrp", "", false, "using wrrper server")
-	fs.BoolP("enable-metric", "", false, "enable metrics")
+	fs.StringP("token", "", "", "enrollment token to authenticate and join a workspace")
+	fs.StringP("level", "", "", "log level: debug, info, warn, error")
+	fs.StringP("wrrper-url", "", "", "WRRP relay server URL (required when --enable-wrrp)")
+	fs.BoolP("enable-wrrp", "", false, "use WRRP relay for NAT traversal")
+	fs.StringP("vm-endpoint", "", "", "use to push tele")
+	fs.BoolP("enable-metric", "", false, "expose Prometheus metrics endpoint")
 	return cmd
 }

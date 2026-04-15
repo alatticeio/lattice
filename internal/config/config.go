@@ -31,10 +31,14 @@ import (
 	"strings"
 	"sync"
 
+	wflog "wireflow/internal/log"
+
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 )
+
+var log = wflog.GetLogger("config")
 
 // ─────────────────────────────────────────────
 //
@@ -152,16 +156,16 @@ func (cm *ConfigManager) load(cmd *cobra.Command) error {
 	baseFile := cm.dir + "/wireflow.yaml"
 	v.SetConfigFile(baseFile)
 	if _, err := os.Stat(baseFile); os.IsNotExist(err) {
-		fmt.Printf("[config] 未找到配置文件，写入默认值: %s\n", baseFile)
+		log.Info("config file not found, writing defaults", "path", baseFile)
 		if err2 := os.MkdirAll(cm.dir, 0o755); err2 != nil {
-			fmt.Printf("[config] 创建配置目录失败: %v\n", err2)
+			log.Warn("failed to create config dir", "err", err2)
 		}
 		if err2 := v.SafeWriteConfigAs(baseFile); err2 != nil {
-			fmt.Printf("[config] 创建配置文件失败: %v\n", err2)
+			log.Warn("failed to write default config file", "err", err2)
 		}
 	}
 	if err := v.ReadInConfig(); err != nil {
-		fmt.Printf("[config] 读取基础配置失败（忽略）: %v\n", err)
+		log.Warn("failed to read config file, ignoring", "err", err)
 	}
 
 	// ── 第三层：wireflow.{env}.yaml ──────────────────────────────
@@ -169,9 +173,9 @@ func (cm *ConfigManager) load(cmd *cobra.Command) error {
 	v.SetConfigFile(envFile)
 	if _, err := os.Stat(envFile); err == nil {
 		if err := v.MergeInConfig(); err != nil {
-			fmt.Printf("[config] 合并 %s 失败: %v\n", envFile, err)
+			log.Warn("failed to merge env config", "file", envFile, "err", err)
 		} else {
-			fmt.Printf("[config] 已加载环境配置: %s\n", envFile)
+			log.Info("env config loaded", "file", envFile)
 		}
 	}
 	// 重置回 baseFile，确保后续 WriteConfig / Save 写入正确路径
@@ -193,22 +197,28 @@ func (cm *ConfigManager) load(cmd *cobra.Command) error {
 	}
 	Conf = GlobalConfig
 
+	// ── 兼容旧版 vm-endpoint key（kebab-case → vmEndpoint）──────
+	if GlobalConfig.Telemetry.VMEndpoint == "" {
+		if oldEp := v.GetString("vm-endpoint"); oldEp != "" {
+			GlobalConfig.Telemetry.VMEndpoint = oldEp
+		}
+	}
+
 	// ── 第六层：K8s 服务发现兜底（仅对仍为空的字段生效）─────────
 	applyK8sFallbacks(GlobalConfig)
 
 	// ── 数据库驱动推断（从 DSN 格式自动识别驱动类型）────────────
 	inferDatabaseDriver(GlobalConfig)
 
-	fmt.Printf("[config] 加载完成 env=%s listen=%s db.driver=%s\n",
-		env, GlobalConfig.Listen, GlobalConfig.Database.Driver)
+	log.Debug("config loaded", "env", env, "listen", GlobalConfig.Listen, "driver", GlobalConfig.Database.Driver)
 
 	// ── --save：把本次命令行显式指定的参数持久化回配置文件 ───────
 	// 典型用法：wireflow up --signaling-url nats://x:4222 --server-url http://y --save
 	if f := cmd.Flags().Lookup("save"); f != nil && f.Value.String() == "true" {
 		if err := cm.SaveChangedFlags(cmd); err != nil {
-			fmt.Printf("[config] 保存配置失败: %v\n", err)
+			log.Warn("failed to save config", "err", err)
 		} else {
-			fmt.Printf("[config] 配置已保存: %s\n", baseFile)
+			log.Info("config saved", "path", baseFile)
 		}
 	}
 	return nil
@@ -289,8 +299,8 @@ type Config struct {
 	Database  DatabaseConfig  `mapstructure:"database"`
 	Monitor   MonitorConfig   `mapstructure:"monitor"`
 	Telemetry TelemetryConfig `mapstructure:"telemetry"`
-	JWT      JWTConfig      `mapstructure:"jwt"`
-	Dex      DexConfig      `mapstructure:"dex"`
+	JWT       JWTConfig       `mapstructure:"jwt"`
+	Dex       DexConfig       `mapstructure:"dex"`
 }
 
 // AppConfig 聚合应用层服务端配置（不含 CLI 覆盖字段）。
@@ -327,9 +337,9 @@ type MonitorConfig struct {
 type TelemetryConfig struct {
 	// VMEndpoint is the VictoriaMetrics remote write URL, e.g. "http://vm:8428/api/v1/write".
 	// Push is disabled when empty.
-	VMEndpoint      string `mapstructure:"vm_endpoint"`
+	VMEndpoint string `mapstructure:"vmEndpoint"`
 	// IntervalSeconds is the push interval in seconds. Defaults to 30.
-	IntervalSeconds int    `mapstructure:"interval_seconds"`
+	IntervalSeconds int `mapstructure:"intervalSeconds"`
 }
 
 type JWTConfig struct {
@@ -390,7 +400,7 @@ func applyK8sFallbacks(cfg *Config) {
 				port = "4222"
 			}
 			cfg.SignalingURL = "nats://" + host + ":" + port
-			fmt.Printf("[config] K8s 服务发现: NATS_SERVICE_HOST → signaling-url=%s\n", cfg.SignalingURL)
+			log.Info("K8s service discovery: NATS_SERVICE_HOST", "signaling-url", cfg.SignalingURL)
 		}
 	}
 
@@ -407,7 +417,7 @@ func applyK8sFallbacks(cfg *Config) {
 					port = "8080"
 				}
 				cfg.ServerUrl = "http://" + host + ":" + port
-				fmt.Printf("[config] K8s 服务发现: %s_SERVICE_HOST → server-url=%s\n", prefix, cfg.ServerUrl)
+				log.Info("K8s service discovery", "source", prefix+"_SERVICE_HOST", "server-url", cfg.ServerUrl)
 				break
 			}
 		}
@@ -443,7 +453,7 @@ func inferDatabaseDriver(cfg *Config) {
 		strings.HasPrefix(dsn, "mysql://"),
 		strings.HasPrefix(dsn, "mariadb://"):
 		db.Driver = "mariadb"
-		fmt.Println("[config] 从 DSN 格式推断数据库驱动: mariadb (MySQL 兼容协议)")
+		log.Info("inferred database driver from DSN", "driver", "mariadb")
 	default:
 		db.Driver = "sqlite"
 	}

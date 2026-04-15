@@ -122,7 +122,7 @@ func Start(flags *config.Config) error {
 			collector.SetIdentity(telemetry.Identity{
 				PeerID:    flags.AppId,
 				NetworkID: networkID,
-				Interface: flags.InterfaceName,
+				Interface: c.GetDeviceName(),
 			})
 			g.Go(func() error { return collector.Run(gCtx) })
 		}

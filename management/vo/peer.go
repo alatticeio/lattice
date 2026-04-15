@@ -32,4 +32,7 @@ type PeerVo struct {
 	Status string `json:"status,omitempty"`
 	// LastSeen is the RFC3339 timestamp of the last received heartbeat. Nil if never seen.
 	LastSeen *string `json:"lastSeen,omitempty"`
+
+	// WorkspaceDisplayName is the human-readable name of the workspace this peer belongs to
+	WorkspaceDisplayName string `json:"workspaceDisplayName,omitempty"`
 }

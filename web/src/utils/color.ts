@@ -1,12 +1,12 @@
 // utils/color.ts
 
-// 对应你 CSS 中的 --color-chart-1 到 --color-chart-5
+// Workspace avatar 背景色类（带背景和文字颜色）
 const WS_COLOR_CLASSES = [
-    'text-chart-1',
-    'text-chart-2',
-    'text-chart-3',
-    'text-chart-4',
-    'text-chart-5',
+    'bg-chart-1/10 text-chart-1 ring-1 ring-chart-1/20',
+    'bg-chart-2/10 text-chart-2 ring-1 ring-chart-2/20',
+    'bg-chart-3/10 text-chart-3 ring-1 ring-chart-3/20',
+    'bg-chart-4/10 text-chart-4 ring-1 ring-chart-4/20',
+    'bg-chart-5/10 text-chart-5 ring-1 ring-chart-5/20',
 ]
 
 export function getWsColor(name: string): string {

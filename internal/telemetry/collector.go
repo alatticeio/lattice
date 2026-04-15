@@ -309,7 +309,7 @@ func (c *Collector) push(ctx context.Context, payload []byte) error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	_, _ = io.Copy(io.Discard, resp.Body)
 
 	if resp.StatusCode/100 != 2 {

@@ -54,13 +54,13 @@ func ValidateAndReport(cfg *Config, isServer bool) error {
 func applyServerDefaults(cfg *Config) error {
 	if cfg.SignalingURL == "" {
 		cfg.SignalingURL = "nats://127.0.0.1:4222"
-		fmt.Println("[config] All-in-One: signaling-url → nats://127.0.0.1:4222")
+		log.Info("All-in-One: applied default signaling-url", "value", cfg.SignalingURL)
 	}
 	if cfg.Database.DSN == "" {
 		wd, _ := os.Getwd()
 		cfg.Database.DSN = filepath.Join(wd, "wireflow.db")
 		cfg.Database.Driver = "sqlite"
-		fmt.Printf("[config] All-in-One: database.dsn → %s\n", cfg.Database.DSN)
+		log.Info("All-in-One: applied default database DSN", "dsn", cfg.Database.DSN)
 	}
 	return nil
 }

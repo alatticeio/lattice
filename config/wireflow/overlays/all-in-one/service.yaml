@@ -18,7 +18,7 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: nats
+  name: nats-service
   labels:
     app.kubernetes.io/name: wireflowd
 spec:

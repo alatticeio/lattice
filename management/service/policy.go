@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"wireflow/api/v1alpha1"
 	"wireflow/internal/infra"
@@ -28,7 +29,11 @@ type policyService struct {
 }
 
 func (p *policyService) DeletePolicy(ctx context.Context, name string) error {
-	wsId := ctx.Value(infra.WorkspaceKey).(string)
+	workspaceV := ctx.Value(infra.WorkspaceKey)
+	wsId, _ := workspaceV.(string)
+	if wsId == "" {
+		return fmt.Errorf("workspaceId missing in context")
+	}
 	workspace, err := p.store.Workspaces().GetByID(ctx, wsId)
 	if err != nil {
 		return err
@@ -130,7 +135,11 @@ func (p *policyService) ListPolicy(ctx context.Context, pageParam *dto.PageReque
 }
 
 func (p *policyService) CreateOrUpdatePolicy(ctx context.Context, policyDto *dto.PolicyDto) (*vo.PolicyVo, error) {
-	wsId := ctx.Value(infra.WorkspaceKey).(string)
+	workspaceV := ctx.Value(infra.WorkspaceKey)
+	wsId, _ := workspaceV.(string)
+	if wsId == "" {
+		return nil, fmt.Errorf("workspaceId missing in context")
+	}
 	workspace, err := p.store.Workspaces().GetByID(ctx, wsId)
 	if err != nil {
 		return nil, err

@@ -67,9 +67,9 @@ func (s *WireGuardScraper) Scrape(_ context.Context, id Identity, nowMs int64) (
 	nodeBase := Labels{"peer_id": id.PeerID, "network_id": id.NetworkID}
 
 	var (
-		out          []Sample
-		totalRx      float64
-		totalTx      float64
+		out     []Sample
+		totalRx float64
+		totalTx float64
 		// peering accumulator: remote_network_id → (rx, tx)
 		peeringRx = make(map[string]float64)
 		peeringTx = make(map[string]float64)

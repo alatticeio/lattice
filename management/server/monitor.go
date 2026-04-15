@@ -45,4 +45,3 @@ func (s *Server) workspaceSnapshot() gin.HandlerFunc {
 		resp.OK(c, ve)
 	}
 }
-

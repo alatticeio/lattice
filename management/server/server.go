@@ -105,13 +105,18 @@ func NewServer(ctx context.Context, serverConfig *ServerConfig) (*Server, error)
 		}
 	}
 
-	// 注册一个 Runnable：controller-runtime 在 cache 同步完成后才会启动 Runnable，
+	// 注册一个 Runnable：等待 controller-runtime cache 同步完成后，
 	// 关闭 cacheReady 通知外部 HTTP Server 可以安全上线。
 	var cacheReady chan struct{}
 	if mgr != nil {
 		cacheReady = make(chan struct{})
 		ch := cacheReady
 		_ = mgr.Add(manager.RunnableFunc(func(ctx context.Context) error {
+			// 等待所有 Informer Cache 同步完成
+			if !mgr.GetCache().WaitForCacheSync(ctx) {
+				return fmt.Errorf("failed to wait for cache sync")
+			}
+			// Cache 已同步，通知 HTTP Server 可以启动
 			close(ch)
 			<-ctx.Done()
 			return nil
@@ -170,11 +175,22 @@ func (s *Server) Start(ctx context.Context) error {
 
 	//注册nats service
 	routes := map[string]Handler{
-		"wireflow.signals.peer.register":       s.Register,
-		"wireflow.signals.peer.GetNetMap":      s.GetNetMap,
-		"wireflow.signals.peer.heartbeat":      s.Heartbeat,
-		"wireflow.signals.service.info":        s.Info,
-		"wireflow.signals.service.createToken": s.CreateToken,
+		// agent ↔ server (peer signaling)
+		"wireflow.signals.peer.register":  s.Register,
+		"wireflow.signals.peer.GetNetMap": s.GetNetMap,
+		"wireflow.signals.peer.heartbeat": s.Heartbeat,
+
+		// CLI ↔ server (service/admin plane)
+		"wireflow.signals.service.info":             s.Info,
+		"wireflow.signals.service.createToken":      s.CreateToken,
+		"wireflow.signals.service.workspace.add":    s.NatsAddWorkspace,
+		"wireflow.signals.service.workspace.remove": s.NatsRemoveWorkspace,
+		"wireflow.signals.service.workspace.list":   s.NatsListWorkspaces,
+		"wireflow.signals.service.policy.add":       s.NatsAddPolicy,
+		"wireflow.signals.service.policy.remove":    s.NatsRemovePolicy,
+		"wireflow.signals.service.policy.list":      s.NatsListPolicies,
+		"wireflow.signals.service.token.list":       s.NatsListTokens,
+		"wireflow.signals.service.token.remove":     s.NatsRemoveToken,
 	}
 
 	for route, handler := range routes {
@@ -220,7 +236,27 @@ func (s *Server) Info(content []byte) ([]byte, error) {
 func (s *Server) CreateToken(content []byte) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	return s.peerController.CreateToken(ctx, content)
+
+	var req struct {
+		Namespace string `json:"namespace"`
+	}
+	if err := json.Unmarshal(content, &req); err != nil {
+		return nil, fmt.Errorf("invalid request: %w", err)
+	}
+	if req.Namespace == "" {
+		return nil, fmt.Errorf("namespace is required")
+	}
+
+	ctx, err := s.workspaceCtxByNs(ctx, req.Namespace)
+	if err != nil {
+		return nil, err
+	}
+
+	token, err := s.tokenController.Create(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(map[string]string{"token": token})
 }
 
 // Heartbeat handles periodic heartbeat requests from agent nodes and updates

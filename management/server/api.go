@@ -45,7 +45,6 @@ func (s *Server) apiRouter() error {
 		// 节点管理 (Peers)
 		api.GET("/networks/peers", middleware.TenantContextMiddleware(), s.GetPeers) // 获取该网络下的所有机器
 	}
-
 	tokenApi := s.Group("/api/v1/token")
 	{
 		// Token 管理

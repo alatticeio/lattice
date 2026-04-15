@@ -10,6 +10,14 @@ export interface Workspace {
     maxNodeCount: number;
     status: 'active' | 'inactive';
     createdAt: string;
+    // 网络信息
+    networkName?: string;
+    networkCIDR?: string;
+    networkStatus?: string;
+    // 配额使用量
+    quotaUsage?: number;
+    // 成员列表
+    members?: Array<{ id: string; name: string; role: string }>;
 }
 
 // --- Workspace空间管理 ---

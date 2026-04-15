@@ -22,18 +22,15 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// NewTokenCommand create token cmd.
+// NewTokenCommand returns the top-level "token" command.
 func NewTokenCommand() *cobra.Command {
-
 	cmd := &cobra.Command{
 		Use:   "token <sub-command>",
-		Short: "",
-		Long:  `create a token, peer using token to join network`,
+		Short: "Manage enrollment tokens",
+		Long:  `Tokens authorize agents to join a workspace. Agents use tokens during 'wireflow up'.`,
 		Args:  cobra.MinimumNArgs(1),
 	}
-
-	cmd.AddCommand(tokenCreateCmd())
-
+	cmd.AddCommand(tokenCreateCmd(), tokenListCmd(), tokenDeleteCmd())
 	return cmd
 }
 
@@ -75,11 +72,47 @@ func runCreate(namespace, name, expiry string) error {
 	if err != nil {
 		return err
 	}
+	return client.CreateToken(namespace, name, expiry)
+}
 
-	err = client.CreateToken(namespace, name, expiry)
+// tokenListCmd: wireflow token list [-n <namespace>]
+func tokenListCmd() *cobra.Command {
+	var namespace string
+	c := &cobra.Command{
+		Use:     "list",
+		Short:   "List enrollment tokens",
+		Aliases: []string{"ls"},
+		Example: `  # all tokens
+  wireflow token list
 
-	if err != nil {
-		return err
+  # tokens in a specific workspace
+  wireflow token list -n wf-550e8400-e29b-41d4-a716-446655440000`,
+		RunE: func(c *cobra.Command, args []string) error {
+			client, err := cmd.NewClient(config.Conf.SignalingURL)
+			if err != nil {
+				return err
+			}
+			return client.ListTokens(namespace)
+		},
 	}
-	return nil
+	c.Flags().StringVarP(&namespace, "namespace", "n", "", "filter by workspace namespace")
+	return c
+}
+
+// tokenDeleteCmd: wireflow token delete <token>
+func tokenDeleteCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:     "delete <token>",
+		Short:   "Revoke an enrollment token",
+		Aliases: []string{"rm", "remove"},
+		Example: `  wireflow token delete abc123def456`,
+		Args:    cobra.ExactArgs(1),
+		RunE: func(c *cobra.Command, args []string) error {
+			client, err := cmd.NewClient(config.Conf.SignalingURL)
+			if err != nil {
+				return err
+			}
+			return client.RemoveToken(args[0])
+		},
+	}
 }

@@ -7,7 +7,7 @@ import {
   Search, RefreshCw, MoreHorizontal, X, Tag,
   Server, Wifi, WifiOff, Clock, Network,
   KeyRound, ChevronRight, ChevronLeft, Trash2, Pencil,
-  Globe, ArrowUpRight, ArrowDownRight, Copy, Check,
+  Globe, ArrowUpRight, ArrowDownRight, Copy, Check, Layers,
 } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -197,6 +197,20 @@ const columns: ColumnDef<PeerRow>[] = [
       return h('div', { class: 'flex items-center gap-1.5' }, [
         h('span', { class: 'text-base leading-none' }, regionFlag[region] ?? '🌐'),
         h('span', { class: 'text-xs text-muted-foreground' }, region),
+      ])
+    },
+  },
+  {
+    id: 'workspace',
+    header: '所属空间',
+    cell: ({ row }) => {
+      const n = row.original as any
+      const workspaceName = n.workspaceDisplayName ?? n.namespace ?? ''
+      if (!workspaceName) return h('span', { class: 'text-[11px] text-muted-foreground/40' }, '—')
+
+      return h('div', { class: 'flex items-center gap-1.5' }, [
+        h(Layers, { class: 'size-3 shrink-0 text-muted-foreground' }),
+        h('span', { class: 'text-xs font-medium' }, workspaceName),
       ])
     },
   },
@@ -588,6 +602,15 @@ const table = useVueTable({
           <p class="text-[11px] font-medium text-muted-foreground mb-2 flex items-center gap-1.5">
             <KeyRound class="size-3" /> 身份信息
           </p>
+
+          <!-- Workspace -->
+          <div v-if="store.selectedNode.namespace || store.selectedNode.workspaceDisplayName" class="flex items-center justify-between rounded-md bg-muted px-3 py-2 gap-3">
+            <span class="text-xs text-muted-foreground shrink-0">所属空间</span>
+            <div class="flex items-center gap-1.5 min-w-0">
+              <Layers class="size-3 text-muted-foreground" />
+              <span class="text-xs truncate">{{ store.selectedNode.workspaceDisplayName ?? store.selectedNode.namespace }}</span>
+            </div>
+          </div>
 
           <!-- App ID -->
           <div class="flex items-center justify-between rounded-md bg-muted px-3 py-2 gap-3">

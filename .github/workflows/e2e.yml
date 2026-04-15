@@ -12,7 +12,6 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  # 与 Makefile 中 LOCAL_CLUSTER_NAME / E2E_KUBECONFIG 保持一致
   CLUSTER_NAME: wf-e2e
   E2E_KUBECONFIG: /tmp/wf-e2e.kubeconfig
 
@@ -22,7 +21,7 @@ permissions:
 
 jobs:
   e2e-test:
-    # push 到 dev 分支时直接触发；PR 需要手动打 ok-test-e2e 标签
+    # push 到 dev 分支时直接触发；PR 需要手动打 run-e2e 标签
     if: |
       (github.event_name == 'push' && github.ref == 'refs/heads/dev') ||
       (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'run-e2e'))
@@ -40,13 +39,11 @@ jobs:
           go-version-file: go.mod
           cache: true
 
-      # --- Node.js & pnpm 环境初始化 ---
       - name: Install pnpm
         uses: pnpm/action-setup@v3
         with:
-          version: 10.32.1 # 精确匹配你的本地版本
+          version: 10.32.1
 
-      # 计算镜像 Tag 和 Owner（强制小写，Docker registry 不接受大写）
       - name: Prepare metadata
         id: meta
         run: |
@@ -58,7 +55,6 @@ jobs:
             echo "tag=e2e" >> $GITHUB_OUTPUT
           fi
 
-      # 登录到 GitHub Container Registry
       - name: Log in to GHCR
         uses: docker/login-action@v3
         with:
@@ -66,81 +62,60 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # 构建镜像：本地构建是必须的，推送改为条件执行
+      # 构建 wireflowd（all-in-one 控制面）和 wireflow（边缘 agent，供 E2E 测试部署）
       - name: Build Docker images
         run: |
           REGISTRY="${{ env.REGISTRY }}/${{ steps.meta.outputs.owner }}"
           TAG="${{ steps.meta.outputs.tag }}"
-          
-          # 无论什么情况，先在 Runner 本地构建镜像
-          make docker-build SERVICE=manager  TAG="$TAG" REGISTRY="$REGISTRY"
-          make docker-build SERVICE=wireflow TAG="$TAG" REGISTRY="$REGISTRY"
-          
-          # 核心改动：只有非 PR 事件（如 push 到 dev）时才执行 push
+
+          make docker-build SERVICE=wireflowd TAG="$TAG" REGISTRY="$REGISTRY"
+          make docker-build SERVICE=wireflow  TAG="$TAG" REGISTRY="$REGISTRY"
+
+          # 只有非 PR 事件（如 push 到 dev）才推送
           if [ "${{ github.event_name }}" != "pull_request" ]; then
             echo "🚀 Not a PR, pushing images to GHCR..."
-            make docker-push SERVICE=manager  TAG="$TAG" REGISTRY="$REGISTRY"
+            make docker-push SERVICE=wireflowd TAG="$TAG" REGISTRY="$REGISTRY"
             make docker-push SERVICE=wireflow  TAG="$TAG" REGISTRY="$REGISTRY"
           else
-            echo "跳过推送：当前为 PR 流程，镜像将直接导入 k3d 集群进行测试。"
+            echo "跳过推送：当前为 PR 流程，镜像将直接导入 k3d 集群。"
           fi
 
-      # 启动 k3d 集群（禁用 Traefik，单 agent 节点）
+      # 单 server 节点（--agents 0），避免 port-forward 跨节点 EOF 问题
       - name: Setup k3d cluster
         uses: AbsaOSS/k3d-action@v2
         with:
           cluster-name: ${{ env.CLUSTER_NAME }}
           args: >-
-            --agents 1
+            --agents 0
             --no-lb
             --k3s-arg "--disable=traefik@server:*"
 
-      # 导出隔离的 kubeconfig（与本地 make e2e-setup 行为一致）
       - name: Export kubeconfig
         run: |
           k3d kubeconfig get ${{ env.CLUSTER_NAME }} > ${{ env.E2E_KUBECONFIG }}
           echo "KUBECONFIG=${{ env.E2E_KUBECONFIG }}" >> $GITHUB_ENV
 
-      # 将镜像直接导入 k3d containerd，无需 registry 凭证
       - name: Import images into k3d
         run: |
           REGISTRY="${{ env.REGISTRY }}/${{ steps.meta.outputs.owner }}"
           TAG="${{ steps.meta.outputs.tag }}"
-          k3d image import "${REGISTRY}/manager:${TAG}"  -c ${{ env.CLUSTER_NAME }}
-          k3d image import "${REGISTRY}/wireflow:${TAG}" -c ${{ env.CLUSTER_NAME }}
+          k3d image import "${REGISTRY}/wireflowd:${TAG}" -c ${{ env.CLUSTER_NAME }}
+          k3d image import "${REGISTRY}/wireflow:${TAG}"  -c ${{ env.CLUSTER_NAME }}
 
-      # 安装 kustomize（make deploy 依赖）
       - name: Install kustomize
         run: make kustomize
 
-      # 部署 Wireflow Manager（复用 make deploy，与本地 make e2e-setup 行为一致）
-      - name: Deploy Wireflow Manager
+      # 部署 all-in-one（内嵌 NATS + SQLite，无外部依赖）
+      # deploy-aio 内部含 rollout status 等待（180s），readiness probe 就绪后才返回
+      - name: Deploy Wireflow All-in-One
         run: |
           export PATH=$PATH:$(go env GOPATH)/bin
           REGISTRY="${{ env.REGISTRY }}/${{ steps.meta.outputs.owner }}"
           TAG="${{ steps.meta.outputs.tag }}"
-          make deploy ENV=dev \
-            IMG="${REGISTRY}/manager:${TAG}" \
+          make deploy-aio \
+            IMG="${REGISTRY}/wireflowd:${TAG}" \
             KUBECTL="kubectl --kubeconfig=${{ env.E2E_KUBECONFIG }}"
 
-      # 等待 Manager 全部 Deployment 就绪
-      - name: Wait for Manager ready
-        run: |
-          KC="kubectl --kubeconfig=${{ env.E2E_KUBECONFIG }}"
-          
-          echo "Waiting for NATS to be ready..."
-          $KC rollout status deployment -n wireflow-system wireflow-nats --timeout=120s || true
-          
-          echo "Waiting for Wireflow Manager to be ready..."
-          # 增加到 5 分钟，并捕获具体错误
-          if ! $KC rollout status deployment -n wireflow-system wireflow-control --timeout=300s; then
-            echo "❌ Manager failed to ready in time. Current Pod status:"
-            $KC get pods -n wireflow-system
-            $KC describe pods -n wireflow-system -l app.kubernetes.io/name=wireflow-manager
-            exit 1
-          fi
-
-      # 运行 E2E 测试（与本地 make test-e2e 完全一致：port-forward 在 go test 内由 Makefile 管理）
       - name: Run E2E tests
         run: |
           REGISTRY="${{ env.REGISTRY }}/${{ steps.meta.outputs.owner }}"
@@ -149,7 +124,6 @@ jobs:
             LOCAL_AGENT_IMAGE="${REGISTRY}/wireflow:${TAG}" \
             E2E_KUBECONFIG="${{ env.E2E_KUBECONFIG }}"
 
-      # 失败时收集完整诊断日志
       - name: Collect failure logs
         if: failure()
         run: |
@@ -158,36 +132,18 @@ jobs:
           echo "===== pods in wireflow-system ====="
           $KC get all -n wireflow-system || true
 
-          echo "===== Manager logs ====="
-          # 确保这里的 Label 与你 YAML 里的定义一致
-          $KC logs -n wireflow-system -l app.kubernetes.io/name=wireflow-manager --tail=200 || true
-
-          echo "===== NATS logs ====="
-          $KC logs -n wireflow-system -l app.kubernetes.io/name=wireflow-nats --tail=100 || true
+          echo "===== wireflowd (all-in-one) logs ====="
+          $KC logs -n wireflow-system -l app.kubernetes.io/name=wireflowd --tail=200 || true
 
           echo "===== E2E test namespaces ====="
-          # 获取所有以 wf- 开头的命名空间名
-          # 使用 grep "^namespace/wf-" 确保匹配的是前缀
           NAMESPACES=$($KC get ns -o name | grep "^namespace/wf-" | cut -d/ -f2 || true)
-          
           for ns in $NAMESPACES; do
             echo "========================================="
-            echo "🔍 Checking namespace: $ns"
-            echo "========================================="
-          
-            # 打印资源列表
+            echo "Namespace: $ns"
             $KC get all -n "$ns" -o wide || true
-          
-            # 打印详细状态（包含 Events，用于排查 Pending/Crash 原因）
-            echo "--- Pod Details for $ns ---"
-            $KC describe pods -n "$ns" || true
-          
-            # 遍历并打印日志
             PODS=$($KC get pods -n "$ns" -o jsonpath='{.items[*].metadata.name}' || true)
             for pod in $PODS; do
-              echo "-----------------------------------------"
-              echo "📋 Logs for Pod: $pod (Namespace: $ns)"
-              echo "-----------------------------------------"
+              echo "Logs: $pod"
               $KC logs -n "$ns" "$pod" --all-containers --tail=100 || true
             done
           done
@@ -195,7 +151,6 @@ jobs:
           echo "===== WireflowPeer CRDs ====="
           $KC get wfpeer --all-namespaces || true
 
-      # 失败时清理残留测试 Namespace，避免影响下次运行
       - name: Cleanup test namespaces on failure
         if: failure()
         run: |

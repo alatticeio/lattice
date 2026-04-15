@@ -22,6 +22,7 @@ export const usePeerPageStore = defineStore('peerPage', () => {
         publicKey: string
         region?: string
         namespace?: string
+        workspaceDisplayName?: string
         address?: string
         network?: string
         status?: string

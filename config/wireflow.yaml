@@ -15,3 +15,4 @@ server-url: http://wireflow.run
 signaling-url: nats://wireflow-nats-service.wireflow-system.svc.cluster.local:4222
 stun-url: stun.wireflow.run:3478
 wrrper-url: :6266
+

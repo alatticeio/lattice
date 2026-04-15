@@ -94,8 +94,8 @@ func (r *ruleProvisioner) Provision(rule *FirewallRule) error {
 	// 1. 默认拒绝 (零信任封口)
 	// 注意：PF 是 last-match-wins，block 必须写在 pass 之前作为兜底
 	iface := r.interfaceName
-	sb.WriteString(fmt.Sprintf("block in on %s all\n", iface))
-	sb.WriteString(fmt.Sprintf("block out on %s all\n", iface))
+	fmt.Fprintf(&sb, "block in on %s all\n", iface)
+	fmt.Fprintf(&sb, "block out on %s all\n", iface)
 
 	// 2. 生成 PF 规则字符串
 	// 当 Protocol 或 Port 未指定（零值）时，省略 proto/port，允许该 IP 的所有流量。
@@ -103,10 +103,10 @@ func (r *ruleProvisioner) Provision(rule *FirewallRule) error {
 	for _, tr := range rule.Ingress {
 		ips := "{" + strings.Join(tr.Peers, ", ") + "}"
 		if tr.Protocol != "" && tr.Port != 0 {
-			sb.WriteString(fmt.Sprintf("pass in proto %s from %s to any port %d\n",
-				strings.ToLower(tr.Protocol), ips, tr.Port))
+			fmt.Fprintf(&sb, "pass in proto %s from %s to any port %d\n",
+				strings.ToLower(tr.Protocol), ips, tr.Port)
 		} else {
-			sb.WriteString(fmt.Sprintf("pass in from %s\n", ips))
+			fmt.Fprintf(&sb, "pass in from %s\n", ips)
 		}
 	}
 
@@ -114,10 +114,10 @@ func (r *ruleProvisioner) Provision(rule *FirewallRule) error {
 	for _, tr := range rule.Egress {
 		ips := "{" + strings.Join(tr.Peers, ", ") + "}"
 		if tr.Protocol != "" && tr.Port != 0 {
-			sb.WriteString(fmt.Sprintf("pass out proto %s from any to %s port %d\n",
-				strings.ToLower(tr.Protocol), ips, tr.Port))
+			fmt.Fprintf(&sb, "pass out proto %s from any to %s port %d\n",
+				strings.ToLower(tr.Protocol), ips, tr.Port)
 		} else {
-			sb.WriteString(fmt.Sprintf("pass out to %s\n", ips))
+			fmt.Fprintf(&sb, "pass out to %s\n", ips)
 		}
 	}
 

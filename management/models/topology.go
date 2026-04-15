@@ -31,7 +31,7 @@ type PeerSnapshot struct {
 	Name        string            `json:"name"`
 	Alias       string            `json:"alias"`
 	InternalIP  string            `json:"ip"`
-	Status      string            `json:"status"`      // online, offline
+	Status      string            `json:"status"` // online, offline
 	Metrics     map[string]string `json:"metrics"`
 	HealthLevel string            `json:"health_level"` // success, warn, error
 }
