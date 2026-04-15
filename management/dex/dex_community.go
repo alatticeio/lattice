@@ -12,12 +12,26 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//go:build pro
+//go:build !pro
 
-package turn
+package dex
 
-func Start(cfg *TurnServerConfig) error {
-	// Start the TURN server
-	turnServer := NewTurnServer(cfg)
-	return turnServer.Start()
+import (
+	"errors"
+	"wireflow/management/service"
+
+	"github.com/gin-gonic/gin"
+)
+
+var errProRequired = errors.New("Dex OIDC/SSO is a Wireflow Pro feature — upgrade at https://wireflow.run/pro")
+
+// Dex stub: satisfies call sites in management/server/api.go.
+type Dex struct{}
+
+func NewDex(_ service.WorkspaceService) (*Dex, error) {
+	return nil, errProRequired
+}
+
+func (d *Dex) Login(c *gin.Context) {
+	c.JSON(503, gin.H{"error": "OIDC authentication requires Wireflow Pro"})
 }

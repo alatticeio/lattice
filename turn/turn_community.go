@@ -12,33 +12,29 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//go:build pro
+//go:build !pro
 
 package turn
 
 import (
-	"testing"
+	"errors"
 	"wireflow/internal/log"
 )
 
-func TestClient_GetRelayInfo(t *testing.T) {
-	t.Run("TestClient_GetRelayInfo", func(t *testing.T) {
+var errProRequired = errors.New("TURN server is a Wireflow Pro feature — upgrade at https://wireflow.run/pro")
 
-		client, err := NewClient(&ClientConfig{
-			ServerUrl: "stun.wireflow.run:3478",
-			Logger:    log.GetLogger("turn-client"),
-		})
-
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		info, err := client.GetRelayInfo(true)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		t.Logf("RelayInfo: %v", info)
-		t.Log("mappped addr: ", info.MappedAddr)
-	})
+// TurnServerConfig mirrors the Pro struct so cmd/manager/cmd/turn.go compiles in community builds.
+type TurnServerConfig struct {
+	Logger   *log.Logger
+	PublicIP string
+	Port     int
+	Client   any // management/client.Client in Pro; kept as any to avoid import in community
 }
+
+type TurnServer struct{}
+
+func NewTurnServer(_ *TurnServerConfig) *TurnServer { return &TurnServer{} }
+
+func (ts *TurnServer) Start() error { return errProRequired }
+
+func Start(_ *TurnServerConfig) error { return errProRequired }

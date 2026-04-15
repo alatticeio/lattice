@@ -46,6 +46,24 @@ CONTAINER_TOOL ?= docker
 SHELL = /usr/bin/env bash -o pipefail
 .SHELLFLAGS = -ec
 
+# ── Edition ───────────────────────────────────────────────────────────────────
+# EDITION controls which features are compiled in.
+#   community  — default, open-source build (no pro build tag)
+#   pro        — includes pro features: TURN server, Dex OIDC, telemetry push
+#
+# Usage:
+#   make build SERVICE=wireflow                  # community (default)
+#   make build SERVICE=wireflow EDITION=pro      # pro
+#   make docker-build SERVICE=wireflowd EDITION=pro
+EDITION ?= community
+
+ifeq ($(EDITION),pro)
+BUILD_TAGS := -tags pro
+else
+BUILD_TAGS :=
+endif
+# ─────────────────────────────────────────────────────────────────────────────
+
 .PHONY: build-all
 build-all: ## 构建所有服务
 	@echo " Building all services..."
@@ -59,10 +77,11 @@ build: fmt vet build-ui## 构建单个服务 (使用: make build SERVICE=wireflo
 		echo "❌ Error: SERVICE is required. Usage: make build SERVICE=wireflow"; \
 		exit 1; \
 	fi
-	@echo " Building $(SERVICE)..."
+	@echo " Building $(SERVICE) [edition=$(EDITION)]..."
 	@mkdir -p bin
 	CGO_ENABLED=0 GOOS=$(TARGETOS) GOARCH=$(TARGETARCH) \
 		go build \
+		$(BUILD_TAGS) \
 		-ldflags="-s -w $(LDFLAGS)" \
 		-o bin/$(SERVICE) \
 		./cmd/$(SERVICE)/main.go
@@ -282,10 +301,11 @@ docker-build: ## 构建单个服务的 Docker 镜像 (使用: make docker-build 
 		--build-arg TARGETARCH=$(TARGETARCH) \
 		--build-arg VERSION=$(TAG) \
 		--build-arg BUILD_DATE=$(BUILD_DATE) \
+		--build-arg BUILD_TAGS=$(if $(filter pro,$(EDITION)),pro,) \
 		-t $(REGISTRY)/$(SERVICE):$(TAG) \
 		-f Dockerfile \
 		.
-	@echo "✅ Built image: $(REGISTRY)/$(SERVICE):$(TAG)"
+	@echo "✅ Built image: $(REGISTRY)/$(SERVICE):$(TAG) [edition=$(EDITION)]"
 
 # ============ Docker 推送 ============
 .PHONY: docker-push-all

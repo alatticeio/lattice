@@ -12,3 +12,4 @@ cmd/management/conf/signaling-deployment.yaml
 data
 internal/web/dist/*
 !internal/web/dist/.gitkeep
+*.tsbuildinfo

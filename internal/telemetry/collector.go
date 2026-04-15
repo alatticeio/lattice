@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//go:build pro
+
 // Package telemetry provides a lightweight, push-only metric pipeline for wireflow-agent.
 //
 // # Architecture
