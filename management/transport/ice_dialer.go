@@ -295,16 +295,25 @@ func (i *iceDialer) getAgent(remoteId infra.PeerIdentity) (*AgentWrapper, error)
 	} else {
 		f.DefaultLogLevel = logging.LogLevelError
 	}
-	disconnectedTimeout := 3 * time.Second
-	failedTimeout := 8 * time.Second
+	// DisconnectedTimeout: how long without a keepalive response before ICE
+	// moves Connected→Disconnected and starts aggressive re-checks.
+	// 10s gives the agent enough headroom to survive transient network blips
+	// without triggering a full restart.
+	//
+	// FailedTimeout: how long ICE retries while Disconnected before giving up
+	// and moving to Failed.  15s is the practical upper bound — beyond this
+	// WireGuard's own PersistentKeepalive will have already re-established the
+	// path if the remote is reachable at all.
+	disconnectedTimeout := 10 * time.Second
+	failedTimeout := 15 * time.Second
 	iceAgent, err := ice.NewAgent(&ice.AgentConfig{
 		UDPMux:              i.universalUdpMuxDefault.UDPMuxDefault,
 		UDPMuxSrflx:         i.universalUdpMuxDefault,
 		NetworkTypes:        []ice.NetworkType{ice.NetworkTypeUDP4},
 		Urls: []*stun.URI{
-				{Scheme: stun.SchemeTypeSTUN, Host: "stun.l.google.com", Port: 19302},
-				{Scheme: stun.SchemeTypeSTUN, Host: "stun1.l.google.com", Port: 19302},
-			},
+			{Scheme: stun.SchemeTypeSTUN, Host: "stun.l.google.com", Port: 19302},
+			{Scheme: stun.SchemeTypeSTUN, Host: "stun1.l.google.com", Port: 19302},
+		},
 		Tiebreaker:          uint64(ice.NewTieBreaker()),
 		LoggerFactory:       f,
 		CandidateTypes:      []ice.CandidateType{ice.CandidateTypeHost, ice.CandidateTypeServerReflexive},
@@ -317,7 +326,13 @@ func (i *iceDialer) getAgent(remoteId infra.PeerIdentity) (*AgentWrapper, error)
 		agent = &AgentWrapper{Agent: iceAgent}
 		err = agent.OnConnectionStateChange(func(s ice.ConnectionState) {
 			i.log.Debug("ice state changed", "state", s)
-			if s == ice.ConnectionStateDisconnected || s == ice.ConnectionStateFailed {
+			// Only close on Failed, not Disconnected.
+			// When ICE enters Disconnected it retries keepalives aggressively for
+			// FailedTimeout (15s) and can recover to Connected without any
+			// application intervention.  Closing on Disconnected short-circuits
+			// that built-in recovery and triggers a full SYN restart cycle which
+			// cascades to the remote side as well, causing the connect/disconnect loop.
+			if s == ice.ConnectionStateFailed {
 				i.Close() //nolint:errcheck
 			}
 		})
