@@ -15,15 +15,3 @@
 //go:build pro
 
 package turn
-
-import (
-	"net"
-)
-
-type Handler struct {
-	//rdb *redis.Client
-}
-
-func (h *Handler) AuthHandler(username string, realm string, srcAddr net.Addr) ([]byte, bool) { // nolint: revive
-	return nil, true
-}

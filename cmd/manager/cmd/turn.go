@@ -18,25 +18,19 @@ import (
 	"context"
 	"wireflow/internal/config"
 	"wireflow/internal/log"
-	"wireflow/management/client"
-	"wireflow/management/nats"
 	"wireflow/turn"
 
 	"github.com/spf13/cobra"
 )
 
 func newTurnCmd() *cobra.Command {
-	var cmd = &cobra.Command{
+	cmd := &cobra.Command{
 		Use:          "turn",
 		SilenceUsage: true,
 		Short:        "start a turn server",
-		Long:         `start a turn serer will provided stun service for you, you can use it to get public IP and port, also you can deploy you own turn server when direct(P2P) unavailable.`,
-		PreRunE: func(cmd *cobra.Command, args []string) error {
-			return nil
-		},
-
+		Long:         `Start a TURN server that provides relay transport when direct (P2P) connections are unavailable.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runTurn()
+			return runTurn(cmd.Context())
 		},
 	}
 	fs := cmd.Flags()
@@ -46,21 +40,18 @@ func newTurnCmd() *cobra.Command {
 	return cmd
 }
 
-func runTurn() error {
-	signalService, err := nats.NewNatsService(context.Background(), "turn", "client", config.Conf.SignalingURL)
-	if err != nil {
-		return err
-	}
-	client, err := client.NewClient(signalService)
-	if err != nil {
-		return err
+func runTurn(ctx context.Context) error {
+	log.SetLevel(config.Conf.Level)
+
+	var users []*config.User
+	for _, a := range config.Conf.App.InitAdmins {
+		users = append(users, config.NewUser(a.Username, a.Password))
 	}
 
-	log.SetLevel(config.Conf.Level)
-	return turn.Start(&turn.TurnServerConfig{
+	return turn.NewTurnServer(&turn.TurnServerConfig{
 		Logger:   log.GetLogger("turnserver"),
 		PublicIP: config.Conf.PublicIP,
 		Port:     config.Conf.Port,
-		Client:   client,
-	})
+		Users:    users,
+	}).Start(ctx)
 }

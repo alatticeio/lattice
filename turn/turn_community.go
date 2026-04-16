@@ -17,7 +17,9 @@
 package turn
 
 import (
+	"context"
 	"errors"
+	"wireflow/internal/config"
 	"wireflow/internal/log"
 )
 
@@ -28,13 +30,11 @@ type TurnServerConfig struct {
 	Logger   *log.Logger
 	PublicIP string
 	Port     int
-	Client   any // management/client.Client in Pro; kept as any to avoid import in community
+	Users    []*config.User
 }
 
 type TurnServer struct{}
 
 func NewTurnServer(_ *TurnServerConfig) *TurnServer { return &TurnServer{} }
 
-func (ts *TurnServer) Start() error { return errProRequired }
-
-func Start(_ *TurnServerConfig) error { return errProRequired }
+func (ts *TurnServer) Start(_ context.Context) error { return errProRequired }

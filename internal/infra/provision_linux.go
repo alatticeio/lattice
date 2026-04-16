@@ -26,20 +26,27 @@ func (r *routeProvisioner) ApplyRoute(action, address, name string) error {
 	cidr := GetCidrFromIP(address)
 	switch action {
 	case "add":
-		//ExecCommand("/bin/sh", "-c", fmt.Sprintf("ip address add dev %s %s", name, address))
-		if err := ExecCommand("/bin/sh", "-c", fmt.Sprintf("iptables -w 5 -A FORWARD -i %s -j ACCEPT; iptables -A FORWARD -o %s -j ACCEPT; iptables -w 5 -t nat -A POSTROUTING -o eth0 -j MASQUERADE", name, name)); err != nil {
+		// Use -C (check) before -A so rules are idempotent across reconnects.
+		// Resolve the default outbound interface dynamically instead of hardcoding eth0.
+		iptCmds := fmt.Sprintf(
+			"iptables -w 5 -C FORWARD -i %[1]s -j ACCEPT 2>/dev/null || iptables -w 5 -A FORWARD -i %[1]s -j ACCEPT; "+
+				"iptables -w 5 -C FORWARD -o %[1]s -j ACCEPT 2>/dev/null || iptables -w 5 -A FORWARD -o %[1]s -j ACCEPT; "+
+				"DEV=$(ip route show default | awk 'NR==1{print $5}'); "+
+				"iptables -w 5 -t nat -C POSTROUTING -o \"$DEV\" -j MASQUERADE 2>/dev/null || iptables -w 5 -t nat -A POSTROUTING -o \"$DEV\" -j MASQUERADE",
+			name,
+		)
+		if err := ExecCommand("/bin/sh", "-c", iptCmds); err != nil {
 			return err
 		}
-
-		if err := ExecCommand("/bin/sh", "-c", fmt.Sprintf("route %s -net %v dev %s", action, cidr, name)); err != nil {
+		// ip route replace is idempotent: adds the route if absent, updates if already present.
+		if err := ExecCommand("/bin/sh", "-c", fmt.Sprintf("ip route replace %s dev %s", cidr, name)); err != nil {
 			return err
 		}
-		r.logger.Debug("add route", "cmd", fmt.Sprintf("add route %s -net %v dev %s", action, cidr, name))
+		r.logger.Debug("add route", "cidr", cidr, "dev", name)
 	case "delete":
-		if err := ExecCommand("/bin/sh", "-c", fmt.Sprintf("route %s -net %v dev %s", action, cidr, name)); err != nil {
-			return err
-		}
-		r.logger.Debug("delete route", "cmd", fmt.Sprintf("delete route %s -net %v dev %s", action, cidr, name))
+		// Ignore "no such process" / "not found" errors — the route may already be gone.
+		_ = ExecCommand("/bin/sh", "-c", fmt.Sprintf("ip route del %s dev %s 2>/dev/null || true", cidr, name))
+		r.logger.Debug("delete route", "cidr", cidr, "dev", name)
 	}
 	return nil
 }

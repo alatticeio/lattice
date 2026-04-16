@@ -18,7 +18,6 @@ package turn
 
 import (
 	"net"
-	"sync"
 	"wireflow/internal"
 	"wireflow/internal/log"
 
@@ -33,43 +32,33 @@ var (
 // Client is a TURN client.
 type Client struct {
 	logger     *log.Logger
-	lock       sync.Mutex // nolint
-	realm      string
 	turnClient *turn.Client
 	relayConn  net.PacketConn
-	//mappedAddr net.Addr
-	relayInfo *internal.RelayInfo
+	relayInfo  *internal.RelayInfo
 }
 
 // ClientConfig is the configuration for a TURN client.
 type ClientConfig struct {
 	Logger    *log.Logger
-	ServerUrl string // stun.wireflow.run:3478
-	Realm     string
+	ServerUrl string
+	Username  string
+	Password  string
 }
 
-// NewClient creates a new TURN client.
+// NewClient creates a new TURN client and starts listening immediately.
 func NewClient(cfg *ClientConfig) (internal.Client, error) {
-	//Dial TURN Server
 	conn, err := net.Dial("udp", cfg.ServerUrl)
 	if err != nil {
 		return nil, err
 	}
 
-	//var username, password string
-	//username, password, err = config.DecodeAuth(config.GlobalConfig.Auth)
-	//if err != nil {
-	//	return nil, err
-	//}
-	// TODO should replace real user
-	username, password := "wireflow", "123456"
 	turnCfg := &turn.ClientConfig{
 		STUNServerAddr: cfg.ServerUrl,
 		TURNServerAddr: cfg.ServerUrl,
 		Conn:           turn.NewSTUNConn(conn),
-		Username:       username,
-		Password:       password,
-		Realm:          "wireflow.run",
+		Username:       cfg.Username,
+		Password:       cfg.Password,
+		Realm:          realm,
 		LoggerFactory:  logging.NewDefaultLoggerFactory(),
 	}
 
@@ -78,34 +67,28 @@ func NewClient(cfg *ClientConfig) (internal.Client, error) {
 		return nil, err
 	}
 
-	c := &Client{realm: turnCfg.Realm, turnClient: client, logger: cfg.Logger}
-
-	return c, nil
-}
-
-// GetRelayInfo returns the relay info.
-func (c *Client) GetRelayInfo(allocated bool) (*internal.RelayInfo, error) {
-	var err error
-	if c.relayInfo != nil {
-		return c.relayInfo, nil
-	}
-	err = c.turnClient.Listen()
-	if err != nil {
+	if err = client.Listen(); err != nil {
+		client.Close()
 		return nil, err
 	}
 
-	// Allocate a relay socket on the TURN server. On success, it
-	// will return a net.PacketConn which represents the remote
-	// socket.
-	// Push BindingRequest to learn our external IP
+	return &Client{turnClient: client, logger: cfg.Logger}, nil
+}
+
+// GetRelayInfo returns the relay info, allocating a relay socket if allocated is true.
+func (c *Client) GetRelayInfo(allocated bool) (*internal.RelayInfo, error) {
+	if c.relayInfo != nil {
+		return c.relayInfo, nil
+	}
+
 	c.relayInfo = &internal.RelayInfo{}
+
 	if allocated {
-		var relayConn net.PacketConn
-		relayConn, err = c.turnClient.Allocate()
+		relayConn, err := c.turnClient.Allocate()
 		if err != nil {
 			return nil, err
 		}
-
+		c.relayConn = relayConn
 		c.relayInfo.RelayConn = relayConn
 	}
 
@@ -122,15 +105,20 @@ func (c *Client) GetRelayInfo(allocated bool) (*internal.RelayInfo, error) {
 	return c.relayInfo, nil
 }
 
+// Close releases the relay connection and the underlying TURN client.
 func (c *Client) Close() {
-	c.relayConn.Close() //nolint:errcheck
+	if c.relayConn != nil {
+		c.relayConn.Close() //nolint:errcheck
+	}
+	c.turnClient.Close()
 }
 
+// ReadFrom reads a packet from the relay connection.
 func (c *Client) ReadFrom(buf []byte) (int, net.Addr, error) {
 	return c.relayConn.ReadFrom(buf)
 }
 
-// CreatePermission creates a permission for the given addresses
+// CreatePermission creates a permission for the given addresses.
 func (c *Client) CreatePermission(addr ...net.Addr) error {
 	return c.turnClient.CreatePermission(addr...)
 }

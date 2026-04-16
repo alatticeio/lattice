@@ -17,79 +17,63 @@
 package turn
 
 import (
+	"context"
 	"net"
-	"os"
-	"os/signal"
 	"strconv"
-	"syscall"
 	"wireflow/internal/config"
 	"wireflow/internal/log"
-	"wireflow/management/client"
 
 	"github.com/pion/turn/v4"
 )
+
+const realm = "wireflow.run"
 
 type TurnServer struct {
 	logger   *log.Logger
 	port     int
 	publicIP string
-	client   *client.Client
+	users    []*config.User
 }
 
 type TurnServerConfig struct {
 	Logger   *log.Logger
 	PublicIP string
 	Port     int
-	Client   *client.Client
+	Users    []*config.User
 }
 
 func NewTurnServer(cfg *TurnServerConfig) *TurnServer {
-	return &TurnServer{client: cfg.Client, port: cfg.Port, publicIP: cfg.PublicIP, logger: cfg.Logger}
+	return &TurnServer{
+		logger:   cfg.Logger,
+		port:     cfg.Port,
+		publicIP: cfg.PublicIP,
+		users:    cfg.Users,
+	}
 }
 
-func (ts *TurnServer) Start() error {
-	return ts.start(ts.publicIP, ts.port)
-}
+// Start runs the TURN server until ctx is cancelled.
+func (ts *TurnServer) Start(ctx context.Context) error {
+	ts.logger.Info("TURN server starting", "public_ip", ts.publicIP, "port", ts.port)
 
-func (ts *TurnServer) start(publicIP string, port int) error {
-	ts.logger.Info("TURN server starting", "public_ip", publicIP, "port", port)
-
-	// Create a UDP listener to pass into pion/turn
-	// pion/turn itself doesn't allocate any UDP sockets, but lets the user pass them in
-	// this allows us to add logging, storage or modify inbound/outbound traffic
-	udpListener, err := net.ListenPacket("udp4", "0.0.0.0:"+strconv.Itoa(port))
+	udpListener, err := net.ListenPacket("udp4", "0.0.0.0:"+strconv.Itoa(ts.port))
 	if err != nil {
 		return err
 	}
 
-	// Cache -users flag for easy lookup later
-	// If passwords are stored they should be saved to your db hashed using turn.GenerateAuthKey
-	//usersMap := map[string][]byte{}
-	//for _, kv := range regexp.MustCompile(`(\w+)=(\w+)`).FindAllStringSubmatch(users, -1) {
-	//	usersMap[kv[1]] = turn.GenerateAuthKey(kv[1], "wireflowio.com", kv[2])
-	//}
-
-	// TODO
-	usersMap := generateAuthKeyMap(nil)
+	authKeys := buildAuthKeyMap(ts.users)
 
 	s, err := turn.NewServer(turn.ServerConfig{
-		Realm: "wireflow.run",
-		// Set AuthHandler callback
-		// This is called every time a user tries to authenticate with the TURN server
-		// Return the remoteKey for that user, or false when no user is found
-		AuthHandler: func(username string, realm string, srcAddr net.Addr) ([]byte, bool) { // nolint: revive
-			if key, ok := usersMap[username]; ok {
-				return key, true
-			}
-			return nil, false
+		Realm: realm,
+		AuthHandler: func(username, _ string, _ net.Addr) ([]byte, bool) {
+			key, ok := authKeys[username]
+			return key, ok
 		},
-		// PacketConnConfigs is a list of UDP Listeners and the configuration around them
 		PacketConnConfigs: []turn.PacketConnConfig{
 			{
 				PacketConn: udpListener,
 				RelayAddressGenerator: &turn.RelayAddressGeneratorStatic{
-					RelayAddress: net.ParseIP(publicIP), // Claim that we are listening on IP passed by user (This should be your Public IP)
-					Address:      "0.0.0.0",             // But actually be listening on every interface
+					RelayAddress: net.ParseIP(ts.publicIP),
+					Address:      "0.0.0.0",
 				},
 			},
 		},
@@ -98,26 +82,20 @@ func (ts *TurnServer) start(publicIP string, port int) error {
 		return err
 	}
 
-	// Block until user sends SIGINT or SIGTERM
-	sigs := make(chan os.Signal, 1)
-	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
-	<-sigs
+	<-ctx.Done()
+	ts.logger.Info("TURN server shutting down")
 
 	if err = s.Close(); err != nil {
 		ts.logger.Error("failed to close TURN server", err)
 	}
-
 	return nil
 }
 
-func generateAuthKeyMap(users []*config.User) map[string][]byte {
-	usersMap := map[string][]byte{}
-	for _, user := range users {
-		usersMap[user.Username] = generateAuthKey(user.Username, "wireflow.run", user.Password)
+// buildAuthKeyMap pre-hashes credentials for the TURN auth handler.
+func buildAuthKeyMap(users []*config.User) map[string][]byte {
+	m := make(map[string][]byte, len(users))
+	for _, u := range users {
+		m[u.Username] = turn.GenerateAuthKey(u.Username, realm, u.Password)
 	}
-	return usersMap
-}
-
-func generateAuthKey(username, realm, password string) []byte {
-	return turn.GenerateAuthKey(username, realm, password)
+	return m
 }
