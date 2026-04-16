@@ -49,7 +49,8 @@ type Agent struct {
 	natsService infra.SignalService
 
 	GetNetworkMap func() (*infra.Message, error)
-	ctrClient     *ctrclient.Client
+	ctrClient    *ctrclient.Client
+	probeFactory *transport.ProbeFactory
 
 	manager struct {
 		keyManager  infra.KeyManager
@@ -134,7 +135,7 @@ func NewAgent(ctx context.Context, cfg *AgentConfig) (*Agent, error) {
 	// add self to peerManager
 	agent.manager.peerManager.AddPeer(agent.current.AppID, agent.current)
 
-	probeFactory := transport.NewProbeFactory(&transport.ProbeFactoryConfig{
+	agent.probeFactory = transport.NewProbeFactory(&transport.ProbeFactoryConfig{
 		LocalId:                localIdentity,
 		Signal:                 natsSignalService,
 		PeerManager:            agent.manager.peerManager,
@@ -143,14 +144,14 @@ func NewAgent(ctx context.Context, cfg *AgentConfig) (*Agent, error) {
 	})
 
 	//subscribe
-	if err = natsSignalService.Subscribe(fmt.Sprintf("%s.%s", "wireflow.signals.peers", localIdentity), probeFactory.Handle); err != nil {
+	if err = natsSignalService.Subscribe(fmt.Sprintf("%s.%s", "wireflow.signals.peers", localIdentity), agent.probeFactory.Handle); err != nil {
 		return nil, err
 	}
 
 	agent.ctrClient.Configure(
 		ctrclient.WithSignalHandler(natsSignalService),
 		ctrclient.WithKeyManager(agent.manager.keyManager),
-		ctrclient.WithProbeFactory(probeFactory))
+		ctrclient.WithProbeFactory(agent.probeFactory))
 
 	if cfg.Flags.EnableWrrp {
 		wrrpUrl := cfg.Flags.WrrperURL
@@ -164,7 +165,7 @@ func NewAgent(ctx context.Context, cfg *AgentConfig) (*Agent, error) {
 				return nil, err
 			}
 
-			wrrp.Configure(wrrper.WithOnMessage(probeFactory.Handle))
+			wrrp.Configure(wrrper.WithOnMessage(agent.probeFactory.Handle))
 		}
 	}
 
@@ -186,7 +187,7 @@ func NewAgent(ctx context.Context, cfg *AgentConfig) (*Agent, error) {
 		})
 	// init event handler
 	agent.messageHandler = NewMessageHandler(agent, log.GetLogger("event-handler"), agent.provisioner)
-	probeFactory.Configure(transport.WithOnMessage(agent.messageHandler.HandleEvent), transport.WithWrrp(wrrp), transport.WithProvisioner(agent.provisioner))
+	agent.probeFactory.Configure(transport.WithOnMessage(agent.messageHandler.HandleEvent), transport.WithWrrp(wrrp), transport.WithProvisioner(agent.provisioner))
 
 	agent.DeviceManager = NewDeviceManager(log.GetLogger("device-manager"), agent.iface, make(chan struct{}))
 	return agent, err
@@ -270,6 +271,10 @@ func (c *Agent) AddPeer(peer *infra.Peer) error {
 //}
 
 func (c *Agent) RemovePeer(peer *infra.Peer) error {
+	// Close and evict the probe so we stop trying to reconnect to an offline peer.
+	// A fresh probe will be created when the management server pushes PeersAdded
+	// after the peer comes back online.
+	c.probeFactory.Remove(peer.AppID)
 	return c.provisioner.RemovePeer(&infra.SetPeer{
 		Remove:    true,
 		PublicKey: peer.PublicKey,

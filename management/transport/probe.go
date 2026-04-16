@@ -82,6 +82,21 @@ func (p *Probe) restart() {
 	_ = p.Start(context.Background(), p.remoteId)
 }
 
+// Close permanently stops this probe and releases all resources.
+// Setting newIceDialer to nil prevents restart() from spinning up a new
+// dialer after the underlying iceDialer's close triggers the onClose callback.
+func (p *Probe) Close() {
+	p.mu.Lock()
+	p.newIceDialer = nil
+	d := p.iceDialer
+	p.iceDialer = nil
+	p.mu.Unlock()
+
+	if d != nil {
+		d.Close() //nolint:errcheck
+	}
+}
+
 func (p *Probe) OnConnectionStateChange(state ice.ConnectionState) {
 	p.updateState(state)
 	p.log.Debug("Setting new connection status", "state", state)
@@ -127,7 +142,17 @@ func (p *Probe) updateState(state ice.ConnectionState) {
 	p.state = state
 }
 
-// discover 实现了"谁快用谁"的竞速逻辑
+// discover races ICE and WRRP dialers concurrently and returns whichever
+// transport connects first, with one exception: if WRRP wins the race, it
+// waits an extra 500ms to give ICE a chance to catch up.  If ICE arrives
+// within that window the WRRP connection is discarded in favour of the
+// higher-priority direct path; otherwise WRRP is used immediately and ICE
+// can still upgrade later via handleUpgradeTransport.
+//
+// The select loop collects results and errors:
+//   - First successful Transport → return it (after the optional 500ms ICE wait)
+//   - All dialers failed → return the last error, caller's onFailure fires
+//   - ctx cancelled → propagate the context error
 func (p *Probe) discover(ctx context.Context) (infra.Transport, error) {
 	dialerCount := 1
 	if config.Conf.EnableWrrp {
@@ -137,6 +162,10 @@ func (p *Probe) discover(ctx context.Context) (infra.Transport, error) {
 	result := make(chan infra.Transport, dialerCount)
 	errs := make(chan error, dialerCount)
 
+	// ICE goroutine: completes the full SYN→ACK→OFFER→Dial handshake.
+	// Dial blocks until an OFFER is received (up to 65s) or ctx is cancelled.
+	// On success the transport is also forwarded to handleUpgradeTransport so
+	// that a later-arriving ICE connection can replace an already-active WRRP.
 	go func() {
 		p.log.Debug("Starting ice dialer", "remoteId", p.remoteId)
 		if err := p.iceDialer.Prepare(ctx, p.remoteId); err != nil {
@@ -154,7 +183,9 @@ func (p *Probe) discover(ctx context.Context) (infra.Transport, error) {
 		}
 	}()
 
-	// do not enable default
+	// WRRP goroutine: registers with the relay server and establishes a tunnel.
+	// Only started when WRRP is enabled; acts as a fallback if ICE cannot
+	// complete within the race window.
 	if config.Conf.EnableWrrp {
 		go func() {
 			p.log.Debug("Starting wrrp dialer", "remoteId", p.remoteId)
@@ -162,7 +193,6 @@ func (p *Probe) discover(ctx context.Context) (infra.Transport, error) {
 				errs <- err
 				return
 			}
-			// 内部包含：向中转服务器注册 -> 建立隧道
 			t, err := p.wrrpDialer.Dial(ctx)
 			if err != nil {
 				errs <- err
@@ -172,13 +202,14 @@ func (p *Probe) discover(ctx context.Context) (infra.Transport, error) {
 		}()
 	}
 
-	// 竞速决策逻辑：谁先成功用谁；全部失败则报错
+	// Race: first success wins; all failures → error.
 	failed := 0
 	var lastErr error
 	for {
 		select {
 		case t := <-result:
-			// 特殊优化：如果 WRRP 先到了，额外等 500ms 给 ICE 机会
+			// WRRP arrived first: hold on for 500ms to see if ICE can still win.
+			// If ICE arrives in time, discard WRRP and return the direct path.
 			if t.Type() == infra.WRRP && config.Conf.EnableWrrp {
 				select {
 				case iceT := <-result:

@@ -18,6 +18,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 	"wireflow/api/v1alpha1"
 	"wireflow/internal/infra"
@@ -75,7 +76,8 @@ type tokenListReq struct {
 }
 
 type tokenRemoveReq struct {
-	Token string `json:"token"` // token value (not ID)
+	Namespace string `json:"namespace"`
+	Token     string `json:"token"` // token value (not ID)
 }
 
 // ── helper ────────────────────────────────────────────────────────────────────
@@ -406,21 +408,20 @@ func (s *Server) NatsRemoveToken(data []byte) ([]byte, error) {
 	if err := json.Unmarshal(data, &req); err != nil {
 		return nil, fmt.Errorf("invalid request: %w", err)
 	}
+	if req.Namespace == "" {
+		return nil, fmt.Errorf("namespace is required")
+	}
 	if req.Token == "" {
 		return nil, fmt.Errorf("token is required")
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// Look up the token record to find which workspace namespace it belongs to.
-	t, err := s.store.Tokens().GetByToken(ctx, req.Token)
-	if err != nil {
-		return nil, fmt.Errorf("token not found: %w", err)
-	}
-
-	ctx, err = s.workspaceCtxByNs(ctx, t.Namespace)
+	ctx, err := s.workspaceCtxByNs(ctx, req.Namespace)
 	if err != nil {
 		return nil, err
 	}
-	return nil, s.tokenController.Delete(ctx, req.Token)
+	// K8s CRD name is always lowercased at creation time (peer.go: strings.ToLower(tokenDto.Name)),
+	// but Status.Token retains the original case, so normalise here to match.
+	return nil, s.tokenController.Delete(ctx, strings.ToLower(req.Token))
 }

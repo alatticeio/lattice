@@ -92,11 +92,12 @@ type Dialer interface {
     Prepare(ctx context.Context, remoteId PeerIdentity) error
     Handle(ctx context.Context, remoteId PeerIdentity, pkt *SignalPacket) error
     Dial(ctx context.Context) (Transport, error)
+    Close() error
     Type() DialerType   // ICE_DIALER | WRRP_DIALER
 }
 ```
 
-注意 `Dial()` 不接收 `remoteId`，因为 Dialer 在创建时已与特定 remoteId 绑定（一 Dialer 实例对应一个 Peer）。
+注意 `Dial()` 不接收 `remoteId`，因为 Dialer 在创建时已与特定 remoteId 绑定（一 Dialer 实例对应一个 Peer）。`Close()` 用于主动释放 Dialer 持有的所有资源（ICE Agent、goroutine 等），由 Probe 在生命周期结束时调用。
 
 ### Probe
 
@@ -199,16 +200,24 @@ if newTransport.Priority() > currentTransport.Priority() {
 }
 ```
 
-### 失败重试
+### 失败重试与 Probe 生命周期
 
-`discover()` 全部路径均失败时，调用 `onFailure`，调度 10 秒后重试：
+`discover()` 全部路径均失败时，调用 `onFailure`。Probe 的存活时间与 ConfigMap 中的 Peer 成员资格绑定：
 
 ```
 discover() 全部失败
     └─ onFailure(err)
-           └─ time.AfterFunc(10s, probe.restart)
-                  └─ 创建新 iceDialer + 重新 Start()
+           ├─ 记录首次失败时间 firstFailureAt（成功连接后重置）
+           ├─ elapsed < 60s → time.AfterFunc(10s, probe.restart)
+           │                        └─ 创建新 iceDialer + 重新 Start()
+           └─ elapsed ≥ 60s → ProbeFactory.Remove(appId)
+                                    └─ probe.Close() + 从 map 中删除
+                                    └─ 等待管理服务器推送 PeersAdded 重建 Probe
 ```
+
+**设计原则**：Probe 不无限重试。对端离线超过 60s 后，本端认为对端已下线，主动关闭 Probe 释放资源。重连的触发权交给管理服务器：服务器检测到节点重新上线后推送 `PeersAdded`，Agent 收到后通过 `AddPeer()` 创建全新 Probe。
+
+**另一条关闭路径**：管理服务器在检测到节点离线后推送 `PeersRemoved` 事件，Agent 的 `RemovePeer()` 会调用 `ProbeFactory.Remove()`，立即关闭 Probe，无需等待 60s 自关闭。两条路径互为兜底。
 
 ---
 
@@ -230,7 +239,7 @@ PeerID_local < PeerID_remote → 本端是 Responder（等待 SYN，回 ACK）
 ```
 Initiator (大 PeerID)                    Responder (小 PeerID)
     │                                           │
-    │── HANDSHAKE_SYN ──────────────────────────▶│  (每 2s 重试，最多 60s)
+    │── HANDSHAKE_SYN（立即发，之后每 2s 重试）──▶│
     │◀─ HANDSHAKE_ACK ─────────────────────────│
     │   [Initiator 停止重试，双方开始 GatherCandidates]
     │                                           │
@@ -241,6 +250,10 @@ Initiator (大 PeerID)                    Responder (小 PeerID)
     │                                           │
     │◀═══════════ ICE P2P Connection ═══════════│
 ```
+
+**SYN 首包立即发送**：`Prepare()` 在启动重试 ticker 之前先发一个 SYN，不等待第一个 2s tick，减少建连延迟。SYN 最多持续发送 60s（context timeout）。
+
+**Dial 超时**：`Dial()` 内置 65s 超时（略大于 SYN 窗口 60s）。对于 Responder 侧，`Prepare()` 直接返回、`Dial()` 阻塞等待对端 SYN——若 65s 内没有收到任何 OFFER，`Dial()` 返回错误，触发 `onFailure` 进入失败计时逻辑。
 
 OFFER 包同时携带：ICE 凭证（ufrag/pwd）、TieBreaker（决定 Dial/Accept 角色）、candidate 地址、本端 Peer 元信息（IP、公钥，用于对端 WireGuard 配置）。
 
@@ -265,27 +278,39 @@ NewIceDialer()
     ▼
 Prepare(ctx, remoteId)
     ├─ 创建 ice.Agent（OnConnectionStateChange、OnCandidate 注册）
-    ├─ 若是 Initiator：启动 SYN 重试 goroutine
-    └─ 若是 Responder：等待 SYN
+    ├─ 若是 Initiator：立即发第一个 SYN，然后每 2s 重试（最多 60s）
+    └─ 若是 Responder：直接返回，等待对端 SYN
 
 Handle(SYN/ACK/OFFER)
     ├─ SYN  → 发 ACK，创建 Agent，GatherCandidates
     ├─ ACK  → 取消 SYN 重试，GatherCandidates
     └─ OFFER → 添加 remote candidate，触发 offerReady
 
-Dial(ctx)
+Dial(ctx)                          ← 内置 65s 超时
     └─ 阻塞等待 offerReady，然后 Dial/Accept
 
 OnConnectionStateChange(Disconnected/Failed)
-    └─ close() → 触发 onClose → probe.restart()
+    └─ Close() → 触发 onClose → probe.restart()
 ```
+
+### STUN 服务器配置
+
+ICE Agent 使用以下 STUN 服务器收集 srflx（Server-Reflexive）候选，用于 NAT 穿越：
+
+```
+优先级顺序：
+1. stun.l.google.com:19302   （Google，主用）
+2. stun1.l.google.com:19302  （Google，备用）
+```
+
+内置 STUN（`stun.wireflow.run`）需在部署时独立配置端口和域名后方可加入列表；未配置时不应填入，否则会因 STUN 超时导致 srflx 候选缺失，跨网络节点无法打洞。
 
 ### 断线重连
 
 ```
 连接断开（ICE keepalive 超时 / 网络中断）
     └─ ice.Agent.OnConnectionStateChange(Failed)
-           └─ iceDialer.close()
+           └─ iceDialer.Close()
                   ├─ closed.Store(true)
                   ├─ agent.Close()
                   ├─ close(closeChan)  — 解除 Dial() 阻塞
@@ -293,6 +318,20 @@ OnConnectionStateChange(Disconnected/Failed)
                                       ├─ p.iceDialer = newIceDialer()
                                       ├─ p.started.Store(false)
                                       └─ p.Start()  — 重新走完整流程
+
+restart() 调用前检查 newIceDialer != nil：
+    newIceDialer == nil 说明 Probe.Close() 已被调用（主动关闭），直接返回，不再重建。
+```
+
+### Probe.Close() 关闭顺序
+
+```
+Probe.Close()
+    ├─ mu.Lock()
+    ├─ newIceDialer = nil   ← 防止 onClose 回调触发 restart()
+    ├─ d = iceDialer; iceDialer = nil
+    ├─ mu.Unlock()
+    └─ d.Close()            ← iceDialer.Close() 触发 onClose，但 restart() 因 nil 检查提前返回
 ```
 
 ### 快速重启保护（Fast-Restart Race）
@@ -381,6 +420,11 @@ Transport 升级时（WRRP→ICE）重新调用 `onSuccess`，WireGuard Endpoint
 | TieBreaker 决定 Dial/Accept 角色 | 与握手角色解耦，随机生成避免固定依赖 |
 | SYN 收到时检查 agent 是否存在 | 防止对端快速重启时复用旧 Agent 导致打洞失败 |
 | closed atomic.Bool | 保证迟到的信令包在 close 后被安全丢弃，不污染新 Dialer |
-| onFailure 调度延迟重试 | discover 全部失败不立即放弃，10s 后重走完整流程 |
+| SYN 立即发第一包 | ticker 首 tick 需等 2s，导致建连延迟；先发一包再走重试逻辑 |
+| Dial() 65s 超时 | Responder 侧无主动发包，若对端离线则 Dial 会永久阻塞；超时后触发 onFailure |
+| Probe 60s 后自关闭 | 避免对大量离线节点持续空跑 goroutine；重连权交给 ConfigMap 驱动 |
+| PeersRemoved 立即关闭 Probe | 管理服务器检测下线后推送事件，Agent.RemovePeer() 调用 Remove() 即时释放 |
+| Probe.Close() 先置 newIceDialer=nil | 防止 iceDialer.Close() 触发 onClose 回调后 restart() 重建本应关闭的 Probe |
+| STUN 使用 Google 公共服务器 | 内置 STUN 需独立部署配置，未配置时域名无法解析导致 srflx 候选缺失 |
 | PeerID 取公钥前 8 字节 | 紧凑（8 字节 vs 32 字节），适合 NATS 主题和协议帧编码 |
 | Priority 字段统一升降级逻辑 | 未来新增传输类型只需设置优先级值，升级代码无需修改 |

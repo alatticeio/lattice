@@ -421,15 +421,15 @@ jobs:
       # Step 6: Clean up resources
       # ════════════════════════════════════════════════════════════════════════
 
-      - name: "[Step 6a] wireflow token delete"
+      - name: "[Step 6a] wireflow token remove"
         run: |
-          echo ">>> wireflow token delete $TOKEN --signaling-url $SIGNALING_URL"
-          $WIREFLOW token delete "$TOKEN" --signaling-url "$SIGNALING_URL"
+          echo ">>> wireflow token remove $TOKEN -n $NAMESPACE --signaling-url $SIGNALING_URL"
+          $WIREFLOW token remove "$TOKEN" -n "$NAMESPACE" --signaling-url "$SIGNALING_URL"
           REMAINING=$($WIREFLOW token list -n "$NAMESPACE" --signaling-url "$SIGNALING_URL")
           echo "$REMAINING"
           echo "$REMAINING" | grep -q "^$TOKEN" \
             && { echo "❌ Token still present"; exit 1; } \
-            || echo "✅ Token deleted"
+            || echo "✅ Token removed"
 
       - name: "[Step 6b] wireflow policy remove"
         run: |

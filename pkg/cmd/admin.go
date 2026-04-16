@@ -260,9 +260,9 @@ func (c *Client) ListTokens(namespace string) error {
 	return w.Flush()
 }
 
-// RemoveToken revokes an enrollment token by its value.
-func (c *Client) RemoveToken(token string) error {
-	_, err := c.call("token.remove", map[string]string{"token": token})
+// RemoveToken revokes an enrollment token by its value within the given namespace.
+func (c *Client) RemoveToken(namespace, token string) error {
+	_, err := c.call("token.remove", map[string]string{"namespace": namespace, "token": token})
 	if err != nil {
 		return err
 	}

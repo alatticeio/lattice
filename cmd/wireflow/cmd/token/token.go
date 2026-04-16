@@ -30,7 +30,7 @@ func NewTokenCommand() *cobra.Command {
 		Long:  `Tokens authorize agents to join a workspace. Agents use tokens during 'wireflow up'.`,
 		Args:  cobra.MinimumNArgs(1),
 	}
-	cmd.AddCommand(tokenCreateCmd(), tokenListCmd(), tokenDeleteCmd())
+	cmd.AddCommand(tokenCreateCmd(), tokenListCmd(), tokenRemoveCmd())
 	return cmd
 }
 
@@ -99,20 +99,24 @@ func tokenListCmd() *cobra.Command {
 	return c
 }
 
-// tokenDeleteCmd: wireflow token delete <token>
-func tokenDeleteCmd() *cobra.Command {
-	return &cobra.Command{
-		Use:     "delete <token>",
+// tokenRemoveCmd: wireflow token remove <token> -n <namespace>
+func tokenRemoveCmd() *cobra.Command {
+	var namespace string
+	c := &cobra.Command{
+		Use:     "remove <token>",
 		Short:   "Revoke an enrollment token",
-		Aliases: []string{"rm", "remove"},
-		Example: `  wireflow token delete abc123def456`,
+		Aliases: []string{"rm", "delete"},
+		Example: `  wireflow token remove dev-team -n wireflow-system`,
 		Args:    cobra.ExactArgs(1),
 		RunE: func(c *cobra.Command, args []string) error {
 			client, err := cmd.NewClient(config.Conf.SignalingURL)
 			if err != nil {
 				return err
 			}
-			return client.RemoveToken(args[0])
+			return client.RemoveToken(namespace, args[0])
 		},
 	}
+	c.Flags().StringVarP(&namespace, "namespace", "n", "", "namespace the token belongs to")
+	_ = c.MarkFlagRequired("namespace")
+	return c
 }

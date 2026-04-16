@@ -116,8 +116,15 @@ func (f *ProbeFactory) Get(remoteId infra.PeerIdentity) (*Probe, error) {
 
 func (f *ProbeFactory) Remove(appId string) {
 	f.mu.Lock()
-	defer f.mu.Unlock()
+	probe := f.probes[appId]
 	delete(f.probes, appId)
+	f.mu.Unlock()
+
+	// Close outside the lock to avoid deadlock if Close() triggers callbacks
+	// that themselves call into ProbeFactory.
+	if probe != nil {
+		probe.Close()
+	}
 }
 
 func (p *ProbeFactory) NewProbe(remoteId infra.PeerIdentity) (*Probe, error) {
@@ -130,6 +137,7 @@ func (p *ProbeFactory) NewProbe(remoteId infra.PeerIdentity) (*Probe, error) {
 
 	var mu sync.Mutex
 	var remotePeer *infra.Peer
+	var firstFailureAt time.Time
 	onPeerReceived := func(peer infra.Peer) {
 		mu.Lock()
 		p.peerManager.AddPeer(peer.AppID, &peer)
@@ -158,6 +166,7 @@ func (p *ProbeFactory) NewProbe(remoteId infra.PeerIdentity) (*Probe, error) {
 		state:    ice.ConnectionStateNew,
 		onSuccess: func(transport infra.Transport) error {
 			mu.Lock()
+			firstFailureAt = time.Time{} // reset failure clock on successful connection
 			rp := remotePeer
 			mu.Unlock()
 			if rp == nil {
@@ -189,6 +198,22 @@ func (p *ProbeFactory) NewProbe(remoteId infra.PeerIdentity) (*Probe, error) {
 			return p.provisioner.SetupNAT(rp.InterfaceName)
 		},
 		onFailure: func(err error) error {
+			mu.Lock()
+			if firstFailureAt.IsZero() {
+				firstFailureAt = time.Now()
+			}
+			elapsed := time.Since(firstFailureAt)
+			mu.Unlock()
+
+			// After 60s of failed reconnection, give up and let the configmap
+			// drive the next connection attempt: the management server will push
+			// PeersRemoved when it detects the peer offline, and PeersAdded
+			// when it comes back, creating a fresh probe at that point.
+			if elapsed >= 60*time.Second {
+				p.log.Info("peer unreachable for 60s, closing probe", "remoteId", remoteId.AppID)
+				p.Remove(remoteId.AppID)
+				return nil
+			}
 			p.log.Warn("discover failed, retrying in 10s", "remoteId", remoteId.AppID, "err", err)
 			time.AfterFunc(10*time.Second, probe.restart)
 			return nil

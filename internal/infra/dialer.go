@@ -15,6 +15,9 @@ type Dialer interface {
 	// Dial dials remoteId when offer is received.
 	Dial(ctx context.Context) (Transport, error)
 
+	// Close tears down the dialer and releases all resources.
+	Close() error
+
 	// Type returns the dialer type.
 	Type() DialerType
 }

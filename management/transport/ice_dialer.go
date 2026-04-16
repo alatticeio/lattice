@@ -122,7 +122,7 @@ func (i *iceDialer) Handle(ctx context.Context, remoteId infra.PeerIdentity, pac
 		// next 2-second retry cycle.
 		if existingAgent != nil {
 			i.log.Debug("SYN on active agent — remote restarted, forcing close", "remoteId", remoteId)
-			i.close() //nolint:errcheck
+			i.Close() //nolint:errcheck
 			if i.onSynOnActiveAgent != nil {
 				i.onSynOnActiveAgent(ctx, remoteId, packet)
 			}
@@ -254,9 +254,16 @@ func (i *iceDialer) Prepare(ctx context.Context, remoteId infra.PeerIdentity) er
 }
 
 func (i *iceDialer) Dial(ctx context.Context) (infra.Transport, error) {
+	// Use a timeout slightly longer than the SYN window (60 s) so that if no
+	// offer arrives before the initiator gives up sending SYNs, Dial returns
+	// an error.  This causes discover() to fail, which triggers onFailure →
+	// probe.restart() → a fresh SYN cycle, preventing a permanent deadlock
+	// when the passive side stays offline for more than ~71 s.
+	dialCtx, cancel := context.WithTimeout(ctx, 65*time.Second)
+	defer cancel()
 	select {
-	case <-ctx.Done():
-		return nil, ctx.Err()
+	case <-dialCtx.Done():
+		return nil, fmt.Errorf("iceDialer: timed out waiting for offer: %w", dialCtx.Err())
 	case <-i.closeChan:
 		return nil, fmt.Errorf("iceDialer closed before offer received")
 	case <-i.offerReady:
@@ -311,7 +318,7 @@ func (i *iceDialer) getAgent(remoteId infra.PeerIdentity) (*AgentWrapper, error)
 		err = agent.OnConnectionStateChange(func(s ice.ConnectionState) {
 			i.log.Debug("ice state changed", "state", s)
 			if s == ice.ConnectionStateDisconnected || s == ice.ConnectionStateFailed {
-				i.close() //nolint:errcheck
+				i.Close() //nolint:errcheck
 			}
 		})
 		if err != nil {
@@ -385,7 +392,7 @@ func (i *iceDialer) sendPacket(ctx context.Context, remoteId infra.PeerIdentity,
 	return i.sender(ctx, remoteId.ID(), data)
 }
 
-func (i *iceDialer) close() error {
+func (i *iceDialer) Close() error {
 	i.log.Debug("closing ice", "remoteId", i.remoteId)
 	i.closeOnce.Do(func() {
 		i.closed.Store(true)

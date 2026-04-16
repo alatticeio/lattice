@@ -209,6 +209,10 @@ func (w *wrrpDialer) Type() infra.DialerType {
 	return infra.WRRP_DIALER
 }
 
+func (w *wrrpDialer) Close() error {
+	return nil
+}
+
 type WrrpTransport struct {
 	conn net.Conn
 }
