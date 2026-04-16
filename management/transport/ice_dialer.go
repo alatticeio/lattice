@@ -228,6 +228,13 @@ func (i *iceDialer) Prepare(ctx context.Context, remoteId infra.PeerIdentity) er
 		}
 		i.cancel = cancel
 		i.mu.Unlock()
+
+		// Send the first SYN immediately instead of waiting for the first tick.
+		i.log.Debug("send syn")
+		if err := i.sendPacket(ctx, remoteId, grpc.PacketType_HANDSHAKE_SYN, nil); err != nil {
+			i.log.Error("send syn failed", err)
+		}
+
 		for {
 			select {
 			case <-newCtx.Done():
@@ -287,7 +294,10 @@ func (i *iceDialer) getAgent(remoteId infra.PeerIdentity) (*AgentWrapper, error)
 		UDPMux:              i.universalUdpMuxDefault.UDPMuxDefault,
 		UDPMuxSrflx:         i.universalUdpMuxDefault,
 		NetworkTypes:        []ice.NetworkType{ice.NetworkTypeUDP4},
-		Urls:                []*stun.URI{{Scheme: stun.SchemeTypeSTUN, Host: "stun.wireflow.run", Port: 3478}},
+		Urls: []*stun.URI{
+				{Scheme: stun.SchemeTypeSTUN, Host: "stun.l.google.com", Port: 19302},
+				{Scheme: stun.SchemeTypeSTUN, Host: "stun1.l.google.com", Port: 19302},
+			},
 		Tiebreaker:          uint64(ice.NewTieBreaker()),
 		LoggerFactory:       f,
 		CandidateTypes:      []ice.CandidateType{ice.CandidateTypeHost, ice.CandidateTypeServerReflexive},
