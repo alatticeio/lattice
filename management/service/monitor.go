@@ -497,6 +497,8 @@ func (s *monitorService) GetGlobalDashboard(ctx context.Context) (*models.Dashbo
 		wsNodes        = make(map[string]int)
 		wsTraffic      = make(map[string]float64)
 		wsHealth       = make(map[string]float64)
+		globalTrend    models.TrendData
+		topNodes       []models.NodeMonitorDetail
 	)
 
 	// 1. 活跃工作空间数（有数据上报的空间）
@@ -571,6 +573,76 @@ func (s *monitorService) GetGlobalDashboard(ctx context.Context) (*models.Dashbo
 		return nil
 	})
 
+	// 7. 全域吞吐趋势（当天 0 点到现在，4h 粒度 → 最多 6 个点）
+	eg.Go(func() error {
+		midnight := time.Now().Truncate(24 * time.Hour)
+		r := v1.Range{
+			Start: midnight,
+			End:   time.Now(),
+			Step:  4 * time.Hour,
+		}
+		txQ := `sum(irate(wireflow_node_traffic_bytes_total{direction="tx"}[20m])) * 8 / 1e9`
+		rxQ := `sum(irate(wireflow_node_traffic_bytes_total{direction="rx"}[20m])) * 8 / 1e9`
+		txResult, _, _ := s.api.QueryRange(ctx, txQ, r)
+		rxResult, _, _ := s.api.QueryRange(ctx, rxQ, r)
+		trend := s.processMatrixToTrendWithRX(txResult, rxResult)
+		mu.Lock()
+		globalTrend = trend
+		mu.Unlock()
+		return nil
+	})
+
+	// 8. Top 10 节点（24h 流量）+ CPU + 在线状态
+	eg.Go(func() error {
+		trafficVec, err := s.QueryByTime(ctx,
+			`topk(10, sum by (peer_id, network_id) (increase(wireflow_node_traffic_bytes_total[24h])))`,
+			time.Now())
+		if err != nil {
+			return nil
+		}
+
+		cpuVec, _ := s.QueryByTime(ctx, `last_over_time(wireflow_node_cpu_usage_percent[5m])`, time.Now())
+		cpuMap := make(map[string]float64)
+		for _, samp := range cpuVec {
+			cpuMap[string(samp.Metric["peer_id"])] = float64(samp.Value)
+		}
+
+		statusVec, _ := s.QueryByTime(ctx, `last_over_time(wireflow_peer_status[5m])`, time.Now())
+		onlineMap := make(map[string]bool)
+		endpointMap := make(map[string]string)
+		for _, samp := range statusVec {
+			pid := string(samp.Metric["peer_id"])
+			if float64(samp.Value) == 1 {
+				onlineMap[pid] = true
+			}
+			if ep := string(samp.Metric["endpoint"]); ep != "" && endpointMap[pid] == "" {
+				endpointMap[pid] = ep
+			}
+		}
+
+		seen := make(map[string]bool)
+		nodes := make([]models.NodeMonitorDetail, 0, len(trafficVec))
+		for _, samp := range trafficVec {
+			pid := string(samp.Metric["peer_id"])
+			if seen[pid] {
+				continue
+			}
+			seen[pid] = true
+			nodes = append(nodes, models.NodeMonitorDetail{
+				ID:       pid,
+				Name:     pid,
+				Endpoint: endpointMap[pid],
+				Online:   onlineMap[pid],
+				CPU:      cpuMap[pid],
+				TotalTx:  int64(float64(samp.Value)),
+			})
+		}
+		mu.Lock()
+		topNodes = nodes
+		mu.Unlock()
+		return nil
+	})
+
 	if err := eg.Wait(); err != nil {
 		return nil, err
 	}
@@ -596,6 +668,9 @@ func (s *monitorService) GetGlobalDashboard(ctx context.Context) (*models.Dashbo
 		},
 		GlobalEvents: []models.GlobalEventItem{},
 	}
+
+	resp.GlobalTrend = globalTrend
+	resp.TopNodes = topNodes
 
 	// 合并 workspace 数据（以有流量或有节点的空间为准）
 	wsIDs := make(map[string]struct{})

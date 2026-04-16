@@ -1,3 +1,5 @@
+//go:build pro
+
 package server
 
 import (

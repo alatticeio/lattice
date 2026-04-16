@@ -3,11 +3,16 @@ name: CI/CD Pipeline
 on:
   pull_request_target:
     types: [labeled, synchronize]
+  # 新增：当代码合并到主分支时触发
+  push:
+    branches:
+      - master
 
 jobs:
   # 1. 在 GitHub 免费资源上构建并推送
   build-and-push:
     if: |
+      github.event_name == 'push' ||
       contains(github.event.pull_request.labels.*.name, 'ok-to-test') ||
       github.event.pull_request.author_association == 'MEMBER' ||
       github.event.pull_request.author_association == 'OWNER'
@@ -20,7 +25,7 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ github.event_name == 'push' && github.sha || github.event.pull_request.head.sha }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -41,17 +46,24 @@ jobs:
       - name: Build and Push Images
         run: |
           OWNER_LOWER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
-          TAG="pr-${{ github.event.pull_request.number }}"
           REGISTRY="ghcr.io/${OWNER_LOWER}"
+          
+          # 动态设置 TAG：如果是 push 到主分支，设为 latest；否则设为 pr-数字
+          if [ "${{ github.event_name }}" == "push" ]; then
+            TAG="latest"
+          else
+            TAG="pr-${{ github.event.pull_request.number }}"
+          fi
 
           make docker-build SERVICE=wireflowd TAG="$TAG" REGISTRY="$REGISTRY"
           make docker-build SERVICE=wireflow  TAG="$TAG" REGISTRY="$REGISTRY"
           make docker-push  SERVICE=wireflowd TAG="$TAG" REGISTRY="$REGISTRY"
           make docker-push  SERVICE=wireflow  TAG="$TAG" REGISTRY="$REGISTRY"
 
-  # 2. 在 Self-hosted 服务器上部署 all-in-one
+  # 2. 在 Self-hosted 服务器上部署 all-in-one（仅 PR，不在 merge 后重复部署）
   deploy:
     needs: build-and-push
+    if: github.event_name == 'pull_request_target'
     runs-on: self-hosted
 
     steps:

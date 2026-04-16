@@ -5,6 +5,8 @@ type DashboardResponse struct {
 	GlobalStats    []GlobalStatItem    `json:"global_stats"`
 	WorkspaceUsage []WorkspaceUsageRow `json:"workspace_usage"`
 	GlobalEvents   []GlobalEventItem   `json:"global_events"`
+	GlobalTrend    TrendData           `json:"global_trend"` // 24h 吞吐趋势（4h 粒度）
+	TopNodes       []NodeMonitorDetail `json:"top_nodes"`    // Top 10 节点（按 24h 流量）
 }
 
 type GlobalStatItem struct {

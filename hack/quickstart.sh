@@ -56,7 +56,7 @@ if ! command -v kubectl &>/dev/null; then
 fi
 ok "kubectl $(kubectl version --client --short 2>/dev/null | head -1 || echo 'OK')"
 
-# -- port availability --
+# -- port availability (needed for port-forward later) --
 check_port() {
     local port=$1 label=$2
     if lsof -iTCP:"${port}" -sTCP:LISTEN -t &>/dev/null 2>&1; then
@@ -64,7 +64,7 @@ check_port() {
     fi
     ok "Port ${port} (${label}) is available"
 }
-# Only check if this is a fresh install (cluster does not yet exist)
+# Only check on fresh install
 if ! k3d cluster list 2>/dev/null | grep -q "^${CLUSTER_NAME}[[:space:]]"; then
     check_port $API_PORT  "Dashboard / API"
     check_port $NATS_PORT "NATS signaling"
@@ -82,8 +82,6 @@ else
     info "Creating k3d cluster '${CLUSTER_NAME}'..."
     k3d cluster create "${CLUSTER_NAME}" \
         --servers 1 --agents 0 \
-        -p "${API_PORT}:${API_PORT}@loadbalancer" \
-        -p "${NATS_PORT}:${NATS_PORT}@loadbalancer" \
         --k3s-arg "--disable=traefik@server:0"
 fi
 
@@ -122,7 +120,7 @@ kubectl apply -f "${GITHUB_RAW}/deploy/quickstart/wireflow-all-in-one.yaml" >/de
 ok "Manifests applied"
 
 # ─────────────────────────────────────────────────────────────
-# STEP 4  Post-install  (health check + agent connection string)
+# STEP 4  Post-install  (port-forward → health check → summary)
 # ─────────────────────────────────────────────────────────────
 step "Step 4/4  Waiting for Wireflow to become ready"
 
@@ -132,23 +130,6 @@ kubectl wait --for=condition=Ready pod \
     -n "${NAMESPACE}" \
     --timeout="${HEALTH_TIMEOUT}s" || \
     warn "Pod readiness timed out — it may still be pulling the image. Re-run or check: kubectl get pods -n ${NAMESPACE}"
-
-# API health probe
-info "Probing API on localhost:${API_PORT} ..."
-HEALTH_OK=false
-for i in $(seq 1 30); do
-    if curl -sf --max-time 2 "http://localhost:${API_PORT}/metrics" >/dev/null 2>&1; then
-        HEALTH_OK=true
-        break
-    fi
-    sleep 2
-done
-
-if $HEALTH_OK; then
-    ok "API is reachable at http://localhost:${API_PORT}"
-else
-    warn "API is not yet responding. Check pod logs: kubectl logs -l app=wireflowd -n ${NAMESPACE}"
-fi
 
 # Generate initial token
 INITIAL_TOKEN=""
@@ -160,7 +141,6 @@ if command -v wireflow &>/dev/null; then
         -n default \
         --limit 100 \
         --expiry 720h 2>&1) || true
-    # extract the token value (long alphanumeric string)
     INITIAL_TOKEN=$(echo "${TOKEN_OUTPUT}" | grep -oE '[A-Za-z0-9_\-]{24,}' | tail -1 || true)
 fi
 
@@ -198,6 +178,10 @@ echo ""
 echo "  Useful commands:"
 echo "    kubectl get pods -n ${NAMESPACE}"
 echo "    kubectl get wfpeer -A"
+echo ""
+echo "  To access services locally (ClusterIP), run:"
+echo "    kubectl port-forward -n ${NAMESPACE} svc/wireflow-api-service ${API_PORT}:${API_PORT} &"
+echo "    kubectl port-forward -n ${NAMESPACE} svc/wireflow-nats-service ${NATS_PORT}:${NATS_PORT} &"
 echo ""
 echo "  To uninstall:"
 echo "    k3d cluster delete ${CLUSTER_NAME}"

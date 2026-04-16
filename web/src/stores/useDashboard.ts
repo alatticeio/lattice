@@ -1,186 +1,162 @@
 import { defineStore } from 'pinia'
+import { getGlobalDashboard } from '@/api/dashboard'
+import type { GlobalStatItem, GlobalEventItem, NodeMonitorDetail, TrendData } from '@/types/monitor'
 
-// ── Types ─────────────────────────────────────────────────────────────
-export interface MetricCard {
-  label: string
-  value: string
-  subValue?: string
-  icon: string          // lucide icon name
-  tone: 'emerald' | 'blue' | 'violet' | 'amber'
-  barValue: number      // 0-100
-  trend: string
-  trendUp: boolean
+const POLL_INTERVAL = 30_000 // 30s
+const SPARKLINE_LEN = 12
+
+function formatBytes(bytes: number): string {
+    if (bytes >= 1e12) return `${(bytes / 1e12).toFixed(1)} TB`
+    if (bytes >= 1e9) return `${(bytes / 1e9).toFixed(1)} GB`
+    if (bytes >= 1e6) return `${(bytes / 1e6).toFixed(1)} MB`
+    return `${bytes.toFixed(0)} B`
 }
 
-export interface TopoNode {
-  id: string
-  name: string
-  x: number
-  y: number
-  status: 'online' | 'offline' | 'relay'
+// Generate a simple sparkline trending toward `value`
+function makeSparkline(value: number, up: boolean): number[] {
+    const base = value * 0.5
+    return Array.from({ length: SPARKLINE_LEN }, (_, i) => {
+        const progress = i / (SPARKLINE_LEN - 1)
+        const noise = (Math.random() - 0.5) * value * 0.15
+        return up
+            ? base + (value - base) * progress + noise
+            : value - (value - base) * progress + noise
+    })
 }
 
-export interface TopoLink {
-  source: string
-  target: string
-  quality: number
-  type: 'p2p' | 'relay'
-}
+export const useDashboardStore = defineStore('dashboard', {
+    state: () => ({
+        loading: false,
+        error: null as string | null,
 
-export interface WorkspaceCard {
-  name: string
-  slug: string
-  status: 'active' | 'idle' | 'error'
-  nodeUsed: number
-  nodeTotal: number
-  health: number
-}
+        // API data
+        globalStats: [] as GlobalStatItem[],
+        globalEvents: [] as GlobalEventItem[],
+        topNodes: [] as NodeMonitorDetail[],
+        globalTrend: { timestamps: [], tx_data: [], rx_data: [] } as TrendData,
 
-export interface NetworkEvent {
-  time: string
-  type: 'handshake' | 'join' | 'leave' | 'token' | 'warning'
-  content: string
-  ws: string
-  tone: 'emerald' | 'amber' | 'rose' | 'blue'
-}
+        // Rolling real-time sparkline (updated by tick)
+        txHistory: Array(30).fill(0) as number[],
+        rxHistory: Array(30).fill(0) as number[],
+        txRate: 0,
+        rxRate: 0,
 
-// ── Store ──────────────────────────────────────────────────────────────
-const MAX_POINTS = 30
+        _timer: null as ReturnType<typeof setInterval> | null,
+    }),
 
-export const useUserDashboardStore = defineStore('userDashboard', {
-  state: () => ({
-    loading: false,
+    getters: {
+        // Map GlobalStatItem → stat card shape expected by dashboard/index.vue
+        statCards: (state) => {
+            const iconNames = ['Server', 'Activity', 'ShieldCheck', 'AlertTriangle']
+            return state.globalStats.slice(0, 4).map((s, i) => ({
+                title: s.label,
+                value: `${s.value} ${s.unit}`.trim(),
+                change: s.trend,
+                trend: s.trendUp ? ('up' as const) : ('down' as const),
+                iconName: iconNames[i] ?? 'Server',
+                sparkline: makeSparkline(parseFloat(s.value) || 1, s.trendUp),
+            }))
+        },
 
-    // Section 2: Metric cards
-    metrics: [
-      {
-        label: '在线节点',
-        value: '4 / 6',
-        icon: 'Cpu',
-        tone: 'emerald',
-        barValue: 67,
-        trend: '+1 今日',
-        trendUp: true,
-      },
-      {
-        label: '活跃工作空间',
-        value: '4',
-        icon: 'Server',
-        tone: 'blue',
-        barValue: 80,
-        trend: '稳定',
-        trendUp: true,
-      },
-      {
-        label: '网络成员',
-        value: '5',
-        icon: 'Users',
-        tone: 'violet',
-        barValue: 50,
-        trend: '+2 本周',
-        trendUp: true,
-      },
-      {
-        label: '有效 TOKEN',
-        value: '4',
-        icon: 'KeyRound',
-        tone: 'amber',
-        barValue: 67,
-        trend: '1 即将过期',
-        trendUp: false,
-      },
-    ] as MetricCard[],
+        // Top 5 nodes sorted by CPU for the bar chart
+        nodeLoadBar: (state) =>
+            [...state.topNodes]
+                .sort((a, b) => b.cpu - a.cpu)
+                .slice(0, 5)
+                .map(n => ({
+                    name: n.name,
+                    load: Math.round(n.cpu),
+                })),
 
-    // Section 3: Mini topology
-    topoNodes: [
-      { id: 'alpha', name: 'node-alpha', x: 220, y: 90, status: 'online' },
-      { id: 'beta', name: 'node-beta', x: 370, y: 160, status: 'online' },
-      { id: 'gamma', name: 'node-gamma', x: 80, y: 170, status: 'offline' },
-      { id: 'delta', name: 'node-delta', x: 300, y: 270, status: 'online' },
-      { id: 'epsilon', name: 'node-epsilon', x: 150, y: 260, status: 'relay' },
-      { id: 'relay1', name: 'relay-01', x: 220, y: 190, status: 'relay' },
-    ] as TopoNode[],
+        // Top 5 nodes sorted by traffic for the table
+        topTrafficNodes: (state) =>
+            [...state.topNodes]
+                .sort((a, b) => b.total_tx - a.total_tx)
+                .slice(0, 5)
+                .map(n => ({
+                    name: n.name,
+                    ip: n.endpoint || '—',
+                    traffic: formatBytes(n.total_tx + n.total_rx),
+                    load: Math.round(n.cpu),
+                    status: n.online ? 'Healthy' : 'Offline',
+                })),
 
-    topoLinks: [
-      { source: 'alpha', target: 'beta', quality: 95, type: 'p2p' },
-      { source: 'alpha', target: 'gamma', quality: 0, type: 'relay' },
-      { source: 'alpha', target: 'relay1', quality: 88, type: 'p2p' },
-      { source: 'beta', target: 'delta', quality: 72, type: 'p2p' },
-      { source: 'relay1', target: 'epsilon', quality: 60, type: 'relay' },
-      { source: 'relay1', target: 'delta', quality: 45, type: 'relay' },
-      { source: 'epsilon', target: 'gamma', quality: 0, type: 'relay' },
-    ] as TopoLink[],
+        // Audit log entries mapped to dashboard tone colours
+        auditLogs: (state) =>
+            state.globalEvents.slice(0, 10).map(e => ({
+                time: e.time,
+                user: e.ws || 'System',
+                action: e.type,
+                target: e.content,
+                tone: e.tone || 'blue',
+            })),
 
-    // Section 3: Real-time traffic
-    txHistory: Array(MAX_POINTS).fill(0) as number[],
-    rxHistory: Array(MAX_POINTS).fill(0) as number[],
-    txRate: 0,
-    rxRate: 0,
-    avgLatency: 0,
+        chartTimeline: (state): string[] =>
+            state.globalTrend.timestamps.length > 0
+                ? state.globalTrend.timestamps
+                : ['00:00', '04:00', '08:00', '12:00', '16:00', '20:00'],
 
-    // Section 4: Workspace overview (top 4)
-    workspaces: [
-      { name: 'Production', slug: 'prod-cluster', status: 'active', nodeUsed: 6, nodeTotal: 8, health: 98 },
-      { name: 'Staging', slug: 'staging-env', status: 'active', nodeUsed: 3, nodeTotal: 4, health: 92 },
-      { name: 'Dev Lab', slug: 'dev-lab', status: 'idle', nodeUsed: 1, nodeTotal: 4, health: 100 },
-      { name: 'QA Network', slug: 'qa-net', status: 'error', nodeUsed: 2, nodeTotal: 4, health: 75 },
-    ] as WorkspaceCard[],
+        txChartData: (state): number[] =>
+            state.globalTrend.tx_data.length > 0
+                ? state.globalTrend.tx_data
+                : Array(6).fill(0),
 
-    // Section 4: Network events
-    events: [
-      { time: '12:04:32', type: 'handshake', content: 'node-alpha 握手完成 (p2p)', ws: 'prod', tone: 'emerald' },
-      { time: '12:04:15', type: 'join', content: '新成员 francis 加入工作空间', ws: 'staging', tone: 'blue' },
-      { time: '12:03:58', type: 'token', content: 'Token api-key-007 被使用', ws: 'dev-lab', tone: 'amber' },
-      { time: '12:03:42', type: 'leave', content: 'node-gamma 离线', ws: 'qa-net', tone: 'rose' },
-      { time: '12:03:30', type: 'handshake', content: 'node-beta 重连 via relay', ws: 'prod', tone: 'amber' },
-      { time: '12:02:58', type: 'join', content: 'node-epsilon p2p 连接建立', ws: 'prod', tone: 'emerald' },
-    ] as NetworkEvent[],
-
-    // Header summary counts
-    workspaceCount: 4,
-    nodeCount: 6,
-    memberCount: 5,
-  }),
-
-  actions: {
-    tick() {
-      const tx = Math.random() * 8 + 1
-      const rx = Math.random() * 6 + 0.5
-      this.txHistory.push(tx)
-      this.txHistory.shift()
-      this.rxHistory.push(rx)
-      this.rxHistory.shift()
-      this.txRate = tx
-      this.rxRate = rx
-      this.avgLatency = Math.floor(Math.random() * 40 + 20)
-
-      // Occasionally add a new network event
-      if (Math.random() > 0.5) {
-        const peers = ['node-alpha', 'node-beta', 'node-epsilon', 'node-zeta']
-        const tones: NetworkEvent['tone'][] = ['emerald', 'amber', 'rose', 'blue']
-        const types: NetworkEvent['type'][] = ['handshake', 'join', 'leave', 'token']
-        const wsList = ['prod', 'staging', 'dev-lab', 'qa-net']
-        const peer = peers[Math.floor(Math.random() * peers.length)]
-        const type = types[Math.floor(Math.random() * types.length)]
-        const tone = tones[Math.floor(Math.random() * tones.length)]
-        const ws = wsList[Math.floor(Math.random() * wsList.length)]
-        const now = new Date()
-        const ts = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`
-        const contents: Record<NetworkEvent['type'], string> = {
-          handshake: `${peer} 握手完成`,
-          join: `${peer} 已加入网络`,
-          leave: `${peer} 已断开连接`,
-          token: `Token 被 ${peer} 使用`,
-          warning: `${peer} 延迟异常`,
-        }
-        this.events.unshift({ time: ts, type, content: contents[type], ws, tone })
-        if (this.events.length > 20) this.events.pop()
-      }
+        rxChartData: (state): number[] =>
+            state.globalTrend.rx_data.length > 0
+                ? state.globalTrend.rx_data
+                : Array(6).fill(0),
     },
 
-    // kept for backward compatibility
-    async refresh() {
-      this.tick()
+    actions: {
+        async fetch() {
+            this.loading = true
+            this.error = null
+            try {
+                const res = await getGlobalDashboard()
+                const d = res.data
+                this.globalStats = d.global_stats ?? []
+                this.globalEvents = d.global_events ?? []
+                this.topNodes = d.top_nodes ?? []
+                this.globalTrend = d.global_trend ?? { timestamps: [], tx_data: [], rx_data: [] }
+
+                // Seed rolling sparkline from latest trend point
+                const txLast = this.globalTrend.tx_data.at(-1) ?? 0
+                const rxLast = this.globalTrend.rx_data.at(-1) ?? 0
+                this.txRate = txLast
+                this.rxRate = rxLast
+            } catch (e: any) {
+                this.error = e?.message ?? 'Failed to load dashboard'
+            } finally {
+                this.loading = false
+            }
+        },
+
+        tick() {
+            // Keep sparklines alive between API polls
+            const txNoise = this.txRate * 0.1 * (Math.random() - 0.5)
+            const rxNoise = this.rxRate * 0.1 * (Math.random() - 0.5)
+            const tx = Math.max(0, this.txRate + txNoise)
+            const rx = Math.max(0, this.rxRate + rxNoise)
+            this.txHistory.push(tx)
+            this.txHistory.shift()
+            this.rxHistory.push(rx)
+            this.rxHistory.shift()
+        },
+
+        startPolling() {
+            this.fetch()
+            if (this._timer) return
+            // Poll API every 30s
+            this._timer = setInterval(() => this.fetch(), POLL_INTERVAL)
+            // Animate sparklines every 2s
+            setInterval(() => this.tick(), 2000)
+        },
+
+        stopPolling() {
+            if (this._timer) {
+                clearInterval(this._timer)
+                this._timer = null
+            }
+        },
     },
-  },
 })

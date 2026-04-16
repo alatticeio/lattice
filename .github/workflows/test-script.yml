@@ -3,12 +3,14 @@ name: Test README Scripts
 # Validates every CLI command documented in README.md, step by step,
 # simulating exactly what a real user would run on a fresh machine.
 #
-# Setup phase:  bash hack/quickstart.sh  (installs k3d, creates cluster, deploys control plane)
-# Test phase:   README Steps 1–6         (workspace → token → agents → policy → status/ping → cleanup)
+# Uses published wireflowio images — no build or image import required.
+# Setup:  bash hack/quickstart.sh  (installs k3d, creates cluster, deploys
+#         wireflowd, kubectl port-forward 8080/4222, waits for ready)
+# Test:   README Steps 1-6
 
 on:
   push:
-    branches: [dev,dev_release]
+    branches: [dev]
   pull_request:
     branches: [master, main]
   workflow_dispatch:
@@ -16,10 +18,10 @@ on:
 env:
   SIGNALING_URL: nats://localhost:4222
   SERVER_URL: http://localhost:8080
+  AGENT_IMAGE: ghcr.io/wireflowio/wireflow:latest
 
 permissions:
   contents: read
-  packages: write
 
 jobs:
   test-readme-scripts:
@@ -27,8 +29,6 @@ jobs:
     timeout-minutes: 40
 
     steps:
-      # ── Toolchain ─────────────────────────────────────────────────────────
-
       - name: Checkout
         uses: actions/checkout@v4
 
@@ -43,50 +43,34 @@ jobs:
         with:
           version: 10.32.1
 
-      # ── Build images from the current branch ──────────────────────────────
-      # In a real user flow they'd pull ghcr.io/wireflowio/wireflowd:latest.
-      # We build from source so the workflow tests the current branch code.
-
-      - name: "Build wireflowd Docker image"
-        run: |
-          OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
-          make docker-build SERVICE=wireflowd TAG="ci-test" REGISTRY="ghcr.io/${OWNER}"
-          echo "OWNER=${OWNER}" >> $GITHUB_ENV
-          echo "✅ wireflowd image built"
-
-      - name: "Build wireflow (agent) Docker image"
-        run: |
-          make docker-build SERVICE=wireflow TAG="ci-test" REGISTRY="ghcr.io/${OWNER}"
-          echo "✅ wireflow image built"
-
-      # ── Run quickstart.sh (exactly as documented in README) ───────────────
-      # The script:
-      #   1. Checks / installs k3d and kubectl
-      #   2. Creates a k3d cluster with -p "8080:8080@loadbalancer" -p "4222:4222@loadbalancer"
-      #   3. Applies CRDs from config/crd/bases/
-      #   4. Applies deploy/quickstart/wireflow-all-in-one.yaml
-      #   5. Waits for pod Ready + API health probe
+      # ── Run quickstart.sh ──────────────────────────────────────────────────
+      # Installs k3d, creates cluster, applies CRDs, deploys
+      # ghcr.io/wireflowio/wireflowd:latest, waits for pod Ready.
 
       - name: "Run hack/quickstart.sh (README Quick Start)"
         run: bash hack/quickstart.sh
 
-      # ── Swap in CI-built image ─────────────────────────────────────────────
-      # quickstart.sh deployed ghcr.io/wireflowio/wireflowd:latest (published).
-      # Replace it with the image built from the current branch.
+      # ── Port-forward ClusterIP services to localhost ───────────────────────
+      # Services are ClusterIP; port-forward makes them reachable at
+      # localhost:8080 (API) and localhost:4222 (NATS) for all subsequent steps.
 
-      - name: "Load CI wireflowd image into k3d and roll out"
+      - name: "Port-forward API and NATS to localhost"
         run: |
-          k3d image import "ghcr.io/${OWNER}/wireflowd:ci-test" -c wireflow
-          kubectl set image deployment/wireflow-aio \
-            wireflowd="ghcr.io/${OWNER}/wireflowd:ci-test" \
-            -n wireflow-system
-          kubectl rollout status deployment/wireflow-aio -n wireflow-system --timeout=120s
-          echo "✅ CI-built wireflowd is running"
+          kubectl port-forward -n wireflow-system \
+            svc/wireflow-api-service 8080:8080 >/dev/null 2>&1 &
+          kubectl port-forward -n wireflow-system \
+            svc/wireflow-nats-service 4222:4222 >/dev/null 2>&1 &
 
-      - name: "Load CI wireflow (agent) image into k3d"
-        run: |
-          k3d image import "ghcr.io/${OWNER}/wireflow:ci-test" -c wireflow
-          echo "✅ wireflow agent image loaded"
+          echo "Waiting for ports to be ready..."
+          for port in 8080 4222; do
+            for i in $(seq 1 20); do
+              nc -z 127.0.0.1 "$port" 2>/dev/null && break || true
+              sleep 1
+            done
+            nc -z 127.0.0.1 "$port" 2>/dev/null \
+              && echo "✅ localhost:$port ready" \
+              || { echo "❌ localhost:$port not reachable"; exit 1; }
+          done
 
       # ── Build wireflow CLI from source ────────────────────────────────────
 
@@ -98,9 +82,7 @@ jobs:
           echo "✅ wireflow CLI ready"
 
       # ════════════════════════════════════════════════════════════════════════
-      # README Step 1: Create a workspace
-      # wireflow workspace add dev --display-name "Development" --signaling-url nats://localhost:4222
-      # wireflow workspace list --signaling-url nats://localhost:4222
+      # Step 1: Create a workspace
       # ════════════════════════════════════════════════════════════════════════
 
       - name: "[Step 1a] wireflow workspace add"
@@ -126,9 +108,7 @@ jobs:
             || { echo "❌ Workspace not found in list"; exit 1; }
 
       # ════════════════════════════════════════════════════════════════════════
-      # README Step 2: Create an enrollment token
-      # wireflow token create dev-team -n <namespace> --limit 10 --expiry 168h
-      # wireflow token list  -n <namespace>
+      # Step 2: Create an enrollment token
       # ════════════════════════════════════════════════════════════════════════
 
       - name: "[Step 2a] wireflow token create"
@@ -153,7 +133,7 @@ jobs:
           echo "✅ Token extracted: ${TOKEN:0:8}..."
 
       # ════════════════════════════════════════════════════════════════════════
-      # README Step 3: Start agents
+      # Step 3: Start agents
       # docker run -d --name wf-agent --restart unless-stopped \
       #   --privileged --network host \
       #   ghcr.io/wireflowio/wireflow:latest \
@@ -171,11 +151,9 @@ jobs:
             && echo "✅ Namespace $NAMESPACE ready" \
             || { echo "❌ Namespace not created"; kubectl get ns; exit 1; }
 
-      - name: "[Step 3] Start Agent A and Agent B (docker run — exactly as README shows)"
+      - name: "[Step 3] Start Agent A and Agent B"
         run: |
-          AGENT_IMAGE="ghcr.io/${OWNER}/wireflow:ci-test"
-
-          echo ">>> docker run -d --name wf-agent-a --restart unless-stopped --privileged --network host ..."
+          echo ">>> docker run -d --name wf-agent-a --privileged --network host $AGENT_IMAGE up ..."
           docker run -d \
             --name wf-agent-a \
             --restart unless-stopped \
@@ -188,7 +166,7 @@ jobs:
             --server-url "$SERVER_URL" \
             --token "$TOKEN"
 
-          echo ">>> docker run -d --name wf-agent-b --restart unless-stopped --privileged --network host ..."
+          echo ">>> docker run -d --name wf-agent-b --privileged --network host $AGENT_IMAGE up ..."
           docker run -d \
             --name wf-agent-b \
             --restart unless-stopped \
@@ -203,9 +181,8 @@ jobs:
 
           echo "✅ Both agent containers started"
 
-      - name: "Wait for both agents to register with control plane"
+      - name: "Wait for both agents to register"
         run: |
-          echo "Polling 'wireflow workspace list' until node count ≥ 2..."
           for i in $(seq 1 36); do
             NODE_COUNT=$($WIREFLOW workspace list --signaling-url "$SIGNALING_URL" 2>/dev/null \
               | awk '/dev/ {print $4}' || echo 0)
@@ -222,9 +199,7 @@ jobs:
             || { echo "❌ Expected ≥2 nodes, got ${NODE_COUNT:-0}"; docker logs wf-agent-a; exit 1; }
 
       # ════════════════════════════════════════════════════════════════════════
-      # README Step 4: Allow traffic between peers
-      # wireflow policy allow-all -n <namespace> --signaling-url ...
-      # wireflow policy add my-policy -n <namespace> --action ALLOW ...
+      # Step 4: Allow traffic between peers
       # ════════════════════════════════════════════════════════════════════════
 
       - name: "[Step 4a] wireflow policy allow-all"
@@ -233,9 +208,9 @@ jobs:
           $WIREFLOW policy allow-all -n "$NAMESPACE" --signaling-url "$SIGNALING_URL"
           echo "✅ allow-all policy applied"
 
-      - name: "[Step 4b] wireflow policy add (fine-grained)"
+      - name: "[Step 4b] wireflow policy add"
         run: |
-          echo ">>> wireflow policy add my-policy -n $NAMESPACE --action ALLOW --desc ... --signaling-url $SIGNALING_URL"
+          echo ">>> wireflow policy add my-policy -n $NAMESPACE --action ALLOW --signaling-url $SIGNALING_URL"
           $WIREFLOW policy add my-policy \
             -n "$NAMESPACE" \
             --action ALLOW \
@@ -243,7 +218,7 @@ jobs:
             --signaling-url "$SIGNALING_URL"
           echo "✅ my-policy added"
 
-      - name: "[Step 4c] wireflow policy list — verify both policies exist"
+      - name: "[Step 4c] wireflow policy list"
         run: |
           echo ">>> wireflow policy list -n $NAMESPACE --signaling-url $SIGNALING_URL"
           POLICIES=$($WIREFLOW policy list -n "$NAMESPACE" --signaling-url "$SIGNALING_URL")
@@ -254,12 +229,10 @@ jobs:
             && echo "✅ my-policy present" || { echo "❌ my-policy missing"; exit 1; }
 
       # ════════════════════════════════════════════════════════════════════════
-      # README Step 5: Verify connectivity
-      # wireflow status
-      # ping <peer-ip>
+      # Step 5: Verify connectivity
       # ════════════════════════════════════════════════════════════════════════
 
-      - name: "[Step 5a] wireflow status — check Agent A interface and peers"
+      - name: "[Step 5a] wireflow status"
         run: |
           echo "Waiting 20s for WireGuard handshake to complete..."
           sleep 20
@@ -272,24 +245,17 @@ jobs:
             && echo "✅ Interface present" \
             || { echo "❌ No interface info in status output"; exit 1; }
 
-          echo "$STATUS" | grep -q "Peers:" \
-            && echo "✅ Peer section present" \
-            || echo "⚠️  Peer section not yet visible (tunnel may still be forming)"
-
-      - name: "[Step 5b] Ping Agent A → Agent B (tunnel verification)"
+      - name: "[Step 5b] Ping Agent A → Agent B"
         run: |
-          echo ">>> docker exec wf-agent-b wireflow status"
           STATUS_B=$(docker exec wf-agent-b wireflow status 2>/dev/null || true)
           echo "$STATUS_B"
 
-          # Extract WireGuard IP from "Address   : 10.x.x.x/yy"
           IP_B=$(echo "$STATUS_B" | awk '/^Address/ {print $3}' | head -1 | cut -d'/' -f1)
 
           if [[ -z "$IP_B" ]]; then
             IP_B=$(docker exec wf-agent-b \
               sh -c 'ip addr show | awk "/inet / && !/127\./ && !/172\./ && !/10\.96\./{print \$2}" | head -1 | cut -d/ -f1' \
               2>/dev/null || true)
-            echo "Fallback IP from ip addr: $IP_B"
           fi
 
           echo "Agent B WireGuard IP: ${IP_B:-(unknown)}"
@@ -298,61 +264,47 @@ jobs:
             echo ">>> docker exec wf-agent-a ping -c 5 -W 3 $IP_B"
             docker exec wf-agent-a ping -c 5 -W 3 "$IP_B" \
               && echo "✅ Ping succeeded — WireGuard tunnel is working" \
-              || echo "⚠️  Ping failed — tunnel may still be establishing (non-fatal in CI)"
+              || echo "⚠️  Ping failed (non-fatal in CI)"
           else
             echo "⚠️  Could not determine Agent B WireGuard IP — skipping ping"
           fi
 
       # ════════════════════════════════════════════════════════════════════════
-      # README Step 6: Clean up resources
-      # wireflow token delete <token>
-      # wireflow policy remove <name> -n <namespace>
-      # wireflow workspace remove <namespace>
-      # kubectl delete -k .../overlays/all-in-one
+      # Step 6: Clean up resources
       # ════════════════════════════════════════════════════════════════════════
 
       - name: "[Step 6a] wireflow token delete"
         run: |
           echo ">>> wireflow token delete $TOKEN --signaling-url $SIGNALING_URL"
           $WIREFLOW token delete "$TOKEN" --signaling-url "$SIGNALING_URL"
-          echo "✅ Token deleted"
-
           REMAINING=$($WIREFLOW token list -n "$NAMESPACE" --signaling-url "$SIGNALING_URL")
           echo "$REMAINING"
           echo "$REMAINING" | grep -q "^$TOKEN" \
-            && { echo "❌ Token still present after delete"; exit 1; } \
-            || echo "✅ Token no longer in list"
+            && { echo "❌ Token still present"; exit 1; } \
+            || echo "✅ Token deleted"
 
-      - name: "[Step 6b] wireflow policy remove my-policy"
+      - name: "[Step 6b] wireflow policy remove"
         run: |
           echo ">>> wireflow policy remove my-policy -n $NAMESPACE --signaling-url $SIGNALING_URL"
           $WIREFLOW policy remove my-policy -n "$NAMESPACE" --signaling-url "$SIGNALING_URL"
-          echo "✅ my-policy removed"
-
           POLICIES=$($WIREFLOW policy list -n "$NAMESPACE" --signaling-url "$SIGNALING_URL")
           echo "$POLICIES"
           echo "$POLICIES" | grep -q "my-policy" \
             && { echo "❌ my-policy still present"; exit 1; } \
-            || echo "✅ my-policy no longer in list"
+            || echo "✅ my-policy removed"
 
       - name: "[Step 6c] wireflow workspace remove"
         run: |
           echo ">>> wireflow workspace remove $NAMESPACE --signaling-url $SIGNALING_URL"
           $WIREFLOW workspace remove "$NAMESPACE" --signaling-url "$SIGNALING_URL"
-          echo "✅ Workspace removed"
-
           WORKSPACES=$($WIREFLOW workspace list --signaling-url "$SIGNALING_URL")
           echo "$WORKSPACES"
           echo "$WORKSPACES" | grep -q "$NAMESPACE" \
             && { echo "❌ Workspace still present"; exit 1; } \
-            || echo "✅ Workspace no longer in list"
+            || echo "✅ Workspace removed"
 
-      - name: "[Step 6d] Uninstall control plane and delete cluster"
+      - name: "[Step 6d] Delete cluster"
         run: |
-          echo ">>> kubectl delete -k config/wireflow/overlays/all-in-one"
-          kubectl delete -k config/wireflow/overlays/all-in-one --ignore-not-found || true
-
-          echo ">>> k3d cluster delete wireflow"
           k3d cluster delete wireflow
           echo "✅ Cluster deleted"
 
@@ -361,9 +313,6 @@ jobs:
       - name: Collect failure logs
         if: failure()
         run: |
-          echo "===== k3d nodes ====="
-          kubectl get nodes -o wide || true
-
           echo "===== wireflow-system pods ====="
           kubectl get all -n wireflow-system -o wide || true
 

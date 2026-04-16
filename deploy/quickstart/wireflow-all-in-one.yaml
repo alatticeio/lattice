@@ -294,7 +294,7 @@ metadata:
     app.kubernetes.io/managed-by: kustomize
     app.kubernetes.io/name: wireflowd
     app.kubernetes.io/part-of: wireflow
-  name: wireflow-nats
+  name: wireflow-nats-service
   namespace: wireflow-system
 spec:
   ports:
