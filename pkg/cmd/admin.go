@@ -115,9 +115,20 @@ func (c *Client) AddPolicy(namespace, name, action, description string) error {
 	return nil
 }
 
-// AllowAll creates a full-mesh allow-all policy for the given namespace.
+// AllowAll creates a full-mesh allow-all policy using the network label selector.
 func (c *Client) AllowAll(namespace string) error {
-	return c.AddPolicy(namespace, "allow-all", "ALLOW", "allow all peer traffic (created by CLI)")
+	data, err := c.call("policy.allow-all", map[string]string{"namespace": namespace})
+	if err != nil {
+		return err
+	}
+	var p vo.PolicyVo
+	if err = json.Unmarshal(data, &p); err != nil {
+		return err
+	}
+	fmt.Printf("policy %q applied (full-mesh, network label selector)\n", p.Name)
+	fmt.Printf("  action:  %s\n", p.Action)
+	fmt.Printf("  types:   %s\n", strings.Join(p.PolicyTypes, ", "))
+	return nil
 }
 
 // RemovePolicy deletes a policy by name from the given namespace.
@@ -152,6 +163,67 @@ func (c *Client) ListPolicies(namespace string) error {
 	for _, p := range list {
 		fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", //nolint:errcheck
 			p.Name, p.Action, strings.Join(p.PolicyTypes, ","), p.Description)
+	}
+	return w.Flush()
+}
+
+// ── peer ──────────────────────────────────────────────────────────────────────
+
+type peerRow struct {
+	Name    string            `json:"name"`
+	AppID   string            `json:"app_id"`
+	IP      string            `json:"ip"`
+	Network string            `json:"network"`
+	Phase   string            `json:"phase"`
+	Labels  map[string]string `json:"labels"`
+}
+
+// ListPeers prints all WireflowPeers in the given namespace.
+func (c *Client) ListPeers(namespace string) error {
+	data, err := c.call("peer.list", map[string]string{"namespace": namespace})
+	if err != nil {
+		return err
+	}
+	var list []peerRow
+	if err = json.Unmarshal(data, &list); err != nil {
+		return err
+	}
+	if len(list) == 0 {
+		fmt.Printf("no peers in namespace %q\n", namespace)
+		return nil
+	}
+	w := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
+	fmt.Fprintln(w, "NAME\tAPP-ID\tIP\tNETWORK\tPHASE") //nolint:errcheck
+	for _, p := range list {
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", //nolint:errcheck
+			p.Name, p.AppID, p.IP, p.Network, p.Phase)
+	}
+	return w.Flush()
+}
+
+// PeerLabel merges the given labels into the WireflowPeer's metadata.labels.
+// labels is a map of key → value parsed from "key=value" CLI args.
+func (c *Client) PeerLabel(namespace, peerName string, labels map[string]string) error {
+	data, err := c.call("peer.label", map[string]any{
+		"namespace": namespace,
+		"peer_name": peerName,
+		"labels":    labels,
+	})
+	if err != nil {
+		return err
+	}
+	var result struct {
+		Peer   string            `json:"peer"`
+		Labels map[string]string `json:"labels"`
+	}
+	if err = json.Unmarshal(data, &result); err != nil {
+		return err
+	}
+	fmt.Printf("labels updated on peer %q\n", result.Peer)
+	w := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
+	fmt.Fprintln(w, "KEY\tVALUE") //nolint:errcheck
+	for k, v := range result.Labels {
+		fmt.Fprintf(w, "%s\t%s\n", k, v) //nolint:errcheck
 	}
 	return w.Flush()
 }

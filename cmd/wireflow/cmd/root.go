@@ -17,6 +17,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"wireflow/cmd/wireflow/cmd/peer"
 	"wireflow/cmd/wireflow/cmd/policy"
 	"wireflow/cmd/wireflow/cmd/token"
 	"wireflow/cmd/wireflow/cmd/workspace"
@@ -83,4 +84,5 @@ func init() {
 	rootCmd.AddCommand(token.NewTokenCommand())
 	rootCmd.AddCommand(workspace.NewWorkspaceCommand())
 	rootCmd.AddCommand(policy.NewPolicyCommand())
+	rootCmd.AddCommand(peer.NewPeerCommand())
 }

@@ -187,10 +187,13 @@ func (s *Server) Start(ctx context.Context) error {
 		"wireflow.signals.service.workspace.remove": s.NatsRemoveWorkspace,
 		"wireflow.signals.service.workspace.list":   s.NatsListWorkspaces,
 		"wireflow.signals.service.policy.add":       s.NatsAddPolicy,
+		"wireflow.signals.service.policy.allow-all": s.NatsAllowAll,
 		"wireflow.signals.service.policy.remove":    s.NatsRemovePolicy,
 		"wireflow.signals.service.policy.list":      s.NatsListPolicies,
 		"wireflow.signals.service.token.list":       s.NatsListTokens,
 		"wireflow.signals.service.token.remove":     s.NatsRemoveToken,
+		"wireflow.signals.service.peer.list":        s.NatsPeerList,
+		"wireflow.signals.service.peer.label":       s.NatsPeerLabel,
 	}
 
 	for route, handler := range routes {

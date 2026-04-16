@@ -19,11 +19,30 @@ import (
 	"encoding/json"
 	"fmt"
 	"time"
+	"wireflow/api/v1alpha1"
 	"wireflow/internal/infra"
 	"wireflow/management/dto"
+
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 // ── request types ─────────────────────────────────────────────────────────────
+
+type peerLabelReq struct {
+	Namespace string            `json:"namespace"`
+	PeerName  string            `json:"peer_name"`
+	Labels    map[string]string `json:"labels"`
+}
+
+type peerListReq struct {
+	Namespace string `json:"namespace"`
+}
+
+type allowAllReq struct {
+	Namespace string `json:"namespace"`
+}
 
 type workspaceAddReq struct {
 	Slug        string `json:"slug"`
@@ -233,6 +252,153 @@ func (s *Server) NatsListTokens(data []byte) ([]byte, error) {
 		return nil, err
 	}
 	return marshal(tokens.List)
+}
+
+// ── peer handlers ─────────────────────────────────────────────────────────────
+
+// NatsPeerList lists WireflowPeers in the given namespace.
+func (s *Server) NatsPeerList(data []byte) ([]byte, error) {
+	var req peerListReq
+	if err := json.Unmarshal(data, &req); err != nil {
+		return nil, fmt.Errorf("invalid request: %w", err)
+	}
+	if req.Namespace == "" {
+		return nil, fmt.Errorf("namespace is required")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	var peerList v1alpha1.WireflowPeerList
+	if err := s.client.List(ctx, &peerList, client.InNamespace(req.Namespace)); err != nil {
+		return nil, fmt.Errorf("list peers: %w", err)
+	}
+	type peerRow struct {
+		Name    string            `json:"name"`
+		AppID   string            `json:"app_id"`
+		IP      string            `json:"ip"`
+		Network string            `json:"network"`
+		Phase   string            `json:"phase"`
+		Labels  map[string]string `json:"labels"`
+	}
+	rows := make([]peerRow, 0, len(peerList.Items))
+	for _, p := range peerList.Items {
+		ip := ""
+		if p.Status.AllocatedAddress != nil {
+			ip = *p.Status.AllocatedAddress
+		}
+		network := ""
+		if p.Spec.Network != nil {
+			network = *p.Spec.Network
+		}
+		rows = append(rows, peerRow{
+			Name:    p.Name,
+			AppID:   p.Spec.AppId,
+			IP:      ip,
+			Network: network,
+			Phase:   string(p.Status.Phase),
+			Labels:  p.Labels,
+		})
+	}
+	return marshal(rows)
+}
+
+// NatsPeerLabel merges new labels into a WireflowPeer's metadata.labels.
+func (s *Server) NatsPeerLabel(data []byte) ([]byte, error) {
+	var req peerLabelReq
+	if err := json.Unmarshal(data, &req); err != nil {
+		return nil, fmt.Errorf("invalid request: %w", err)
+	}
+	if req.Namespace == "" || req.PeerName == "" {
+		return nil, fmt.Errorf("namespace and peer_name are required")
+	}
+	if len(req.Labels) == 0 {
+		return nil, fmt.Errorf("at least one label key=value is required")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	peer := &v1alpha1.WireflowPeer{}
+	if err := s.client.Get(ctx, types.NamespacedName{
+		Name:      req.PeerName,
+		Namespace: req.Namespace,
+	}, peer); err != nil {
+		return nil, fmt.Errorf("peer %q not found in %q: %w", req.PeerName, req.Namespace, err)
+	}
+
+	original := peer.DeepCopy()
+	if peer.Labels == nil {
+		peer.Labels = make(map[string]string)
+	}
+	for k, v := range req.Labels {
+		peer.Labels[k] = v
+	}
+	if err := s.client.Patch(ctx, peer, client.MergeFrom(original)); err != nil {
+		return nil, fmt.Errorf("patch peer labels: %w", err)
+	}
+	return marshal(map[string]any{
+		"peer":   req.PeerName,
+		"labels": peer.Labels,
+	})
+}
+
+// NatsAllowAll creates a full-mesh ALLOW policy using the network label selector
+// that the peer controller automatically assigns: wireflow.run/network-{name}=true.
+func (s *Server) NatsAllowAll(data []byte) ([]byte, error) {
+	var req allowAllReq
+	if err := json.Unmarshal(data, &req); err != nil {
+		return nil, fmt.Errorf("invalid request: %w", err)
+	}
+	if req.Namespace == "" {
+		return nil, fmt.Errorf("namespace is required")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// Find the WireflowNetwork in this namespace to get the network name.
+	// The peer controller labels each WireflowPeer with
+	//   wireflow.run/network-{networkName}=true
+	// so we need the network name to build the matching PeerSelector.
+	var netList v1alpha1.WireflowNetworkList
+	if err := s.client.List(ctx, &netList, client.InNamespace(req.Namespace)); err != nil {
+		return nil, fmt.Errorf("list WireflowNetworks: %w", err)
+	}
+	if len(netList.Items) == 0 {
+		return nil, fmt.Errorf("no WireflowNetwork found in namespace %q — is the workspace ready?", req.Namespace)
+	}
+	networkName := netList.Items[0].Name
+	labelKey := fmt.Sprintf("wireflow.run/network-%s", networkName)
+
+	peerSel := metav1.LabelSelector{
+		MatchLabels: map[string]string{labelKey: "true"},
+	}
+
+	ctx, err := s.workspaceCtxByNs(ctx, req.Namespace)
+	if err != nil {
+		return nil, err
+	}
+
+	vo, err := s.policyController.CreateOrUpdatePolicy(ctx, &dto.PolicyDto{
+		Name:        "allow-all",
+		Namespace:   req.Namespace,
+		Action:      "ALLOW",
+		Description: "full-mesh allow-all (created by CLI)",
+		PolicyTypes: []string{"Ingress", "Egress"},
+		WireflowPolicySpec: v1alpha1.WireflowPolicySpec{
+			Network:      networkName,
+			PeerSelector: peerSel,
+			Action:       "ALLOW",
+			Ingress: []v1alpha1.IngressRule{
+				{From: []v1alpha1.PeerSelection{{PeerSelector: &peerSel}}},
+			},
+			Egress: []v1alpha1.EgressRule{
+				{To: []v1alpha1.PeerSelection{{PeerSelector: &peerSel}}},
+			},
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+	return marshal(vo)
 }
 
 func (s *Server) NatsRemoveToken(data []byte) ([]byte, error) {

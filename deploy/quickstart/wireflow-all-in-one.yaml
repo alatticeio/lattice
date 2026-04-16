@@ -303,7 +303,7 @@ spec:
     targetPort: 4222
   selector:
     app.kubernetes.io/name: wireflowd
-  type: ClusterIP
+  type: LoadBalancer
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim

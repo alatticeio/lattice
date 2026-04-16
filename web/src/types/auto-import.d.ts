@@ -69,6 +69,7 @@ declare global {
   const useConfirm: typeof import('../composables/useConfirm').useConfirm
   const useCssModule: typeof import('vue').useCssModule
   const useCssVars: typeof import('vue').useCssVars
+  const useDashboardStore: typeof import('../stores/useDashboard').useDashboardStore
   const useId: typeof import('vue').useId
   const useModel: typeof import('vue').useModel
   const useMonitorStore: typeof import('../stores/monitor').useMonitorStore
@@ -102,9 +103,6 @@ declare global {
   // @ts-ignore
   export type { Theme, ColorScheme, RadiusValue, FontFamily, AppConfig } from '../composables/useAppConfig'
   import('../composables/useAppConfig')
-  // @ts-ignore
-  export type { MetricCard, TopoNode, TopoLink, WorkspaceCard, NetworkEvent } from '../stores/useDashboard'
-  import('../stores/useDashboard')
   // @ts-ignore
   export type { User } from '../stores/user'
   import('../stores/user')

@@ -82,7 +82,8 @@ else
     info "Creating k3d cluster '${CLUSTER_NAME}'..."
     k3d cluster create "${CLUSTER_NAME}" \
         --servers 1 --agents 0 \
-        --k3s-arg "--disable=traefik@server:0"
+        --k3s-arg "--disable=traefik@server:0" \
+        --port "4222:4222@loadbalancer"
 fi
 
 k3d kubeconfig merge "${CLUSTER_NAME}" --kubeconfig-merge-default >/dev/null
