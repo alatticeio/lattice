@@ -162,10 +162,17 @@ func (p *Probe) discover(ctx context.Context) (infra.Transport, error) {
 	result := make(chan infra.Transport, dialerCount)
 	errs := make(chan error, dialerCount)
 
+	// wrrpWon is set to true when WRRP wins the initial race and ICE has not
+	// yet arrived within the 500 ms upgrade window.  The ICE goroutine reads
+	// this flag to decide whether to call handleUpgradeTransport:
+	//   - false (default): ICE was the initial winner; probe.Start() calls
+	//     onSuccess exactly once — no second call needed.
+	//   - true: WRRP won; ICE arrives later as an upgrade path and must call
+	//     handleUpgradeTransport to switch the WireGuard endpoint.
+	var wrrpWon atomic.Bool
+
 	// ICE goroutine: completes the full SYN→ACK→OFFER→Dial handshake.
 	// Dial blocks until an OFFER is received (up to 65s) or ctx is cancelled.
-	// On success the transport is also forwarded to handleUpgradeTransport so
-	// that a later-arriving ICE connection can replace an already-active WRRP.
 	go func() {
 		p.log.Debug("Starting ice dialer", "remoteId", p.remoteId)
 		if err := p.iceDialer.Prepare(ctx, p.remoteId); err != nil {
@@ -178,8 +185,14 @@ func (p *Probe) discover(ctx context.Context) (infra.Transport, error) {
 			return
 		}
 		result <- t
-		if err = p.handleUpgradeTransport(t); err != nil {
-			p.log.Error("Upgrade transport failed", err)
+		// Only upgrade when WRRP already owns the active transport.
+		// When ICE wins the race discover() returns it directly and
+		// probe.Start() calls onSuccess — a second call here would
+		// double-apply AddPeer/ApplyRoute/SetupNAT and cause reconnects.
+		if wrrpWon.Load() {
+			if err = p.handleUpgradeTransport(t); err != nil {
+				p.log.Error("Upgrade transport failed", err)
+			}
 		}
 	}()
 
@@ -216,6 +229,8 @@ func (p *Probe) discover(ctx context.Context) (infra.Transport, error) {
 					_ = t.Close()
 					return iceT, nil
 				case <-time.After(500 * time.Millisecond):
+					// WRRP wins; mark so the ICE goroutine knows to upgrade later.
+					wrrpWon.Store(true)
 				}
 			}
 			return t, nil
