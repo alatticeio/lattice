@@ -3,7 +3,7 @@ name: Wireflow E2E Test
 on:
   push:
     branches:
-      - dev_e2e
+      - dev
   pull_request:
     types: [labeled, opened, synchronize, reopened]
     branches:

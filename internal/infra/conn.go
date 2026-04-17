@@ -255,30 +255,41 @@ func (b *DefaultBind) makeReceiveIPv4(pc *ipv4.PacketConn, udpConn *net.UDPConn)
 			}
 			numMsgs = 1
 		}
+		n = 0
 		for i := 0; i < numMsgs; i++ {
 			msg := &(*msgs)[i]
-			//here should hand stun message
-
 			ok, err := b.universalUdpMux.FilterMessage(msg.Buffers[0], msg.N, msg.Addr.(*net.UDPAddr))
 			if err != nil {
 				b.logger.Error("handle stun message error", err)
-				return 0, nil
+				continue // skip malformed packet, keep processing the rest
 			}
-
 			if ok {
-				return 0, nil
+				continue // STUN handled internally; skip without dropping other packets
 			}
-
-			sizes[i] = msg.N
-			addrPort := msg.Addr.(*net.UDPAddr).AddrPort()
+			// Non-STUN (WireGuard) packet: compact to position n.
+			// When STUN packets appear earlier in the batch (i > n), swap the
+			// buffer and metadata so the caller sees a contiguous slice [0, n).
+			if n != i {
+				bufs[n], bufs[i] = bufs[i], bufs[n]
+				(*msgs)[n].Buffers[0] = bufs[n]
+				(*msgs)[i].Buffers[0] = bufs[i]
+				(*msgs)[n].N, (*msgs)[i].N = (*msgs)[i].N, (*msgs)[n].N
+				(*msgs)[n].Addr, (*msgs)[i].Addr = (*msgs)[i].Addr, (*msgs)[n].Addr
+				(*msgs)[n].OOB, (*msgs)[i].OOB = (*msgs)[i].OOB, (*msgs)[n].OOB
+				(*msgs)[n].NN, (*msgs)[i].NN = (*msgs)[i].NN, (*msgs)[n].NN
+			}
+			msgN := &(*msgs)[n]
+			sizes[n] = msgN.N
+			addrPort := msgN.Addr.(*net.UDPAddr).AddrPort()
 			ep := &WRRPEndpoint{
 				Addr:          addrPort,
 				TransportType: ICE,
-			} // TODO: remove allocation
-			getSrcFromControl(msg.OOB[:msg.NN], ep)
-			eps[i] = ep
+			}
+			getSrcFromControl(msgN.OOB[:msgN.NN], ep)
+			eps[n] = ep
+			n++
 		}
-		return numMsgs, nil
+		return n, nil
 	}
 }
 
@@ -303,28 +314,38 @@ func (b *DefaultBind) makeReceiveIPv6(pc *ipv6.PacketConn, udpConn *net.UDPConn)
 			}
 			numMsgs = 1
 		}
+		n = 0
 		for i := 0; i < numMsgs; i++ {
 			msg := &(*msgs)[i]
-
 			ok, err := b.universalUdpMux.FilterMessage(msg.Buffers[0], msg.N, msg.Addr.(*net.UDPAddr))
 			if err != nil {
 				b.logger.Error("handle stun message error", err)
-				return 0, nil
+				continue
 			}
-
 			if ok {
-				return 0, nil
+				continue
 			}
-			sizes[i] = msg.N
-			addrPort := msg.Addr.(*net.UDPAddr).AddrPort()
+			if n != i {
+				bufs[n], bufs[i] = bufs[i], bufs[n]
+				(*msgs)[n].Buffers[0] = bufs[n]
+				(*msgs)[i].Buffers[0] = bufs[i]
+				(*msgs)[n].N, (*msgs)[i].N = (*msgs)[i].N, (*msgs)[n].N
+				(*msgs)[n].Addr, (*msgs)[i].Addr = (*msgs)[i].Addr, (*msgs)[n].Addr
+				(*msgs)[n].OOB, (*msgs)[i].OOB = (*msgs)[i].OOB, (*msgs)[n].OOB
+				(*msgs)[n].NN, (*msgs)[i].NN = (*msgs)[i].NN, (*msgs)[n].NN
+			}
+			msgN := &(*msgs)[n]
+			sizes[n] = msgN.N
+			addrPort := msgN.Addr.(*net.UDPAddr).AddrPort()
 			ep := &WRRPEndpoint{
 				Addr:          addrPort,
 				TransportType: ICE,
-			} // TODO: remove allocation
-			getSrcFromControl(msg.OOB[:msg.NN], ep)
-			eps[i] = ep
+			}
+			getSrcFromControl(msgN.OOB[:msgN.NN], ep)
+			eps[n] = ep
+			n++
 		}
-		return numMsgs, nil
+		return n, nil
 	}
 }
 

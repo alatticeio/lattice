@@ -209,6 +209,18 @@ func (s *NatsSignalService) Request(ctx context.Context, subject, method string,
 	return resp.Data, nil
 }
 
+// SetReconnectedHandler registers a callback that is invoked each time the
+// NATS client successfully reconnects to the server.  Use this to re-register
+// application state that the server loses on restart (e.g. peer registration,
+// network-map re-fetch).  The callback is run in a new goroutine so it must
+// not block the NATS internal reconnect loop.
+func (s *NatsSignalService) SetReconnectedHandler(fn func()) {
+	s.nc.SetReconnectHandler(func(_ *natsgo.Conn) {
+		s.log.Info("NATS reconnected, triggering re-registration")
+		go fn()
+	})
+}
+
 // Close drains in-flight messages and closes the NATS connection, immediately
 // notifying the server to remove all subscriptions for this client.
 func (s *NatsSignalService) Close() error {

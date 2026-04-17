@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
+	"time"
 	"wireflow/internal/infra"
 	"wireflow/internal/ipam"
 
@@ -35,7 +36,9 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
@@ -133,7 +136,9 @@ func (r *PeerReconciler) reconcileJoinNetwork(ctx context.Context, peer *v1alpha
 		}
 
 		if ok {
-			return ctrl.Result{}, nil
+			// status patch 不改变 generation，GenerationChangedPredicate 不会触发重新入队，
+			// 必须显式 Requeue 才能继续后续步骤
+			return ctrl.Result{RequeueAfter: time.Millisecond * 100}, nil
 		}
 	}
 
@@ -178,7 +183,7 @@ func (r *PeerReconciler) reconcileJoinNetwork(ctx context.Context, peer *v1alpha
 	}
 
 	if ok {
-		//直接返回，等下次reconcile
+		// spec patch（包含 PrivateKey 等字段）会增加 generation，GenerationChangedPredicate 会触发重入队
 		return ctrl.Result{}, nil
 	}
 
@@ -223,7 +228,8 @@ func (r *PeerReconciler) reconcileJoinNetwork(ctx context.Context, peer *v1alpha
 	}
 
 	if ok {
-		return ctrl.Result{}, nil
+		// 同理：status patch 不改变 generation，需要显式 Requeue
+		return ctrl.Result{RequeueAfter: time.Millisecond * 100}, nil
 	}
 
 	return r.lastReconcile(ctx, peer, request)
@@ -272,6 +278,14 @@ func (r *PeerReconciler) lastReconcile(ctx context.Context, peer *v1alpha1.Wiref
 			return ctrl.Result{}, err
 		}
 
+		// Also persist hash in status so the next reconcile (triggered by the
+		// ConfigMap Create event) sees CurrentHash == newHash and skips cleanly.
+		if _, err := r.updateStatus(ctx, peer, func(node *v1alpha1.WireflowPeer) {
+			node.Status.CurrentHash = newHash
+		}); err != nil {
+			return ctrl.Result{}, err
+		}
+
 		if r.Recorder != nil {
 			r.Recorder.Eventf(peer, corev1.EventTypeNormal, "ConfigMapCreated",
 				"configmap=%s hash=%s version=%s", configMapName, newHash, message.ConfigVersion)
@@ -279,20 +293,31 @@ func (r *PeerReconciler) lastReconcile(ctx context.Context, peer *v1alpha1.Wiref
 		return ctrl.Result{}, nil
 	}
 
-	oldHash := ""
-	if found.Annotations != nil {
-		oldHash = found.Annotations["wireflow.run/config-hash"]
-	}
+	// Fix oldHash using peer status CurrentHash
+	oldHash := peer.Status.CurrentHash
+
 	if oldHash == newHash {
 		logger.Info("Configmap unchanged by hash, skipping update", "name", configMapName, "hash", newHash)
 		return ctrl.Result{}, nil
 	}
 
-	logger.Info("Updating configmap by hash", "name", configMapName, "oldHash", oldHash, "newHash", newHash)
+	logger.Info("Updating configmap by hash", "namespace", peer.Namespace, "name", configMapName, "oldHash", oldHash, "newHash", newHash)
 	manager := client.FieldOwner("wireflow-controller-manager")
 	if err := r.Patch(ctx, desiredConfigMap, client.Apply, manager); err != nil {
 		logger.Error(err, "Failed to update configmap")
 		return ctrl.Result{}, err
+	}
+
+	ok, err := r.updateStatus(ctx, peer, func(node *v1alpha1.WireflowPeer) {
+		node.Status.CurrentHash = newHash
+	})
+
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+
+	if ok {
+		return ctrl.Result{}, nil
 	}
 
 	if r.Recorder != nil {
@@ -362,7 +387,7 @@ func (r *PeerReconciler) reconcileLeaveNetwork(ctx context.Context, peer *v1alph
 		}
 
 		if ok {
-			return ctrl.Result{}, nil
+			return ctrl.Result{RequeueAfter: time.Millisecond * 100}, nil
 		}
 	}
 
@@ -388,7 +413,7 @@ func (r *PeerReconciler) reconcileLeaveNetwork(ctx context.Context, peer *v1alph
 	}
 
 	if ok {
-		//直接返回，等下次reconcile
+		// spec patch (Network=nil) 会增加 generation，GenerationChangedPredicate 会触发重入队
 		return ctrl.Result{}, nil
 	}
 
@@ -414,7 +439,7 @@ func (r *PeerReconciler) reconcileLeaveNetwork(ctx context.Context, peer *v1alph
 			return ctrl.Result{}, err
 		}
 		if ok {
-			return ctrl.Result{}, nil
+			return ctrl.Result{RequeueAfter: time.Millisecond * 100}, nil
 		}
 	}
 
@@ -535,24 +560,46 @@ func (r *PeerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		r.generator = NewGenerator(mgr.GetClient())
 	}
 
+	// 定义一个只管更新的过滤器
+	onlyUpdatePredicate := predicate.Funcs{
+		CreateFunc: func(e event.CreateEvent) bool {
+			// 启动时的全量加载会触发这里，返回 false 拦截掉
+			return false
+		},
+	}
+
 	ownedCMPredicate := predicate.NewPredicateFuncs(func(obj client.Object) bool {
 		return obj.GetLabels()["app.kubernetes.io/managed-by"] == "wireflow-controller"
 	})
 
+	configMapPredicate := predicate.Funcs{
+		// 不响应 Create：控制器自己 Create configmap 后无需再 enqueue peer（
+		// Status.CurrentHash 已写入，下次 reconcile 会直接跳过）
+		CreateFunc: func(e event.CreateEvent) bool { return false },
+		UpdateFunc: func(e event.UpdateEvent) bool {
+			oldCm := e.ObjectOld.(*corev1.ConfigMap)
+			newCm := e.ObjectNew.(*corev1.ConfigMap)
+			// 只有 Data 内容真正变了，才触发 map 函数（外部修改才需要自愈）
+			return !reflect.DeepEqual(oldCm.Data, newCm.Data)
+		},
+	}
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&v1alpha1.WireflowPeer{}).
+		For(&v1alpha1.WireflowPeer{}, builder.WithPredicates(predicate.GenerationChangedPredicate{})).
 		Watches(&v1alpha1.WireflowNetwork{},
 			handler.EnqueueRequestsFromMapFunc(r.mapNetworkForNodes),
-			builder.WithPredicates(predicate.GenerationChangedPredicate{})).
+			builder.WithPredicates(predicate.And(onlyUpdatePredicate, predicate.GenerationChangedPredicate{}))).
 		Watches(&v1alpha1.WireflowEndpoint{},
 			handler.EnqueueRequestsFromMapFunc(r.mapEndpointForNodes),
-			builder.WithPredicates(predicate.ResourceVersionChangedPredicate{})).
+			builder.WithPredicates(predicate.And(onlyUpdatePredicate, predicate.GenerationChangedPredicate{}))).
 		Watches(&corev1.ConfigMap{},
 			handler.EnqueueRequestsFromMapFunc(r.mapConfigMapForNodes),
-			builder.WithPredicates(predicate.And(predicate.ResourceVersionChangedPredicate{}, ownedCMPredicate))).
+			builder.WithPredicates(predicate.And(configMapPredicate, ownedCMPredicate))).
 		Watches(&v1alpha1.WireflowPolicy{},
 			handler.EnqueueRequestsFromMapFunc(r.mapPolicyForNodes),
-			builder.WithPredicates(predicate.ResourceVersionChangedPredicate{})).Named("node").Complete(r)
+			builder.WithPredicates(predicate.And(onlyUpdatePredicate, predicate.GenerationChangedPredicate{}))).
+		Named("node").WithOptions(controller.Options{
+		MaxConcurrentReconciles: 5,
+	}).Complete(r)
 }
 
 // mapNetworkForNodes returns a list of Reconcile Requests for Peers that should be updated based on the given WireflowNetwork.
@@ -640,8 +687,7 @@ func (r *PeerReconciler) mapPolicyForNodes(ctx context.Context, obj client.Objec
 		// 记录错误，无法解析选择器
 		return nil
 	}
-	//TODO 是不是不可用？
-	if err = r.List(ctx, &nodeList, client.MatchingLabelsSelector{
+	if err = r.List(ctx, &nodeList, client.InNamespace(policy.Namespace), client.MatchingLabelsSelector{
 		Selector: selector,
 	}); err != nil {
 		return nil
@@ -718,7 +764,7 @@ func (r *PeerReconciler) findPeersByNetwork(ctx context.Context, network *v1alph
 	}
 
 	var peers v1alpha1.WireflowPeerList
-	if err := r.List(ctx, &peers, client.MatchingLabels(labels)); err != nil {
+	if err := r.List(ctx, &peers, client.InNamespace(network.Namespace), client.MatchingLabels(labels)); err != nil {
 		return nil, err
 	}
 
@@ -734,7 +780,17 @@ func (r *PeerReconciler) filterPoliciesForNode(ctx context.Context, peer *v1alph
 	matched := make([]*v1alpha1.WireflowPolicy, 0)
 	nodeLabelSet := labels.Set(peer.Labels)
 
+	peerNetwork := ""
+	if peer.Spec.Network != nil {
+		peerNetwork = *peer.Spec.Network
+	}
+
 	for _, policy := range policyList.Items {
+		// 只匹配同一网络的 policy，避免其他网络的 policy 影响当前 peer 的 hash
+		if policy.Spec.Network != peerNetwork {
+			continue
+		}
+
 		selector, err := metav1.LabelSelectorAsSelector(&policy.Spec.PeerSelector)
 		if err != nil {
 			// selector 写错时：你可以选择忽略该 policy 或直接返回错误

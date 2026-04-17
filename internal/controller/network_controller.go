@@ -22,17 +22,19 @@ import (
 	"time"
 	"wireflow/internal/ipam"
 
+	"wireflow/api/v1alpha1"
+
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/event"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-
-	"wireflow/api/v1alpha1"
 )
 
 // NetworkReconciler reconciles a WireflowNetwork object
@@ -224,12 +226,19 @@ func (r *NetworkReconciler) findNodesByLabels(ctx context.Context, network *v1al
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *NetworkReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	// 启动时 informer 全量加载会产生 Create 事件；用 onlyUpdatePredicate 过滤掉，
+	// 避免冷启动时每个 Peer 的 Create 都触发 Network reconcile。
+	// 同时用 GenerationChangedPredicate 确保只有 Peer spec 真正变化（加入/离开网络）才触发，
+	// 过滤掉 Status.CurrentHash 等 status-only 更新。
+	peerChangedPredicate := predicate.And(
+		predicate.Funcs{CreateFunc: func(e event.CreateEvent) bool { return false }},
+		predicate.GenerationChangedPredicate{},
+	)
 	return ctrl.NewControllerManagedBy(mgr).
 		// GenerationChangedPredicate 过滤 status 子资源更新，避免 NetworkReconciler 被自己的 status patch 反复触发
 		For(&v1alpha1.WireflowNetwork{}, builder.WithPredicates(predicate.GenerationChangedPredicate{})).
-		//Watches(&v1alpha1.WireflowPeer{},
-		//	handler.EnqueueRequestsFromMapFunc(r.mapNodeForNetworks),
-		//	builder.WithPredicates(predicate.ResourceVersionChangedPredicate{})).
+		Watches(&v1alpha1.WireflowPeer{}, handler.EnqueueRequestsFromMapFunc(r.mapNodeForNetworks),
+			builder.WithPredicates(peerChangedPredicate)).
 		Named("network").
 		Complete(r)
 }

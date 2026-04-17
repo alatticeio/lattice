@@ -2,10 +2,8 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { listPolicy, createPolicy, deletePolicy, updatePolicy } from '@/api/policy'
 import { useTable } from "@/composables/useApi"
-import { useConfirm } from '@/composables/useConfirm'
 
 export const usePolicyPageStore = defineStore('policyPage', () => {
-    const { confirm } = useConfirm()
 
     // --- 1. State ---
     const { rows, total, loading, params, refresh } = useTable(listPolicy, {
@@ -183,17 +181,16 @@ export const usePolicyPageStore = defineStore('policyPage', () => {
             }
         },
 
-        async handleDelete(policy: any, toast:any) {
-            const ok = await confirm({ title: '确认删除？', message: `策略: ${policy.name}`, type: 'danger' })
-            if (ok) {
-                loading.value = true
-                try {
-                    await deletePolicy(policy.name)
-                    toast("删除成功")
-                    refresh()
-                } finally {
-                    loading.value = false
-                }
+        async handleDelete(policy: any, toast: any) {
+            loading.value = true
+            try {
+                await deletePolicy(policy.name)
+                toast("删除成功")
+                refresh()
+            } catch (e) {
+                toast("删除失败", "error")
+            } finally {
+                loading.value = false
             }
         }
     }

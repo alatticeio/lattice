@@ -57,6 +57,15 @@ async function confirmDelete() {
   deleteTarget.value = null
 }
 
+// ── Detail dialog ─────────────────────────────────────────────────
+const detailOpen   = ref(false)
+const detailPolicy = ref<Policy | null>(null)
+
+function openDetail(policy: Policy) {
+  detailPolicy.value = policy
+  detailOpen.value = true
+}
+
 // ── Search & action filter (client-side over loaded rows) ─────────
 const searchValue    = ref('')
 const actionFilter   = ref<'all' | 'Allow' | 'Deny'>('all')
@@ -204,7 +213,7 @@ const columns: ColumnDef<Policy>[] = [
     header: '',
     cell: ({ row }) => {
       const policy = row.original
-      return h(DropdownMenu, {}, {
+      return h('div', { onClick: (e: Event) => e.stopPropagation() }, [h(DropdownMenu, {}, {
         default: () => [
           h(DropdownMenuTrigger, { asChild: true }, () =>
             h(Button, { variant: 'ghost', size: 'sm', class: 'size-8 p-0' }, () =>
@@ -222,7 +231,7 @@ const columns: ColumnDef<Policy>[] = [
             }, () => [h(Trash2, { class: 'mr-2 size-3.5' }), '删除']),
           ]),
         ],
-      })
+      })])
     },
   },
 ]
@@ -392,6 +401,8 @@ const table = useVueTable({
             <TableRow
               v-for="row in table.getRowModel().rows"
               :key="row.id"
+              class="cursor-pointer"
+              @click="openDetail(row.original)"
             >
               <TableCell v-for="cell in row.getVisibleCells()" :key="cell.id">
                 <FlexRender :render="cell.column.columnDef.cell" :props="cell.getContext()" />
@@ -440,6 +451,117 @@ const table = useVueTable({
     />
 
   </div>
+
+  <!-- ── Detail Dialog ─────────────────────────────────────────── -->
+  <Dialog :open="detailOpen" @update:open="v => { if (!v) detailOpen = false }">
+    <DialogContent class="sm:max-w-lg">
+      <DialogHeader>
+        <DialogTitle class="flex items-center gap-2.5">
+          <div :class="`size-8 rounded-lg flex items-center justify-center shrink-0 ${detailPolicy?.action === 'Deny' ? 'bg-rose-500/10' : 'bg-emerald-500/10'}`">
+            <Shield :class="`size-4 ${detailPolicy?.action === 'Deny' ? 'text-rose-500' : 'text-emerald-500'}`" />
+          </div>
+          <span>{{ detailPolicy?.name }}</span>
+          <span :class="`ml-1 text-xs font-semibold px-2 py-0.5 rounded-full ${actionBadge[detailPolicy?.action ?? 'Allow'] ?? actionBadge.Allow}`">
+            {{ detailPolicy?.action ?? 'Allow' }}
+          </span>
+        </DialogTitle>
+        <DialogDescription>{{ detailPolicy?.description || '无描述' }}</DialogDescription>
+      </DialogHeader>
+
+      <div class="space-y-4 py-1 max-h-[60vh] overflow-y-auto pr-1">
+
+        <!-- Direction -->
+        <div class="space-y-1.5">
+          <p class="text-xs font-semibold text-muted-foreground uppercase tracking-wider">策略方向</p>
+          <div class="flex gap-1.5">
+            <template v-if="detailPolicy?.policyTypes?.length">
+              <span
+                v-for="t in detailPolicy.policyTypes" :key="t"
+                :class="`flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-md ${typeBadge[t] ?? 'bg-muted text-muted-foreground'}`"
+              >
+                <ArrowDown v-if="t === 'Ingress'" class="size-3" />
+                <ArrowUp v-else class="size-3" />
+                {{ t }}
+              </span>
+            </template>
+            <span v-else class="text-xs text-muted-foreground/40 italic">未设置</span>
+          </div>
+        </div>
+
+        <!-- Peer selector -->
+        <div class="space-y-1.5">
+          <p class="text-xs font-semibold text-muted-foreground uppercase tracking-wider">目标选择器</p>
+          <div class="flex flex-wrap gap-1.5">
+            <template v-if="Object.keys(detailPolicy?.peerSelector?.matchLabels ?? {}).length">
+              <span
+                v-for="[k, v] in Object.entries(detailPolicy!.peerSelector!.matchLabels!)" :key="k"
+                class="font-mono text-xs px-2 py-0.5 rounded bg-muted/60 text-muted-foreground ring-1 ring-border"
+              >{{ k }}={{ v }}</span>
+            </template>
+            <span v-else class="text-xs text-muted-foreground/40 italic">未设置</span>
+          </div>
+        </div>
+
+        <!-- Ingress rules -->
+        <div v-if="detailPolicy?.ingress?.length" class="space-y-2">
+          <p class="text-xs font-semibold flex items-center gap-1.5 text-blue-600 dark:text-blue-400">
+            <ArrowDown class="size-3.5" /> Ingress 规则
+          </p>
+          <div
+            v-for="(rule, i) in detailPolicy.ingress" :key="i"
+            class="grid grid-cols-2 gap-2 p-3 rounded-lg border border-border bg-muted/20 text-xs"
+          >
+            <div class="space-y-0.5">
+              <p class="text-[10px] text-muted-foreground/50 uppercase font-semibold">来源</p>
+              <p class="font-mono">
+                {{ (() => { const ml = rule.from?.[0]?.peerSelector?.matchLabels ?? {}; const k = Object.keys(ml)[0]; return k ? `${k}=${ml[k]}` : '—' })() }}
+              </p>
+            </div>
+            <div class="space-y-0.5">
+              <p class="text-[10px] text-muted-foreground/50 uppercase font-semibold">端口</p>
+              <p class="font-mono">{{ rule.ports?.[0]?.port || '—' }} {{ rule.ports?.[0]?.protocol || '' }}</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Egress rules -->
+        <div v-if="detailPolicy?.egress?.length" class="space-y-2">
+          <p class="text-xs font-semibold flex items-center gap-1.5 text-violet-600 dark:text-violet-400">
+            <ArrowUp class="size-3.5" /> Egress 规则
+          </p>
+          <div
+            v-for="(rule, i) in detailPolicy.egress" :key="i"
+            class="grid grid-cols-2 gap-2 p-3 rounded-lg border border-border bg-muted/20 text-xs"
+          >
+            <div class="space-y-0.5">
+              <p class="text-[10px] text-muted-foreground/50 uppercase font-semibold">目标</p>
+              <p class="font-mono">
+                {{ (() => { const ml = rule.to?.[0]?.peerSelector?.matchLabels ?? {}; const k = Object.keys(ml)[0]; return k ? `${k}=${ml[k]}` : '—' })() }}
+              </p>
+            </div>
+            <div class="space-y-0.5">
+              <p class="text-[10px] text-muted-foreground/50 uppercase font-semibold">端口</p>
+              <p class="font-mono">{{ rule.ports?.[0]?.port || '—' }} {{ rule.ports?.[0]?.protocol || '' }}</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- No rules hint -->
+        <p
+          v-if="!detailPolicy?.ingress?.length && !detailPolicy?.egress?.length"
+          class="text-xs text-muted-foreground/40 italic"
+        >无具体规则</p>
+
+      </div>
+
+      <DialogFooter>
+        <Button variant="outline" @click="detailOpen = false">关闭</Button>
+        <Button @click="() => { detailOpen = false; store.actions.openDrawer('edit', detailPolicy) }">
+          <Pencil class="size-3.5 mr-1.5" /> 编辑
+        </Button>
+      </DialogFooter>
+    </DialogContent>
+  </Dialog>
 
   <!-- ── Create / Edit Dialog ───────────────────────────────────── -->
   <Dialog :open="store.isDrawerOpen" @update:open="v => { if (!v) store.isDrawerOpen = false }">

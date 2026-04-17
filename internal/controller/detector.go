@@ -376,7 +376,7 @@ func (d *Generator) buildPolicy(ctx context.Context, src *v1alpha1.WireflowPolic
 	srcIngresses := src.Spec.Ingress
 	srcEgresses := src.Spec.Egress
 	for _, ingress := range srcIngresses {
-		peers, err := d.getPeerFromLabels(ctx, ingress.From)
+		peers, err := d.getPeerFromLabels(ctx, src.Namespace, src.Spec.Network, ingress.From)
 		if err != nil {
 			log.Error(err, "failed to get peers from labels", "labels", ingress.From)
 			continue
@@ -397,7 +397,7 @@ func (d *Generator) buildPolicy(ctx context.Context, src *v1alpha1.WireflowPolic
 	}
 
 	for _, egress := range srcEgresses {
-		peers, err := d.getPeerFromLabels(ctx, egress.To)
+		peers, err := d.getPeerFromLabels(ctx, src.Namespace, src.Spec.Network, egress.To)
 		if err != nil {
 			log.Error(err, "failed to get peers from labels", "labels", egress.To)
 			continue
@@ -421,7 +421,7 @@ func (d *Generator) buildPolicy(ctx context.Context, src *v1alpha1.WireflowPolic
 	return policy
 }
 
-func (d *Generator) getPeerFromLabels(ctx context.Context, rules []v1alpha1.PeerSelection) ([]*infra.Peer, error) {
+func (d *Generator) getPeerFromLabels(ctx context.Context, namespace, networkName string, rules []v1alpha1.PeerSelection) ([]*infra.Peer, error) {
 	// 使用 map 来存储已找到的节点，以确保结果不重复
 	// key: 节点的 UID，value: 节点对象本身
 	foundNodes := make(map[types.UID]v1alpha1.WireflowPeer)
@@ -436,10 +436,20 @@ func (d *Generator) getPeerFromLabels(ctx context.Context, rules []v1alpha1.Peer
 
 		var nodeList v1alpha1.WireflowPeerList
 
-		// 2. 针对每一个选择器执行一次独立的 List API 调用
+		// 2. 针对每一个选择器执行一次独立的 List API 调用，限定命名空间和网络，
+		// 避免跨 namespace 重名 peer 导致排序非确定性，以及跨网络 peer 混入 policy 规则
 		// 这实现了 OR 逻辑（匹配选择器 A 的节点集合 + 匹配选择器 B 的节点集合）
-		// 确保 ListOptions 放在最后
-		if err := d.client.List(ctx, &nodeList, client.MatchingLabelsSelector{Selector: selector}); err != nil {
+		listOpts := []client.ListOption{
+			client.InNamespace(namespace),
+			client.MatchingLabelsSelector{Selector: selector},
+		}
+		// 只选取属于同一网络的 peer，同一 namespace 不同网络的 peer 不应混入
+		if networkName != "" {
+			listOpts = append(listOpts, client.MatchingLabels{
+				fmt.Sprintf("wireflow.run/network-%s", networkName): "true",
+			})
+		}
+		if err := d.client.List(ctx, &nodeList, listOpts...); err != nil {
 			// 记录 API 调用错误
 			return nil, fmt.Errorf("failed to list nodes with selector %s: %w", selector.String(), err)
 		}

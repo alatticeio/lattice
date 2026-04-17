@@ -60,6 +60,7 @@ type Agent struct {
 
 	current *infra.Peer
 
+	token          string
 	callback       func(message *infra.Message) error // nolint
 	messageHandler Handler
 
@@ -190,6 +191,34 @@ func NewAgent(ctx context.Context, cfg *AgentConfig) (*Agent, error) {
 	agent.probeFactory.Configure(transport.WithOnMessage(agent.messageHandler.HandleEvent), transport.WithWrrp(wrrp), transport.WithProvisioner(agent.provisioner))
 
 	agent.DeviceManager = NewDeviceManager(log.GetLogger("device-manager"), agent.iface, make(chan struct{}))
+	agent.token = cfg.Token
+
+	// Re-register and re-apply the network map whenever NATS reconnects.
+	// This covers the case where wireflow-aio restarts and loses all agent state.
+	// The handler reads GetNetworkMap at call time (not at setup time), so it
+	// works even though GetNetworkMap is assigned externally after NewAgent returns.
+	natsSignalService.SetReconnectedHandler(func() {
+		ctx := context.Background()
+		peer, err := agent.ctrClient.Register(ctx, agent.token, agent.Name)
+		if err != nil {
+			agent.logger.Error("NATS reconnect: re-register failed", err)
+			return
+		}
+		agent.current = peer
+
+		if agent.GetNetworkMap == nil {
+			return
+		}
+		remoteCfg, err := agent.GetNetworkMap()
+		if err != nil {
+			agent.logger.Error("NATS reconnect: re-fetch network map failed", err)
+			return
+		}
+		if err = agent.messageHandler.ApplyFullConfig(ctx, remoteCfg); err != nil {
+			agent.logger.Error("NATS reconnect: re-apply config failed", err)
+		}
+	})
+
 	return agent, err
 }
 
