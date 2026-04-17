@@ -129,32 +129,82 @@ jobs:
         run: |
           KC="kubectl --kubeconfig=${{ env.E2E_KUBECONFIG }}"
 
-          echo "===== pods in wireflow-system ====="
-          $KC get all -n wireflow-system || true
+          echo ""
+          echo "===== wireflow-system: 控制面 Pod 状态 ====="
+          $KC get all -n wireflow-system -o wide || true
 
-          echo "===== wireflowd (all-in-one) logs ====="
-          $KC logs -n wireflow-system -l app.kubernetes.io/name=wireflowd --tail=200 || true
+          echo ""
+          echo "===== wireflowd (all-in-one) 日志 (最近 300 行) ====="
+          $KC logs -n wireflow-system -l app.kubernetes.io/name=wireflowd --tail=300 || true
 
-          echo "===== E2E test namespaces ====="
+          echo ""
+          echo "===== E2E 测试 Namespace 列表 ====="
           NAMESPACES=$($KC get ns -o name | grep "^namespace/wf-" | cut -d/ -f2 || true)
+          echo "$NAMESPACES"
+
           for ns in $NAMESPACES; do
-            echo "========================================="
-            echo "Namespace: $ns"
-            $KC get all -n "$ns" -o wide || true
-            PODS=$($KC get pods -n "$ns" -o jsonpath='{.items[*].metadata.name}' || true)
+            echo ""
+            echo "####################################################"
+            echo "# Namespace: $ns"
+            echo "####################################################"
+
+            echo ""
+            echo "--- WireflowNetwork ---"
+            $KC get wfnetwork -n "$ns" -o wide || true
+            $KC describe wfnetwork -n "$ns" || true
+
+            echo ""
+            echo "--- WireflowPeer ---"
+            $KC get wfpeer -n "$ns" -o wide || true
+            $KC describe wfpeer -n "$ns" || true
+
+            echo ""
+            echo "--- ConfigMap (agent 配置) ---"
+            $KC get configmap -n "$ns" -l app.kubernetes.io/managed-by=wireflow-controller || true
+            for cm in $($KC get configmap -n "$ns" -l app.kubernetes.io/managed-by=wireflow-controller -o jsonpath='{.items[*].metadata.name}' || true); do
+              echo "  [ConfigMap: $cm]"
+              $KC get configmap -n "$ns" "$cm" -o jsonpath='{.data.config\.json}' | python3 -m json.tool 2>/dev/null || \
+              $KC get configmap -n "$ns" "$cm" -o jsonpath='{.data.config\.json}' || true
+              echo ""
+            done
+
+            echo ""
+            echo "--- Pod 状态 ---"
+            $KC get pods -n "$ns" -o wide || true
+
+            PODS=$($KC get pods -n "$ns" -o jsonpath='{.items[*].metadata.name}' 2>/dev/null || true)
             for pod in $PODS; do
-              echo "Logs: $pod"
-              $KC logs -n "$ns" "$pod" --all-containers --tail=100 || true
+              POD_PHASE=$($KC get pod -n "$ns" "$pod" -o jsonpath='{.status.phase}' 2>/dev/null || true)
+              echo ""
+              echo "  === Pod: $pod (phase=$POD_PHASE) ==="
+
+              if [ "$POD_PHASE" = "Running" ]; then
+                echo "  [wireflow status] WireGuard 隧道状态"
+                $KC exec -n "$ns" "$pod" -- /app/wireflow status 2>&1 || echo "  wireflow status 失败"
+
+                echo ""
+                echo "  [ip addr] 网络接口"
+                $KC exec -n "$ns" "$pod" -- ip addr show 2>&1 || true
+
+                echo ""
+                echo "  [ip route] 路由表"
+                $KC exec -n "$ns" "$pod" -- ip route show 2>&1 || true
+              fi
+
+              echo ""
+              echo "  [agent 日志 - 最近 150 行]"
+              $KC logs -n "$ns" "$pod" --all-containers --tail=150 2>&1 || true
             done
           done
 
-          echo "===== WireflowPeer CRDs ====="
-          $KC get wfpeer --all-namespaces || true
+          echo ""
+          echo "===== WireflowPeer 汇总 (所有 ns) ====="
+          $KC get wfpeer --all-namespaces -o wide || true
 
       - name: Cleanup test namespaces on failure
         if: failure()
         run: |
           kubectl --kubeconfig=${{ env.E2E_KUBECONFIG }} \
-            get ns -o name | grep "namespace/wf-test-" \
+            get ns -o name | grep "^namespace/wf-" \
             | xargs -r kubectl --kubeconfig=${{ env.E2E_KUBECONFIG }} \
             delete --ignore-not-found=true --timeout=60s || true

@@ -183,8 +183,10 @@ func (r *PeerReconciler) reconcileJoinNetwork(ctx context.Context, peer *v1alpha
 	}
 
 	if ok {
-		// spec patch（包含 PrivateKey 等字段）会增加 generation，GenerationChangedPredicate 会触发重入队
-		return ctrl.Result{}, nil
+		// 注意：当 Spec.PrivateKey 已经由 Register API 预填充时，updateSpec 只会修改 Labels（元数据），
+		// Labels 变化不会增加 generation，GenerationChangedPredicate 不会触发重入队。
+		// 因此无论 spec 还是 labels 发生变化，都必须显式 RequeueAfter 驱动后续流程。
+		return ctrl.Result{RequeueAfter: time.Millisecond * 100}, nil
 	}
 
 	if err = r.Get(ctx, request.NamespacedName, peer); err != nil {
@@ -210,7 +212,10 @@ func (r *PeerReconciler) reconcileJoinNetwork(ctx context.Context, peer *v1alpha
 	// 等待 Network 就绪（ActiveCIDR 已分配）
 	if network.Status.ActiveCIDR == "" {
 		log.Info("Network not ready yet, waiting for ActiveCIDR", "network", network.Name)
-		return ctrl.Result{}, nil
+		// NetworkReconciler 通过 status patch 设置 ActiveCIDR（不改变 generation），
+		// WireflowNetwork watch 的 GenerationChangedPredicate 不会触发，
+		// 必须显式 RequeueAfter 避免 peer 永久卡在 Pending 状态
+		return ctrl.Result{RequeueAfter: 3 * time.Second}, nil
 	}
 
 	// allocate ip
@@ -218,6 +223,8 @@ func (r *PeerReconciler) reconcileJoinNetwork(ctx context.Context, peer *v1alpha
 	if err != nil {
 		return ctrl.Result{}, err
 	}
+
+	log.Info("get allocated address", "address", address, "err", err)
 
 	if ok, err = r.updateStatus(ctx, peer, func(node *v1alpha1.WireflowPeer) {
 		node.Status.Phase = v1alpha1.NodePhaseReady
@@ -583,11 +590,30 @@ func (r *PeerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			return !reflect.DeepEqual(oldCm.Data, newCm.Data)
 		},
 	}
+	// 监听 WireflowNetwork 的 spec 变化（generation changed）以及 ActiveCIDR 从空变非空（status patch）。
+	// 使用自定义 predicate 是因为 GenerationChangedPredicate 只检测 spec 变化，
+	// 而 NetworkReconciler 分配 ActiveCIDR 是 status patch，不改变 generation。
+	networkReadyPredicate := predicate.Funcs{
+		CreateFunc: func(e event.CreateEvent) bool { return false },
+		UpdateFunc: func(e event.UpdateEvent) bool {
+			oldNet, ok1 := e.ObjectOld.(*v1alpha1.WireflowNetwork)
+			newNet, ok2 := e.ObjectNew.(*v1alpha1.WireflowNetwork)
+			if !ok1 || !ok2 {
+				return false
+			}
+			// spec 变化 或 ActiveCIDR 刚被分配 → 触发 peer reconcile
+			return oldNet.Generation != newNet.Generation ||
+				(oldNet.Status.ActiveCIDR == "" && newNet.Status.ActiveCIDR != "")
+		},
+		DeleteFunc:  func(e event.DeleteEvent) bool { return false },
+		GenericFunc: func(e event.GenericEvent) bool { return false },
+	}
+
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&v1alpha1.WireflowPeer{}, builder.WithPredicates(predicate.GenerationChangedPredicate{})).
 		Watches(&v1alpha1.WireflowNetwork{},
 			handler.EnqueueRequestsFromMapFunc(r.mapNetworkForNodes),
-			builder.WithPredicates(predicate.And(onlyUpdatePredicate, predicate.GenerationChangedPredicate{}))).
+			builder.WithPredicates(networkReadyPredicate)).
 		Watches(&v1alpha1.WireflowEndpoint{},
 			handler.EnqueueRequestsFromMapFunc(r.mapEndpointForNodes),
 			builder.WithPredicates(predicate.And(onlyUpdatePredicate, predicate.GenerationChangedPredicate{}))).
@@ -596,7 +622,9 @@ func (r *PeerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			builder.WithPredicates(predicate.And(configMapPredicate, ownedCMPredicate))).
 		Watches(&v1alpha1.WireflowPolicy{},
 			handler.EnqueueRequestsFromMapFunc(r.mapPolicyForNodes),
-			builder.WithPredicates(predicate.And(onlyUpdatePredicate, predicate.GenerationChangedPredicate{}))).
+			// 不加 onlyUpdatePredicate：新建策略（Create）必须触发 peer reconcile 才能下发配置；
+			// GenerationChangedPredicate 默认放行 Create/Delete，只过滤 generation 未变的 Update。
+			builder.WithPredicates(predicate.GenerationChangedPredicate{})).
 		Named("node").WithOptions(controller.Options{
 		MaxConcurrentReconciles: 5,
 	}).Complete(r)

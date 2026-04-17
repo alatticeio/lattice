@@ -235,23 +235,28 @@ var _ = Describe("Wireflow 核心连通性 E2E", Ordered, func() {
 		podAName := getPodName(podA)
 		podBName := getPodName(podB)
 
-		By("步骤 6: 等待控制面为 " + podB + " 分配 WireGuard 虚拟 IP (WireflowPeer CRD)")
+		By("步骤 6: 等待控制面为 " + podA + " 和 " + podB + " 分配 WireGuard 虚拟 IP (WireflowPeer CRD)")
 		var podBWGIP string
-		Eventually(func() error {
-			peer := &v1alpha1.WireflowPeer{}
-			if err := wireflowClient.Get(ctx, sigclient.ObjectKey{Namespace: ns, Name: podB}, peer); err != nil {
-				return fmt.Errorf("WireflowPeer %s 尚未创建: %w", podB, err)
-			}
-			if peer.Status.AllocatedAddress == nil || *peer.Status.AllocatedAddress == "" {
-				return fmt.Errorf("WireflowPeer %s 已创建，控制面尚未分配地址", podB)
-			}
-			podBWGIP = *peer.Status.AllocatedAddress
-			// 地址可能包含 CIDR 前缀 (e.g. "10.0.0.2/24")，ping 只需要 IP 部分
-			if idx := strings.Index(podBWGIP, "/"); idx != -1 {
-				podBWGIP = podBWGIP[:idx]
-			}
-			return nil
-		}, "90s", "3s").Should(Succeed(), "超时未能获取 %s 的 WireGuard IP", podB)
+		for _, peerName := range []string{podA, podB} {
+			name := peerName
+			Eventually(func() error {
+				peer := &v1alpha1.WireflowPeer{}
+				if err := wireflowClient.Get(ctx, sigclient.ObjectKey{Namespace: ns, Name: name}, peer); err != nil {
+					return fmt.Errorf("WireflowPeer %s 尚未创建: %w", name, err)
+				}
+				if peer.Status.AllocatedAddress == nil || *peer.Status.AllocatedAddress == "" {
+					return fmt.Errorf("WireflowPeer %s 已创建，控制面尚未分配地址", name)
+				}
+				if name == podB {
+					podBWGIP = *peer.Status.AllocatedAddress
+					// 地址可能包含 CIDR 前缀 (e.g. "10.0.0.2/24")，ping 只需要 IP 部分
+					if idx := strings.Index(podBWGIP, "/"); idx != -1 {
+						podBWGIP = podBWGIP[:idx]
+					}
+				}
+				return nil
+			}, "90s", "3s").Should(Succeed(), "超时未能获取 %s 的 WireGuard IP", name)
+		}
 
 		By("步骤 7: 创建 WireflowPolicy 允许 pod-a ↔ pod-b 互通")
 		peerB := &v1alpha1.WireflowPeer{}
@@ -304,36 +309,119 @@ var _ = Describe("Wireflow 核心连通性 E2E", Ordered, func() {
 
 // collectDiagnostics 在测试失败时打印关键日志，方便 CI 排查
 func collectDiagnostics(ctx context.Context, namespace string) {
-	fmt.Fprintf(GinkgoWriter, "\n========== E2E 诊断日志 [ns=%s] ==========\n", namespace) //nolint:errcheck
+	w := GinkgoWriter
+	fprintf := func(format string, args ...any) { fmt.Fprintf(w, format, args...) } //nolint:errcheck
 
+	fprintf("\n========== E2E 诊断日志 [ns=%s] ==========\n", namespace)
+
+	// ── 1. WireflowPeer CRD 状态 ──────────────────────────────────────────
+	fprintf("\n[WireflowPeer 状态]\n")
+	var peerList v1alpha1.WireflowPeerList
+	if err := wireflowClient.List(ctx, &peerList, sigclient.InNamespace(namespace)); err != nil {
+		fprintf("  [WARN] 无法列出 WireflowPeer: %v\n", err)
+	} else {
+		for _, p := range peerList.Items {
+			addr := "<nil>"
+			if p.Status.AllocatedAddress != nil {
+				addr = *p.Status.AllocatedAddress
+			}
+			activeNet := "<nil>"
+			if p.Status.ActiveNetwork != nil {
+				activeNet = *p.Status.ActiveNetwork
+			}
+			fprintf("  %-20s  phase=%-12s  ip=%-18s  activeNetwork=%-30s  hash=%s\n",
+				p.Name, p.Status.Phase, addr, activeNet, p.Status.CurrentHash)
+			for _, c := range p.Status.Conditions {
+				fprintf("    condition %-25s  status=%-5s  reason=%-20s  msg=%s\n",
+					c.Type, c.Status, c.Reason, c.Message)
+			}
+		}
+	}
+
+	// ── 2. WireflowNetwork 状态 ───────────────────────────────────────────
+	fprintf("\n[WireflowNetwork 状态]\n")
+	var netList v1alpha1.WireflowNetworkList
+	if err := wireflowClient.List(ctx, &netList, sigclient.InNamespace(namespace)); err != nil {
+		fprintf("  [WARN] 无法列出 WireflowNetwork: %v\n", err)
+	} else {
+		for _, n := range netList.Items {
+			fprintf("  %-30s  phase=%-10s  activeCIDR=%-20s  allocatedCount=%d\n",
+				n.Name, n.Status.Phase, n.Status.ActiveCIDR, n.Status.AllocatedCount)
+		}
+	}
+
+	// ── 3. ConfigMap 内容（agent 配置） ───────────────────────────────────
+	fprintf("\n[ConfigMap 内容]\n")
+	cms, err := clientset.CoreV1().ConfigMaps(namespace).List(ctx, metav1.ListOptions{
+		LabelSelector: "app.kubernetes.io/managed-by=wireflow-controller",
+	})
+	if err != nil {
+		fprintf("  [WARN] 无法列出 ConfigMap: %v\n", err)
+	} else {
+		for _, cm := range cms.Items {
+			fprintf("\n  --- ConfigMap: %s ---\n", cm.Name)
+			for k, v := range cm.Data {
+				fprintf("  [%s]\n%s\n", k, v)
+			}
+		}
+	}
+
+	// ── 4. Pod 日志 + WireGuard / 网络状态 ───────────────────────────────
+	fprintf("\n[Pod 日志及网络状态]\n")
 	pods, err := clientset.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{})
 	if err != nil {
-		fmt.Fprintf(GinkgoWriter, "[WARN] 无法列出 Pod: %v\n", err) //nolint:errcheck
-		return
+		fprintf("  [WARN] 无法列出 Pod: %v\n", err)
+	} else {
+		for _, pod := range pods.Items {
+			fprintf("\n--- Pod: %s  Phase: %s ---\n", pod.Name, pod.Status.Phase)
+			for _, cs := range pod.Status.ContainerStatuses {
+				fprintf("  Container %s: ready=%v restarts=%d\n", cs.Name, cs.Ready, cs.RestartCount)
+			}
+
+			if pod.Status.Phase == corev1.PodRunning {
+				// wireflow status：WireGuard 隧道连接状态（对端握手、流量）
+				if out, err := execInPod(clientset, restConfig, namespace, pod.Name,
+					[]string{"/app/wireflow", "status"}); err != nil {
+					fprintf("  [wireflow status] 执行失败: %v\n", err)
+				} else {
+					fprintf("  [wireflow status]\n%s\n", out)
+				}
+
+				// ip addr：确认 wf0 接口是否存在及 IP
+				if out, err := execInPod(clientset, restConfig, namespace, pod.Name,
+					[]string{"ip", "addr", "show"}); err != nil {
+					fprintf("  [ip addr] 执行失败: %v\n", err)
+				} else {
+					fprintf("  [ip addr]\n%s\n", out)
+				}
+
+				// ip route：路由表
+				if out, err := execInPod(clientset, restConfig, namespace, pod.Name,
+					[]string{"ip", "route", "show"}); err != nil {
+					fprintf("  [ip route] 执行失败: %v\n", err)
+				} else {
+					fprintf("  [ip route]\n%s\n", out)
+				}
+			}
+
+			// 容器日志（最近 150 行）
+			tailLines := int64(150)
+			logReq := clientset.CoreV1().Pods(namespace).GetLogs(pod.Name, &corev1.PodLogOptions{
+				TailLines: &tailLines,
+			})
+			logStream, err := logReq.Stream(ctx)
+			if err != nil {
+				fprintf("  [WARN] 无法获取日志: %v\n", err)
+				continue
+			}
+			var buf bytes.Buffer
+			_, _ = buf.ReadFrom(logStream)
+			_ = logStream.Close()
+			fprintf("  [agent log]\n%s\n", buf.String())
+		}
 	}
 
-	for _, pod := range pods.Items {
-		fmt.Fprintf(GinkgoWriter, "\n--- Pod: %s  Phase: %s ---\n", pod.Name, pod.Status.Phase) //nolint:errcheck
-		for _, cs := range pod.Status.ContainerStatuses {
-			fmt.Fprintf(GinkgoWriter, "  Container %s: ready=%v restarts=%d\n", cs.Name, cs.Ready, cs.RestartCount) //nolint:errcheck
-		}
-		// 打印容器日志（最近 100 行）
-		tailLines := int64(100)
-		logReq := clientset.CoreV1().Pods(namespace).GetLogs(pod.Name, &corev1.PodLogOptions{
-			TailLines: &tailLines,
-		})
-		logStream, err := logReq.Stream(ctx)
-		if err != nil {
-			fmt.Fprintf(GinkgoWriter, "  [WARN] 无法获取日志: %v\n", err) //nolint:errcheck
-			continue
-		}
-		var buf bytes.Buffer
-		_, _ = buf.ReadFrom(logStream)
-		_ = logStream.Close()
-		fmt.Fprintf(GinkgoWriter, "%s\n", buf.String()) //nolint:errcheck
-	}
-
-	fmt.Fprintf(GinkgoWriter, "===========================================\n") //nolint:errcheck
+	fprintf("===========================================\n")
 }
 
 // execInPod 通过 SPDY 在指定 Pod 内执行命令并返回 stdout 输出
