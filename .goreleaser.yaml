@@ -60,57 +60,8 @@ archives:
 checksum:
   name_template: "checksums.txt"
 
-dockers:
-  # wireflowd all-in-one 镜像 (amd64)
-  - id: "wireflowd-amd64"
-    ids:
-      - wireflowd
-    goos: linux
-    goarch: amd64
-    image_templates:
-      - "ghcr.io/wireflowio/wireflowd:{{ .Version }}-amd64"
-    dockerfile: Dockerfile
-    build_flag_templates:
-      - "--build-arg=TARGETSERVICE=wireflowd"
-      - "--build-arg=TARGETOS=linux"
-      - "--build-arg=TARGETARCH=amd64"
-      - "--build-arg=VERSION={{ .Version }}"
-      - "--label=org.opencontainers.image.title=wireflowd"
-      - "--label=org.opencontainers.image.version={{ .Version }}"
-      - "--label=org.opencontainers.image.revision={{ .Commit }}"
-      - "--label=org.opencontainers.image.created={{ .Date }}"
-      - "--platform=linux/amd64"
-
-  # wireflowd all-in-one 镜像 (arm64)
-  - id: "wireflowd-arm64"
-    ids:
-      - wireflowd
-    goos: linux
-    goarch: arm64
-    image_templates:
-      - "ghcr.io/wireflowio/wireflowd:{{ .Version }}-arm64"
-    dockerfile: Dockerfile
-    build_flag_templates:
-      - "--build-arg=TARGETSERVICE=wireflowd"
-      - "--build-arg=TARGETOS=linux"
-      - "--build-arg=TARGETARCH=arm64"
-      - "--build-arg=VERSION={{ .Version }}"
-      - "--label=org.opencontainers.image.title=wireflowd"
-      - "--label=org.opencontainers.image.version={{ .Version }}"
-      - "--label=org.opencontainers.image.revision={{ .Commit }}"
-      - "--label=org.opencontainers.image.created={{ .Date }}"
-      - "--platform=linux/arm64"
-
-docker_manifests:
-  - name_template: "ghcr.io/wireflowio/wireflowd:{{ .Version }}"
-    image_templates:
-      - "ghcr.io/wireflowio/wireflowd:{{ .Version }}-amd64"
-      - "ghcr.io/wireflowio/wireflowd:{{ .Version }}-arm64"
-  - name_template: "ghcr.io/wireflowio/wireflowd:latest"
-    image_templates:
-      - "ghcr.io/wireflowio/wireflowd:{{ .Version }}-amd64"
-      - "ghcr.io/wireflowio/wireflowd:{{ .Version }}-arm64"
-
+# Docker 镜像由 release.yml 中独立的 docker-image job 构建和推送，
+# goreleaser 只负责 binary/archive/changelog。
 changelog:
   sort: asc
   filters:
