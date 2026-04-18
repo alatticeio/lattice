@@ -6,7 +6,7 @@ import {
 import {
   Shield, Plus, RefreshCw, MoreHorizontal, Search,
   Pencil, Trash2, ArrowDown, ArrowUp, ChevronLeft, ChevronRight,
-  Info, CheckCircle2, XCircle, X,
+  Info, CheckCircle2, XCircle, X, Zap,
 } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -576,15 +576,33 @@ const table = useVueTable({
       <div class="space-y-4 py-1 max-h-[65vh] overflow-y-auto pr-1">
 
         <!-- Quick templates (create only) -->
-        <div v-if="store.drawerType === 'create'" class="grid grid-cols-3 gap-2">
+        <div v-if="store.drawerType === 'create'" class="space-y-2">
+          <!-- Allow All 一键放通 -->
           <button
-            v-for="tpl in templates" :key="tpl.key"
-            class="p-2.5 rounded-lg border border-border bg-muted/20 hover:border-primary/40 hover:bg-primary/5 transition-all text-left"
-            @click="store.actions.applyTemplate(tpl.key)"
+            class="w-full flex items-center gap-3 p-3 rounded-lg border-2 border-emerald-500/30 bg-emerald-500/5 hover:border-emerald-500/60 hover:bg-emerald-500/10 transition-all text-left group"
+            @click="store.actions.applyTemplate('allowAll')"
           >
-            <p class="text-xs font-bold">{{ tpl.label }}</p>
-            <p class="text-[10px] text-muted-foreground/60 mt-0.5">{{ tpl.desc }}</p>
+            <div class="size-8 rounded-lg bg-emerald-500/15 flex items-center justify-center shrink-0 group-hover:bg-emerald-500/25 transition-colors">
+              <Zap class="size-4 text-emerald-500" />
+            </div>
+            <div class="min-w-0 flex-1">
+              <p class="text-sm font-bold text-emerald-600 dark:text-emerald-400">一键放通 Allow All</p>
+              <p class="text-[11px] text-muted-foreground/60 mt-0.5">允许网络内所有节点双向互通，适合快速调试</p>
+            </div>
+            <span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 shrink-0">推荐</span>
           </button>
+
+          <!-- 其他快捷模板 -->
+          <div class="grid grid-cols-3 gap-2">
+            <button
+              v-for="tpl in templates" :key="tpl.key"
+              class="p-2.5 rounded-lg border border-border bg-muted/20 hover:border-primary/40 hover:bg-primary/5 transition-all text-left"
+              @click="store.actions.applyTemplate(tpl.key)"
+            >
+              <p class="text-xs font-bold">{{ tpl.label }}</p>
+              <p class="text-[10px] text-muted-foreground/60 mt-0.5">{{ tpl.desc }}</p>
+            </button>
+          </div>
         </div>
 
         <div class="grid grid-cols-2 gap-3">

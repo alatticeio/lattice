@@ -40,6 +40,7 @@ export const usePolicyPageStore = defineStore('policyPage', () => {
     }
 
     const validateLabel = (str: string) => {
+        if (!str) return true  // 空字符串 → 空 selector，匹配所有 peer
         return /^[a-z0-9A-Z/._-]+=[a-z0-9A-Z/._-]+$/.test(str);
     }
 
@@ -135,7 +136,17 @@ export const usePolicyPageStore = defineStore('policyPage', () => {
         applyTemplate(key: string) {
             const base = getEmptyPolicy()
             const templates: any = {
-                isolate: { name: 'deny-all', policyTypes: ['Ingress', 'Egress'], ingress: [], egress: [] },
+                // 空 _targetLabel / _rawLabel → 空 matchLabels {} → 匹配所有 peer
+                allowAll: {
+                    name: 'allow-all',
+                    action: 'Allow',
+                    description: '允许网络内所有节点双向互通',
+                    _targetLabel: '',
+                    policyTypes: ['Ingress', 'Egress'],
+                    ingress: [{ _rawLabel: '', ports: [] }],
+                    egress:  [{ _rawLabel: '', ports: [] }],
+                },
+                isolate:  { name: 'deny-all', policyTypes: ['Ingress', 'Egress'], ingress: [], egress: [] },
                 db: {
                     name: 'db-protection', _targetLabel: 'app=postgres', policyTypes: ['Ingress'],
                     ingress: [{ _rawLabel: 'app=backend', ports: [{ protocol: 'TCP', port: '5432' }] }]
@@ -152,16 +163,27 @@ export const usePolicyPageStore = defineStore('policyPage', () => {
             loading.value = true
             try {
                 const payload = JSON.parse(JSON.stringify(form.value))
-                const target = parseLabel(payload._targetLabel)
-                payload.peerSelector.matchLabels = { [target.key]: target.value }
+
+                // 空 _targetLabel → 空 matchLabels {}，匹配所有 peer
+                if (payload._targetLabel) {
+                    const target = parseLabel(payload._targetLabel)
+                    payload.peerSelector.matchLabels = { [target.key]: target.value }
+                } else {
+                    payload.peerSelector.matchLabels = {}
+                }
 
                 const process = (rules: any[], dir: string) => {
                     rules.forEach(r => {
-                        const p = parseLabel(r._rawLabel)
                         const peerKey = dir === 'ingress' ? 'from' : 'to'
-                        r[peerKey] = [{ peerSelector: { matchLabels: { [p.key]: p.value } } }]
+                        // 空 _rawLabel → 空 matchLabels {}，匹配所有 peer
+                        if (r._rawLabel) {
+                            const p = parseLabel(r._rawLabel)
+                            r[peerKey] = [{ peerSelector: { matchLabels: { [p.key]: p.value } } }]
+                        } else {
+                            r[peerKey] = [{ peerSelector: { matchLabels: {} } }]
+                        }
                         delete r._rawLabel
-                        if (r.ports?.[0]) r.ports[0].port = parseInt(r.ports[0].port, 10)
+                        if (r.ports?.[0]?.port) r.ports[0].port = parseInt(r.ports[0].port, 10)
                     })
                 }
                 process(payload.ingress, 'ingress')
