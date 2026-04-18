@@ -15,8 +15,11 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"os"
+	"os/signal"
+	"syscall"
 	"wireflow/agent"
 	"wireflow/internal/config"
 	wflog "wireflow/internal/log"
@@ -47,6 +50,10 @@ Use --save to persist the current flags back to the config file.`,
   # enable the WRRP relay for restrictive NAT environments
   wireflow up --token <token> --server-url <server-url> --signaling-url <signaling-url> --enable-wrrp --wrrper-url <wrrp-url>`,
 		RunE: func(cmd *cobra.Command, args []string) error {
+
+			ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+			defer stop()
+
 			// pre-flight: 严格校验客户端必须配置项（signaling-url / server-url / token）
 			if err := config.ValidateAndReport(config.Conf, false); err != nil {
 				return err
@@ -88,7 +95,7 @@ Use --save to persist the current flags back to the config file.`,
 				config.Conf.Telemetry.VMEndpoint = ep
 			}
 
-			return agent.Start(config.Conf)
+			return agent.Start(ctx, config.Conf)
 		},
 	}
 

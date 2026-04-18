@@ -16,27 +16,13 @@ builds:
     goos:
       - linux
       - darwin
+      - windows
     goarch:
       - amd64
       - arm64
-
-  # CLI 工具
-  - id: "wireflow-wfctl"
-    binary: "wfctl"
-    main: "./cmd/wfctl/main.go"
-    env:
-      - CGO_ENABLED=0
-    ldflags:
-      - -s -w
-      - -X wireflow/pkg/version.Version={{.Version}}
-      - -X wireflow/pkg/version.GitCommit={{.Commit}}
-      - -X wireflow/pkg/version.BuildTime={{.Date}}
-    goos:
-      - linux
-      - darwin
-    goarch:
-      - amd64
-      - arm64
+    ignore:
+      - goos: windows
+        goarch: arm64
 
   # All-in-One 控制面（嵌入 NATS + SQLite，仅 linux）
   - id: "wireflowd"
@@ -56,12 +42,11 @@ builds:
       - arm64
 
 archives:
-  # wireflow + wfctl 打包在一起（面向边缘/终端用户）
+  # wireflow agent 打包（面向边缘/终端用户）
   - id: "wireflow-archive"
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     builds:
       - wireflow
-      - wireflow-wfctl
     format_overrides:
       - goos: windows
         format: zip

@@ -22,7 +22,6 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"os/signal"
 	"path/filepath"
 	"runtime"
 	"strconv"
@@ -43,16 +42,13 @@ import (
 
 // Start start wireflow
 // nolint:all
-func Start(flags *config.Config) error {
+func Start(ctx context.Context, flags *config.Config) error {
 	log.SetLevel(flags.Level)
 	logger := log.GetLogger("wireflow")
 
 	if flags.EnableDaemon && os.Getenv("WIREFLOW_DAEMON") == "" {
 		return startDaemon(flags, logger)
 	}
-
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
 
 	agentCfg := &AgentConfig{
 		Logger:        logger,
