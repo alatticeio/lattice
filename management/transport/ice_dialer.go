@@ -17,6 +17,7 @@ package transport
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"sync"
@@ -36,13 +37,18 @@ var (
 	_ infra.Dialer = (*iceDialer)(nil)
 )
 
+// ErrDialerClosed is returned by Dial when the iceDialer is explicitly closed
+// (e.g. ICE reached Failed state or a SYN arrived on an active agent).  It
+// signals that onClose already triggered probe.restart(), so onFailure should
+// NOT schedule a second restart.
+var ErrDialerClosed = errors.New("iceDialer explicitly closed")
+
 type iceDialer struct {
 	mu             sync.Mutex
 	log            *log.Logger
 	localId        infra.PeerIdentity
 	remoteId       infra.PeerIdentity
 	sender         func(ctx context.Context, peerId infra.PeerID, data []byte) error
-	onClose        func(peerId infra.PeerIdentity)
 	provisioner    infra.Provisioner // nolint
 	agent          *AgentWrapper
 	closeOnce      sync.Once
@@ -51,12 +57,6 @@ type iceDialer struct {
 	showLog        bool
 	localPeer      *infra.Peer
 	onPeerReceived func(peer infra.Peer)
-
-	// onSynOnActiveAgent is called after the old ICE session is torn down when a
-	// SYN arrives while an agent is already active (remote restarted mid-session).
-	// The probe uses this to immediately re-dispatch the SYN to the new dialer
-	// instead of waiting for the remote's next retry (up to 2 s later).
-	onSynOnActiveAgent func(ctx context.Context, remoteId infra.PeerIdentity, packet *grpc.SignalPacket)
 
 	// offerReady start Dial() after receiving offer
 	offerReady chan struct{}
@@ -69,19 +69,14 @@ type iceDialer struct {
 }
 
 type ICEDialerConfig struct {
-	Sender                  func(ctx context.Context, peerId infra.PeerID, data []byte) error
-	LocalId                 infra.PeerIdentity
-	RemoteId                infra.PeerIdentity
-	OnClose                 func(peerId infra.PeerIdentity)
-	UniversalUdpMuxDefault  *ice.UniversalUDPMuxDefault
-	Configurer              infra.Provisioner
-	LocalPeer               *infra.Peer
-	OnPeerReceived          func(peer infra.Peer)
-	ShowLog                 bool
-	OnConnectionStateChange func(state ice.ConnectionState)
-	// OnSynOnActiveAgent is called (after the old session is closed) when a SYN
-	// arrives while an ICE agent is already running, indicating the remote restarted.
-	OnSynOnActiveAgent func(ctx context.Context, remoteId infra.PeerIdentity, packet *grpc.SignalPacket)
+	Sender                 func(ctx context.Context, peerId infra.PeerID, data []byte) error
+	LocalId                infra.PeerIdentity
+	RemoteId               infra.PeerIdentity
+	UniversalUdpMuxDefault *ice.UniversalUDPMuxDefault
+	Configurer             infra.Provisioner
+	LocalPeer              *infra.Peer
+	OnPeerReceived         func(peer infra.Peer)
+	ShowLog                bool
 }
 
 func (i *iceDialer) Handle(ctx context.Context, remoteId infra.PeerIdentity, packet *grpc.SignalPacket) error {
@@ -116,16 +111,13 @@ func (i *iceDialer) Handle(ctx context.Context, remoteId infra.PeerIdentity, pac
 		i.mu.Unlock()
 
 		// If an agent already exists the remote restarted before we detected the
-		// disconnect (fast restart, keepalive not yet timed out).  Force-close the
-		// current dialer so probe.restart() creates a fresh one, then immediately
-		// re-dispatch this SYN to the new dialer to avoid waiting for the remote's
-		// next 2-second retry cycle.
+		// disconnect (fast restart, keepalive not yet timed out).  Close this
+		// dialer; Dial() will return ErrDialerClosed which causes onFailure to
+		// call probe.restart() immediately.  The remote's next SYN retry (≤2 s)
+		// will be handled by the fresh dialer.
 		if existingAgent != nil {
 			i.log.Debug("SYN on active agent — remote restarted, forcing close", "remoteId", remoteId)
 			i.Close() //nolint:errcheck
-			if i.onSynOnActiveAgent != nil {
-				i.onSynOnActiveAgent(ctx, remoteId, packet)
-			}
 			return nil
 		}
 
@@ -182,14 +174,12 @@ func NewIceDialer(cfg *ICEDialerConfig) infra.Dialer {
 	return &iceDialer{
 		log:                    log.GetLogger("ice-dialer"),
 		sender:                 cfg.Sender,
-		onClose:                cfg.OnClose,
 		localId:                cfg.LocalId,
 		remoteId:               cfg.RemoteId,
 		universalUdpMuxDefault: cfg.UniversalUdpMuxDefault,
 		showLog:                cfg.ShowLog,
 		localPeer:              cfg.LocalPeer,
 		onPeerReceived:         cfg.OnPeerReceived,
-		onSynOnActiveAgent:     cfg.OnSynOnActiveAgent,
 		offerReady:             make(chan struct{}),
 		closeChan:              make(chan struct{}),
 		cancel:                 func() {}, // no-op until Prepare sets a real one
@@ -265,7 +255,7 @@ func (i *iceDialer) Dial(ctx context.Context) (infra.Transport, error) {
 	case <-dialCtx.Done():
 		return nil, fmt.Errorf("iceDialer: timed out waiting for offer: %w", dialCtx.Err())
 	case <-i.closeChan:
-		return nil, fmt.Errorf("iceDialer closed before offer received")
+		return nil, ErrDialerClosed
 	case <-i.offerReady:
 		i.log.Debug("start dial")
 		if i.agent.GetTieBreaker() > i.agent.RTieBreaker {
@@ -416,15 +406,9 @@ func (i *iceDialer) Close() error {
 		i.agent = nil
 		i.mu.Unlock()
 
-		// Unblock any Dial() waiting on offerReady or closeChan.
+		// Unblock Dial(): it will return ErrDialerClosed, discover() will fail,
+		// and onFailure will call probe.restart() — the single restart path.
 		close(i.closeChan)
-
-		// Notify the probe before closing the ICE agent so probe.restart() can
-		// create a fresh dialer immediately, without waiting for agent.Close() to
-		// finish (which can block briefly waiting for ICE goroutines to stop).
-		if i.onClose != nil {
-			i.onClose(i.remoteId)
-		}
 
 		if agent != nil {
 			if err := agent.Close(); err != nil {

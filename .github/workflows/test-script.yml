@@ -222,7 +222,8 @@ jobs:
             up \
             --signaling-url "$AGENT_NATS" \
             --server-url "$AGENT_API" \
-            --token "$TOKEN"
+            --token "$TOKEN" \
+            -- level debug
 
           echo ">>> docker run -d --name wf-agent-b --privileged --network wf-test-net $AGENT_IMAGE up ..."
           docker run -d \
@@ -236,7 +237,8 @@ jobs:
             up \
             --signaling-url "$AGENT_NATS" \
             --server-url "$AGENT_API" \
-            --token "$TOKEN"
+            --token "$TOKEN" \
+            --level debug
 
           echo "✅ Both agent containers started on wf-test-net"
 

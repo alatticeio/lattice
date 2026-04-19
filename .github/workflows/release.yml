@@ -66,7 +66,7 @@ jobs:
         with:
           distribution: goreleaser
           version: latest
-          args: ${{ github.event_name == 'push' && 'release --clean' || 'release --snapshot --clean' }}
+          args: ${{ github.event_name == 'push' && 'release --clean --skip=docker' || 'release --snapshot --clean --skip=docker' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

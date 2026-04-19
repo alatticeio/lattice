@@ -17,6 +17,7 @@ package transport
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -198,6 +199,22 @@ func (p *ProbeFactory) NewProbe(remoteId infra.PeerIdentity) (*Probe, error) {
 			return p.provisioner.SetupNAT(rp.InterfaceName)
 		},
 		onFailure: func(err error) error {
+			// ErrDialerClosed: the iceDialer was explicitly shut down because
+			// ICE reached Failed state, or a SYN arrived on an active agent
+			// (remote restarted mid-session).  This is a clean session
+			// transition — restart immediately and reset the failure clock so
+			// transient ICE failures don't accumulate toward the 60 s limit.
+			if errors.Is(err, ErrDialerClosed) {
+				mu.Lock()
+				firstFailureAt = time.Time{}
+				mu.Unlock()
+				probe.restart()
+				return nil
+			}
+
+			// Any other error (e.g. Dial() timed out waiting for an offer)
+			// means the remote is genuinely unreachable.  Apply a 10 s backoff
+			// and count elapsed time toward the 60 s removal threshold.
 			mu.Lock()
 			if firstFailureAt.IsZero() {
 				firstFailureAt = time.Now()
@@ -205,10 +222,8 @@ func (p *ProbeFactory) NewProbe(remoteId infra.PeerIdentity) (*Probe, error) {
 			elapsed := time.Since(firstFailureAt)
 			mu.Unlock()
 
-			// After 60s of failed reconnection, give up and let the configmap
-			// drive the next connection attempt: the management server will push
-			// PeersRemoved when it detects the peer offline, and PeersAdded
-			// when it comes back, creating a fresh probe at that point.
+			// After 60s of timeout failures, give up and let the management
+			// server drive the next attempt via PeersRemoved/PeersAdded.
 			if elapsed >= 60*time.Second {
 				p.log.Info("peer unreachable for 60s, closing probe", "remoteId", remoteId.AppID)
 				p.Remove(remoteId.AppID)
@@ -221,8 +236,9 @@ func (p *ProbeFactory) NewProbe(remoteId infra.PeerIdentity) (*Probe, error) {
 		wrrpDialer: wrrpDialer,
 	}
 
-	// makeIceDialer is a factory that creates a fresh iceDialer, wired to
-	// call probe.restart() on close so reconnection works automatically.
+	// makeIceDialer creates a fresh iceDialer for each connection attempt.
+	// Restart is driven entirely by onFailure above — the dialer itself has
+	// no restart callback, eliminating the double-restart race condition.
 	makeIceDialer := func() infra.Dialer {
 		return NewIceDialer(&ICEDialerConfig{
 			LocalId:                p.localId,
@@ -231,17 +247,6 @@ func (p *ProbeFactory) NewProbe(remoteId infra.PeerIdentity) (*Probe, error) {
 			LocalPeer:              localPeer,
 			OnPeerReceived:         onPeerReceived,
 			UniversalUdpMuxDefault: p.UniversalUdpMuxDefault,
-			OnClose: func(_ infra.PeerIdentity) {
-				probe.restart()
-			},
-			// After the old session is torn down (remote restarted mid-session),
-			// immediately re-dispatch the triggering SYN to the newly created
-			// dialer so we don't wait for the remote's next 2-second retry cycle.
-			OnSynOnActiveAgent: func(ctx context.Context, rid infra.PeerIdentity, packet *grpc.SignalPacket) {
-				if err := probe.Handle(ctx, rid, packet); err != nil {
-					p.log.Error("re-dispatch SYN to restarted dialer", err)
-				}
-			},
 		})
 	}
 	probe.newIceDialer = makeIceDialer
