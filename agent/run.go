@@ -35,7 +35,6 @@ import (
 	"wireflow/internal/telemetry"
 
 	"golang.org/x/sync/errgroup"
-	wg "golang.zx2c4.com/wireguard/device"
 	"golang.zx2c4.com/wireguard/ipc"
 	"golang.zx2c4.com/wireguard/wgctrl"
 )
@@ -56,7 +55,6 @@ func Start(ctx context.Context, flags *config.Config) error {
 		InterfaceName: flags.InterfaceName,
 		Token:         flags.Token,
 		ShowLog:       flags.EnableSysLog,
-		WgLogger:      wg.NewLogger(wg.LogLevelError, fmt.Sprintf("(%s) ", flags.InterfaceName)),
 		Flags:         flags,
 	}
 

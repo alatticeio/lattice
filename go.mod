@@ -12,7 +12,6 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/klauspost/compress v1.18.4
 	github.com/miekg/dns v1.1.67
-	github.com/moby/term v0.5.0
 	github.com/mozillazg/go-pinyin v0.21.0
 	github.com/muesli/termenv v0.16.0
 	github.com/nats-io/nats-server/v2 v2.12.5
@@ -54,7 +53,6 @@ require (
 require (
 	cel.dev/expr v0.19.1 // indirect
 	filippo.io/edwards25519 v1.1.0 // indirect
-	github.com/Azure/go-ansiterm v0.0.0-20230124172434-306776ec8161 // indirect
 	github.com/antithesishq/antithesis-sdk-go v0.6.0-default-no-op // indirect
 	github.com/antlr4-go/antlr/v4 v4.13.0 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect

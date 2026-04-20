@@ -57,7 +57,7 @@ func (r *routeProvisioner) ApplyIP(action, address, name string) error {
 		if err := ExecCommand("/bin/sh", "-c", fmt.Sprintf("ip address replace %s dev %s", address, name)); err != nil {
 			return err
 		}
-		if err := ExecCommand("/bin/sh", "-c", fmt.Sprintf("ip link set dev %s up", name)); err != nil {
+		if err := ExecCommand("/bin/sh", "-c", fmt.Sprintf("ip link set dev %s mtu %d up", name, DefaultMTU)); err != nil {
 			return err
 		}
 	}

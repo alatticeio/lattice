@@ -21,7 +21,7 @@ var WrrpUrl string
 var ShowNetLog bool
 
 const (
-	DefaultMTU = 1420
+	DefaultMTU = 1280
 	// ConsoleDomain domain for service
 	ConsoleDomain         = "http://console.wireflow.run"
 	ManagementDomain      = "console.wireflow.run"

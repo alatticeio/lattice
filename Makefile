@@ -187,7 +187,7 @@ E2E_KUBECONFIG      ?= /tmp/$(LOCAL_CLUSTER_NAME).kubeconfig
 E2E_KUBECTL         := kubectl --kubeconfig=$(E2E_KUBECONFIG)
 
 .PHONY: e2e-setup
-e2e-setup: kustomize ## 一键搭建本地 E2E 环境 (k3d 集群 + 构建/导入镜像 + 部署 Manager)
+e2e-setup: kustomize ## 一键搭建本地 E2E 环境 (k3d 集群 + 构建/导入镜像 + 部署 Ma nager)
 	@echo "====> [1/5] 创建 k3d 集群 ($(LOCAL_CLUSTER_NAME))..."
 	k3d cluster list 2>/dev/null | grep -q "$(LOCAL_CLUSTER_NAME)" || \
 		k3d cluster create $(LOCAL_CLUSTER_NAME) \

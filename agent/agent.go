@@ -72,7 +72,6 @@ type AgentConfig struct {
 	Logger        *log.Logger
 	Port          int
 	InterfaceName string
-	WgLogger      *wg.Logger
 	ForceRelay    bool
 	ShowLog       bool
 	Token         string
@@ -142,6 +141,7 @@ func NewAgent(ctx context.Context, cfg *AgentConfig) (*Agent, error) {
 		PeerManager:            agent.manager.peerManager,
 		UniversalUdpMuxDefault: universalUdpMuxDefault,
 		Provisioner:            agent.provisioner,
+		ShowLog:                cfg.ShowLog,
 	})
 
 	//subscribe
@@ -179,7 +179,11 @@ func NewAgent(ctx context.Context, cfg *AgentConfig) (*Agent, error) {
 		KeyManager:      agent.manager.keyManager,
 	})
 
-	agent.iface = wg.NewDevice(iface, agent.bind, cfg.WgLogger)
+	wgLogLevel := wg.LogLevelError
+	if cfg.ShowLog {
+		wgLogLevel = wg.LogLevelVerbose
+	}
+	agent.iface = wg.NewDevice(iface, agent.bind, wg.NewLogger(wgLogLevel, fmt.Sprintf("(%s) ", cfg.InterfaceName)))
 
 	agent.provisioner = infra.NewProvisioner(infra.NewRouteProvisioner(cfg.Logger),
 		infra.NewRuleProvisioner(cfg.Logger, agent.Name), &infra.Params{

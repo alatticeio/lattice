@@ -106,5 +106,6 @@ Use --save to persist the current flags back to the config file.`,
 	fs.BoolP("enable-wrrp", "", false, "use WRRP relay for NAT traversal")
 	fs.StringP("vm-endpoint", "", "", "use to push tele")
 	fs.BoolP("enable-metric", "", false, "expose Prometheus metrics endpoint")
+	fs.BoolP("enable-sys-log", "", false, "enable verbose WireGuard and ICE debug logging")
 	return cmd
 }

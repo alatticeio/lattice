@@ -297,12 +297,11 @@ func (i *iceDialer) getAgent(remoteId infra.PeerIdentity) (*AgentWrapper, error)
 	disconnectedTimeout := 10 * time.Second
 	failedTimeout := 15 * time.Second
 	iceAgent, err := ice.NewAgent(&ice.AgentConfig{
-		UDPMux:              i.universalUdpMuxDefault.UDPMuxDefault,
-		UDPMuxSrflx:         i.universalUdpMuxDefault,
-		NetworkTypes:        []ice.NetworkType{ice.NetworkTypeUDP4},
+		UDPMux:       i.universalUdpMuxDefault.UDPMuxDefault,
+		UDPMuxSrflx:  i.universalUdpMuxDefault,
+		NetworkTypes: []ice.NetworkType{ice.NetworkTypeUDP4},
 		Urls: []*stun.URI{
-			{Scheme: stun.SchemeTypeSTUN, Host: "stun.l.google.com", Port: 19302},
-			{Scheme: stun.SchemeTypeSTUN, Host: "stun1.l.google.com", Port: 19302},
+			{Scheme: stun.SchemeTypeSTUN, Host: "stun.wireflow.run", Port: 3478},
 		},
 		Tiebreaker:          uint64(ice.NewTieBreaker()),
 		LoggerFactory:       f,
