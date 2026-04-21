@@ -59,13 +59,13 @@ type Task struct {
 	Data      []byte
 }
 
-func NewWrrpClient(localID infra.PeerID, url string) (*WRRPClient, error) {
-
+func NewWrrpClient(localID infra.PeerID, url string, onMessage func(ctx context.Context, remoteId infra.PeerID, packet *grpc.SignalPacket) error) (*WRRPClient, error) {
 	c := &WRRPClient{
 		log:       log.GetLogger("wrrper"),
 		ServerURL: url,
 		probeChan: make(chan *Task, 1024),
 		localId:   localID,
+		onMessage: onMessage,
 	}
 
 	for i := 0; i < 3; i++ {
@@ -93,19 +93,6 @@ func (c *WRRPClient) probeWorker() {
 	}
 }
 
-type ClientOption func(*WRRPClient)
-
-func WithOnMessage(fn func(ctx context.Context, remoteId infra.PeerID, packet *grpc.SignalPacket) error) ClientOption {
-	return func(c *WRRPClient) {
-		c.onMessage = fn
-	}
-}
-
-func (c *WRRPClient) Configure(opts ...ClientOption) {
-	for _, opt := range opts {
-		opt(c)
-	}
-}
 
 // nolint:all
 func (c *WRRPClient) Connect() error {

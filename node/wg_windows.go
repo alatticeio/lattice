@@ -12,9 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//go:build !windows
+//go:build windows
 
-package agent
+// Package agent +build windows
+package node
 
 import (
 	"bufio"
@@ -22,8 +23,6 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"os"
-	"syscall"
 	"wireflow/internal/log"
 	"wireflow/internal/wferrors"
 
@@ -40,8 +39,9 @@ type DeviceManager struct {
 func NewDeviceManager(logger *log.Logger, device *wg.Device, signal chan struct{}) *DeviceManager {
 	return &DeviceManager{logger: logger, device: device, stopCh: signal}
 }
+
 func (c *DeviceManager) IpcHandle(socket net.Conn) {
-	defer socket.Close() //nolint:errcheck
+	defer socket.Close()
 
 	buffered := func(s io.ReadWriter) *bufio.ReadWriter {
 		reader := bufio.NewReader(s)
@@ -50,7 +50,6 @@ func (c *DeviceManager) IpcHandle(socket net.Conn) {
 	}(socket)
 	for {
 		op, err := buffered.ReadString('\n')
-
 		if err != nil {
 			return
 		}
@@ -58,17 +57,13 @@ func (c *DeviceManager) IpcHandle(socket net.Conn) {
 		// handle operation
 		switch op {
 		case "stop\n":
-			_, err = buffered.Write([]byte("OK\n\n"))
-			if err != nil {
-				fmt.Printf("Error setting operation: %s\n", err)
-			}
+			buffered.Write([]byte("OK\n\n"))
+			buffered.Flush()
 			// send kill signal
-			err = syscall.Kill(os.Getpid(), syscall.SIGTERM)
+			close(c.stopCh)
+			return
 		case "set=1\n":
 			err = c.device.IpcSetOperation(buffered.Reader)
-			if err != nil {
-				fmt.Printf("Error setting operation: %s\n", err)
-			}
 		case "get=1\n":
 			var nextByte byte
 			nextByte, err = buffered.ReadByte()
@@ -93,11 +88,11 @@ func (c *DeviceManager) IpcHandle(socket net.Conn) {
 		}
 		if status != nil {
 			c.logger.Error("UAPI returned non-zero status", status, "code", status.ErrorCode())
-			fmt.Fprintf(buffered, "errno=%d\n\n", status.ErrorCode()) //nolint:errcheck
+			fmt.Fprintf(buffered, "errno=%d\n\n", status.ErrorCode())
 		} else {
-			fmt.Fprintf(buffered, "errno=0\n\n") //nolint:errcheck
+			fmt.Fprintf(buffered, "errno=0\n\n")
 		}
-		buffered.Flush() //nolint:errcheck
+		buffered.Flush()
 	}
 
 }

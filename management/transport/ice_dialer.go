@@ -20,6 +20,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -297,6 +298,16 @@ func (i *iceDialer) getAgent(remoteId infra.PeerIdentity) (*AgentWrapper, error)
 	disconnectedTimeout := 10 * time.Second
 	failedTimeout := 15 * time.Second
 	iceAgent, err := ice.NewAgent(&ice.AgentConfig{
+		InterfaceFilter: func(name string) bool {
+			name = strings.ToLower(name)
+			// 过滤掉所有虚拟网卡
+			if strings.Contains(name, "docker") ||
+				strings.Contains(name, "veth") ||
+				strings.Contains(name, "br-") {
+				return false
+			}
+			return true
+		},
 		UDPMux:       i.universalUdpMuxDefault.UDPMuxDefault,
 		UDPMuxSrflx:  i.universalUdpMuxDefault,
 		NetworkTypes: []ice.NetworkType{ice.NetworkTypeUDP4},

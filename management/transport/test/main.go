@@ -31,21 +31,27 @@ func main() {
 	localId := infra.NewPeerIdentity(key1.String(), key1)
 	remoteId := infra.NewPeerIdentity(key2.String(), key2)
 
-	//p := args[3]
-	//port, err := strconv.Atoi(p)
-	//if err != nil {
-	//	panic(err)
-	//}
-
-	//localSessionId, err := transport.GenerateSessionID()
-	//if err != nil {
-	//	panic(err)
-	//}
-	wrrpClient, err := wrrper.NewWrrpClient(localId.ID(), "127.0.0.1:6266")
+	ctx := signals.SetupSignalHandler()
+	nats, err := nats2.NewNatsService(ctx, "test", "client", "nats://81.68.109.143:4222")
 	if err != nil {
 		panic(err)
 	}
-	if err = wrrpClient.Connect(); err != nil {
+
+	peerManager := infra.NewPeerManager()
+
+	// probeFactory is declared first so its Handle method can be passed directly
+	// to NewWrrpClient; wrrpClient is captured by the GetWrrp closure so
+	// probeFactory sees it once assigned — no Configure() on either side.
+	var wrrpClient *wrrper.WRRPClient
+	probeFactory := transport.NewProbeFactory(&transport.ProbeFactoryConfig{
+		LocalId:     localId,
+		Signal:      nats,
+		PeerManager: peerManager,
+		GetWrrp:     func() infra.Wrrp { return wrrpClient },
+	})
+
+	wrrpClient, err = wrrper.NewWrrpClient(localId.ID(), "127.0.0.1:6266", probeFactory.Handle)
+	if err != nil {
 		panic(err)
 	}
 
@@ -62,35 +68,6 @@ func main() {
 			}
 		}
 	}()
-
-	ctx := signals.SetupSignalHandler()
-	nats, err := nats2.NewNatsService(ctx, "test", "client", "nats://81.68.109.143:4222")
-	if err != nil {
-		panic(err)
-	}
-
-	peerManager := infra.NewPeerManager()
-	//conn, _, err := infra.ListenUDP("udp", uint16(port))
-	//dialer := transport.NewIceDialer(&transport.ICEDialerConfig{
-	//	Sender:                 nats.Send,
-	//	LocalId:                localId,
-	//	RemoteId:               remoteId,
-	//	UniversalUdpMuxDefault: infra.NewUdpMux(conn, false),
-	//	PeerManager:            peerManager,
-	//})
-
-	//peerManager.AddPeer(localId, &infra.Peer{
-	//	PublicKey: localId,
-	//})
-
-	probeFactory := transport.NewProbeFactory(&transport.ProbeFactoryConfig{
-		LocalId:     localId,
-		Signal:      nats,
-		Wrrp:        wrrpClient,
-		PeerManager: peerManager,
-	})
-
-	wrrpClient.Configure(wrrper.WithOnMessage(probeFactory.Handle))
 
 	if err = nats.Subscribe(fmt.Sprintf("%s.%s", "wireflow.signals.peers", localId), probeFactory.Handle); err != nil {
 		panic(err)

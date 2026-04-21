@@ -13,13 +13,12 @@ import (
 )
 
 // gormStore 实现 store.Store 接口。
+// Peer 和 Token 已迁移至 K8s etcd，不再由此 store 管理。
 type gormStore struct {
 	db               *gorm.DB
 	users            store.UserRepository
-	tokens           store.TokenRepository
 	workspaces       store.WorkspaceRepository
 	workspaceMembers store.WorkspaceMemberRepository
-	peers            store.PeerRepository
 	profiles         store.ProfileRepository
 }
 
@@ -35,19 +34,15 @@ func newStore(db *gorm.DB) *gormStore {
 	return &gormStore{
 		db:               db,
 		users:            newUserRepo(db),
-		tokens:           newTokenRepo(db),
 		workspaces:       newWorkspaceRepo(db),
 		workspaceMembers: newWorkspaceMemberRepo(db),
-		peers:            newPeerRepo(db),
 		profiles:         newProfileRepo(db),
 	}
 }
 
 func (s *gormStore) Users() store.UserRepository                       { return s.users }
-func (s *gormStore) Tokens() store.TokenRepository                     { return s.tokens }
 func (s *gormStore) Workspaces() store.WorkspaceRepository             { return s.workspaces }
 func (s *gormStore) WorkspaceMembers() store.WorkspaceMemberRepository { return s.workspaceMembers }
-func (s *gormStore) Peers() store.PeerRepository                       { return s.peers }
 func (s *gormStore) Profiles() store.ProfileRepository                 { return s.profiles }
 
 // Tx 在数据库事务中执行 fn，fn 内通过临时 Store 访问所有 Repository。

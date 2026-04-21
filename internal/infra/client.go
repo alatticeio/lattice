@@ -21,8 +21,8 @@ import (
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 )
 
-// AgentInterface is the interface for managing WireGuard devices.
-type AgentInterface interface {
+// NodeInterface is the interface for managing WireGuard devices.
+type NodeInterface interface {
 	// Start the engine
 	Start(ctx context.Context) error
 

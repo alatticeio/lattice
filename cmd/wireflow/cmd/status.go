@@ -15,7 +15,7 @@
 package cmd
 
 import (
-	"wireflow/agent"
+	"wireflow/node"
 	"wireflow/internal/config"
 
 	"github.com/spf13/cobra"
@@ -24,7 +24,7 @@ import (
 func statusCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "status",
-		Short: "Show the current agent status and connected peers",
+		Short: "Show the current node status and connected peers",
 		Long: `Display the WireGuard interface information and the status of all peers.
 
 A peer is considered connected if a WireGuard handshake was completed within
@@ -47,7 +47,7 @@ Example output:
     Traffic   : ↑ 1.2 MB  ↓ 3.4 MB
     Status    : connected`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return agent.Status(config.Conf)
+			return node.Status(config.Conf)
 		},
 	}
 }

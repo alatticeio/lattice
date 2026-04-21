@@ -176,6 +176,7 @@ func (p *Probe) discover(ctx context.Context) (infra.Transport, error) {
 	go func() {
 		p.log.Debug("Starting ice dialer", "remoteId", p.remoteId)
 		if err := p.iceDialer.Prepare(ctx, p.remoteId); err != nil {
+			p.log.Error("Prepare failed", err)
 			errs <- err
 			return
 		}

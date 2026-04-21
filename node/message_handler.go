@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package agent
+package node
 
 import (
 	"context"
@@ -28,12 +28,12 @@ type Handler interface {
 
 // event handler for wireflow to handle event from management
 type MessageHandler struct {
-	deviceManager infra.AgentInterface
+	deviceManager infra.NodeInterface
 	logger        *log.Logger
 	provisioner   infra.Provisioner
 }
 
-func NewMessageHandler(e infra.AgentInterface, logger *log.Logger, provisioner infra.Provisioner) *MessageHandler {
+func NewMessageHandler(e infra.NodeInterface, logger *log.Logger, provisioner infra.Provisioner) *MessageHandler {
 	return &MessageHandler{
 		deviceManager: e,
 		logger:        logger,

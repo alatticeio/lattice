@@ -21,7 +21,6 @@ import (
 	"os"
 	"strings"
 	"text/tabwriter"
-	"wireflow/management/models"
 	"wireflow/management/vo"
 )
 
@@ -236,7 +235,7 @@ func (c *Client) ListTokens(namespace string) error {
 	if err != nil {
 		return err
 	}
-	var list []*models.Token
+	var list []*vo.TokenVo
 	if err = json.Unmarshal(data, &list); err != nil {
 		return err
 	}
@@ -247,9 +246,9 @@ func (c *Client) ListTokens(namespace string) error {
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
 	fmt.Fprintln(w, "TOKEN\tNAMESPACE\tLIMIT\tEXPIRY") //nolint:errcheck
 	for _, t := range list {
-		expiry := t.Expiry
-		if expiry == "" {
-			expiry = "never"
+		expiry := "never"
+		if !t.Expiry.IsZero() {
+			expiry = t.Expiry.Time.Format("2006-01-02 15:04")
 		}
 		limit := fmt.Sprintf("%d", t.UsageLimit)
 		if t.UsageLimit == 0 {

@@ -14,7 +14,7 @@
 // // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // // See the License for the specific language governing permissions and
 // // limitations under the License.
-package agent
+package node
 
 import (
 	"context"
@@ -43,13 +43,13 @@ func Start(ctx context.Context, flags *config.Config) error {
 	logger := log.GetLogger("wireflow")
 
 	// peers config to wireGuard
-	agentCfg := &AgentConfig{
+	agentCfg := &NodeConfig{
 		Logger:        logger,
-		Port:          51820,
+		Port:          flags.WgPort,
 		InterfaceName: flags.InterfaceName,
 		Token:         flags.Token,
 		ShowLog:       flags.EnableSysLog,
-		Flags: flags,
+		Flags:         flags,
 	}
 
 	if flags.EnableDaemon {
@@ -148,7 +148,7 @@ func Start(ctx context.Context, flags *config.Config) error {
 		}()
 	}
 
-	c, err := NewAgent(ctx, agentCfg)
+	c, err := NewNode(ctx, agentCfg)
 	if err != nil {
 		return err
 	}

@@ -13,12 +13,11 @@ import (
 
 // Store 是顶层存储抽象，聚合所有子 Repository。
 // 调用方只依赖本接口，不感知底层数据库类型。
+// Peer 和 Token 数据已迁移到 K8s etcd（WireflowPeer CRD / WireflowEnrollmentToken CRD）。
 type Store interface {
 	Users() UserRepository
-	Tokens() TokenRepository
 	Workspaces() WorkspaceRepository
 	WorkspaceMembers() WorkspaceMemberRepository
-	Peers() PeerRepository
 	Profiles() ProfileRepository
 
 	// Tx 在同一个数据库事务中执行 fn，fn 内通过参数 s 访问所有 Repository。
@@ -38,15 +37,6 @@ type UserRepository interface {
 	Delete(ctx context.Context, id string) error
 	List(ctx context.Context, req *dto.PageRequest) (*dto.PageResult[vo.UserVo], error)
 	Count(ctx context.Context) (int64, error)
-}
-
-// TokenRepository 定义接入令牌相关数据操作。
-type TokenRepository interface {
-	GetByID(ctx context.Context, id string) (*models.Token, error)
-	GetByToken(ctx context.Context, token string) (*models.Token, error)
-	Create(ctx context.Context, token *models.Token) error
-	Delete(ctx context.Context, id string) error
-	List(ctx context.Context, namespace string) ([]*models.Token, error)
 }
 
 // WorkspaceRepository 定义工作空间相关数据操作。
@@ -70,16 +60,6 @@ type WorkspaceMemberRepository interface {
 	ListMembers(ctx context.Context, workspaceID string) ([]*models.WorkspaceMember, error)
 	ListByUser(ctx context.Context, userID string, page, pageSize int) ([]*models.WorkspaceMember, int64, error)
 	UpdateRole(ctx context.Context, workspaceID, userID string, role dto.WorkspaceRole) error
-}
-
-// PeerRepository 定义节点相关数据操作。
-type PeerRepository interface {
-	GetByID(ctx context.Context, id string) (*models.Peer, error)
-	GetByPublicKey(ctx context.Context, publicKey string) (*models.Peer, error)
-	Create(ctx context.Context, peer *models.Peer) error
-	Update(ctx context.Context, peer *models.Peer) error
-	Delete(ctx context.Context, id string) error
-	List(ctx context.Context, appID string) ([]*models.Peer, error)
 }
 
 // ProfileRepository 定义用户扩展资料数据操作。

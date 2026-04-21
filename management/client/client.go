@@ -34,45 +34,28 @@ var (
 )
 
 type Client struct {
-	logger       *log.Logger
-	nats         infra.SignalService
-	keyManager   infra.KeyManager
-	probeFactory *transport.ProbeFactory
+	logger          *log.Logger
+	nats            infra.SignalService
+	getKeyManager   func() infra.KeyManager
+	getProbeFactory func() *transport.ProbeFactory
 }
 
-func NewClient(nats infra.SignalService) (*Client, error) {
-	client := &Client{
-		logger: log.GetLogger("ctrl-client"),
-		nats:   nats,
-	}
-
-	return client, nil
+// ClientConfig holds the dependencies for NewClient. GetKeyManager and
+// GetProbeFactory are closures resolved lazily at call time, allowing them
+// to be constructed after the Client itself without a two-phase Configure().
+type ClientConfig struct {
+	Nats            infra.SignalService
+	GetKeyManager   func() infra.KeyManager
+	GetProbeFactory func() *transport.ProbeFactory
 }
 
-type ClientOptions func(*Client)
-
-func WithKeyManager(keyManager infra.KeyManager) func(*Client) {
-	return func(c *Client) {
-		c.keyManager = keyManager
-	}
-}
-
-func WithSignalHandler(nats infra.SignalService) func(*Client) {
-	return func(c *Client) {
-		c.nats = nats
-	}
-}
-
-func WithProbeFactory(probeFactory *transport.ProbeFactory) func(*Client) {
-	return func(c *Client) {
-		c.probeFactory = probeFactory
-	}
-}
-
-func (c *Client) Configure(opts ...ClientOptions) {
-	for _, opt := range opts {
-		opt(c)
-	}
+func NewClient(cfg *ClientConfig) (*Client, error) {
+	return &Client{
+		logger:          log.GetLogger("ctrl-client"),
+		nats:            cfg.Nats,
+		getKeyManager:   cfg.GetKeyManager,
+		getProbeFactory: cfg.GetProbeFactory,
+	}, nil
 }
 
 func (c *Client) GetNetMap(token string) (*infra.Message, error) {
@@ -84,7 +67,7 @@ func (c *Client) GetNetMap(token string) (*infra.Message, error) {
 	}
 	request := &dto.PeerDto{
 		AppID:     config.Conf.AppId,
-		PublicKey: c.keyManager.GetPublicKey().String(),
+		PublicKey: c.getKeyManager().GetPublicKey().String(),
 		Token:     token,
 	}
 
@@ -128,7 +111,7 @@ func (c *Client) Register(ctx context.Context, token, interfaceName string) (*in
 		Platform:            runtime.GOOS,
 		AppID:               config.Conf.AppId,
 		PersistentKeepalive: 25,
-		Port:                51820,
+		Port:                config.Conf.WgPort,
 		Token:               token,
 	}
 
@@ -180,7 +163,7 @@ func (c *Client) AddPeer(p *infra.Peer) error {
 	}
 	peerIdentity := infra.NewPeerIdentity(p.AppID, key)
 
-	probe, err = c.probeFactory.Get(peerIdentity)
+	probe, err = c.getProbeFactory().Get(peerIdentity)
 	if err != nil {
 		return err
 	}

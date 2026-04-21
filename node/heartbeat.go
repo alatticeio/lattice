@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package agent
+package node
 
 import (
 	"context"
@@ -32,7 +32,7 @@ type heartbeatPayload struct {
 // StartHeartbeat sends a periodic heartbeat to the management server via NATS
 // so the server can track the node's online status.
 // It runs until ctx is cancelled and is safe to run in a goroutine.
-func (c *Agent) StartHeartbeat(ctx context.Context) {
+func (c *Node) StartHeartbeat(ctx context.Context) {
 	logger := log.GetLogger("heartbeat")
 	appId := config.Conf.AppId
 

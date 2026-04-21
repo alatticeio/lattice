@@ -18,6 +18,7 @@ import (
 	"bytes"
 	"fmt"
 	"log"
+	"os"
 	"os/exec"
 	"strings"
 )
@@ -173,11 +174,21 @@ func (p *ruleProvisioner) Cleanup() error {
 	return nil
 }
 
-// SetupNAT for run via docker using.
+// isRunningInDocker reports whether the process is running inside a Docker
+// container. Docker always creates /.dockerenv in the container root FS.
+func isRunningInDocker() bool {
+	_, err := os.Stat("/.dockerenv")
+	return err == nil
+}
+
+// SetupNAT configures iptables NAT rules required when wireflow runs inside a
+// Docker container acting as a VPN gateway. It is a no-op on bare-metal or VM
+// deployments because ApplyRoute already installs the correct MASQUERADE rule
+// on the default outbound interface.
 func (r *ruleProvisioner) SetupNAT(interfaceName string) error {
-	// 定义需要执行的命令集
-	// -t nat -A POSTROUTING -o wf0 -j MASQUERADE: 允许流量从 wf0 出去时进行地址伪装
-	// -A FORWARD -j ACCEPT: 允许通过容器进行流量转发
+	if !isRunningInDocker() {
+		return nil
+	}
 
 	cmds := []string{
 		fmt.Sprintf("iptables -w 5 -t nat -A POSTROUTING -o %s -j MASQUERADE", interfaceName),

@@ -37,14 +37,14 @@ type ProbeFactory struct {
 
 	wrrpProbes map[string]*Probe // nolint
 
-	signal      infra.SignalService
-	provisioner infra.Provisioner
+	signal         infra.SignalService
+	getProvisioner func() infra.Provisioner
+	getOnMessage   func() func(context.Context, *infra.Message) error
+	getWrrp        func() infra.Wrrp
 
 	log *log.Logger
 
-	onMessage   func(context.Context, *infra.Message) error
 	peerManager *infra.PeerManager
-	wrrp        infra.Wrrp
 	showLog     bool
 
 	UniversalUdpMuxDefault *ice.UniversalUDPMuxDefault
@@ -53,39 +53,14 @@ type ProbeFactory struct {
 type ProbeFactoryConfig struct {
 	LocalId                infra.PeerIdentity
 	Signal                 infra.SignalService
-	OnMessage              func(context.Context, *infra.Message)
+	GetOnMessage           func() func(context.Context, *infra.Message) error
 	PeerManager            *infra.PeerManager
-	Wrrp                   infra.Wrrp
+	GetWrrp                func() infra.Wrrp
 	UniversalUdpMuxDefault *ice.UniversalUDPMuxDefault
-	Provisioner            infra.Provisioner
+	GetProvisioner         func() infra.Provisioner
 	ShowLog                bool
 }
 
-type ProbeFactoryOptions func(*ProbeFactory)
-
-func WithOnMessage(onMessage func(context.Context, *infra.Message) error) ProbeFactoryOptions {
-	return func(p *ProbeFactory) {
-		p.onMessage = onMessage
-	}
-}
-
-func WithProvisioner(provisioner infra.Provisioner) ProbeFactoryOptions {
-	return func(p *ProbeFactory) {
-		p.provisioner = provisioner
-	}
-}
-
-func WithWrrp(wrrp infra.Wrrp) ProbeFactoryOptions {
-	return func(p *ProbeFactory) {
-		p.wrrp = wrrp
-	}
-}
-
-func (t *ProbeFactory) Configure(opts ...ProbeFactoryOptions) {
-	for _, opt := range opts {
-		opt(t)
-	}
-}
 
 func NewProbeFactory(cfg *ProbeFactoryConfig) *ProbeFactory {
 	return &ProbeFactory{
@@ -94,9 +69,11 @@ func NewProbeFactory(cfg *ProbeFactoryConfig) *ProbeFactory {
 		signal:                 cfg.Signal,
 		probes:                 make(map[string]*Probe),
 		peerManager:            cfg.PeerManager,
-		wrrp:                   cfg.Wrrp,
+		getWrrp:                cfg.GetWrrp,
 		showLog:                cfg.ShowLog,
 		UniversalUdpMuxDefault: cfg.UniversalUdpMuxDefault,
+		getProvisioner:         cfg.GetProvisioner,
+		getOnMessage:           cfg.GetOnMessage,
 	}
 }
 
@@ -152,7 +129,7 @@ func (p *ProbeFactory) NewProbe(remoteId infra.PeerIdentity) (*Probe, error) {
 	wrrpDialer, err := NewWrrpDialer(&WrrpDialerConfig{
 		LocalId:        p.localId,
 		RemoteId:       remoteId,
-		Wrrp:           p.wrrp,
+		Wrrp:           p.getWrrp(),
 		Sender:         p.signal.Send,
 		LocalPeer:      localPeer,
 		OnPeerReceived: onPeerReceived,
@@ -176,6 +153,10 @@ func (p *ProbeFactory) NewProbe(remoteId infra.PeerIdentity) (*Probe, error) {
 			if rp == nil {
 				return fmt.Errorf("remote peer info not yet received for %s", remoteId.AppID)
 			}
+			provisioner := p.getProvisioner()
+			if provisioner == nil {
+				return fmt.Errorf("provisioner not ready for peer %s", remoteId.AppID)
+			}
 			p.log.Info("connection established", "transportType", transport.Type(), "remoteAddr", transport.RemoteAddr())
 			// Only the ICE initiator (localId > remoteId, i.e. the SYN sender)
 			// drives WireGuard keepalives.  If both ends set PersistentKeepalive
@@ -197,19 +178,19 @@ func (p *ProbeFactory) NewProbe(remoteId infra.PeerIdentity) (*Probe, error) {
 			} else {
 				setPeer.Endpoint = transport.RemoteAddr()
 			}
-			err := p.provisioner.AddPeer(setPeer)
+			err := provisioner.AddPeer(setPeer)
 			if err != nil {
 				p.log.Error("probe add peer failed", err)
 				return err
 			}
 
-			err = p.provisioner.ApplyRoute("add", *rp.Address, p.provisioner.GetIfaceName())
+			err = provisioner.ApplyRoute("add", *rp.Address, provisioner.GetIfaceName())
 			if err != nil {
 				p.log.Error("probe apply route failed", err)
 				return err
 			}
 
-			return p.provisioner.SetupNAT(rp.InterfaceName)
+			return provisioner.SetupNAT(provisioner.GetIfaceName())
 		},
 		onFailure: func(err error) error {
 			// ErrDialerClosed: the iceDialer was explicitly shut down because
@@ -277,14 +258,15 @@ func (p *ProbeFactory) Handle(ctx context.Context, remoteId infra.PeerID, packet
 
 	// Config messages pushed from the management server (not peer-to-peer ICE packets).
 	if packet.Type == grpc.PacketType_MESSAGE {
-		if p.onMessage == nil {
+		onMessage := p.getOnMessage()
+		if onMessage == nil {
 			return nil
 		}
 		var msg infra.Message
 		if err := json.Unmarshal(packet.GetMessage().Content, &msg); err != nil {
 			return fmt.Errorf("handle MESSAGE: unmarshal: %w", err)
 		}
-		return p.onMessage(ctx, &msg)
+		return onMessage(ctx, &msg)
 	}
 
 	remoteIdentity, ok := p.peerManager.GetIdentity(remoteId)

@@ -271,7 +271,8 @@ type Config struct {
 	WrrperURL     string `mapstructure:"wrrper-url"` // Wrrper relay 地址，默认 :6266
 	TurnServerURL string `mapstructure:"stun-url"`   // TURN/STUN 地址
 	PublicIP      string `mapstructure:"public-ip"`
-	Port          int    `mapstructure:"port"` // TURN 业务端口，默认 3478
+	Port          int    `mapstructure:"port"`    // TURN 业务端口，默认 3478
+	WgPort        int    `mapstructure:"wg-port"` // WireGuard/ICE UDP 监听端口，默认 51820
 
 	// ── 功能开关 ──────────────────────────────────────────────────
 	EnableWrrp   bool `mapstructure:"enable-wrrp"`
@@ -511,6 +512,7 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("stun-url", "stun.wireflow.run:3478")
 	v.SetDefault("wrrper-url", ":6266")
 	v.SetDefault("port", 3478)
+	v.SetDefault("wg-port", 51820)
 
 	// database.driver 默认 sqlite，与 database.dsn="" 配合实现开箱即用的本地存储。
 	// 若用户提供了 MySQL/MariaDB DSN，inferDatabaseDriver() 会自动将 driver 修正为 "mariadb"。
