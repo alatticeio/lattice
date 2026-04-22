@@ -17,6 +17,7 @@ package wrrper
 import (
 	"bufio"
 	"crypto/tls"
+	"fmt"
 	"io"
 	"log"
 	"net"
@@ -27,11 +28,14 @@ import (
 	"wireflow/internal/config"
 	internallog "wireflow/internal/log"
 	"wireflow/pkg/wrrp"
+
+	quic "github.com/quic-go/quic-go"
 )
 
 type WRRPManager struct {
-	mu      sync.Mutex
-	streams map[uint64]*wrrp.Session
+	mu        sync.Mutex
+	streams   map[uint64]*wrrp.Session
+	quicConns map[uint64]*quic.Conn
 }
 
 func (w *WRRPManager) Register(streamId uint64, stream wrrp.Stream) {
@@ -42,13 +46,24 @@ func (w *WRRPManager) Register(streamId uint64, stream wrrp.Stream) {
 		Stream: stream,
 		Type:   "WRRP",
 	}
+}
 
+func (w *WRRPManager) RegisterQUIC(id uint64, ctrl wrrp.Stream, conn *quic.Conn) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.streams[id] = &wrrp.Session{
+		ID:     id,
+		Stream: ctrl,
+		Type:   "QUIC",
+	}
+	w.quicConns[id] = conn
 }
 
 func (w *WRRPManager) Unregister(streamId uint64) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	delete(w.streams, streamId)
+	delete(w.quicConns, streamId)
 }
 
 func (w *WRRPManager) Get(id uint64) *wrrp.Session {
@@ -57,17 +72,39 @@ func (w *WRRPManager) Get(id uint64) *wrrp.Session {
 	return w.streams[id]
 }
 
+func (w *WRRPManager) Relay(toID uint64, frame []byte) error {
+	w.mu.Lock()
+	qconn := w.quicConns[toID]
+	session := w.streams[toID]
+	w.mu.Unlock()
+
+	if qconn != nil {
+		return qconn.SendDatagram(frame)
+	}
+	if session != nil {
+		_, err := session.Stream.Write(frame)
+		return err
+	}
+	return fmt.Errorf("relay target not found: %d", toID)
+}
+
+
 type Server struct {
 	log         *internallog.Logger
 	server      *http.Server
 	wrrpManager *WRRPManager
 }
 
+func (s *Server) Manager() *WRRPManager {
+	return s.wrrpManager
+}
+
 func NewServer(flags *config.Config) *Server {
 	s := &Server{
 		log: internallog.GetLogger("wrrp"),
 		wrrpManager: &WRRPManager{
-			streams: make(map[uint64]*wrrp.Session),
+			streams:   make(map[uint64]*wrrp.Session),
+			quicConns: make(map[uint64]*quic.Conn),
 		},
 	}
 	mux := http.NewServeMux()
@@ -193,34 +230,20 @@ func (s *Server) handleWRRPSession(conn net.Conn, bufrw *bufio.ReadWriter) {
 			// 处理转发逻辑
 			targetID := h.ToID
 
-			target := s.wrrpManager.Get(targetID)
-			if target == nil {
-				s.log.Warn("relay target not found, dropping packet", "target", targetID)
-				_, err = io.CopyN(io.Discard, stream, int64(h.PayloadLen))
-				if err != nil {
-					s.log.Error("failed to drain payload after target miss", err, "target", targetID)
-				}
-				continue
-			}
-			// send header
-			_, err = target.Stream.Write(headBuf)
-			if err != nil {
-				s.log.Error("failed to write relay header", err, "from", fromId, "to", targetID)
-				_, err = io.CopyN(io.Discard, stream, int64(h.PayloadLen))
-				if err != nil {
-					s.log.Error("failed to drain payload after header write error", err)
-				}
-				continue
-			}
-			_, err = io.CopyN(target.Stream, stream, int64(h.PayloadLen))
-			if err != nil {
-				s.log.Error("failed to relay packet payload", err, "from", fromId, "to", targetID)
-				if err = target.Stream.Close(); err != nil {
-					s.log.Error("failed to close relay target stream", err, "target", targetID)
+			frame := make([]byte, wrrp.HeaderSize+int(h.PayloadLen))
+			copy(frame, headBuf)
+			if h.PayloadLen > 0 {
+				if _, err = io.ReadFull(stream, frame[wrrp.HeaderSize:]); err != nil {
+					s.log.Error("failed to read relay payload", err, "from", fromId, "to", targetID)
+					continue
 				}
 			}
 
-			s.log.Debug("packet relayed", "from", fromId, "to", targetID, "bytes", h.PayloadLen)
+			if relayErr := s.wrrpManager.Relay(targetID, frame); relayErr != nil {
+				s.log.Warn("relay failed", "from", fromId, "to", targetID, "err", relayErr)
+			} else {
+				s.log.Debug("packet relayed", "from", fromId, "to", targetID, "bytes", h.PayloadLen)
+			}
 		}
 	}
 }

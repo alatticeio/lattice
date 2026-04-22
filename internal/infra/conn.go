@@ -131,20 +131,25 @@ func (b *DefaultBind) GetPackectConn6() net.PacketConn {
 
 func (b *DefaultBind) ParseEndpoint(s string) (conn.Endpoint, error) {
 	if strings.HasPrefix(s, "wrrp:") {
-		_, after, b := strings.Cut(s, "wrrp://")
-		if !b {
-			return nil, errors.New("invalid endpoint")
+		_, after, ok := strings.Cut(s, "wrrp://")
+		if !ok {
+			return nil, errors.New("invalid wrrp endpoint")
 		}
 		remoteId, err := strconv.ParseUint(after, 10, 64)
 		if err != nil {
 			return nil, err
 		}
-		e, err := netip.ParseAddrPort(config.Conf.WrrperURL)
-		if err != nil {
-			return nil, err
+		// Addr is not used for WRRP routing (Send routes via RemoteId through
+		// wrrperClient), so we don't require a valid relay IP here.
+		// We opportunistically fill it from the connected client for debugging.
+		var addr netip.AddrPort
+		if b.wrrperClient != nil {
+			if ra := b.wrrperClient.RemoteAddr(); ra != nil {
+				addr, _ = netip.ParseAddrPort(ra.String())
+			}
 		}
 		return &WRRPEndpoint{
-			Addr:          e,
+			Addr:          addr,
 			RemoteId:      remoteId,
 			TransportType: WRRP,
 		}, nil
@@ -152,6 +157,14 @@ func (b *DefaultBind) ParseEndpoint(s string) (conn.Endpoint, error) {
 	e, err := netip.ParseAddrPort(s)
 	if err != nil {
 		return nil, err
+	}
+
+	if IsWrrpFakeAddr(e.Addr()) {
+		return &WRRPEndpoint{
+			Addr:          e,
+			RemoteId:      RemoteIdFromWrrpFakeAddr(e.Addr()),
+			TransportType: WRRP,
+		}, nil
 	}
 
 	return &WRRPEndpoint{

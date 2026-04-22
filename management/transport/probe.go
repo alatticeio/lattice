@@ -49,6 +49,8 @@ type Probe struct {
 
 	// newIceDialer creates a fresh iceDialer instance for reconnection.
 	newIceDialer func() infra.Dialer
+	// newWrrpDialer creates a fresh wrrpDialer instance for reconnection.
+	newWrrpDialer func() infra.Dialer
 
 	onSuccess        func(transport infra.Transport) error
 	onFailure        func(error) error
@@ -63,37 +65,50 @@ func (p *Probe) Handle(ctx context.Context, remoteId infra.PeerIdentity, packet 
 		p.mu.RUnlock()
 		return d.Handle(ctx, p.remoteId, packet)
 	case grpc.DialerType_WRRP:
-		return p.wrrpDialer.Handle(ctx, p.remoteId, packet)
+		p.mu.RLock()
+		d := p.wrrpDialer
+		p.mu.RUnlock()
+		return d.Handle(ctx, p.remoteId, packet)
 	}
 
 	return nil
 }
 
-// restart replaces the iceDialer with a fresh instance and re-runs discovery.
-// Called by the iceDialer's OnClose callback when a connection is lost.
+// restart replaces both dialers with fresh instances and re-runs discovery.
+// Called on clean session transitions: ICE Failed state, or a SYN arriving
+// on an already-active WRRP session (remote restarted).
 func (p *Probe) restart() {
 	if p.newIceDialer == nil {
 		return
 	}
 	p.mu.Lock()
 	p.iceDialer = p.newIceDialer()
+	if p.newWrrpDialer != nil {
+		p.wrrpDialer = p.newWrrpDialer()
+	}
 	p.mu.Unlock()
 	p.started.Store(false)
 	_ = p.Start(context.Background(), p.remoteId)
 }
 
 // Close permanently stops this probe and releases all resources.
-// Setting newIceDialer to nil prevents restart() from spinning up a new
-// dialer after the underlying iceDialer's close triggers the onClose callback.
+// Setting the factory funcs to nil prevents restart() from spinning up new
+// dialers after the underlying connections trigger their close callbacks.
 func (p *Probe) Close() {
 	p.mu.Lock()
 	p.newIceDialer = nil
+	p.newWrrpDialer = nil
 	d := p.iceDialer
 	p.iceDialer = nil
+	wd := p.wrrpDialer
+	p.wrrpDialer = nil
 	p.mu.Unlock()
 
 	if d != nil {
 		d.Close() //nolint:errcheck
+	}
+	if wd != nil {
+		wd.Close() //nolint:errcheck
 	}
 }
 

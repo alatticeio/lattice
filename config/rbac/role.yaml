@@ -30,6 +30,7 @@ rules:
   - wireflownetworks
   - wireflowpeers
   - wireflowpolicies
+  - wireflowrelayservers
   verbs:
   - create
   - delete
@@ -45,6 +46,7 @@ rules:
   - wireflownetworks/finalizers
   - wireflowpeers/finalizers
   - wireflowpolicies/finalizers
+  - wireflowrelayservers/finalizers
   verbs:
   - update
 - apiGroups:
@@ -54,6 +56,7 @@ rules:
   - wireflownetworks/status
   - wireflowpeers/status
   - wireflowpolicies/status
+  - wireflowrelayservers/status
   verbs:
   - get
   - patch

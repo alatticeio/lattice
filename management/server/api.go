@@ -72,6 +72,8 @@ func (s *Server) apiRouter() error {
 
 	s.workspaceRouter()
 
+	s.relayRouter()
+
 	s.monitorRouter()
 
 	s.profileRouter()

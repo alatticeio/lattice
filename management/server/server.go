@@ -53,6 +53,7 @@ type Server struct {
 
 	workspaceController controller.WorkspaceController
 	tokenController     controller.TokenController
+	relayController     controller.RelayController
 
 	monitorController controller.MonitorController
 	profileController controller.ProfileController
@@ -147,6 +148,7 @@ func NewServer(ctx context.Context, serverConfig *ServerConfig) (*Server, error)
 		policyController:    controller.NewPolicyController(client, st),
 		workspaceController: controller.NewWorkspaceController(client, st),
 		tokenController:     controller.NewTokenController(client, st),
+		relayController:     controller.NewRelayController(client, st),
 		monitorController:   controller.NewMonitorController(cfg.Monitor.Address),
 		profileController:   controller.NewProfileController(st),
 		store:               st,

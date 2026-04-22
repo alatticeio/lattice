@@ -41,6 +41,7 @@ func newWrrpCmd() *cobra.Command {
 	fs.StringP("listen", "l", "", "port for wrrp server")
 	fs.BoolP("enable-tls", "", false, "using tls")
 	fs.StringP("level", "", "silent", "log level (debug, info, warn, error)")
+	fs.StringP("wrrp-quic-url", "", "", "QUIC WRRP relay server address (e.g. :6267)")
 	return cmd
 }
 
@@ -48,5 +49,20 @@ func newWrrpCmd() *cobra.Command {
 func runWrrp(flags *config.Config) error {
 	log.SetLevel(flags.Level)
 	server := wrrper.NewServer(flags)
+
+	if flags.WrrpQuicURL != "" {
+		tlsCfg, err := wrrper.GenerateSelfSignedTLS()
+		if err != nil {
+			log.GetLogger("wrrp").Warn("failed to generate self-signed TLS, skipping QUIC", "err", err)
+		} else {
+			qs := wrrper.NewQUICServer(server.Manager())
+			go func() {
+				if err := qs.Start(flags.WrrpQuicURL, tlsCfg); err != nil {
+					log.GetLogger("wrrp").Error("QUIC server error", err)
+				}
+			}()
+		}
+	}
+
 	return server.Start()
 }

@@ -49,6 +49,14 @@ type WireflowPeerSpec struct {
 	Network *string `json:"network,omitempty"`
 
 	NetworkPolicies []string `json:"networkPolicies,omitempty"`
+
+	// WrrpUrl is the TCP address of the WRRP relay server assigned to this peer.
+	// Populated by the relay settings controller when a relay is bound to the peer's workspace.
+	WrrpUrl string `json:"wrrpUrl,omitempty"`
+
+	// WrrpQuicUrl is the QUIC address of the WRRP relay server.
+	// When set, nodes prefer QUIC over TCP for relay traffic.
+	WrrpQuicUrl string `json:"wrrpQuicUrl,omitempty"`
 }
 
 // WireflowPeerStatus defines the observed state of WireflowPeer.

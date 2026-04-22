@@ -50,7 +50,7 @@ func main() {
 		GetWrrp:     func() infra.Wrrp { return wrrpClient },
 	})
 
-	wrrpClient, err = wrrper.NewWrrpClient(localId.ID(), "127.0.0.1:6266", probeFactory.Handle)
+	wrrpClient, err = wrrper.NewWrrpClient(ctx, localId.ID(), "127.0.0.1:6266", probeFactory.Handle)
 	if err != nil {
 		panic(err)
 	}

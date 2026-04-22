@@ -103,6 +103,7 @@ Use --save to persist the current flags back to the config file.`,
 	fs.StringP("token", "", "", "enrollment token to authenticate and join a workspace")
 	fs.StringP("level", "", "", "log level: debug, info, warn, error")
 	fs.StringP("wrrper-url", "", "", "WRRP relay server URL (required when --enable-wrrp)")
+	fs.StringP("wrrp-quic-url", "", "", "QUIC WRRP relay server address (e.g. server:6267)")
 	fs.BoolP("enable-wrrp", "", false, "use WRRP relay for NAT traversal")
 	fs.StringP("vm-endpoint", "", "", "use to push tele")
 	fs.BoolP("enable-metric", "", false, "expose Prometheus metrics endpoint")

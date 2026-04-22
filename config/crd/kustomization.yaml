@@ -10,6 +10,7 @@ resources:
 - bases/wireflowcontroller.wireflow.run_wireflowendpoints.yaml
 - bases/wireflowcontroller.wireflow.run_wireflowsubnetallocations.yaml
 - bases/wireflowcontroller.wireflow.run_wireflowenrollmenttokens.yaml
+- bases/wireflowcontroller.wireflow.run_wireflowrelayservers.yaml
 # +kubebuilder:scaffold:crdkustomizeresource
 
 patches:

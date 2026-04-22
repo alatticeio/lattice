@@ -64,7 +64,8 @@ type Node struct {
 		peerManager *infra.PeerManager
 	}
 
-	current *infra.Peer
+	current    *infra.Peer
+	wrrpClient infra.Wrrp
 
 	token          string
 	callback       func(message *infra.Message) error // nolint
@@ -114,7 +115,7 @@ func NewNode(ctx context.Context, cfg *NodeConfig) (*Node, error) {
 		node       *Node
 		v4conn     *net.UDPConn
 		v6conn     *net.UDPConn
-		wrrp       *wrrper.WRRPClient
+		wrrp       infra.Wrrp
 		privateKey wgtypes.Key
 	)
 
@@ -227,23 +228,27 @@ func NewNode(ctx context.Context, cfg *NodeConfig) (*Node, error) {
 		return nil, err
 	}
 
-
 	// WRRP is an optional relay channel used as a fallback when ICE traversal
 	// fails (e.g. symmetric NAT on both sides).
 	if cfg.Flags.EnableWrrp {
-		wrrpUrl := cfg.Flags.WrrperURL
-		if wrrpUrl == "" {
-			wrrpUrl = node.current.WrrpUrl
-		}
+		if cfg.Flags.WrrpQuicURL != "" {
+			wrrp, err = wrrper.NewQUICWrrpClient(ctx, localIdentity.ID(), cfg.Flags.WrrpQuicURL, node.probeFactory.Handle)
+		} else {
+			wrrpUrl := cfg.Flags.WrrperURL
+			if wrrpUrl == "" {
+				wrrpUrl = node.current.WrrpUrl
+			}
 
-		if wrrpUrl != "" {
-			// probeFactory.Handle is passed directly: probeFactory already exists
-			// at this point so no closure is needed on this side of the circular dep.
-			wrrp, err = wrrper.NewWrrpClient(localIdentity.ID(), wrrpUrl, node.probeFactory.Handle)
-			if err != nil {
-				return nil, err
+			if wrrpUrl != "" {
+				// probeFactory.Handle is passed directly: probeFactory already exists
+				// at this point so no closure is needed on this side of the circular dep.
+				wrrp, err = wrrper.NewWrrpClient(ctx, localIdentity.ID(), wrrpUrl, node.probeFactory.Handle)
 			}
 		}
+		if err != nil {
+			return nil, err
+		}
+		node.wrrpClient = wrrp
 	}
 
 	// ── Phase 3: WireGuard data plane ────────────────────────────────────────
@@ -281,7 +286,6 @@ func NewNode(ctx context.Context, cfg *NodeConfig) (*Node, error) {
 	// MessageHandler processes topology change events pushed by the control plane
 	// (peers added/removed, configuration updates) and applies them via Provisioner.
 	node.messageHandler = NewMessageHandler(node, log.GetLogger("event-handler"), node.provisioner)
-
 
 	node.DeviceManager = NewDeviceManager(log.GetLogger("device-manager"), node.iface, make(chan struct{}))
 	node.token = cfg.Token
@@ -349,6 +353,11 @@ func (c *Node) Start(ctx context.Context) error {
 // "no responders" errors on peer reconnect attempts. Then it closes the
 // WireGuard device, releasing the TUN interface and UDP sockets.
 func (c *Node) Stop() error {
+	if c.wrrpClient != nil {
+		if err := c.wrrpClient.Close(); err != nil {
+			c.logger.Warn("wrrp client close failed", "err", err)
+		}
+	}
 	if c.natsService != nil {
 		if err := c.natsService.Close(); err != nil {
 			c.logger.Warn("nats drain failed", "err", err)

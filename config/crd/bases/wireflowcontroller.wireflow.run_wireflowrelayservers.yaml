@@ -4,46 +4,43 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.18.0
-  name: wireflowpeers.wireflowcontroller.wireflow.run
+  name: wireflowrelayservers.wireflowcontroller.wireflow.run
 spec:
   group: wireflowcontroller.wireflow.run
   names:
-    kind: WireflowPeer
-    listKind: WireflowPeerList
-    plural: wireflowpeers
+    kind: WireflowRelayServer
+    listKind: WireflowRelayServerList
+    plural: wireflowrelayservers
     shortNames:
-    - wfpeer
-    singular: wireflowpeer
-  scope: Namespaced
+    - wfrelay
+    singular: wireflowrelayserver
+  scope: Cluster
   versions:
   - additionalPrinterColumns:
-    - description: The current status of the node
-      jsonPath: .status.status
-      name: STATUS
+    - jsonPath: .spec.displayName
+      name: DISPLAY
       type: string
-    - description: The current phase of the node
-      jsonPath: .status.phase
-      name: PHASE
+    - jsonPath: .status.health
+      name: HEALTH
       type: string
-    - description: The IP address allocated to the node
-      jsonPath: .status.allocatedAddress
-      name: IP
-      type: string
-    - description: The network the node belongs to
-      jsonPath: .spec.network
-      name: NETWORK
-      type: string
-    - description: Number of active connections
-      jsonPath: .status.connectionSummary.connected
-      name: CONNECTED
+    - jsonPath: .status.connectedPeers
+      name: PEERS
       type: integer
+    - jsonPath: .spec.tcpUrl
+      name: TCP
+      type: string
+    - jsonPath: .spec.enabled
+      name: ENABLED
+      type: boolean
     - jsonPath: .metadata.creationTimestamp
       name: AGE
       type: date
     name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: WireflowPeer is the Schema for the nodes API.
+        description: |-
+          WireflowRelayServer is the Schema for managing WRRP relay servers.
+          It is cluster-scoped because relay infrastructure is shared across workspaces.
         properties:
           apiVersion:
             description: |-
@@ -63,66 +60,51 @@ spec:
           metadata:
             type: object
           spec:
-            description: WireflowPeerSpec defines the desired state of WireflowPeer.
+            description: WireflowRelayServerSpec defines the desired state of a WRRP
+              relay server.
             properties:
-              allowedIPs:
-                items:
-                  type: string
-                type: array
-              appId:
+              description:
+                description: Description is an optional free-text note.
                 type: string
-              dnsServers:
-                items:
-                  type: string
-                type: array
-              interfaceName:
-                description: Interface for the node
+              displayName:
+                description: DisplayName is the human-readable label shown in the
+                  management UI.
                 type: string
-              mtu:
-                type: integer
-              network:
-                type: string
-              networkPolicies:
-                items:
-                  type: string
-                type: array
-              peerId:
-                type: string
-              platform:
-                description: platform which node runs on
-                type: string
-              privateKey:
-                type: string
-              publicKey:
-                type: string
-              wrrpQuicUrl:
+              enabled:
                 description: |-
-                  WrrpQuicUrl is the QUIC address of the WRRP relay server.
-                  When set, nodes prefer QUIC over TCP for relay traffic.
-                type: string
-              wrrpUrl:
+                  Enabled controls whether this relay is pushed to nodes.
+                  Disabled relays are not propagated; nodes retain their last-configured URLs
+                  until a new enabled relay takes effect.
+                type: boolean
+              namespaces:
                 description: |-
-                  WrrpUrl is the TCP address of the WRRP relay server assigned to this peer.
-                  Populated by the relay settings controller when a relay is bound to the peer's workspace.
+                  Namespaces is the list of Kubernetes namespaces (workspace namespaces)
+                  whose WireflowPeers should be configured to use this relay.
+                  An empty list means all namespaces.
+                items:
+                  type: string
+                type: array
+              quicUrl:
+                description: |-
+                  QuicUrl is the host:port of the QUIC WRRP relay endpoint.
+                  Corresponds to --wrrp-quic-url. Preferred over TCP when set.
                 type: string
+              tcpUrl:
+                description: |-
+                  TcpUrl is the host:port of the TCP WRRP relay endpoint.
+                  Corresponds to the node flag --wrrp-url.
+                type: string
+            required:
+            - displayName
+            - enabled
+            - tcpUrl
             type: object
           status:
-            description: WireflowPeerStatus defines the observed state of WireflowPeer.
+            description: WireflowRelayServerStatus defines the observed state of a
+              WireflowRelayServer.
             properties:
-              activeKey:
-                description: Active key
-                type: string
-              activeNetwork:
-                description: Active networks, record the network the node joined
-                type: string
-              activeNetworkPolicies:
-                items:
-                  type: string
-                type: array
-              allocatedAddress:
-                description: Allocated IP address, auto allocated by controller
-                type: string
               conditions:
+                description: Conditions holds standard Kubernetes condition records.
                 items:
                   description: Condition contains details for one aspect of the current
                     state of this API Resource.
@@ -178,34 +160,25 @@ spec:
                   - type
                   type: object
                 type: array
-              connectionSummary:
-                description: Connection summary
-                properties:
-                  connected:
-                    type: integer
-                  disconnected:
-                    type: integer
-                  total:
-                    type: integer
-                required:
-                - connected
-                - disconnected
-                - total
-                type: object
-              currentHash:
-                description: message hash store here
+              connectedPeers:
+                description: ConnectedPeers is the number of WireflowPeers currently
+                  configured to use this relay.
+                type: integer
+              health:
+                description: Health is the result of the most recent connectivity
+                  probe.
                 type: string
-              lastSyncTime:
+              lastProbeTime:
+                description: LastProbeTime is when the relay was last connectivity-tested.
                 format: date-time
                 type: string
-              observedGeneration:
-                description: client applied version
+              latencyMs:
+                description: LatencyMs is the round-trip latency measured by the last
+                  probe, in milliseconds.
                 format: int64
                 type: integer
               phase:
-                type: string
-              status:
-                description: WireflowPeer status
+                description: Phase summarises the lifecycle state of the relay.
                 type: string
             type: object
         type: object

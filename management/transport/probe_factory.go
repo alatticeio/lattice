@@ -126,19 +126,22 @@ func (p *ProbeFactory) NewProbe(remoteId infra.PeerIdentity) (*Probe, error) {
 		mu.Unlock()
 	}
 
-	wrrpDialer, err := NewWrrpDialer(&WrrpDialerConfig{
-		LocalId:        p.localId,
-		RemoteId:       remoteId,
-		Wrrp:           p.getWrrp(),
-		Sender:         p.signal.Send,
-		LocalPeer:      localPeer,
-		OnPeerReceived: onPeerReceived,
-	})
-	if err != nil {
-		return nil, err
+	// makeWrrpDialer is the factory used both for the initial dialer and for
+	// each restart.  OnRestart captures probe by reference (probe is assigned
+	// below) so it is safe to call once the Probe is fully constructed.
+	var probe *Probe
+	makeWrrpDialer := func() infra.Dialer {
+		return NewWrrpDialer(&WrrpDialerConfig{
+			LocalId:        p.localId,
+			RemoteId:       remoteId,
+			Wrrp:           p.getWrrp(),
+			Sender:         p.signal.Send,
+			LocalPeer:      localPeer,
+			OnPeerReceived: onPeerReceived,
+			OnRestart:      func() { probe.restart() },
+		})
 	}
 
-	var probe *Probe
 	probe = &Probe{
 		log:      p.log,
 		localId:  p.localId,
@@ -174,7 +177,7 @@ func (p *ProbeFactory) NewProbe(remoteId infra.PeerIdentity) (*Probe, error) {
 				AllowedIPs:           rp.AllowedIPs,
 			}
 			if transport.Type() == infra.WRRP {
-				setPeer.Endpoint = fmt.Sprintf("wrrp://%d", remoteId.ID().ToUint64())
+				setPeer.Endpoint = infra.WrrpFakeAddrPort(remoteId.ID().ToUint64()).String()
 			} else {
 				setPeer.Endpoint = transport.RemoteAddr()
 			}
@@ -227,7 +230,7 @@ func (p *ProbeFactory) NewProbe(remoteId infra.PeerIdentity) (*Probe, error) {
 			time.AfterFunc(10*time.Second, probe.restart)
 			return nil
 		},
-		wrrpDialer: wrrpDialer,
+		wrrpDialer: makeWrrpDialer(),
 	}
 
 	// makeIceDialer creates a fresh iceDialer for each connection attempt.
@@ -246,6 +249,7 @@ func (p *ProbeFactory) NewProbe(remoteId infra.PeerIdentity) (*Probe, error) {
 	}
 	probe.newIceDialer = makeIceDialer
 	probe.iceDialer = makeIceDialer()
+	probe.newWrrpDialer = makeWrrpDialer
 
 	p.Register(remoteId, probe)
 	return probe, nil
