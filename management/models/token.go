@@ -1,14 +1,13 @@
 package models
 
-import (
-	"github.com/golang-jwt/jwt/v5"
-)
+import "github.com/golang-jwt/jwt/v5"
 
-// WireFlowClaims 通常在 Dex 回调成功后，签发一个属于 WireFlow 自己的轻量级 JWT。
+// WireFlowClaims are the JWT claims issued after successful authentication.
+// WorkspaceId is intentionally omitted — workspace context is passed per-request
+// via the X-Workspace-Id header.
 type WireFlowClaims struct {
-	Subject string `json:"sub"`  // may be userId or extId
-	Name    string `json:"name"` // may be username or email
-	// 增加当前选中的团队 ID，方便实现"Vercel 风格"的上下文切换
-	WorkspaceId string `json:"workspaceId"`
-	jwt.RegisteredClaims
+	jwt.RegisteredClaims             // sub = userID, exp, iat, iss
+	Email      string `json:"email"`
+	Username   string `json:"username"`
+	SystemRole string `json:"system_role"` // "platform_admin" or "user"
 }

@@ -17,6 +17,7 @@ package controller
 import (
 	"context"
 	"encoding/json"
+	"wireflow/internal/infra"
 	"wireflow/internal/store"
 	"wireflow/management/dto"
 	managementnats "wireflow/management/nats"
@@ -75,7 +76,8 @@ func (p *peerController) CreateToken(ctx context.Context, request []byte) ([]byt
 		return nil, err
 	}
 
-	if _, err := p.policyService.CreateOrUpdatePolicy(ctx, &dto.PolicyDto{
+	wsID, _ := ctx.Value(infra.WorkspaceKey).(string)
+	if _, err := p.policyService.ApplyDirect(ctx, wsID, &dto.PolicyDto{
 		Name:      tokenDto.Name,
 		Namespace: tokenDto.Namespace,
 		Action:    "Deny",

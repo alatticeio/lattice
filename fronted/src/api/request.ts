@@ -85,6 +85,9 @@ const request = {
     put<T = any>(url: string, data: object = {}, config: AxiosRequestConfig = {}): Promise<T> {
         return service.put(url, data, config);
     },
+    patch<T = any>(url: string, data: object = {}, config: AxiosRequestConfig = {}): Promise<T> {
+        return service.patch(url, data, config);
+    },
     delete<T = any>(url: string, config: AxiosRequestConfig = {}): Promise<T> {
         return service.delete(url, config);
     },

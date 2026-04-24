@@ -27,6 +27,8 @@ import (
 	"wireflow/management/controller"
 	managementnats "wireflow/management/nats"
 	"wireflow/management/resource"
+	"wireflow/management/server/middleware"
+	"wireflow/management/service"
 	"wireflow/pkg/version"
 
 	"github.com/gin-gonic/gin"
@@ -51,12 +53,20 @@ type Server struct {
 	userController    controller.UserController
 	policyController  controller.PolicyController
 
-	workspaceController controller.WorkspaceController
-	tokenController     controller.TokenController
-	relayController     controller.RelayController
+	workspaceController  controller.WorkspaceController
+	memberController     controller.WorkspaceMemberController
+	tokenController      controller.TokenController
+	relayController      controller.RelayController
+	invitationController controller.InvitationController
 
-	monitorController controller.MonitorController
-	profileController controller.ProfileController
+	monitorController  controller.MonitorController
+	profileController  controller.ProfileController
+	auditController    controller.AuditController
+	workflowController controller.WorkflowController
+
+	tenantMiddleware *middleware.TenantMiddleware
+	auditService     service.AuditService
+	workflowService  service.WorkflowService
 
 	store    store.Store
 	presence *managementnats.NodePresenceStore
@@ -132,26 +142,38 @@ func NewServer(ctx context.Context, serverConfig *ServerConfig) (*Server, error)
 
 	presence := managementnats.NewNodePresenceStore()
 
+	auditSvc := service.NewAuditService(st)
+	auditSvc.Start(ctx)
+
+	workflowSvc := service.NewWorkflowService(st)
+
 	s := &Server{
-		Engine:              gin.Default(),
-		logger:              logger,
-		listen:              cfg.Listen,
-		nats:                signal,
-		manager:             mgr,
-		cacheReady:          cacheReady,
-		client:              client,
-		cfg:                 cfg,
-		presence:            presence,
-		peerController:      controller.NewPeerController(client, st, presence),
-		networkController:   controller.NewNetworkController(client, st),
-		userController:      controller.NewUserController(st),
-		policyController:    controller.NewPolicyController(client, st),
-		workspaceController: controller.NewWorkspaceController(client, st),
-		tokenController:     controller.NewTokenController(client, st),
-		relayController:     controller.NewRelayController(client, st),
-		monitorController:   controller.NewMonitorController(cfg.Monitor.Address),
-		profileController:   controller.NewProfileController(st),
-		store:               st,
+		Engine:               gin.Default(),
+		logger:               logger,
+		listen:               cfg.Listen,
+		nats:                 signal,
+		manager:              mgr,
+		cacheReady:           cacheReady,
+		client:               client,
+		cfg:                  cfg,
+		presence:             presence,
+		peerController:       controller.NewPeerController(client, st, presence),
+		networkController:    controller.NewNetworkController(client, st),
+		userController:       controller.NewUserController(st),
+		policyController:     controller.NewPolicyController(client, st),
+		workspaceController:  controller.NewWorkspaceController(client, st),
+		memberController:     controller.NewWorkspaceMemberController(st),
+		tokenController:      controller.NewTokenController(client, st),
+		relayController:      controller.NewRelayController(client, st),
+		invitationController: controller.NewInvitationController(st),
+		monitorController:    controller.NewMonitorController(cfg.Monitor.Address, st),
+		profileController:    controller.NewProfileController(st),
+		auditController:      controller.NewAuditController(auditSvc),
+		workflowController:   controller.NewWorkflowController(workflowSvc),
+		tenantMiddleware:     middleware.NewTenantMiddleware(st),
+		auditService:         auditSvc,
+		workflowService:      workflowSvc,
+		store:                st,
 	}
 
 	// initAdmins：DB 已就绪后执行；失败只告警，不阻断启动。
@@ -160,6 +182,9 @@ func NewServer(ctx context.Context, serverConfig *ServerConfig) (*Server, error)
 	} else {
 		s.logger.Debug("Init admin success")
 	}
+
+	// Register workflow executors before starting the router.
+	s.registerPolicyExecutor()
 
 	if err = s.apiRouter(); err != nil {
 		return nil, err

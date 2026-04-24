@@ -35,4 +35,7 @@ type PeerVo struct {
 
 	// WorkspaceDisplayName is the human-readable name of the workspace this peer belongs to
 	WorkspaceDisplayName string `json:"workspaceDisplayName,omitempty"`
+
+	// DisplayName is the user-defined alias for this node, stored as a K8s annotation.
+	DisplayName string `json:"displayName,omitempty"`
 }

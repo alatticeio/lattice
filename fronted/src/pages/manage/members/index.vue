@@ -1,13 +1,17 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, h } from 'vue'
+import { ref, computed, watch, onMounted, h } from 'vue'
+import { useI18n } from 'vue-i18n'
 import {
-  useVueTable, getCoreRowModel, FlexRender, type ColumnDef,
+  useVueTable, getCoreRowModel, getPaginationRowModel,
+  FlexRender, type ColumnDef,
 } from '@tanstack/vue-table'
 import {
   Users, Plus, RefreshCw, MoreHorizontal, Pencil,
-  Trash2, ChevronLeft, ChevronRight, Search,
-  Shield, UserCheck, Clock, Key, Server,
-  CheckCircle2, AlertCircle,
+  Trash2, Search,
+  Shield, UserCheck, User, Eye, Clock, Mail,
+  XCircle,
+  ArrowUpRight, ArrowDownRight,
+  ChevronLeft, ChevronRight,
 } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -23,41 +27,87 @@ import {
   DropdownMenuSeparator, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import AppAlertDialog from '@/components/AlertDialog.vue'
-import { add, listUser, deleteUser } from '@/api/user'
-import { listWs } from '@/api/workspace'
-import { useTable, useAction } from '@/composables/useApi'
+import { listMembers, updateMemberRole, removeMember } from '@/api/member'
+import { listInvitations, createInvitation, revokeInvitation } from '@/api/invitation'
+import { useTable } from '@/composables/useApi'
+import { toast } from 'vue-sonner'
+import { useWorkspaceStore } from '@/stores/workspace'
+import { useUserStore } from '@/stores/user'
 
 definePage({
-  meta: { title: '用户管理', description: '管理平台成员与 RBAC 权限。' },
+  meta: { titleKey: 'manage.members.title', descKey: 'manage.members.desc' },
 })
 
-// ── API ───────────────────────────────────────────────────────────
-const { rows: members, total, loading, params, refresh } = useTable(listUser)
-const { rows: workspaces } = useTable(listWs)
-const { loading: addLoading, execute: runAdd } = useAction(add, {
-  successMsg: '成员添加成功',
-  onSuccess: () => { dialogOpen.value = false; refresh() },
+const { t, locale } = useI18n()
+
+// ── Active tab ────────────────────────────────────────────────────
+type Tab = 'members' | 'invitations'
+const activeTab = ref<Tab>('members')
+
+// ── Members API ───────────────────────────────────────────────────
+const { rows: members, loading: memberLoading, refresh: refreshMembers } = useTable(listMembers)
+
+// ── Invitations API ───────────────────────────────────────────────
+const { rows: invitations, total: invApiTotal, loading: invLoading, refresh: refreshInvitations } = useTable(listInvitations)
+
+onMounted(() => { refreshMembers(); refreshInvitations() })
+
+const workspaceStore = useWorkspaceStore()
+watch(() => workspaceStore.currentWorkspace?.id, (newId, oldId) => {
+  if (newId && newId !== oldId) { refreshMembers(); refreshInvitations() }
 })
 
-onMounted(() => refresh())
+const userStore = useUserStore()
+
+// Current user's role in this workspace
+const currentUserRole = computed(() => {
+  const uid = String(userStore.userInfo?.id ?? '')
+  return (members.value as any[]).find(m => m.userId === uid)?.role ?? null
+})
+
+const canManageMembers = computed(() =>
+  userStore.isPlatformAdmin || currentUserRole.value === 'admin'
+)
+
+function canRevokeInv(inv: any): boolean {
+  return userStore.isPlatformAdmin ||
+    currentUserRole.value === 'admin' ||
+    inv.inviterId === String(userStore.userInfo?.id ?? '')
+}
 
 // ── Style helpers ─────────────────────────────────────────────────
 const roleStyle: Record<string, string> = {
   admin:  'bg-primary/10 text-primary ring-1 ring-primary/20',
   editor: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 ring-1 ring-emerald-500/20',
+  member: 'bg-violet-500/10 text-violet-600 dark:text-violet-400 ring-1 ring-violet-500/20',
   viewer: 'bg-muted text-muted-foreground ring-1 ring-border',
 }
-const roleLabel: Record<string, string> = {
-  admin: '管理员', editor: '编辑者', viewer: '访客',
+const roleLabel = computed(() => ({
+  admin:  t('common.role.admin'),
+  editor: t('common.role.editor'),
+  member: t('common.role.member'),
+  viewer: t('common.role.viewer'),
+}))
+const roleIcon: Record<string, any> = {
+  admin: Shield, editor: UserCheck, member: User, viewer: Eye,
 }
 const providerStyle: Record<string, string> = {
   local: 'bg-blue-500/10 text-blue-600 dark:text-blue-400 ring-1 ring-blue-500/20',
   dex:   'bg-violet-500/10 text-violet-600 dark:text-violet-400 ring-1 ring-violet-500/20',
+  ldap:  'bg-orange-500/10 text-orange-600 dark:text-orange-400 ring-1 ring-orange-500/20',
 }
-const statusStyle: Record<string, string> = {
-  active:  'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 ring-1 ring-emerald-500/20',
-  pending: 'bg-amber-400/10 text-amber-600 dark:text-amber-400 ring-1 ring-amber-400/20',
+const invStatusStyle: Record<string, string> = {
+  pending:  'bg-amber-400/10 text-amber-600 dark:text-amber-400 ring-1 ring-amber-400/20',
+  accepted: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 ring-1 ring-emerald-500/20',
+  expired:  'bg-red-500/10 text-red-500 ring-1 ring-red-500/20',
+  revoked:  'bg-muted text-muted-foreground ring-1 ring-border',
 }
+const invStatusLabel = computed(() => ({
+  pending:  t('manage.members.invStatus.pending'),
+  accepted: t('manage.members.invStatus.accepted'),
+  expired:  t('manage.members.invStatus.expired'),
+  revoked:  t('manage.members.invStatus.revoked'),
+}))
 
 const avatarColors = [
   'bg-blue-500', 'bg-violet-500', 'bg-emerald-500',
@@ -71,167 +121,151 @@ function avatarColor(name: string) {
 function firstChar(name: string) {
   return name?.trim().charAt(0).toUpperCase() ?? '?'
 }
-function nsBadgeStyle(name: string) {
-  const hues = [210, 160, 260, 40, 0, 190, 230]
-  let hash = 0
-  for (const c of (name ?? '')) hash = (hash * 31 + c.charCodeAt(0)) & 0xff
-  const hue = hues[hash % hues.length]
-  return {
-    backgroundColor: `hsla(${hue}, 70%, 50%, 0.12)`,
-    color: `hsla(${hue}, 80%, 60%, 1)`,
-    outline: `1px solid hsla(${hue}, 70%, 50%, 0.2)`,
-  }
+function formatDate(iso?: string) {
+  if (!iso) return '—'
+  return new Date(iso).toLocaleDateString(locale.value, { year: 'numeric', month: 'short', day: 'numeric' })
 }
 
 // ── Stats ─────────────────────────────────────────────────────────
-type StatusFilter = 'all' | 'active' | 'pending'
-const statusFilter = ref<StatusFilter>('all')
-const searchValue  = ref('')
-
 const stats = computed(() => {
-  const all     = members.value as any[]
-  const tot     = total.value || all.length
-  const admin   = all.filter(m => m.role === 'admin').length
-  const editor  = all.filter(m => m.role === 'editor').length
-  const viewer  = all.filter(m => !m.role || m.role === 'viewer').length
-  const active  = all.filter(m => m.status === 'active').length
-  const pending = all.filter(m => m.status !== 'active').length
+  const all = members.value as any[]
+  const adminCount  = all.filter(m => m.role === 'admin').length
+  const activeCount = all.filter(m => m.status === 'active').length
+  const pendingInvs = (invitations.value as any[]).filter(i => i.status === 'pending').length
   return {
-    total: tot,
-    admin, editor, viewer, active, pending,
-    activeRate:  tot ? Math.round((active  / tot) * 100) : 0,
-    adminRate:   tot ? Math.round((admin   / tot) * 100) : 0,
-    // first 4 member names for avatar stack
+    total: all.length,
+    admins: adminCount,
+    active: activeCount,
+    pendingInvitations: pendingInvs,
     recentNames: all.slice(0, 4).map(m => m.name ?? '?'),
   }
 })
 
-// ── Pagination (server-side) ───────────────────────────────────────
-const PAGE_SIZE   = params.pageSize ?? 10
-const currentPage = computed(() => params.page ?? 1)
-const totalPages  = computed(() => Math.max(1, Math.ceil(total.value / PAGE_SIZE)))
-const visiblePages = computed(() => {
-  const cur   = currentPage.value
-  const tot   = totalPages.value
-  const start = Math.max(1, Math.min(cur - 1, tot - 2))
-  const end   = Math.min(tot, start + 2)
-  return Array.from({ length: end - start + 1 }, (_, i) => start + i)
+// ── Search ────────────────────────────────────────────────────────
+const searchValue = ref('')
+
+const filteredMembers = computed(() => {
+  const q = searchValue.value.toLowerCase().trim()
+  if (!q) return members.value
+  return (members.value as any[]).filter(m =>
+    m.name?.toLowerCase().includes(q) || m.email?.toLowerCase().includes(q)
+  )
 })
 
-function goToPage(p: number) {
-  if (p < 1 || p > totalPages.value) return
-  params.page = p
-  refresh()
+watch(searchValue, () => memberTable.setPageIndex(0))
+
+// ── Remove member ─────────────────────────────────────────────────
+const removeTarget = ref<any>(null)
+const removeDialogOpen = ref(false)
+
+function promptRemove(m: any) { removeTarget.value = m; removeDialogOpen.value = true }
+async function confirmRemove() {
+  if (removeTarget.value) {
+    try {
+      await removeMember(removeTarget.value.userId)
+      toast.success(t('manage.members.toast.removed'))
+      refreshMembers()
+    } catch { toast.error(t('manage.members.toast.removeFailed')) }
+  }
+  removeTarget.value = null
 }
 
-let searchTimer: ReturnType<typeof setTimeout>
-function onSearchInput() {
-  clearTimeout(searchTimer)
-  searchTimer = setTimeout(() => { params.page = 1; refresh() }, 400)
+// ── Edit role ─────────────────────────────────────────────────────
+const editTarget    = ref<any>(null)
+const editRole      = ref('')
+const editDialogOpen = ref(false)
+const editLoading   = ref(false)
+
+function openEditRole(m: any) {
+  editTarget.value = m
+  editRole.value = m.role
+  editDialogOpen.value = true
+}
+async function confirmEditRole() {
+  if (!editTarget.value) return
+  editLoading.value = true
+  try {
+    await updateMemberRole(editTarget.value.userId, editRole.value)
+    toast.success(t('manage.members.toast.roleUpdated'))
+    editDialogOpen.value = false
+    refreshMembers()
+  } catch { toast.error(t('manage.members.toast.roleFailed')) }
+  editLoading.value = false
 }
 
-function setStatusFilter(val: StatusFilter) {
-  statusFilter.value = val
-  searchValue.value = ''
-}
-
-// ── Delete ─────────────────────────────────────────────────────────
-const deleteTarget     = ref<any>(null)
-const deleteDialogOpen = ref(false)
-
-function promptDelete(m: any) {
-  deleteTarget.value = m
-  deleteDialogOpen.value = true
-}
-async function confirmDelete() {
-  if (deleteTarget.value) { await deleteUser(deleteTarget.value.id); refresh() }
-  deleteTarget.value = null
-}
-
-// ── Create / Edit dialog ───────────────────────────────────────────
-const dialogOpen     = ref(false)
-const dialogType     = ref<'invite' | 'config'>('invite')
-const selectedMember = ref<any>(null)
-const form = ref({
-  username: '', password: '', role: 'viewer', namespace: '',
-  provider: 'local' as 'local' | 'dex',
-})
+// ── Invite member ─────────────────────────────────────────────────
+const inviteDialogOpen = ref(false)
+const inviteForm = ref({ email: '', role: 'member' as string })
+const inviteLoading = ref(false)
 
 function openInvite() {
-  dialogType.value = 'invite'
-  form.value = { username: '', password: '', role: 'viewer', namespace: '', provider: 'local' }
-  dialogOpen.value = true
+  inviteForm.value = { email: '', role: 'member' }
+  inviteDialogOpen.value = true
 }
-function openConfig(m: any) {
-  selectedMember.value = JSON.parse(JSON.stringify(m))
-  dialogType.value = 'config'
-  dialogOpen.value = true
+async function submitInvite() {
+  if (!inviteForm.value.email) { toast.error(t('manage.members.inviteDialog.emailRequired')); return }
+  inviteLoading.value = true
+  try {
+    await createInvitation(inviteForm.value)
+    toast.success(t('manage.members.toast.invSent'))
+    inviteDialogOpen.value = false
+    refreshInvitations()
+  } catch (e: any) {
+    toast.error(e?.response?.data?.message ?? t('manage.members.toast.invFailed'))
+  }
+  inviteLoading.value = false
 }
 
-// ── Client-side filter (over loaded page) ─────────────────────────
-const filteredRows = computed(() => {
-  const q = searchValue.value.toLowerCase().trim()
-  return members.value.filter((m: any) => {
-    const matchSearch = !q || m.name?.toLowerCase().includes(q) || m.email?.toLowerCase().includes(q)
-    const matchStatus = statusFilter.value === 'all' || m.status === statusFilter.value
-    return matchSearch && matchStatus
-  })
-})
+// ── Revoke invitation ─────────────────────────────────────────────
+const revokeTarget = ref<any>(null)
+const revokeDialogOpen = ref(false)
 
-// ── Column definitions ────────────────────────────────────────────
-type MemberRow = (typeof members.value)[number]
+function promptRevoke(inv: any) { revokeTarget.value = inv; revokeDialogOpen.value = true }
+async function confirmRevoke() {
+  if (revokeTarget.value) {
+    try {
+      await revokeInvitation(revokeTarget.value.id)
+      toast.success(t('manage.members.toast.invRevoked'))
+      refreshInvitations()
+    } catch { toast.error(t('manage.members.toast.invRevokeFailed')) }
+  }
+  revokeTarget.value = null
+}
 
-const columns: ColumnDef<MemberRow>[] = [
+// ── Member columns ────────────────────────────────────────────────
+const memberColumns = computed<ColumnDef<any>[]>(() => [
   {
     id: 'member',
-    header: '成员',
+    header: t('manage.members.col.member'),
     cell: ({ row }) => {
       const m = row.original as any
       return h('div', { class: 'flex items-center gap-3' }, [
-        h('div', {
-          class: `size-9 rounded-xl flex items-center justify-center text-white text-xs font-black shrink-0 ${avatarColor(m.name)}`,
-        }, firstChar(m.name)),
+        m.avatar
+          ? h('img', { src: m.avatar, class: 'size-9 rounded-xl object-cover shrink-0' })
+          : h('div', {
+              class: `size-9 rounded-xl flex items-center justify-center text-white text-xs font-black shrink-0 ${avatarColor(m.name)}`,
+            }, firstChar(m.name)),
         h('div', { class: 'min-w-0' }, [
-          h('p', { class: 'font-semibold text-sm leading-none' }, m.name),
-          h('p', { class: 'font-mono text-[11px] text-muted-foreground/60 mt-1 truncate max-w-40' }, m.email),
+          h('p', { class: 'font-semibold text-sm leading-none' }, m.name || '—'),
+          h('p', { class: 'font-mono text-[11px] text-muted-foreground/60 mt-1 truncate max-w-48' }, m.email),
         ]),
       ])
     },
   },
   {
     accessorKey: 'role',
-    header: '角色',
+    header: t('manage.members.col.role'),
     cell: ({ row }) => {
       const role: string = (row.original as any).role ?? 'viewer'
-      const icon = role === 'admin' ? Shield : role === 'editor' ? UserCheck : Users
+      const icon = roleIcon[role] ?? User
       return h('span', {
         class: `text-[11px] font-bold px-2.5 py-1 rounded-full flex items-center gap-1.5 w-fit ${roleStyle[role] ?? roleStyle.viewer}`,
-      }, [
-        h(icon, { class: 'size-3' }),
-        roleLabel[role] ?? role,
-      ])
-    },
-  },
-  {
-    accessorKey: 'status',
-    header: '状态',
-    cell: ({ row }) => {
-      const status: string = (row.original as any).status ?? 'pending'
-      const active = status === 'active'
-      return h('div', { class: 'flex items-center gap-1.5' }, [
-        h('span', { class: 'relative flex size-1.5 shrink-0' }, [
-          active && h('span', { class: 'absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500 opacity-60' }),
-          h('span', { class: `relative inline-flex size-1.5 rounded-full ${active ? 'bg-emerald-500' : 'bg-amber-400'}` }),
-        ]),
-        h('span', {
-          class: `text-xs font-medium px-2 py-0.5 rounded-full ${statusStyle[status] ?? statusStyle.pending}`,
-        }, active ? '活跃' : '待激活'),
-      ])
+      }, [h(icon, { class: 'size-3' }), roleLabel.value[role as keyof typeof roleLabel.value] ?? role])
     },
   },
   {
     accessorKey: 'provider',
-    header: 'Provider',
+    header: t('manage.members.col.provider'),
     cell: ({ row }) => {
       const provider: string = (row.original as any).provider ?? 'local'
       return h('span', {
@@ -240,42 +274,13 @@ const columns: ColumnDef<MemberRow>[] = [
     },
   },
   {
-    id: 'bindings',
-    header: 'Namespace Bindings',
+    accessorKey: 'joinedAt',
+    header: t('manage.members.col.joinedAt'),
     cell: ({ row }) => {
-      const bindings: any[] = (row.original as any).bindings ?? []
-      if (!bindings.length) return h('span', { class: 'text-[11px] text-muted-foreground/40 italic' }, '未分配')
-      const chips = bindings.slice(0, 3).map((b: any) =>
-        h('span', {
-          class: 'text-[10px] font-bold px-1.5 py-0.5 rounded-md',
-          style: nsBadgeStyle(b.ns),
-        }, b.ns)
-      )
-      if (bindings.length > 3) chips.push(
-        h('span', { class: 'text-[10px] text-muted-foreground/60 px-1' }, `+${bindings.length - 3}`)
-      )
-      return h('div', { class: 'flex flex-wrap gap-1' }, chips)
-    },
-  },
-  {
-    id: 'spaces',
-    header: '空间数',
-    cell: ({ row }) => {
-      const count = ((row.original as any).bindings ?? []).length
-      return h('div', { class: 'flex items-center gap-1.5 text-xs text-muted-foreground' }, [
-        h(Server, { class: 'size-3 shrink-0' }),
-        h('span', { class: 'tabular-nums font-medium' }, String(count)),
-      ])
-    },
-  },
-  {
-    accessorKey: 'lastActive',
-    header: '最后活跃',
-    cell: ({ row }) => {
-      const t = (row.original as any).lastActive
+      const ts = (row.original as any).joinedAt
       return h('div', { class: 'flex items-center gap-1.5 text-xs text-muted-foreground' }, [
         h(Clock, { class: 'size-3 shrink-0' }),
-        t ?? '从未登录',
+        formatDate(ts),
       ])
     },
   },
@@ -283,7 +288,9 @@ const columns: ColumnDef<MemberRow>[] = [
     id: 'actions',
     header: '',
     cell: ({ row }) => {
-      const m = row.original
+      const m = row.original as any
+      const isSelf = String(userStore.userInfo?.id ?? '') === m.userId
+      if (!canManageMembers.value && !isSelf) return h('span')
       return h(DropdownMenu, {}, {
         default: () => [
           h(DropdownMenuTrigger, { asChild: true }, () =>
@@ -291,228 +298,297 @@ const columns: ColumnDef<MemberRow>[] = [
               h(MoreHorizontal, { class: 'size-4' })
             )
           ),
-          h(DropdownMenuContent, { align: 'end', class: 'w-36' }, () => [
-            h(DropdownMenuItem, { onClick: () => openConfig(m) }, () => [
-              h(Pencil, { class: 'mr-2 size-3.5' }), '编辑权限',
-            ]),
-            h(DropdownMenuSeparator),
+          h(DropdownMenuContent, { align: 'end', class: 'w-40' }, () => [
+            ...(canManageMembers.value ? [
+              h(DropdownMenuItem, { onClick: () => openEditRole(m) }, () => [
+                h(Pencil, { class: 'mr-2 size-3.5' }), t('manage.members.changeRole'),
+              ]),
+              h(DropdownMenuSeparator),
+            ] : []),
             h(DropdownMenuItem, {
               class: 'text-destructive focus:text-destructive',
-              onClick: () => promptDelete(m),
-            }, () => [h(Trash2, { class: 'mr-2 size-3.5' }), '移除']),
+              onClick: () => promptRemove(m),
+            }, () => [h(Trash2, { class: 'mr-2 size-3.5' }), isSelf ? t('manage.members.selfRemove') : t('common.action.remove')]),
           ]),
         ],
       })
     },
   },
-]
+])
 
-// ── TanStack Table ────────────────────────────────────────────────
-const table = useVueTable({
-  get data() { return filteredRows.value },
-  columns,
+// ── Invitation columns ────────────────────────────────────────────
+const invColumns = computed<ColumnDef<any>[]>(() => [
+  {
+    id: 'email',
+    header: t('manage.members.invCol.invitee'),
+    cell: ({ row }) => {
+      const inv = row.original as any
+      return h('div', { class: 'flex items-center gap-2' }, [
+        h('div', { class: 'size-8 rounded-lg bg-muted flex items-center justify-center shrink-0' },
+          h(Mail, { class: 'size-3.5 text-muted-foreground' })
+        ),
+        h('span', { class: 'font-mono text-sm' }, inv.email),
+      ])
+    },
+  },
+  {
+    accessorKey: 'role',
+    header: t('manage.members.invCol.role'),
+    cell: ({ row }) => {
+      const role: string = (row.original as any).role ?? 'member'
+      const icon = roleIcon[role] ?? User
+      return h('span', {
+        class: `text-[11px] font-bold px-2.5 py-1 rounded-full flex items-center gap-1.5 w-fit ${roleStyle[role] ?? roleStyle.member}`,
+      }, [h(icon, { class: 'size-3' }), roleLabel.value[role as keyof typeof roleLabel.value] ?? role])
+    },
+  },
+  {
+    accessorKey: 'status',
+    header: t('manage.members.invCol.status'),
+    cell: ({ row }) => {
+      const status: string = (row.original as any).status ?? 'pending'
+      return h('span', {
+        class: `text-[11px] font-bold px-2.5 py-1 rounded-full w-fit ${invStatusStyle[status] ?? invStatusStyle.pending}`,
+      }, invStatusLabel.value[status as keyof typeof invStatusLabel.value] ?? status)
+    },
+  },
+  {
+    accessorKey: 'expiresAt',
+    header: t('manage.members.invCol.expiry'),
+    cell: ({ row }) => {
+      const inv = row.original as any
+      const expired = inv.status === 'expired' || new Date(inv.expiresAt) < new Date()
+      return h('div', { class: `flex items-center gap-1.5 text-xs ${expired ? 'text-red-500' : 'text-muted-foreground'}` }, [
+        h(Clock, { class: 'size-3 shrink-0' }),
+        formatDate(inv.expiresAt),
+      ])
+    },
+  },
+  {
+    id: 'actions',
+    header: '',
+    cell: ({ row }) => {
+      const inv = row.original as any
+      if (inv.status !== 'pending') return h('span')
+      const link = `${window.location.origin}/invite/${inv.token}`
+      const showRevoke = canRevokeInv(inv)
+      return h('div', { class: 'flex items-center gap-1' }, [
+        h(Button, {
+          variant: 'ghost',
+          size: 'sm',
+          class: 'h-8 px-2 text-xs gap-1 text-muted-foreground',
+          title: t('manage.members.copyLinkBtn'),
+          onClick: () => {
+            navigator.clipboard.writeText(link).then(() => {
+              toast.success(t('manage.members.toast.linkCopied'))
+            })
+          },
+        }, () => [h(Mail, { class: 'size-3.5' }), t('manage.members.copyLinkBtn')]),
+        ...(showRevoke ? [h(Button, {
+          variant: 'ghost',
+          size: 'sm',
+          class: 'text-destructive hover:text-destructive h-8 px-2 text-xs gap-1',
+          onClick: () => promptRevoke(inv),
+        }, () => [h(XCircle, { class: 'size-3.5' }), t('manage.members.revokeInv')])] : []),
+      ])
+    },
+  },
+])
+
+// ── TanStack Tables ───────────────────────────────────────────────
+const memberTable = useVueTable({
+  get data() { return filteredMembers.value as any[] },
+  get columns() { return memberColumns.value },
   getCoreRowModel: getCoreRowModel(),
-  manualPagination: true,
-  manualFiltering: true,
-  get rowCount() { return total.value },
+  getPaginationRowModel: getPaginationRowModel(),
+  initialState: { pagination: { pageSize: 10 } },
 })
+
+const invTable = useVueTable({
+  get data() { return invitations.value as any[] },
+  get columns() { return invColumns.value },
+  getCoreRowModel: getCoreRowModel(),
+  getPaginationRowModel: getPaginationRowModel(),
+  initialState: { pagination: { pageSize: 10 } },
+})
+
+// ── Pagination helpers ────────────────────────────────────────────
+function visiblePages(current: number, total: number) {
+  const start = Math.max(1, Math.min(current - 1, total - 2))
+  const end   = Math.min(total, start + 2)
+  return Array.from({ length: end - start + 1 }, (_, i) => start + i)
+}
+
+const memberPage       = computed(() => memberTable.getState().pagination.pageIndex + 1)
+const memberTotalPages = computed(() => Math.max(1, memberTable.getPageCount()))
+const memberTotal      = computed(() => filteredMembers.value.length)
+const memberPages      = computed(() => visiblePages(memberPage.value, memberTotalPages.value))
+
+const invPage       = computed(() => invTable.getState().pagination.pageIndex + 1)
+const invTotalPages = computed(() => Math.max(1, invTable.getPageCount()))
+const invTotal      = computed(() => (invitations.value as any[]).length)
+const invPages      = computed(() => visiblePages(invPage.value, invTotalPages.value))
 </script>
 
 <template>
   <div class="flex flex-col gap-5 p-6 animate-in fade-in duration-300">
 
-    <!-- ── Stat cards ─────────────────────────────────────────────── -->
-    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+    <!-- ── Stat cards ──────────────────────────────────────────────── -->
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
 
       <!-- 全部成员 -->
-      <button
-        class="relative bg-card border border-border rounded-xl p-4 text-left hover:border-primary/30 hover:shadow-sm transition-all group overflow-hidden"
-        :class="statusFilter === 'all' ? 'border-primary/40 ring-1 ring-primary/10' : ''"
-        @click="setStatusFilter('all')"
-      >
-        <!-- decorative bg blob -->
-        <div class="absolute -right-3 -top-3 size-16 rounded-full bg-primary/5 group-hover:bg-primary/8 transition-colors" />
-        <div class="relative">
-          <div class="flex items-center justify-between mb-3">
-            <span class="text-xs font-semibold text-muted-foreground uppercase tracking-wider">全部成员</span>
-            <div class="size-7 rounded-lg bg-primary/10 flex items-center justify-center">
-              <Users class="size-3.5 text-primary" />
-            </div>
+      <div class="border-border bg-card text-card-foreground rounded-xl border p-5 shadow-sm">
+        <div class="flex items-start justify-between">
+          <div class="flex flex-col gap-1">
+            <span class="text-muted-foreground text-sm font-medium">{{ t('manage.members.stats.total') }}</span>
+            <span class="text-2xl font-bold tracking-tight">{{ stats.total }}</span>
           </div>
-          <p class="text-3xl font-black tracking-tighter tabular-nums">{{ stats.total }}</p>
-
-          <!-- Avatar stack -->
-          <div class="flex items-center gap-2 mt-3">
-            <div class="flex -space-x-2">
-              <div
-                v-for="(name, i) in stats.recentNames" :key="i"
-                class="size-6 rounded-full ring-2 ring-card flex items-center justify-center text-[9px] font-black text-white shrink-0"
-                :class="avatarColor(name)"
-              >{{ firstChar(name) }}</div>
-            </div>
-            <span v-if="stats.total > 4" class="text-[10px] text-muted-foreground/60">
-              +{{ stats.total - 4 }} 人
-            </span>
-          </div>
-
-          <!-- Role distribution bar -->
-          <div class="mt-3 space-y-1.5">
-            <div class="flex h-1.5 rounded-full overflow-hidden bg-muted/50 gap-px">
-              <div
-                class="bg-primary transition-all"
-                :style="{ width: `${stats.total ? (stats.admin / stats.total) * 100 : 0}%` }"
-              />
-              <div
-                class="bg-emerald-500 transition-all"
-                :style="{ width: `${stats.total ? (stats.editor / stats.total) * 100 : 0}%` }"
-              />
-              <div
-                class="bg-muted-foreground/30 transition-all"
-                :style="{ width: `${stats.total ? (stats.viewer / stats.total) * 100 : 0}%` }"
-              />
-            </div>
-            <div class="flex items-center gap-2.5 text-[10px] text-muted-foreground/60">
-              <span class="flex items-center gap-1"><span class="size-1.5 rounded-full bg-primary inline-block" />{{ stats.admin }}</span>
-              <span class="flex items-center gap-1"><span class="size-1.5 rounded-full bg-emerald-500 inline-block" />{{ stats.editor }}</span>
-              <span class="flex items-center gap-1"><span class="size-1.5 rounded-full bg-muted-foreground/30 inline-block" />{{ stats.viewer }}</span>
-            </div>
+          <div class="bg-muted rounded-lg p-2">
+            <Users class="text-muted-foreground size-4" />
           </div>
         </div>
-      </button>
+        <div class="mt-3 flex items-center gap-1 text-sm">
+          <div class="flex -space-x-1.5">
+            <div
+              v-for="(name, i) in stats.recentNames" :key="i"
+              class="size-5 rounded-full ring-2 ring-card flex items-center justify-center text-[8px] font-black text-white shrink-0"
+              :class="avatarColor(name)"
+            >{{ firstChar(name) }}</div>
+          </div>
+          <span v-if="stats.total > 4" class="text-muted-foreground text-xs ml-1">
+            {{ t('manage.members.stats.morePeople', { n: stats.total - 4 }) }}
+          </span>
+        </div>
+      </div>
 
       <!-- 管理员 -->
-      <div class="relative bg-card border border-border rounded-xl p-4 text-left overflow-hidden">
-        <div class="absolute -right-3 -top-3 size-16 rounded-full bg-primary/5" />
-        <div class="relative">
-          <div class="flex items-center justify-between mb-3">
-            <span class="text-xs font-semibold text-muted-foreground uppercase tracking-wider">管理员</span>
-            <div class="size-7 rounded-lg bg-primary/10 flex items-center justify-center">
-              <Shield class="size-3.5 text-primary" />
-            </div>
+      <div class="border-border bg-card text-card-foreground rounded-xl border p-5 shadow-sm">
+        <div class="flex items-start justify-between">
+          <div class="flex flex-col gap-1">
+            <span class="text-muted-foreground text-sm font-medium">{{ t('manage.members.stats.admins') }}</span>
+            <span class="text-2xl font-bold tracking-tight">{{ stats.admins }}</span>
           </div>
-          <p class="text-3xl font-black tracking-tighter tabular-nums text-primary">{{ stats.admin }}</p>
-          <p class="text-[11px] text-muted-foreground/60 mt-1">
-            占全体成员 <span class="font-bold text-primary">{{ stats.adminRate }}%</span>
-          </p>
-
-          <!-- Admin proportion bar -->
-          <div class="mt-3 space-y-1.5">
-            <div class="flex h-1.5 rounded-full overflow-hidden bg-muted/50">
-              <div
-                class="bg-primary rounded-full transition-all duration-700"
-                :style="{ width: `${stats.adminRate}%` }"
-              />
-            </div>
-            <p class="text-[10px] text-muted-foreground/50">拥有完整管理权限</p>
+          <div class="bg-muted rounded-lg p-2">
+            <Shield class="text-muted-foreground size-4" />
           </div>
+        </div>
+        <div class="mt-3 flex items-center gap-1 text-sm">
+          <ArrowUpRight class="text-muted-foreground size-4 shrink-0" />
+          <span class="text-muted-foreground">{{ t('manage.members.stats.adminAccess', { n: stats.admins }) }}</span>
         </div>
       </div>
 
       <!-- 活跃 -->
-      <button
-        class="relative bg-card border border-border rounded-xl p-4 text-left hover:border-emerald-500/30 hover:shadow-sm transition-all group overflow-hidden"
-        :class="statusFilter === 'active' ? 'border-emerald-500/40 ring-1 ring-emerald-500/10' : ''"
-        @click="setStatusFilter('active')"
-      >
-        <div class="absolute -right-3 -top-3 size-16 rounded-full bg-emerald-500/5 group-hover:bg-emerald-500/10 transition-colors" />
-        <div class="relative">
-          <div class="flex items-center justify-between mb-3">
-            <span class="text-xs font-semibold text-muted-foreground uppercase tracking-wider">活跃成员</span>
-            <div class="size-7 rounded-lg bg-emerald-500/10 flex items-center justify-center">
-              <span class="relative flex size-2">
-                <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />
-                <span class="relative inline-flex size-2 rounded-full bg-emerald-500" />
-              </span>
-            </div>
+      <div class="border-border bg-card text-card-foreground rounded-xl border p-5 shadow-sm">
+        <div class="flex items-start justify-between">
+          <div class="flex flex-col gap-1">
+            <span class="text-muted-foreground text-sm font-medium">{{ t('manage.members.stats.active') }}</span>
+            <span class="text-2xl font-bold tracking-tight">{{ stats.active }}</span>
           </div>
-          <p class="text-3xl font-black tracking-tighter tabular-nums text-emerald-500">{{ stats.active }}</p>
-          <p class="text-[11px] text-muted-foreground/60 mt-1">
-            活跃率 <span class="font-bold text-emerald-500">{{ stats.activeRate }}%</span>
-          </p>
-
-          <!-- Active rate bar -->
-          <div class="mt-3 space-y-1.5">
-            <div class="flex h-1.5 rounded-full overflow-hidden bg-muted/50">
-              <div
-                class="bg-emerald-500 rounded-full transition-all duration-700"
-                :style="{ width: `${stats.activeRate}%` }"
-              />
-            </div>
-            <div class="flex items-center justify-between text-[10px] text-muted-foreground/50">
-              <span>{{ stats.active }} 已激活</span>
-              <span>{{ stats.pending }} 待处理</span>
-            </div>
+          <div class="bg-muted rounded-lg p-2">
+            <UserCheck class="text-muted-foreground size-4" />
           </div>
         </div>
-      </button>
+        <div class="mt-3 flex items-center gap-1 text-sm">
+          <ArrowUpRight class="text-emerald-600 size-4 shrink-0" />
+          <span class="text-emerald-600 font-semibold">
+            {{ stats.total ? Math.round((stats.active / stats.total) * 100) : 0 }}%
+          </span>
+          <span class="text-muted-foreground">{{ t('manage.members.stats.activeRate') }}</span>
+        </div>
+      </div>
 
-      <!-- 待激活 -->
+      <!-- 待接受邀请 -->
       <button
-        class="relative bg-card border border-border rounded-xl p-4 text-left hover:border-amber-400/30 hover:shadow-sm transition-all group overflow-hidden"
-        :class="statusFilter === 'pending' ? 'border-amber-400/40 ring-1 ring-amber-400/10' : ''"
-        @click="setStatusFilter('pending')"
+        class="border-border bg-card text-card-foreground rounded-xl border p-5 shadow-sm text-left hover:shadow-md transition-shadow"
+        :class="activeTab === 'invitations' ? 'ring-2 ring-amber-400/20 border-amber-400/30' : ''"
+        @click="activeTab = 'invitations'"
       >
-        <div class="absolute -right-3 -top-3 size-16 rounded-full bg-amber-400/5 group-hover:bg-amber-400/10 transition-colors" />
-        <div class="relative">
-          <div class="flex items-center justify-between mb-3">
-            <span class="text-xs font-semibold text-muted-foreground uppercase tracking-wider">待激活</span>
-            <div class="size-7 rounded-lg bg-amber-400/10 flex items-center justify-center">
-              <Clock class="size-3.5 text-amber-400" />
-            </div>
+        <div class="flex items-start justify-between">
+          <div class="flex flex-col gap-1">
+            <span class="text-muted-foreground text-sm font-medium">{{ t('manage.members.stats.pendingInv') }}</span>
+            <span class="text-2xl font-bold tracking-tight">{{ stats.pendingInvitations }}</span>
           </div>
-          <p class="text-3xl font-black tracking-tighter tabular-nums text-amber-400">{{ stats.pending }}</p>
-
-          <!-- Status hint -->
-          <div class="mt-3">
-            <div v-if="stats.pending > 0"
-              class="inline-flex items-center gap-1.5 text-[10px] font-semibold px-2 py-1 rounded-lg bg-amber-400/10 text-amber-600 dark:text-amber-400 ring-1 ring-amber-400/20"
-            >
-              <AlertCircle class="size-3" />
-              需要处理
-            </div>
-            <div v-else
-              class="inline-flex items-center gap-1.5 text-[10px] font-semibold px-2 py-1 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 ring-1 ring-emerald-500/20"
-            >
-              <CheckCircle2 class="size-3" />
-              全部已激活
-            </div>
+          <div class="bg-muted rounded-lg p-2">
+            <Clock class="text-muted-foreground size-4" />
           </div>
-
-          <p class="text-[10px] text-muted-foreground/50 mt-2">
-            {{ stats.pending > 0 ? '等待完成邮箱验证' : '团队成员状态良好' }}
-          </p>
+        </div>
+        <div class="mt-3 flex items-center gap-1 text-sm">
+          <component
+            :is="stats.pendingInvitations === 0 ? ArrowUpRight : ArrowDownRight"
+            :class="stats.pendingInvitations === 0 ? 'text-emerald-600' : 'text-amber-500'"
+            class="size-4 shrink-0"
+          />
+          <span :class="stats.pendingInvitations === 0 ? 'text-emerald-600 font-semibold' : 'text-amber-500 font-semibold'">
+            {{ stats.pendingInvitations === 0 ? t('manage.members.stats.allAccepted') : t('manage.members.stats.pendingCount', { n: stats.pendingInvitations }) }}
+          </span>
+          <span class="text-muted-foreground">{{ stats.pendingInvitations === 0 ? t('manage.members.stats.noAction') : t('manage.members.stats.needsAction') }}</span>
         </div>
       </button>
 
     </div>
 
-    <!-- ── Toolbar ────────────────────────────────────────────────── -->
+    <!-- ── Tabs + Toolbar ──────────────────────────────────────────── -->
     <div class="flex items-center gap-2">
-      <div class="relative w-64">
-        <Search class="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-        <Input
-          v-model="searchValue"
-          placeholder="搜索名称或邮箱..."
-          class="pl-8 h-9"
-          @input="onSearchInput"
-        />
+      <!-- Tabs -->
+      <div class="flex bg-muted/50 rounded-lg p-1 border border-border gap-1">
+        <button
+          class="px-4 py-1.5 rounded-md text-xs font-semibold transition-all"
+          :class="activeTab === 'members'
+            ? 'bg-background text-foreground shadow-sm ring-1 ring-border'
+            : 'text-muted-foreground hover:text-foreground'"
+          @click="activeTab = 'members'"
+        >
+          {{ t('manage.members.tabMembers') }}
+          <span class="ml-1.5 tabular-nums text-[10px] opacity-60">{{ stats.total }}</span>
+        </button>
+        <button
+          class="px-4 py-1.5 rounded-md text-xs font-semibold transition-all"
+          :class="activeTab === 'invitations'
+            ? 'bg-background text-foreground shadow-sm ring-1 ring-border'
+            : 'text-muted-foreground hover:text-foreground'"
+          @click="activeTab = 'invitations'"
+        >
+          {{ t('manage.members.tabInvitations') }}
+          <span
+            class="ml-1.5 tabular-nums text-[10px]"
+            :class="stats.pendingInvitations > 0 ? 'text-amber-500 font-bold' : 'opacity-60'"
+          >{{ invApiTotal }}</span>
+        </button>
       </div>
+
+      <!-- Toolbar right -->
       <div class="ml-auto flex items-center gap-2">
-        <Button variant="outline" size="sm" class="gap-1.5" :disabled="loading" @click="refresh">
-          <RefreshCw class="size-3.5" :class="loading ? 'animate-spin' : ''" />
-          刷新
+        <div v-if="activeTab === 'members'" class="relative w-72">
+          <Search class="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+          <Input
+            v-model="searchValue"
+            :placeholder="t('manage.members.searchPlaceholder')"
+            class="pl-8 h-9"
+          />
+        </div>
+        <Button
+          variant="outline" size="sm" class="gap-1.5"
+          :disabled="activeTab === 'members' ? memberLoading : invLoading"
+          @click="activeTab === 'members' ? refreshMembers() : refreshInvitations()"
+        >
+          <RefreshCw
+            class="size-3.5"
+            :class="(activeTab === 'members' ? memberLoading : invLoading) ? 'animate-spin' : ''"
+          />
+          {{ t('common.action.refresh') }}
         </Button>
-        <Button size="sm" class="gap-1.5" @click="openInvite">
-          <Plus class="size-3.5" /> 添加成员
+        <Button v-if="canManageMembers" size="sm" class="gap-1.5" @click="openInvite">
+          <Plus class="size-3.5" /> {{ t('manage.members.inviteBtn') }}
         </Button>
       </div>
     </div>
 
-    <!-- ── Data Table ─────────────────────────────────────────────── -->
-    <div class="rounded-md border">
+    <!-- ── Members Table ───────────────────────────────────────────── -->
+    <div v-if="activeTab === 'members'" class="rounded-md border">
       <Table>
         <TableHeader>
-          <TableRow v-for="hg in table.getHeaderGroups()" :key="hg.id">
+          <TableRow v-for="hg in memberTable.getHeaderGroups()" :key="hg.id">
             <TableHead v-for="header in hg.headers" :key="header.id">
               <FlexRender
                 v-if="!header.isPlaceholder"
@@ -523,191 +599,186 @@ const table = useVueTable({
           </TableRow>
         </TableHeader>
         <TableBody>
-          <template v-if="table.getRowModel().rows.length">
-            <TableRow v-for="row in table.getRowModel().rows" :key="row.id">
+          <template v-if="memberTable.getRowModel().rows.length">
+            <TableRow v-for="row in memberTable.getRowModel().rows" :key="row.id">
               <TableCell v-for="cell in row.getVisibleCells()" :key="cell.id">
                 <FlexRender :render="cell.column.columnDef.cell" :props="cell.getContext()" />
               </TableCell>
             </TableRow>
           </template>
           <TableRow v-else>
-            <TableCell :colspan="columns.length" class="h-32 text-center text-muted-foreground">
-              {{ loading ? '加载中...' : '暂无成员' }}
+            <TableCell :colspan="memberColumns.length" class="h-32 text-center text-muted-foreground">
+              {{ memberLoading ? t('common.status.loading') : t('manage.members.noMembers') }}
             </TableCell>
           </TableRow>
         </TableBody>
       </Table>
     </div>
-
-    <!-- ── Pagination ─────────────────────────────────────────────── -->
-    <div class="flex items-center justify-between text-sm text-muted-foreground">
-      <span>共 {{ total }} 条 · 第 {{ currentPage }} / {{ totalPages }} 页</span>
+    <div v-if="activeTab === 'members'" class="flex items-center justify-between text-sm text-muted-foreground">
+      <span>{{ t('common.pagination.total', { total: memberTotal, page: memberPage, totalPages: memberTotalPages }) }}</span>
       <div class="flex items-center gap-1">
         <Button variant="outline" size="sm" class="size-8 p-0"
-          :disabled="currentPage <= 1" @click="goToPage(currentPage - 1)">
+          :disabled="!memberTable.getCanPreviousPage()" @click="memberTable.previousPage()">
           <ChevronLeft class="size-4" />
         </Button>
         <Button
-          v-for="p in visiblePages" :key="p"
+          v-for="p in memberPages" :key="p"
           variant="outline" size="sm" class="size-8 p-0 text-xs"
-          :class="p === currentPage ? 'bg-primary text-primary-foreground border-primary hover:bg-primary/90 hover:text-primary-foreground' : ''"
-          @click="goToPage(p)"
+          :class="p === memberPage ? 'bg-primary text-primary-foreground border-primary hover:bg-primary/90 hover:text-primary-foreground' : ''"
+          @click="memberTable.setPageIndex(p - 1)"
         >{{ p }}</Button>
         <Button variant="outline" size="sm" class="size-8 p-0"
-          :disabled="currentPage >= totalPages" @click="goToPage(currentPage + 1)">
+          :disabled="!memberTable.getCanNextPage()" @click="memberTable.nextPage()">
           <ChevronRight class="size-4" />
         </Button>
       </div>
     </div>
 
-    <!-- ── Delete confirm ─────────────────────────────────────────── -->
+    <!-- ── Invitations Table ───────────────────────────────────────── -->
+    <div v-if="activeTab === 'invitations'" class="rounded-md border">
+      <Table>
+        <TableHeader>
+          <TableRow v-for="hg in invTable.getHeaderGroups()" :key="hg.id">
+            <TableHead v-for="header in hg.headers" :key="header.id">
+              <FlexRender
+                v-if="!header.isPlaceholder"
+                :render="header.column.columnDef.header"
+                :props="header.getContext()"
+              />
+            </TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          <template v-if="invTable.getRowModel().rows.length">
+            <TableRow v-for="row in invTable.getRowModel().rows" :key="row.id">
+              <TableCell v-for="cell in row.getVisibleCells()" :key="cell.id">
+                <FlexRender :render="cell.column.columnDef.cell" :props="cell.getContext()" />
+              </TableCell>
+            </TableRow>
+          </template>
+          <TableRow v-else>
+            <TableCell :colspan="invColumns.length" class="h-32 text-center text-muted-foreground">
+              {{ invLoading ? t('common.status.loading') : t('manage.members.noInvitations') }}
+            </TableCell>
+          </TableRow>
+        </TableBody>
+      </Table>
+    </div>
+    <div v-if="activeTab === 'invitations'" class="flex items-center justify-between text-sm text-muted-foreground">
+      <span>{{ t('common.pagination.total', { total: invTotal, page: invPage, totalPages: invTotalPages }) }}</span>
+      <div class="flex items-center gap-1">
+        <Button variant="outline" size="sm" class="size-8 p-0"
+          :disabled="!invTable.getCanPreviousPage()" @click="invTable.previousPage()">
+          <ChevronLeft class="size-4" />
+        </Button>
+        <Button
+          v-for="p in invPages" :key="p"
+          variant="outline" size="sm" class="size-8 p-0 text-xs"
+          :class="p === invPage ? 'bg-primary text-primary-foreground border-primary hover:bg-primary/90 hover:text-primary-foreground' : ''"
+          @click="invTable.setPageIndex(p - 1)"
+        >{{ p }}</Button>
+        <Button variant="outline" size="sm" class="size-8 p-0"
+          :disabled="!invTable.getCanNextPage()" @click="invTable.nextPage()">
+          <ChevronRight class="size-4" />
+        </Button>
+      </div>
+    </div>
+
+    <!-- ── Remove confirm ─────────────────────────────────────────── -->
     <AppAlertDialog
-      v-model:open="deleteDialogOpen"
-      title="移除成员"
-      :description="`确认从团队中移除「${deleteTarget?.name}」？此操作将同步撤销其 RBAC 绑定。`"
-      confirm-text="确认移除"
+      v-model:open="removeDialogOpen"
+      :title="t('manage.members.removeDialog.title')"
+      :description="t('manage.members.removeDialog.desc', { name: removeTarget?.name })"
+      :confirm-text="t('manage.members.removeDialog.confirm')"
       variant="destructive"
-      @confirm="confirmDelete"
-      @cancel="deleteTarget = null"
+      @confirm="confirmRemove"
+      @cancel="removeTarget = null"
+    />
+
+    <!-- ── Revoke confirm ──────────────────────────────────────────── -->
+    <AppAlertDialog
+      v-model:open="revokeDialogOpen"
+      :title="t('manage.members.revokeDialog.title')"
+      :description="t('manage.members.revokeDialog.desc', { email: revokeTarget?.email })"
+      :confirm-text="t('manage.members.revokeDialog.confirm')"
+      variant="destructive"
+      @confirm="confirmRevoke"
+      @cancel="revokeTarget = null"
     />
 
   </div>
 
-  <!-- ── Dialog ─────────────────────────────────────────────────── -->
-  <Dialog v-model:open="dialogOpen">
-    <DialogContent class="sm:max-w-md">
+  <!-- ── Invite Dialog ───────────────────────────────────────────── -->
+  <Dialog v-model:open="inviteDialogOpen">
+    <DialogContent class="sm:max-w-sm">
+      <DialogHeader>
+        <DialogTitle>{{ t('manage.members.inviteBtn') }}</DialogTitle>
+        <DialogDescription>{{ t('manage.members.inviteDialog.desc') }}</DialogDescription>
+      </DialogHeader>
 
-      <!-- Invite -->
-      <template v-if="dialogType === 'invite'">
-        <DialogHeader>
-          <DialogTitle>添加成员</DialogTitle>
-          <DialogDescription>向平台添加新用户并分配初始权限</DialogDescription>
-        </DialogHeader>
-
-        <div class="space-y-4 py-2">
-          <div class="flex bg-muted/50 rounded-lg p-1 border border-border">
-            <button
-              class="flex-1 py-1.5 rounded-md text-xs font-bold uppercase tracking-widest transition-all"
-              :class="form.provider === 'local' ? 'bg-background text-primary shadow-sm' : 'text-muted-foreground hover:text-foreground'"
-              @click="form.provider = 'local'"
-            >Local</button>
-            <button
-              class="flex-1 py-1.5 rounded-md text-xs font-bold uppercase tracking-widest transition-all"
-              :class="form.provider === 'dex' ? 'bg-background text-primary shadow-sm' : 'text-muted-foreground hover:text-foreground'"
-              @click="form.provider = 'dex'"
-            >OIDC / Dex</button>
-          </div>
-
-          <div class="space-y-1.5">
-            <label class="text-xs font-medium">用户名 / Email</label>
-            <Input v-model="form.username" placeholder="ops@example.com" />
-          </div>
-
-          <div v-if="form.provider === 'local'" class="space-y-1.5">
-            <label class="text-xs font-medium">初始密码</label>
-            <Input v-model="form.password" type="password" />
-          </div>
-
-          <div class="grid grid-cols-2 gap-3">
-            <div class="space-y-1.5">
-              <label class="text-xs font-medium">系统角色</label>
-              <select
-                v-model="form.role"
-                class="w-full h-9 rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 transition-[color,box-shadow]"
-              >
-                <option value="admin">Admin</option>
-                <option value="editor">Editor</option>
-                <option value="viewer">Viewer</option>
-              </select>
-            </div>
-            <div class="space-y-1.5">
-              <label class="text-xs font-medium">初始空间</label>
-              <select
-                v-model="form.namespace"
-                class="w-full h-9 rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 transition-[color,box-shadow]"
-              >
-                <option value="">不指定</option>
-                <option v-for="ws in workspaces" :key="(ws as any).id" :value="(ws as any).id">
-                  {{ (ws as any).displayName }}
-                </option>
-              </select>
-            </div>
-          </div>
+      <div class="space-y-4 py-2">
+        <div class="space-y-1.5">
+          <label class="text-xs font-medium">{{ t('manage.members.inviteDialog.emailLabel') }}</label>
+          <Input
+            v-model="inviteForm.email"
+            type="email"
+            placeholder="ops@example.com"
+            @keyup.enter="submitInvite"
+          />
         </div>
 
-        <DialogFooter>
-          <Button variant="outline" @click="dialogOpen = false">取消</Button>
-          <Button :disabled="addLoading || !form.username" @click="runAdd(form)">
-            <RefreshCw v-if="addLoading" class="size-3.5 animate-spin mr-2" />
-            添加成员
-          </Button>
-        </DialogFooter>
-      </template>
-
-      <!-- Config -->
-      <template v-else-if="selectedMember">
-        <DialogHeader>
-          <DialogTitle>编辑权限</DialogTitle>
-          <DialogDescription>管理 {{ selectedMember.name }} 的命名空间绑定与角色</DialogDescription>
-        </DialogHeader>
-
-        <div class="space-y-4 py-2">
-          <div class="flex items-center gap-3 p-3 bg-muted/30 rounded-lg border border-border">
-            <div class="size-10 rounded-xl flex items-center justify-center text-white text-sm font-black shrink-0"
-              :class="avatarColor(selectedMember.name)">
-              {{ firstChar(selectedMember.name) }}
-            </div>
-            <div>
-              <p class="text-sm font-bold">{{ selectedMember.name }}</p>
-              <p class="text-xs font-mono text-muted-foreground/60">{{ selectedMember.email }}</p>
-            </div>
-          </div>
-
-          <div class="space-y-1.5">
-            <label class="text-xs font-medium">系统角色</label>
-            <select
-              v-model="selectedMember.role"
-              class="w-full h-9 rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 transition-[color,box-shadow]"
-            >
-              <option value="admin">Admin</option>
-              <option value="editor">Editor</option>
-              <option value="viewer">Viewer</option>
-            </select>
-          </div>
-
-          <div class="space-y-2">
-            <label class="text-xs font-medium">Namespace Bindings</label>
-            <div class="space-y-2 max-h-44 overflow-y-auto">
-              <div
-                v-for="(b, i) in selectedMember.bindings" :key="i"
-                class="flex items-center justify-between p-3 rounded-lg border border-border bg-muted/20"
-              >
-                <div class="flex items-center gap-2">
-                  <Server class="size-3.5 text-muted-foreground/50" />
-                  <span class="text-xs font-bold">{{ b.ns }}</span>
-                </div>
-                <select class="h-7 rounded-md border border-input bg-background px-2 text-xs focus-visible:outline-none w-24">
-                  <option>Admin</option>
-                  <option>Editor</option>
-                  <option>Viewer</option>
-                </select>
-              </div>
-              <p v-if="!selectedMember.bindings?.length"
-                class="text-xs text-muted-foreground/40 italic py-2 text-center">
-                暂无命名空间绑定
-              </p>
-            </div>
-          </div>
+        <div class="space-y-1.5">
+          <label class="text-xs font-medium">{{ t('manage.members.inviteDialog.roleLabel') }}</label>
+          <select
+            v-model="inviteForm.role"
+            class="w-full h-9 rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 transition-[color,box-shadow]"
+          >
+            <option value="admin">{{ t('manage.members.inviteDialog.roleAdmin') }}</option>
+            <option value="editor">{{ t('manage.members.inviteDialog.roleEditor') }}</option>
+            <option value="member">{{ t('manage.members.inviteDialog.roleMember') }}</option>
+            <option value="viewer">{{ t('manage.members.inviteDialog.roleViewer') }}</option>
+          </select>
         </div>
+      </div>
 
-        <DialogFooter>
-          <Button variant="outline" @click="dialogOpen = false">取消</Button>
-          <Button @click="dialogOpen = false">
-            <Key class="size-3.5 mr-2" /> 保存权限
-          </Button>
-        </DialogFooter>
-      </template>
+      <DialogFooter>
+        <Button variant="outline" @click="inviteDialogOpen = false">{{ t('common.action.cancel') }}</Button>
+        <Button :disabled="inviteLoading" @click="submitInvite">
+          {{ inviteLoading ? t('manage.members.inviteDialog.sending') : t('manage.members.inviteDialog.send') }}
+        </Button>
+      </DialogFooter>
+    </DialogContent>
+  </Dialog>
 
+  <!-- ── Edit Role Dialog ────────────────────────────────────────── -->
+  <Dialog v-model:open="editDialogOpen">
+    <DialogContent class="sm:max-w-sm">
+      <DialogHeader>
+        <DialogTitle>{{ t('manage.members.changeRole') }}</DialogTitle>
+        <DialogDescription>
+          {{ t('manage.members.editRoleDialog.desc', { name: editTarget?.name }) }}
+        </DialogDescription>
+      </DialogHeader>
+
+      <div class="space-y-1.5 py-2">
+        <label class="text-xs font-medium">{{ t('manage.members.editRoleDialog.roleLabel') }}</label>
+        <select
+          v-model="editRole"
+          class="w-full h-9 rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 transition-[color,box-shadow]"
+        >
+          <option value="admin">{{ t('common.role.admin') }}</option>
+          <option value="editor">{{ t('common.role.editor') }}</option>
+          <option value="member">{{ t('common.role.member') }}</option>
+          <option value="viewer">{{ t('common.role.viewer') }}</option>
+        </select>
+      </div>
+
+      <DialogFooter>
+        <Button variant="outline" @click="editDialogOpen = false">{{ t('common.action.cancel') }}</Button>
+        <Button :disabled="editLoading" @click="confirmEditRole">
+          {{ editLoading ? t('common.status.saving') : t('common.action.save') }}
+        </Button>
+      </DialogFooter>
     </DialogContent>
   </Dialog>
 </template>

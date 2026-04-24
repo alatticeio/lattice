@@ -28,8 +28,7 @@ func (r *UserRepository) Login(ctx context.Context, username, password string) (
 func (r *UserRepository) OnboardExternalUser(ctx context.Context, subject string, email string) (*models.User, error) {
 
 	user := &models.User{
-		Email:      email,
-		ExternalID: subject,
+		Email: email,
 	}
 
 	if err := r.db.WithContext(ctx).Create(user).Error; err != nil {
@@ -57,10 +56,8 @@ func (r *UserRepository) List(ctx context.Context, req *dto.PageRequest) (*dto.P
 		return nil, err
 	}
 
-	// 4. 执行分页与关联预加载
-	// 假设你想在用户列表里展示他们所属的 Workspaces
+	// 4. 执行分页
 	err := query.Debug().
-		Preload("Workspaces").
 		Limit(req.PageSize).
 		Offset((req.Page - 1) * req.PageSize).
 		Order("created_at DESC").
@@ -71,30 +68,16 @@ func (r *UserRepository) List(ctx context.Context, req *dto.PageRequest) (*dto.P
 	}
 
 	// 5. 转换为 VO (Value Object)
-	// 实际项目中建议使用 copier 库或手动映射
 	for _, user := range users {
 		userVo := vo.UserVo{
 			ID:       user.ID,
 			Username: user.Username,
 			Email:    user.Email,
 			Avatar:   user.Avatar,
-			Role:     string(user.Role),
-			// 可以在这里提取所属 Workspace 的名称列表
-		}
-
-		var workspacesVos []vo.WorkspaceVo
-		for _, workspace := range user.Workspaces {
-			workspacesVos = append(workspacesVos, vo.WorkspaceVo{
-				ID:          workspace.ID,
-				Slug:        workspace.Slug,
-				DisplayName: workspace.DisplayName,
-			})
-
-			userVo.Workspaces = append(userVo.Workspaces, workspacesVos...)
+			Role:     string(user.SystemRole),
 		}
 
 		userVos = append(userVos, userVo)
-
 	}
 
 	// 6. 返回标准分页结果

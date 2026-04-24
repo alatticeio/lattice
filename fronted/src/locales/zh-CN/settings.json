@@ -1,0 +1,95 @@
+{
+  "approvals": {
+    "title": "审批工作台",
+    "desc": "查看并处理需要审批的操作请求。",
+    "searchPlaceholder": "搜索申请人或资源名...",
+    "stats": {
+      "total": "全部",
+      "totalDesc": "当前页全部请求",
+      "pending": "待审批",
+      "pendingDesc": "等待人工审批",
+      "executed": "已执行",
+      "executedDesc": "审批通过并执行完毕",
+      "failed": "执行失败",
+      "failedDesc": "需要关注",
+      "allGood": "一切正常"
+    },
+    "tabs": {
+      "all": "全部",
+      "pending": "待审批",
+      "approved": "已批准",
+      "rejected": "已拒绝",
+      "executed": "已执行",
+      "failed": "执行失败"
+    },
+    "col": {
+      "time": "提交时间",
+      "requester": "申请人",
+      "resource": "资源",
+      "action": "操作",
+      "status": "状态",
+      "reviewer": "审批人"
+    },
+    "status": {
+      "pending": "待审批",
+      "approved": "已批准",
+      "rejected": "已拒绝",
+      "executed": "已执行",
+      "failed": "执行失败"
+    },
+    "resourceType": {
+      "policy": "策略",
+      "member": "成员",
+      "relay": "中继",
+      "token": "令牌"
+    },
+    "actionType": {
+      "create": "创建",
+      "update": "更新",
+      "delete": "删除"
+    },
+    "reviewDialog": {
+      "approveTitle": "批准申请",
+      "rejectTitle": "拒绝申请",
+      "requester": "申请人",
+      "resource": "资源",
+      "operation": "操作",
+      "submittedAt": "提交时间",
+      "submittedAtText": "提交于 {time}",
+      "noteLabel": "审批意见（可选）",
+      "notePlaceholder": "填写原因或备注...",
+      "confirmApprove": "确认批准",
+      "confirmReject": "确认拒绝"
+    },
+    "reviewNote": "审批意见：{note}",
+    "reviewNoteLabel": "审批意见：",
+    "noRequests": "暂无审批请求",
+    "noPending": "暂无待审批请求",
+    "toast": {
+      "approved": "已批准，正在执行...",
+      "rejected": "已拒绝",
+      "failed": "操作失败"
+    }
+  },
+  "audit": {
+    "title": "审计日志",
+    "desc": "查看 Workspace 内所有操作的完整记录。",
+    "searchPlaceholder": "搜索操作者或资源...",
+    "col": {
+      "time": "时间",
+      "operator": "操作者",
+      "action": "操作",
+      "resource": "资源",
+      "status": "状态",
+      "detail": "详情"
+    },
+    "status": {
+      "success": "成功",
+      "failed": "失败"
+    }
+  },
+  "relays": {
+    "title": "中继节点",
+    "desc": "管理 WireGuard 中继服务器。"
+  }
+}

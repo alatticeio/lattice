@@ -1,5 +1,19 @@
 package vo
 
+import "wireflow/management/dto"
+
+// MemberVo is the HTTP response type for a workspace member, combining WorkspaceMember + User fields.
+type MemberVo struct {
+	UserID   string            `json:"userId"`
+	Name     string            `json:"name"`
+	Email    string            `json:"email"`
+	Avatar   string            `json:"avatar"`
+	Role     dto.WorkspaceRole `json:"role"`
+	Provider string            `json:"provider"` // "local", "dex", "ldap", etc.
+	Status   string            `json:"status"`   // "active", "pending"
+	JoinedAt string            `json:"joinedAt,omitempty"`
+}
+
 type WorkspaceVo struct {
 	ID string `json:"id"`
 

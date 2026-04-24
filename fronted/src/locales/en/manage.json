@@ -1,0 +1,385 @@
+{
+  "users": {
+    "title": "User Management",
+    "desc": "View all users and manage platform permissions.",
+    "searchPlaceholder": "Search by username or email...",
+    "totalUsers": "Total Users",
+    "platformAdmins": "Platform Admins",
+    "regularUsers": "Regular Users",
+    "filterAll": "All",
+    "filterAdmin": "Platform Admin",
+    "filterUser": "Regular User",
+    "col": {
+      "user": "User",
+      "platformRole": "Platform Role",
+      "workspaces": "Workspace Access",
+      "source": "Source",
+      "registeredAt": "Registered At",
+      "actions": ""
+    },
+    "source": {
+      "local": "Local",
+      "invitation": "Invited",
+      "github": "GitHub",
+      "dex": "SSO"
+    },
+    "inviter": "Invited by: {name}",
+    "allPermissions": "All Permissions",
+    "noWorkspace": "No workspace access",
+    "wsDialog": {
+      "title": "Manage Workspace Access",
+      "desc": "Assign workspace permissions for \"{name}\".",
+      "noWorkspaces": "No workspaces",
+      "willAdd": "Will be added",
+      "willRemove": "Will be removed",
+      "roleChanged": "Role changed",
+      "alreadyMember": "Member",
+      "saveCount": "Save Changes ({n})",
+      "noChanges": "No changes"
+    },
+    "menu": {
+      "manageWs": "Manage Workspaces",
+      "setAdmin": "Set as Platform Admin",
+      "setUser": "Set as Regular User"
+    },
+    "toast": {
+      "roleUpdated": "Set \"{name}\" role to {role}",
+      "roleFailed": "Update failed, please retry",
+      "wsLoadFailed": "Failed to load workspace permissions",
+      "wsSaved": "Updated {n} permission(s)",
+      "wsFailed": "{n} update(s) failed"
+    }
+  },
+  "members": {
+    "title": "Members",
+    "desc": "Manage members and invitations for this workspace.",
+    "tabMembers": "Members",
+    "tabInvitations": "Invitations",
+    "inviteBtn": "Invite Member",
+    "col": {
+      "member": "Member",
+      "role": "Role",
+      "provider": "Login Provider",
+      "joinedAt": "Joined At",
+      "actions": ""
+    },
+    "invCol": {
+      "invitee": "Invitee Email",
+      "role": "Role",
+      "inviter": "Inviter",
+      "status": "Status",
+      "expiry": "Expires At",
+      "actions": ""
+    },
+    "invStatus": {
+      "pending": "Pending",
+      "accepted": "Accepted",
+      "expired": "Expired",
+      "revoked": "Revoked"
+    },
+    "selfRemove": "Leave Workspace",
+    "changeRole": "Change Role",
+    "revokeInv": "Revoke",
+    "noMembers": "No members",
+    "noInvitations": "No invitations",
+    "stats": {
+      "total": "All Members",
+      "admins": "Admins",
+      "active": "Active",
+      "pendingInv": "Pending Invitations",
+      "adminAccess": "{n} with admin access",
+      "activeRate": "Active rate",
+      "allAccepted": "All accepted",
+      "pendingCount": "{n} pending",
+      "noAction": "No action needed",
+      "needsAction": "Awaiting acceptance",
+      "morePeople": "+{n} more"
+    },
+    "searchPlaceholder": "Search name or email...",
+    "inviteDialog": {
+      "desc": "Send a 7-day invite link to a new member.",
+      "emailLabel": "Email",
+      "roleLabel": "Role",
+      "roleAdmin": "Admin — Manage members & workspace config",
+      "roleEditor": "Editor — Manage nodes & policies",
+      "roleMember": "Member — View & use resources",
+      "roleViewer": "Viewer — Read-only access",
+      "send": "Send Invite",
+      "sending": "Sending...",
+      "emailRequired": "Please enter an email address"
+    },
+    "editRoleDialog": {
+      "desc": "Change \"{name}\"'s role in this workspace.",
+      "roleLabel": "New Role"
+    },
+    "removeDialog": {
+      "title": "Remove Member",
+      "desc": "Remove \"{name}\" from this workspace?",
+      "confirm": "Confirm Remove"
+    },
+    "revokeDialog": {
+      "title": "Revoke Invitation",
+      "desc": "Revoke invite sent to \"{email}\"?",
+      "confirm": "Confirm Revoke"
+    },
+    "copyLinkBtn": "Copy Link",
+    "toast": {
+      "removed": "Member removed",
+      "removeFailed": "Remove failed",
+      "roleUpdated": "Role updated",
+      "roleFailed": "Update failed",
+      "invSent": "Invitation sent",
+      "invFailed": "Invitation failed",
+      "invRevoked": "Invitation revoked",
+      "invRevokeFailed": "Revoke failed",
+      "linkCopied": "Invite link copied"
+    }
+  },
+  "policies": {
+    "title": "Policy Management",
+    "desc": "Manage network access policies for this workspace.",
+    "createBtn": "Create Policy",
+    "searchPlaceholder": "Search policy name...",
+    "col": {
+      "name": "Policy Name",
+      "action": "Action",
+      "direction": "Direction",
+      "selector": "Target Selector",
+      "rules": "Rules",
+      "creator": "Creator",
+      "status": "Status",
+      "actions": ""
+    },
+    "policyStatus": {
+      "active": "Deployed",
+      "pending": "Pending Approval",
+      "approved": "Executing",
+      "failed": "Failed"
+    },
+    "stats": {
+      "total": "All Policies",
+      "allow": "Allow",
+      "deny": "Deny",
+      "ingress": "Ingress",
+      "egress": "Egress"
+    },
+    "deleteConfirm": "Delete policy \"{name}\"? This will also remove the CRD from the Kubernetes cluster."
+  },
+  "workspaces": {
+    "title": "Workspace Management",
+    "desc": "Manage platform workspaces.",
+    "createBtn": "Create Workspace",
+    "searchPlaceholder": "Search name or slug...",
+    "empty": "No workspaces",
+    "col": {
+      "workspace": "Workspace",
+      "status": "Status",
+      "nodeUsage": "Node Usage",
+      "utilization": "Utilization",
+      "network": "Network Info",
+      "createdAt": "Created At",
+      "actions": ""
+    },
+    "statusLabel": {
+      "active": "Active",
+      "inactive": "Inactive"
+    },
+    "stats": {
+      "allWorkspaces": "All Workspaces",
+      "active": "Active",
+      "inactive": "Inactive",
+      "onlineNodes": "Online Nodes",
+      "healthRate": "Health Rate",
+      "allRunning": "All Running",
+      "someInactive": "{n} Inactive",
+      "healthy": "Healthy",
+      "needsCheck": "Needs Attention",
+      "avgNodes": "Avg {n} nodes/workspace"
+    },
+    "networkStatus": {
+      "ready": "Ready",
+      "pending": "Pending",
+      "error": "Error",
+      "failed": "Failed",
+      "unconfigured": "Not Configured",
+      "configuring": "Configuring",
+      "initializing": "Initializing"
+    },
+    "nodeUsagePct": "{pct}% Used",
+    "menu": {
+      "enter": "Enter Workspace",
+      "edit": "Edit",
+      "delete": "Delete"
+    },
+    "delete": {
+      "title": "Delete Workspace",
+      "desc": "Delete workspace \"{name}\"? This action cannot be undone. All nodes and policies in this workspace will be removed."
+    },
+    "dialog": {
+      "createTitle": "Create Workspace",
+      "editTitle": "Edit Workspace",
+      "createDesc": "Create a new isolated network workspace",
+      "editDesc": "Modify workspace configuration",
+      "displayName": "Display Name",
+      "displayNamePlaceholder": "e.g. Production",
+      "slug": "Slug",
+      "slugHint": "(unique identifier)",
+      "slugPlaceholder": "e.g. production",
+      "maxNodes": "Max Node Count (Quota)"
+    }
+  },
+  "tokens": {
+    "title": "Access Tokens",
+    "desc": "Manage WireGuard node enrollment tokens.",
+    "createBtn": "Create Token",
+    "col": {
+      "name": "Name",
+      "token": "Token",
+      "status": "Status",
+      "createdAt": "Created At",
+      "actions": ""
+    }
+  },
+  "nodes": {
+    "title": "Node Management",
+    "desc": "Manage all nodes in the network.",
+    "stats": {
+      "total": "All Nodes",
+      "online": "Online",
+      "offline": "Offline",
+      "pending": "Pending",
+      "regions": "Covering {n} regions",
+      "onlineRateLabel": "online rate",
+      "allOnline": "All online",
+      "healthy": "Network healthy",
+      "anomalies": "{n} anomalies",
+      "needsCheck": "Needs check",
+      "allJoined": "All joined",
+      "pendingCount": "{n} pending config",
+      "waitConfig": "Awaiting config"
+    },
+    "status": {
+      "online": "Online",
+      "offline": "Offline",
+      "pending": "Pending"
+    },
+    "searchPlaceholder": "Search name, AppID, address, region...",
+    "col": {
+      "status": "Status",
+      "node": "Node",
+      "region": "Region",
+      "workspace": "Workspace",
+      "network": "Network / Address",
+      "labels": "Labels",
+      "lastSeen": "Last Seen",
+      "actions": ""
+    },
+    "actions": {
+      "view": "View Details",
+      "editLabels": "Edit Labels",
+      "delete": "Delete Node"
+    },
+    "empty": "No nodes",
+    "deleteDialog": {
+      "title": "Delete Node",
+      "desc": "Delete node \"{name}\"? This cannot be undone."
+    },
+    "detail": {
+      "assignedIp": "Assigned IP",
+      "copyIp": "Copy IP",
+      "identity": "Identity",
+      "workspace": "Workspace",
+      "publicKey": "Public Key",
+      "customName": "Custom Name",
+      "nameHint": "Leave empty to use system default name.",
+      "labels": "Labels",
+      "noLabels": "No labels",
+      "addLabel": "Add Label",
+      "labelPlaceholder": "key=value, press Enter",
+      "statusOnline": "Online",
+      "editLabels": "Edit Labels",
+      "save": "Save Changes"
+    }
+  },
+  "stepper": {
+    "title": "Quick Start",
+    "desc": "Node onboarding wizard.",
+    "progress": "Progress",
+    "steps": {
+      "workspace": "Workspace",
+      "workspaceDesc": "Confirm or create network boundary",
+      "token": "Access Token",
+      "tokenDesc": "Generate node credentials",
+      "join": "Join",
+      "joinDesc": "Run node join command",
+      "labels": "Node Labels",
+      "labelsDesc": "Define node identity",
+      "policy": "Access Policy",
+      "policyDesc": "Configure access control"
+    },
+    "nav": {
+      "prev": "Previous",
+      "next": "Continue",
+      "confirmContinue": "Confirm & Continue",
+      "createContinue": "Create & Continue",
+      "createFinish": "Create & Finish",
+      "skip": "Skip",
+      "creating": "Creating..."
+    },
+    "done": {
+      "title": "Setup Complete",
+      "desc": "Token generated and policy created. After running the join command, the node will auto-register to workspace {ws}.",
+      "workspaceLabel": "Workspace",
+      "policyLabel": "Policy",
+      "viewNodes": "View Nodes",
+      "viewTopology": "View Topology"
+    },
+    "step1": {
+      "titleHas": "Confirm Workspace",
+      "titleCreate": "Create Workspace",
+      "descHas": "This workspace will be the network boundary for the node.",
+      "descCreate": "A workspace defines the network boundary. The name is used as a routing identifier.",
+      "noWsWarn": "You don't have a workspace yet. Please create one first.",
+      "nameLabel": "Workspace Name",
+      "nameHint": "Use lowercase, numbers, and hyphens, e.g. us-west-prod",
+      "currentTag": "Current",
+      "pendingTag": "To be created",
+      "nameRequired": "Please enter a workspace name",
+      "createFailed": "Workspace creation failed"
+    },
+    "step2": {
+      "title": "Generate Access Token",
+      "desc": "This token is the only credential for node onboarding. Copy and store it safely.",
+      "tokenLabel": "Access Token",
+      "generating": "Generating...",
+      "warning": "This token is the only credential for node onboarding. Bound to workspace {ws}.",
+      "tokenFailed": "Token generation failed"
+    },
+    "step3": {
+      "title": "Run Join Command",
+      "desc": "Run this command on the target machine to register the node.",
+      "hint": "Make sure the target machine has the wireflow agent installed with outbound access."
+    },
+    "step4": {
+      "title": "Configure Node Labels",
+      "desc": "Plan labels for the node. Apply them in the Nodes page after connecting.",
+      "labelsLabel": "Node Labels",
+      "addLabel": "Add Label",
+      "previewTitle": "peerSelector Preview",
+      "hint": "After the node connects, apply these labels in Nodes. The policy will use these labels to select target nodes."
+    },
+    "step5": {
+      "title": "Create Access Policy",
+      "desc": "Create an access control policy based on node labels.",
+      "nameLabel": "Policy Name",
+      "actionLabel": "Action",
+      "directionLabel": "Direction",
+      "allowOption": "Allow — permit traffic",
+      "denyOption": "Deny — block traffic",
+      "selectorTitle": "Node Selector (from Step 4)",
+      "noLabels": "No labels set, policy will match all nodes in workspace",
+      "nameRequired": "Please enter a policy name",
+      "createFailed": "Policy creation failed"
+    }
+  }
+}

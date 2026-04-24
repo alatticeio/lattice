@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import {
   Breadcrumb, BreadcrumbItem, BreadcrumbLink,
   BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator,
@@ -12,31 +13,32 @@ defineProps<{
 }>()
 
 const route = useRoute()
+const { t, te } = useI18n()
 
 const breadcrumbs = computed(() => {
   const segments = route.path.split('/').filter(Boolean)
   return segments.map((seg, i) => {
     const path = '/' + segments.slice(0, i + 1).join('/')
-    const label = seg.charAt(0).toUpperCase() + seg.slice(1)
+    const key = `breadcrumb.${seg}`
+    const label = te(key) ? t(key) : seg.charAt(0).toUpperCase() + seg.slice(1)
     return { label, path, isLast: i === segments.length - 1 }
   })
 })
 </script>
 
 <template>
-  <div class="border-border  flex items-center justify-between gap-4  px-6 py-4">
-    <!-- Left: Breadcrumbs -->
+  <div class="border-border flex items-center justify-between gap-4 px-6 py-4">
+    <!-- Left: Title + Description -->
     <div class="shrink-0 text-left">
       <h1 class="text-lg font-semibold leading-none tracking-tight">{{ title }}</h1>
       <p v-if="description" class="text-muted-foreground mt-0.5 text-xs">{{ description }}</p>
     </div>
 
-
-    <!-- Right: Title + Description -->
+    <!-- Right: Breadcrumb -->
     <Breadcrumb>
       <BreadcrumbList>
         <BreadcrumbItem>
-          <BreadcrumbLink href="/">Home</BreadcrumbLink>
+          <BreadcrumbLink href="/">{{ t('breadcrumb.home') }}</BreadcrumbLink>
         </BreadcrumbItem>
         <template v-for="crumb in breadcrumbs" :key="crumb.path">
           <BreadcrumbSeparator />

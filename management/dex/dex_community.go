@@ -28,7 +28,7 @@ var errProRequired = errors.New("Dex OIDC/SSO is a Wireflow Pro feature — upgr
 // Dex stub: satisfies call sites in management/server/api.go.
 type Dex struct{}
 
-func NewDex(_ service.WorkspaceService) (*Dex, error) {
+func NewDex(_ service.UserService) (*Dex, error) {
 	return nil, errProRequired
 }
 

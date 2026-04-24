@@ -13,7 +13,7 @@ func TestGetJWTSecret(t *testing.T) {
 		}
 		user.ID = "123"
 
-		businessToken, err := GenerateBusinessJWT(user.ID, user.Email)
+		businessToken, err := GenerateBusinessJWT(user.ID, user.Email, user.Username, "")
 		if err != nil {
 			t.Error(err)
 		}

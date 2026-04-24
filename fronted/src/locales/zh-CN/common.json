@@ -1,0 +1,110 @@
+{
+  "action": {
+    "save": "保存",
+    "cancel": "取消",
+    "confirm": "确认",
+    "refresh": "刷新",
+    "delete": "删除",
+    "edit": "编辑",
+    "search": "搜索",
+    "add": "添加",
+    "create": "创建",
+    "update": "更新",
+    "remove": "移除",
+    "revoke": "撤销",
+    "approve": "批准",
+    "reject": "拒绝",
+    "submit": "提交",
+    "close": "关闭",
+    "back": "返回",
+    "copy": "复制",
+    "invite": "邀请",
+    "publish": "发布"
+  },
+  "status": {
+    "loading": "加载中...",
+    "saving": "保存中...",
+    "empty": "暂无数据",
+    "error": "操作失败，请重试",
+    "success": "操作成功",
+    "active": "活跃",
+    "inactive": "未激活",
+    "pending": "待处理",
+    "online": "在线",
+    "offline": "离线"
+  },
+  "role": {
+    "platform_admin": "平台管理员",
+    "user": "普通用户",
+    "admin": "管理员",
+    "editor": "编辑者",
+    "member": "成员",
+    "viewer": "访客"
+  },
+  "time": {
+    "justNow": "刚刚",
+    "minutesAgo": "{n} 分钟前",
+    "hoursAgo": "{n} 小时前",
+    "daysAgo": "{n} 天前",
+    "today": "今天",
+    "last7Days": "近 7 天",
+    "last30Days": "近 30 天",
+    "last90Days": "近 90 天",
+    "allTime": "全部时间"
+  },
+  "pagination": {
+    "total": "共 {total} 条 · 第 {page} / {totalPages} 页",
+    "totalUsers": "共 {total} 位用户 · 第 {page} / {totalPages} 页"
+  },
+  "confirm": {
+    "deleteTitle": "确认删除",
+    "deleteDesc": "此操作不可逆，确定要删除吗？",
+    "yes": "确定",
+    "no": "取消"
+  },
+  "breadcrumb": {
+    "home": "首页",
+    "manage": "管理",
+    "settings": "设置",
+    "user": "个人中心",
+    "users": "用户管理",
+    "members": "成员管理",
+    "policies": "策略管理",
+    "tokens": "接入令牌",
+    "nodes": "节点管理",
+    "topology": "网络拓扑",
+    "peers": "Peers",
+    "workspaces": "空间管理",
+    "approvals": "审批工作台",
+    "audit": "审计日志",
+    "relays": "中继节点",
+    "stepper": "快速接入",
+    "profile": "个人资料",
+    "account": "账号设置",
+    "billing": "订阅计划",
+    "notifications": "通知设置",
+    "dashboard": "仪表盘"
+  },
+  "nav": {
+    "group": {
+      "overview": "概览",
+      "workspace": "工作空间",
+      "platform": "平台管理",
+      "settings": "设置"
+    },
+    "dashboard": "仪表盘",
+    "members": "成员管理",
+    "policies": "策略管理",
+    "tokens": "接入令牌",
+    "nodes": "节点管理",
+    "topology": "网络拓扑",
+    "peers": "Peers",
+    "monitor": "监控",
+    "users": "用户管理",
+    "workspaces": "空间管理",
+    "approvals": "审批工作台",
+    "audit": "审计日志",
+    "relays": "中继节点",
+    "quickstart": "快速接入"
+  }
+}

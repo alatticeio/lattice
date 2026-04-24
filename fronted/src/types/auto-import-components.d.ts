@@ -44,6 +44,7 @@ declare module 'vue' {
     UiAvatar: typeof import('./../components/ui/avatar/Avatar.vue')['default']
     UiAvatarFallback: typeof import('./../components/ui/avatar/AvatarFallback.vue')['default']
     UiAvatarImage: typeof import('./../components/ui/avatar/AvatarImage.vue')['default']
+    UiAvatarUserAvatar: typeof import('./../components/ui/avatar/UserAvatar.vue')['default']
     UiBreadcrumb: typeof import('./../components/ui/breadcrumb/Breadcrumb.vue')['default']
     UiBreadcrumbEllipsis: typeof import('./../components/ui/breadcrumb/BreadcrumbEllipsis.vue')['default']
     UiBreadcrumbItem: typeof import('./../components/ui/breadcrumb/BreadcrumbItem.vue')['default']

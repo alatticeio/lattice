@@ -77,6 +77,13 @@ declare module 'vue-router/auto-routes' {
       Record<never, never>,
       | never
     >,
+    '/invite/[token]': RouteRecordInfo<
+      '/invite/[token]',
+      '/invite/:token',
+      { token: ParamValue<true> },
+      { token: ParamValue<false> },
+      | never
+    >,
     '/manage/members/': RouteRecordInfo<
       '/manage/members/',
       '/manage/members',
@@ -133,9 +140,30 @@ declare module 'vue-router/auto-routes' {
       Record<never, never>,
       | never
     >,
+    '/manage/users/': RouteRecordInfo<
+      '/manage/users/',
+      '/manage/users',
+      Record<never, never>,
+      Record<never, never>,
+      | never
+    >,
     '/manage/workspaces/': RouteRecordInfo<
       '/manage/workspaces/',
       '/manage/workspaces',
+      Record<never, never>,
+      Record<never, never>,
+      | never
+    >,
+    '/settings/approvals/': RouteRecordInfo<
+      '/settings/approvals/',
+      '/settings/approvals',
+      Record<never, never>,
+      Record<never, never>,
+      | never
+    >,
+    '/settings/audit/': RouteRecordInfo<
+      '/settings/audit/',
+      '/settings/audit',
       Record<never, never>,
       Record<never, never>,
       | never
@@ -232,6 +260,12 @@ declare module 'vue-router/auto-routes' {
       views:
         | never
     }
+    'src/pages/invite/[token].vue': {
+      routes:
+        | '/invite/[token]'
+      views:
+        | never
+    }
     'src/pages/manage/members/index.vue': {
       routes:
         | '/manage/members/'
@@ -280,9 +314,27 @@ declare module 'vue-router/auto-routes' {
       views:
         | never
     }
+    'src/pages/manage/users/index.vue': {
+      routes:
+        | '/manage/users/'
+      views:
+        | never
+    }
     'src/pages/manage/workspaces/index.vue': {
       routes:
         | '/manage/workspaces/'
+      views:
+        | never
+    }
+    'src/pages/settings/approvals/index.vue': {
+      routes:
+        | '/settings/approvals/'
+      views:
+        | never
+    }
+    'src/pages/settings/audit/index.vue': {
+      routes:
+        | '/settings/audit/'
       views:
         | never
     }

@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+    <polygon
+            points="50,2 91,26 91,74 50,98 9,74 9,26"
+            fill="#007BFF"
+    />
+
+    <g stroke="white" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round" fill="none">
+        <path d="M 27,50 L 50,27 L 73,50 L 50,73 Z" />
+        
+        <line x1="27" y1="50" x2="73" y2="50"/>
+        <line x1="50" y1="27" x2="50" y2="73"/>
+    </g>
+
+    <g fill="white">
+        <circle cx="27" cy="50" r="8"/>
+        <circle cx="50" cy="27" r="8"/>
+        <circle cx="50" cy="73" r="8"/>
+        <circle cx="73" cy="50" r="8"/>
+    </g>
+</svg>

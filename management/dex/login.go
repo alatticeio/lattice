@@ -35,19 +35,18 @@ type Dex struct {
 	verifier     *oidc.IDTokenVerifier
 	oauth2Config *oauth2.Config
 
-	workspaceService service.WorkspaceService
-	userService      service.UserService
+	userService service.UserService
 }
 
-func NewDex(workspaceService service.WorkspaceService) (*Dex, error) {
+func NewDex(userService service.UserService) (*Dex, error) {
 	veryfier, err := InitVerifier()
 	if err != nil {
 		return nil, err
 	}
 	return &Dex{
-		workspaceService: workspaceService,
-		oauth2Config:     &oauth2Config,
-		verifier:         veryfier,
+		userService:  userService,
+		oauth2Config: &oauth2Config,
+		verifier:     veryfier,
 	}, nil
 }
 
@@ -99,14 +98,14 @@ func (d *Dex) Login(c *gin.Context) {
 	//	return
 	//}
 
-	user, err := d.userService.OnboardExternalUser(ctx, dexClaims.Subject, dexClaims.Name)
+	user, err := d.userService.OnboardExternalUser(ctx, "dex", dexClaims.Subject, dexClaims.Email, config.GlobalConfig.Dex.AdminEmails)
 	if err != nil {
 		resp.Error(c, fmt.Sprintf("Failed to get user: %v", err))
 		return
 	}
 
 	// 6. 签发你自己的业务 JWT (给前端后续请求使用)
-	businessToken, _ := utils.GenerateBusinessJWT(user.ID, user.Email)
+	businessToken, _ := utils.GenerateBusinessJWT(user.ID, user.Email, user.Username, string(user.SystemRole))
 
 	// 7. 返回结果或重定向
 	// 私有云部署通常直接重定向回前端 Dashboard，带上 Token

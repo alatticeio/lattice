@@ -1,7 +1,12 @@
 package server
 
 import (
+	"context"
+	"encoding/json"
+
+	"wireflow/internal/infra"
 	"wireflow/management/dto"
+	"wireflow/management/service"
 	"wireflow/pkg/utils/resp"
 
 	"github.com/gin-gonic/gin"
@@ -9,54 +14,75 @@ import (
 
 func (s *Server) listPolicies(c *gin.Context) {
 	var req dto.PageRequest
-	err := c.ShouldBindQuery(&req)
-	if err != nil {
+	if err := c.ShouldBindQuery(&req); err != nil {
 		resp.BadRequest(c, err.Error())
 		return
 	}
-
 	vo, err := s.policyController.ListPolicy(c.Request.Context(), &req)
 	if err != nil {
 		resp.Error(c, err.Error())
 		return
 	}
-
-	resp.OK(c, vo)
-}
-
-// nolint:all
-func (s *Server) updatePolicy(c *gin.Context) {
-	var req dto.PeerDto
-	err := c.ShouldBindJSON(&req)
-	if err != nil {
-		resp.BadRequest(c, err.Error())
-		return
-	}
-
-	vo, err := s.peerController.UpdatePeer(c.Request.Context(), &req)
-	if err != nil {
-		resp.Error(c, err.Error())
-		return
-	}
-
 	resp.OK(c, vo)
 }
 
 func (s *Server) createOrUpdatePolicy(c *gin.Context) {
 	var req dto.PolicyDto
-	err := c.ShouldBindJSON(&req)
-	if err != nil {
+	if err := c.ShouldBindJSON(&req); err != nil {
 		resp.BadRequest(c, err.Error())
 		return
 	}
 
-	vo, err := s.policyController.CreateOrUpdatePolicy(c.Request.Context(), &req)
-	if err != nil {
-		c.JSON(500, gin.H{"error": err.Error()})
+	wsID, _ := c.Request.Context().Value(infra.WorkspaceKey).(string)
+
+	// POST /create → save to DB as pending + submit workflow for approval.
+	if c.Request.Method == "POST" {
+		policyRec, err := s.policyController.Submit(c.Request.Context(), wsID, c.GetString("user_id"), c.GetString("username"), &req)
+		if err != nil {
+			resp.Error(c, err.Error())
+			return
+		}
+
+		payload, _ := json.Marshal(map[string]string{"policyId": policyRec.ID})
+		v, err := s.workflowController.Submit(c.Request.Context(), service.SubmitWorkflowReq{
+			WorkspaceID:      wsID,
+			RequestedBy:      c.GetString("user_id"),
+			RequestedByName:  c.GetString("username"),
+			RequestedByEmail: c.GetString("email"),
+			ResourceType:     "policy",
+			ResourceName:     req.Name,
+			Action:           "create",
+			Payload:          string(payload),
+		})
+		if err != nil {
+			resp.Error(c, err.Error())
+			return
+		}
+		c.JSON(202, gin.H{"code": 0, "msg": "policy creation submitted for approval", "data": v})
 		return
 	}
 
+	// PUT /update → apply directly (admin only path).
+	vo, err := s.policyController.ApplyDirect(c.Request.Context(), wsID, &req)
+	if err != nil {
+		resp.Error(c, err.Error())
+		return
+	}
 	resp.OK(c, vo)
+}
+
+// registerPolicyExecutor registers the executor that applies an approved policy.
+// Payload is {"policyId": "<id>"} — the DB record ID.
+func (s *Server) registerPolicyExecutor() {
+	s.workflowService.RegisterExecutor("policy", "create", func(ctx context.Context, payload string) error {
+		var p struct {
+			PolicyID string `json:"policyId"`
+		}
+		if err := json.Unmarshal([]byte(payload), &p); err != nil {
+			return err
+		}
+		return s.policyController.Apply(ctx, p.PolicyID)
+	})
 }
 
 func (s *Server) deletePolicy(c *gin.Context) {
@@ -65,12 +91,9 @@ func (s *Server) deletePolicy(c *gin.Context) {
 		resp.BadRequest(c, "policy name is required")
 		return
 	}
-
-	err := s.policyController.DeletePolicy(c.Request.Context(), name)
-	if err != nil {
+	if err := s.policyController.DeletePolicy(c.Request.Context(), name); err != nil {
 		resp.Error(c, err.Error())
 		return
 	}
-
 	resp.OK(c, nil)
 }

@@ -1,11 +1,8 @@
 <script setup lang="ts">
 import type { LucideIcon } from "lucide-vue-next"
 import { ChevronRight } from "lucide-vue-next"
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible"
+import { ref, watch } from "vue"
+import { RouterLink } from "vue-router"
 import {
   SidebarGroup,
   SidebarGroupLabel,
@@ -17,7 +14,7 @@ import {
   SidebarMenuSubItem,
 } from "@/components/ui/sidebar"
 
-defineProps<{
+const props = defineProps<{
   label?: string
   items: {
     title: string
@@ -30,6 +27,22 @@ defineProps<{
     }[]
   }[]
 }>()
+
+// Track each group's open state independently.
+// Initialized once from isActive; never overwritten by subsequent route changes.
+const openState = ref<Record<string, boolean>>({})
+
+watch(
+  () => props.items,
+  (items) => {
+    items.forEach(item => {
+      if (!(item.title in openState.value)) {
+        openState.value[item.title] = item.isActive ?? false
+      }
+    })
+  },
+  { immediate: true },
+)
 </script>
 
 <template>
@@ -40,41 +53,36 @@ defineProps<{
         <!-- Leaf item (no children): plain link -->
         <SidebarMenuItem v-if="!item.items?.length">
           <SidebarMenuButton as-child :tooltip="item.title">
-            <a :href="item.url">
+            <RouterLink :to="item.url">
               <component :is="item.icon" v-if="item.icon" />
               <span>{{ item.title }}</span>
-            </a>
+            </RouterLink>
           </SidebarMenuButton>
         </SidebarMenuItem>
 
-        <!-- Collapsible item (has children) -->
-        <Collapsible
-            v-else
-            as-child
-            :default-open="item.isActive"
-            class="group/collapsible"
-        >
-          <SidebarMenuItem>
-            <CollapsibleTrigger as-child>
-              <SidebarMenuButton :tooltip="item.title">
-                <component :is="item.icon" v-if="item.icon" />
-                <span>{{ item.title }}</span>
-                <ChevronRight class="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
-              </SidebarMenuButton>
-            </CollapsibleTrigger>
-            <CollapsibleContent>
-              <SidebarMenuSub>
-                <SidebarMenuSubItem v-for="subItem in item.items" :key="subItem.title">
-                  <SidebarMenuSubButton as-child>
-                    <a :href="subItem.url">
-                      <span>{{ subItem.title }}</span>
-                    </a>
-                  </SidebarMenuSubButton>
-                </SidebarMenuSubItem>
-              </SidebarMenuSub>
-            </CollapsibleContent>
-          </SidebarMenuItem>
-        </Collapsible>
+        <!-- Group item (has children): fully manual expand/collapse -->
+        <SidebarMenuItem v-else>
+          <SidebarMenuButton
+            :tooltip="item.title"
+            @click="openState[item.title] = !openState[item.title]"
+          >
+            <component :is="item.icon" v-if="item.icon" />
+            <span>{{ item.title }}</span>
+            <ChevronRight
+              class="ml-auto transition-transform duration-200"
+              :class="{ 'rotate-90': openState[item.title] }"
+            />
+          </SidebarMenuButton>
+          <SidebarMenuSub v-show="openState[item.title]">
+            <SidebarMenuSubItem v-for="subItem in item.items" :key="subItem.title">
+              <SidebarMenuSubButton as-child>
+                <RouterLink :to="subItem.url">
+                  <span>{{ subItem.title }}</span>
+                </RouterLink>
+              </SidebarMenuSubButton>
+            </SidebarMenuSubItem>
+          </SidebarMenuSub>
+        </SidebarMenuItem>
       </template>
     </SidebarMenu>
   </SidebarGroup>

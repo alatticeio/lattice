@@ -27,16 +27,14 @@ func (r *userRepo) GetByUsername(ctx context.Context, username string) (*models.
 	return r.First(ctx, repository.WithUsername(username))
 }
 
-func (r *userRepo) GetByExternalID(ctx context.Context, externalID string) (*models.User, error) {
+func (r *userRepo) GetByEmail(ctx context.Context, email string) (*models.User, error) {
 	return r.First(ctx, func(db *gorm.DB) *gorm.DB {
-		return db.Where("external_id = ?", externalID)
+		return db.Where("email = ?", email)
 	})
 }
 
 func (r *userRepo) Login(ctx context.Context, username, password string) (*models.User, error) {
-	return r.First(ctx, func(db *gorm.DB) *gorm.DB {
-		return db.Where("username = ? AND password = ?", username, password)
-	})
+	return r.First(ctx, repository.WithUsername(username))
 }
 
 func (r *userRepo) Delete(ctx context.Context, id string) error {
@@ -45,6 +43,26 @@ func (r *userRepo) Delete(ctx context.Context, id string) error {
 
 func (r *userRepo) Count(ctx context.Context) (int64, error) {
 	return r.BaseRepository.Count(ctx)
+}
+
+func (r *userRepo) ListRaw(ctx context.Context, req *dto.PageRequest) ([]*models.User, int64, error) {
+	var users []*models.User
+	var total int64
+
+	query := r.DB().WithContext(ctx).Model(&models.User{})
+	if req.Keyword != "" {
+		query = query.Where("username LIKE ? OR email LIKE ?", "%"+req.Keyword+"%", "%"+req.Keyword+"%")
+	}
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	err := query.
+		Preload("Identities").
+		Limit(req.PageSize).
+		Offset((req.Page-1)*req.PageSize).
+		Order("created_at DESC").
+		Find(&users).Error
+	return users, total, err
 }
 
 func (r *userRepo) List(ctx context.Context, req *dto.PageRequest) (*dto.PageResult[vo.UserVo], error) {
@@ -60,7 +78,7 @@ func (r *userRepo) List(ctx context.Context, req *dto.PageRequest) (*dto.PageRes
 		return nil, err
 	}
 
-	err := query.Preload("Workspaces").
+	err := query.
 		Limit(req.PageSize).
 		Offset((req.Page - 1) * req.PageSize).
 		Order("created_at DESC").
@@ -76,14 +94,7 @@ func (r *userRepo) List(ctx context.Context, req *dto.PageRequest) (*dto.PageRes
 			Username: u.Username,
 			Email:    u.Email,
 			Avatar:   u.Avatar,
-			Role:     string(u.Role),
-		}
-		for _, ws := range u.Workspaces {
-			uvo.Workspaces = append(uvo.Workspaces, vo.WorkspaceVo{
-				ID:          ws.ID,
-				Slug:        ws.Slug,
-				DisplayName: ws.DisplayName,
-			})
+			Role:     string(u.SystemRole),
 		}
 		userVos = append(userVos, uvo)
 	}

@@ -1,7 +1,8 @@
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { listPolicy, createPolicy, deletePolicy, updatePolicy } from '@/api/policy'
 import { useTable } from "@/composables/useApi"
+import { useWorkspaceStore } from '@/stores/workspace'
 
 export const usePolicyPageStore = defineStore('policyPage', () => {
 
@@ -13,6 +14,12 @@ export const usePolicyPageStore = defineStore('policyPage', () => {
             page: 1,
             pageSize: 4,
         }
+    })
+
+    // Refresh when workspace switches
+    const workspaceStore = useWorkspaceStore()
+    watch(() => workspaceStore.currentWorkspace?.id, (newId, oldId) => {
+        if (newId && newId !== oldId) refresh()
     })
 
     const isDrawerOpen = ref(false)

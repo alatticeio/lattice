@@ -25,6 +25,9 @@ type WorkspaceMember struct {
 	// 成员状态（用于邀请机制）
 	Status string `gorm:"type:varchar(20);default:'active'" json:"status"` // e.g., "pending", "active"
 
+	InvitedBy string     `gorm:"column:invited_by" json:"invitedBy,omitempty"`
+	JoinedAt  *time.Time `gorm:"column:joined_at" json:"joinedAt,omitempty"`
+
 	// 关联对象 (GORM 会自动关联，方便预加载)
 	User      User      `gorm:"foreignKey:UserID;references:ID" json:"-"`
 	Workspace Workspace `gorm:"foreignKey:WorkspaceID;references:ID" json:"-"`
@@ -62,6 +65,20 @@ func (w *Workspace) SetNamespace(ns string) {
 		w.Namespace = ns
 	}
 }
+
+// WorkspaceInvitation tracks a pending invitation to join a workspace.
+type WorkspaceInvitation struct {
+	Model
+	WorkspaceID string            `gorm:"index;not null" json:"workspaceId"`
+	InviterID   string            `json:"inviterId"`
+	Email       string            `json:"email"` // invitee email (may not be a user yet)
+	Role        dto.WorkspaceRole `gorm:"type:varchar(20)" json:"role"`
+	Token       string            `gorm:"uniqueIndex" json:"token"` // secure random hex token
+	Status      string            `gorm:"type:varchar(20);default:'pending'" json:"status"` // pending|accepted|expired|revoked
+	ExpiresAt   time.Time         `json:"expiresAt"`
+}
+
+func (WorkspaceInvitation) TableName() string { return "t_workspace_invitation" }
 
 // Plan 定义不同等级套餐的“物理限制”和“功能开关”
 type Plan struct {

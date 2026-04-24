@@ -1,11 +1,5 @@
 package dto
 
-type UserNamespacePermissionDto struct {
-	UserID      string `gorm:"user_id" json:"user_id"`
-	Namespace   string `gorm:"namespace" json:"namespace"`
-	AccessLevel string `gorm:"access_level" json:"level"` // "read", "write", "admin"
-}
-
 // UserSettingsResponse 返回给前端的聚合对象
 type UserSettingsResponse struct {
 	Name        string `json:"name"`        // 对应 User.Username

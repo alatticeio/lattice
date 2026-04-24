@@ -1,0 +1,385 @@
+{
+  "users": {
+    "title": "用户管理",
+    "desc": "查看全部用户并管理平台权限。",
+    "searchPlaceholder": "搜索用户名或邮箱...",
+    "totalUsers": "总用户数",
+    "platformAdmins": "平台管理员",
+    "regularUsers": "普通用户",
+    "filterAll": "全部",
+    "filterAdmin": "平台管理员",
+    "filterUser": "普通用户",
+    "col": {
+      "user": "用户",
+      "platformRole": "平台权限",
+      "workspaces": "空间权限",
+      "source": "来源",
+      "registeredAt": "注册时间",
+      "actions": ""
+    },
+    "source": {
+      "local": "本地注册",
+      "invitation": "邀请注册",
+      "github": "GitHub",
+      "dex": "SSO"
+    },
+    "inviter": "邀请人：{name}",
+    "allPermissions": "全部权限",
+    "noWorkspace": "无空间权限",
+    "wsDialog": {
+      "title": "管理工作空间权限",
+      "desc": "为「{name}」分配工作空间访问权限。",
+      "noWorkspaces": "暂无工作空间",
+      "willAdd": "将被加入",
+      "willRemove": "将被移除",
+      "roleChanged": "角色已修改",
+      "alreadyMember": "已加入",
+      "saveCount": "保存更改 ({n})",
+      "noChanges": "无更改"
+    },
+    "menu": {
+      "manageWs": "管理工作空间",
+      "setAdmin": "设为平台管理员",
+      "setUser": "设为普通用户"
+    },
+    "toast": {
+      "roleUpdated": "已将「{name}」权限设为 {role}",
+      "roleFailed": "修改失败，请重试",
+      "wsLoadFailed": "加载工作空间权限失败",
+      "wsSaved": "已更新 {n} 项权限",
+      "wsFailed": "{n} 项更新失败"
+    }
+  },
+  "members": {
+    "title": "成员管理",
+    "desc": "管理当前工作空间的成员与邀请。",
+    "tabMembers": "成员",
+    "tabInvitations": "邀请记录",
+    "inviteBtn": "邀请成员",
+    "col": {
+      "member": "成员",
+      "role": "角色",
+      "provider": "登录方式",
+      "joinedAt": "加入时间",
+      "actions": ""
+    },
+    "invCol": {
+      "invitee": "受邀邮箱",
+      "role": "角色",
+      "inviter": "邀请人",
+      "status": "状态",
+      "expiry": "有效期至",
+      "actions": ""
+    },
+    "invStatus": {
+      "pending": "待接受",
+      "accepted": "已接受",
+      "expired": "已过期",
+      "revoked": "已撤销"
+    },
+    "selfRemove": "退出工作空间",
+    "changeRole": "修改角色",
+    "revokeInv": "撤销",
+    "noMembers": "暂无成员",
+    "noInvitations": "暂无邀请记录",
+    "stats": {
+      "total": "全部成员",
+      "admins": "管理员",
+      "active": "活跃成员",
+      "pendingInv": "待接受邀请",
+      "adminAccess": "{n} 人拥有管理权限",
+      "activeRate": "活跃率",
+      "allAccepted": "全部已接受",
+      "pendingCount": "{n} 条待处理",
+      "noAction": "无需处理",
+      "needsAction": "等待接受",
+      "morePeople": "+{n} 人"
+    },
+    "searchPlaceholder": "搜索名称或邮箱...",
+    "inviteDialog": {
+      "desc": "通过邮件邀请新成员加入当前 Workspace，链接 7 天内有效。",
+      "emailLabel": "邮箱地址",
+      "roleLabel": "角色",
+      "roleAdmin": "管理员 — 管理成员与空间配置",
+      "roleEditor": "编辑者 — 管理节点与策略",
+      "roleMember": "成员 — 查看与使用资源",
+      "roleViewer": "访客 — 只读访问",
+      "send": "发送邀请",
+      "sending": "发送中...",
+      "emailRequired": "请填写邮箱地址"
+    },
+    "editRoleDialog": {
+      "desc": "修改「{name}」在当前 Workspace 的角色。",
+      "roleLabel": "新角色"
+    },
+    "removeDialog": {
+      "title": "移除成员",
+      "desc": "确认将「{name}」从 Workspace 中移除？",
+      "confirm": "确认移除"
+    },
+    "revokeDialog": {
+      "title": "撤销邀请",
+      "desc": "确认撤销发送给「{email}」的邀请？",
+      "confirm": "确认撤销"
+    },
+    "copyLinkBtn": "复制链接",
+    "toast": {
+      "removed": "成员已移除",
+      "removeFailed": "移除失败",
+      "roleUpdated": "角色已更新",
+      "roleFailed": "更新失败",
+      "invSent": "邀请已发送",
+      "invFailed": "邀请失败",
+      "invRevoked": "邀请已撤销",
+      "invRevokeFailed": "撤销失败",
+      "linkCopied": "邀请链接已复制"
+    }
+  },
+  "policies": {
+    "title": "策略管理",
+    "desc": "管理工作空间的网络访问策略。",
+    "createBtn": "创建策略",
+    "searchPlaceholder": "搜索策略名称...",
+    "col": {
+      "name": "策略名称",
+      "action": "动作",
+      "direction": "方向",
+      "selector": "目标选择器",
+      "rules": "规则数",
+      "creator": "创建人",
+      "status": "状态",
+      "actions": ""
+    },
+    "policyStatus": {
+      "active": "已部署",
+      "pending": "审批中",
+      "approved": "执行中",
+      "failed": "执行失败"
+    },
+    "stats": {
+      "total": "全部策略",
+      "allow": "允许",
+      "deny": "拒绝",
+      "ingress": "入站",
+      "egress": "出站"
+    },
+    "deleteConfirm": "确认删除策略「{name}」？此操作将同时从 Kubernetes 集群移除对应 CRD。"
+  },
+  "workspaces": {
+    "title": "空间管理",
+    "desc": "管理平台工作空间。",
+    "createBtn": "创建空间",
+    "searchPlaceholder": "搜索名称或 Slug...",
+    "empty": "暂无工作空间",
+    "col": {
+      "workspace": "工作空间",
+      "status": "状态",
+      "nodeUsage": "节点使用",
+      "utilization": "空间利用率",
+      "network": "网络信息",
+      "createdAt": "创建时间",
+      "actions": ""
+    },
+    "statusLabel": {
+      "active": "运行中",
+      "inactive": "已停用"
+    },
+    "stats": {
+      "allWorkspaces": "全部空间",
+      "active": "运行中",
+      "inactive": "已停用",
+      "onlineNodes": "在线节点",
+      "healthRate": "健康率",
+      "allRunning": "全部运行中",
+      "someInactive": "{n} 个已停用",
+      "healthy": "状态健康",
+      "needsCheck": "需要检查",
+      "avgNodes": "均 {n} 节点/空间"
+    },
+    "networkStatus": {
+      "ready": "就绪",
+      "pending": "等待中",
+      "error": "错误",
+      "failed": "失败",
+      "unconfigured": "未配置",
+      "configuring": "网络配置中",
+      "initializing": "初始化中"
+    },
+    "nodeUsagePct": "{pct}% 已用",
+    "menu": {
+      "enter": "进入空间",
+      "edit": "编辑",
+      "delete": "删除"
+    },
+    "delete": {
+      "title": "删除工作空间",
+      "desc": "确认删除「{name}」？该操作不可撤销，空间内所有节点和策略将被移除。"
+    },
+    "dialog": {
+      "createTitle": "创建空间",
+      "editTitle": "编辑空间",
+      "createDesc": "新建一个隔离的网络工作空间",
+      "editDesc": "修改工作空间配置",
+      "displayName": "显示名称",
+      "displayNamePlaceholder": "例如：生产环境",
+      "slug": "Slug",
+      "slugHint": "(唯一标识符)",
+      "slugPlaceholder": "例如：production",
+      "maxNodes": "最大节点数（限额）"
+    }
+  },
+  "tokens": {
+    "title": "接入令牌",
+    "desc": "管理 WireGuard 节点接入凭证。",
+    "createBtn": "创建令牌",
+    "col": {
+      "name": "名称",
+      "token": "令牌",
+      "status": "状态",
+      "createdAt": "创建时间",
+      "actions": ""
+    }
+  },
+  "nodes": {
+    "title": "节点管理",
+    "desc": "管理网络中的所有节点。",
+    "stats": {
+      "total": "全部节点",
+      "online": "在线节点",
+      "offline": "离线节点",
+      "pending": "待接入",
+      "regions": "覆盖 {n} 个地域",
+      "onlineRateLabel": "在线率",
+      "allOnline": "全部在线",
+      "healthy": "网络健康",
+      "anomalies": "{n} 台异常",
+      "needsCheck": "需要检查",
+      "allJoined": "全部已接入",
+      "pendingCount": "{n} 台待配置",
+      "waitConfig": "等待配置"
+    },
+    "status": {
+      "online": "在线",
+      "offline": "离线",
+      "pending": "待接入"
+    },
+    "searchPlaceholder": "搜索名称、AppID、地址、区域...",
+    "col": {
+      "status": "状态",
+      "node": "节点",
+      "region": "区域",
+      "workspace": "所属空间",
+      "network": "网络 / 地址",
+      "labels": "标签",
+      "lastSeen": "最后在线",
+      "actions": ""
+    },
+    "actions": {
+      "view": "查看详情",
+      "editLabels": "编辑标签",
+      "delete": "删除节点"
+    },
+    "empty": "暂无节点数据",
+    "deleteDialog": {
+      "title": "删除节点",
+      "desc": "确认删除节点「{name}」？该操作不可撤销。"
+    },
+    "detail": {
+      "assignedIp": "分配 IP",
+      "copyIp": "复制 IP",
+      "identity": "身份信息",
+      "workspace": "所属空间",
+      "publicKey": "公钥",
+      "customName": "自定义名称",
+      "nameHint": "留空则显示系统默认名称",
+      "labels": "标签",
+      "noLabels": "暂无标签",
+      "addLabel": "添加标签",
+      "labelPlaceholder": "key=value，回车添加",
+      "statusOnline": "在线中",
+      "editLabels": "编辑标签",
+      "save": "保存更改"
+    }
+  },
+  "stepper": {
+    "title": "快速接入",
+    "desc": "节点接入引导程序。",
+    "progress": "进度",
+    "steps": {
+      "workspace": "工作空间",
+      "workspaceDesc": "确认或创建逻辑网络边界",
+      "token": "接入 Token",
+      "tokenDesc": "生成节点认证凭证",
+      "join": "执行接入",
+      "joinDesc": "运行节点接入命令",
+      "labels": "节点标签",
+      "labelsDesc": "定义节点身份标识",
+      "policy": "访问策略",
+      "policyDesc": "配置节点访问控制"
+    },
+    "nav": {
+      "prev": "上一步",
+      "next": "继续",
+      "confirmContinue": "确认并继续",
+      "createContinue": "创建并继续",
+      "createFinish": "创建并完成",
+      "skip": "跳过",
+      "creating": "创建中..."
+    },
+    "done": {
+      "title": "配置完成",
+      "desc": "Token 已生成，策略已创建。在目标机器执行接入命令后，节点将自动注册至工作空间 {ws}。",
+      "workspaceLabel": "工作空间",
+      "policyLabel": "策略",
+      "viewNodes": "查看节点列表",
+      "viewTopology": "查看拓扑图"
+    },
+    "step1": {
+      "titleHas": "确认工作空间",
+      "titleCreate": "创建工作空间",
+      "descHas": "以下工作空间将作为本次节点接入的网络边界。",
+      "descCreate": "工作空间是节点和策略的逻辑边界，名称将用作路由标识符。",
+      "noWsWarn": "你还没有工作空间，请先创建一个再继续接入节点。",
+      "nameLabel": "工作空间名称",
+      "nameHint": "建议使用小写字母、数字和连字符，例如 us-west-prod",
+      "currentTag": "当前空间",
+      "pendingTag": "待创建",
+      "nameRequired": "请填写工作空间名称",
+      "createFailed": "工作空间创建失败"
+    },
+    "step2": {
+      "title": "生成接入 Token",
+      "desc": "Token 是节点握手的唯一凭证，请妥善保管，不要泄露给他人。",
+      "tokenLabel": "接入 Token",
+      "generating": "生成中...",
+      "warning": "此 Token 是节点接入的唯一凭证，请立即复制并妥善保存。Token 与工作空间 {ws} 绑定。",
+      "tokenFailed": "Token 生成失败"
+    },
+    "step3": {
+      "title": "执行节点接入",
+      "desc": "在目标机器终端执行以下命令，完成节点注册。",
+      "hint": "确保目标机器已安装 wireflow agent 并开放出站连接，命令执行完毕后节点将自动注册。"
+    },
+    "step4": {
+      "title": "配置节点标签",
+      "desc": "为节点规划标签，节点连接后在节点管理页应用，策略将通过标签选择节点。",
+      "labelsLabel": "节点标签",
+      "addLabel": "添加标签",
+      "previewTitle": "peerSelector 预览",
+      "hint": "节点连接后，在「节点管理」页为对应节点应用这些标签。下一步策略将基于这些标签选择目标节点。"
+    },
+    "step5": {
+      "title": "创建访问策略",
+      "desc": "基于节点标签创建访问控制策略，定义哪些节点可以互通。",
+      "nameLabel": "策略名称",
+      "actionLabel": "动作",
+      "directionLabel": "策略方向",
+      "allowOption": "Allow — 放通流量",
+      "denyOption": "Deny — 拦截流量",
+      "selectorTitle": "节点选择器（来自 Step 4）",
+      "noLabels": "未设置节点标签，策略将匹配工作空间内所有节点",
+      "nameRequired": "请填写策略名称",
+      "createFailed": "策略创建失败"
+    }
+  }
+}

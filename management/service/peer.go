@@ -60,17 +60,19 @@ type peerService struct {
 	presence *managementnats.NodePresenceStore
 }
 
+const displayNameAnnotation = "wireflow.io/display-name"
+
 func (p *peerService) UpdatePeer(ctx context.Context, peerDto *dto.PeerDto) (*vo.PeerVo, error) {
 	var peer v1alpha1.WireflowPeer
 	if err := p.client.GetAPIReader().Get(ctx, types.NamespacedName{Namespace: peerDto.Namespace, Name: peerDto.Name}, &peer); err != nil {
 		return nil, err
 	}
 
+	// Update labels
 	peerLabels := peer.GetLabels()
 	if peerLabels == nil {
 		peerLabels = make(map[string]string)
 	}
-
 	if peerDto.Labels != nil {
 		for k, v := range peerDto.Labels {
 			if v == "" {
@@ -80,21 +82,32 @@ func (p *peerService) UpdatePeer(ctx context.Context, peerDto *dto.PeerDto) (*vo
 			}
 		}
 	}
-
 	peer.SetLabels(peerLabels)
 
-	err := p.client.Update(ctx, &peer)
-	if err != nil {
+	// Update display name annotation
+	annotations := peer.GetAnnotations()
+	if annotations == nil {
+		annotations = make(map[string]string)
+	}
+	if peerDto.DisplayName != "" {
+		annotations[displayNameAnnotation] = peerDto.DisplayName
+	} else {
+		delete(annotations, displayNameAnnotation)
+	}
+	peer.SetAnnotations(annotations)
+
+	if err := p.client.Update(ctx, &peer); err != nil {
 		return nil, err
 	}
 
 	return &vo.PeerVo{
-		Name:      peer.Name,
-		AppID:     peer.Spec.AppId,
-		Labels:    peerLabels,
-		PublicKey: peer.Spec.PublicKey,
-		Platform:  peer.Spec.Platform,
-		Address:   peer.Status.AllocatedAddress,
+		Name:        peer.Name,
+		DisplayName: annotations[displayNameAnnotation],
+		AppID:       peer.Spec.AppId,
+		Labels:      peerLabels,
+		PublicKey:   peer.Spec.PublicKey,
+		Platform:    peer.Spec.Platform,
+		Address:     peer.Status.AllocatedAddress,
 	}, nil
 }
 
@@ -121,32 +134,35 @@ func (p *peerService) ListPeers(ctx context.Context, pageParam *dto.PageRequest)
 	}
 
 	type peerItem struct {
-		name      string
-		appId     string
-		publicKey string
-		namespace string
-		address   *string
-		labels    map[string]string
+		name        string
+		displayName string
+		appId       string
+		publicKey   string
+		namespace   string
+		address     *string
+		labels      map[string]string
 	}
 
 	allPeers := make([]peerItem, 0, len(peerList.Items))
 	for _, n := range peerList.Items {
 		allPeers = append(allPeers, peerItem{
-			name:      n.Name,
-			appId:     n.Spec.AppId,
-			publicKey: n.Spec.PublicKey,
-			namespace: n.Namespace,
-			address:   n.Status.AllocatedAddress,
-			labels:    n.GetLabels(),
+			name:        n.Name,
+			displayName: n.GetAnnotations()[displayNameAnnotation],
+			appId:       n.Spec.AppId,
+			publicKey:   n.Spec.PublicKey,
+			namespace:   n.Namespace,
+			address:     n.Status.AllocatedAddress,
+			labels:      n.GetLabels(),
 		})
 	}
 
 	filteredPeers := allPeers
 	if pageParam.Keyword != "" {
 		filteredPeers = filteredPeers[:0]
+		kw := pageParam.Keyword
 		for _, n := range allPeers {
-			addrMatch := n.address != nil && strings.Contains(*n.address, pageParam.Keyword)
-			if strings.Contains(n.name, pageParam.Keyword) || addrMatch {
+			addrMatch := n.address != nil && strings.Contains(*n.address, kw)
+			if strings.Contains(n.name, kw) || strings.Contains(n.displayName, kw) || addrMatch {
 				filteredPeers = append(filteredPeers, n)
 			}
 		}
@@ -167,11 +183,12 @@ func (p *peerService) ListPeers(ctx context.Context, pageParam *dto.PageRequest)
 		pv := vo.PeerVo{
 			Namespace:            n.namespace,
 			Name:                 n.name,
+			DisplayName:          n.displayName,
 			AppID:                n.appId,
 			PublicKey:            n.publicKey,
 			Address:              n.address,
 			Labels:               n.labels,
-			WorkspaceDisplayName: workspace.DisplayName, // 添加 workspace 显示名称
+			WorkspaceDisplayName: workspace.DisplayName,
 		}
 		if p.presence != nil {
 			status, lastSeen := p.presence.GetStatus(n.appId)

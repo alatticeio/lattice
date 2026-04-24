@@ -1,0 +1,110 @@
+{
+  "action": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "refresh": "Refresh",
+    "delete": "Delete",
+    "edit": "Edit",
+    "search": "Search",
+    "add": "Add",
+    "create": "Create",
+    "update": "Update",
+    "remove": "Remove",
+    "revoke": "Revoke",
+    "approve": "Approve",
+    "reject": "Reject",
+    "submit": "Submit",
+    "close": "Close",
+    "back": "Back",
+    "copy": "Copy",
+    "invite": "Invite",
+    "publish": "Publish"
+  },
+  "status": {
+    "loading": "Loading...",
+    "saving": "Saving...",
+    "empty": "No data",
+    "error": "Operation failed, please retry",
+    "success": "Operation succeeded",
+    "active": "Active",
+    "inactive": "Inactive",
+    "pending": "Pending",
+    "online": "Online",
+    "offline": "Offline"
+  },
+  "role": {
+    "platform_admin": "Platform Admin",
+    "user": "User",
+    "admin": "Admin",
+    "editor": "Editor",
+    "member": "Member",
+    "viewer": "Viewer"
+  },
+  "time": {
+    "justNow": "Just now",
+    "minutesAgo": "{n} minutes ago",
+    "hoursAgo": "{n} hours ago",
+    "daysAgo": "{n} days ago",
+    "today": "Today",
+    "last7Days": "Last 7 days",
+    "last30Days": "Last 30 days",
+    "last90Days": "Last 90 days",
+    "allTime": "All time"
+  },
+  "pagination": {
+    "total": "{total} items · Page {page} / {totalPages}",
+    "totalUsers": "{total} users · Page {page} / {totalPages}"
+  },
+  "confirm": {
+    "deleteTitle": "Confirm Delete",
+    "deleteDesc": "This action is irreversible. Are you sure?",
+    "yes": "Yes",
+    "no": "No"
+  },
+  "breadcrumb": {
+    "home": "Home",
+    "manage": "Manage",
+    "settings": "Settings",
+    "user": "Account",
+    "users": "Users",
+    "members": "Members",
+    "policies": "Policies",
+    "tokens": "Tokens",
+    "nodes": "Nodes",
+    "topology": "Topology",
+    "peers": "Peers",
+    "workspaces": "Workspaces",
+    "approvals": "Approvals",
+    "audit": "Audit Log",
+    "relays": "Relays",
+    "stepper": "Quick Start",
+    "profile": "Profile",
+    "account": "Account",
+    "billing": "Billing",
+    "notifications": "Notifications",
+    "dashboard": "Dashboard"
+  },
+  "nav": {
+    "group": {
+      "overview": "Overview",
+      "workspace": "Workspace",
+      "platform": "Platform",
+      "settings": "Settings"
+    },
+    "dashboard": "Dashboard",
+    "members": "Members",
+    "policies": "Policies",
+    "tokens": "Access Tokens",
+    "nodes": "Nodes",
+    "topology": "Topology",
+    "peers": "Peers",
+    "monitor": "Monitor",
+    "users": "Users",
+    "workspaces": "Workspaces",
+    "approvals": "Approvals",
+    "audit": "Audit Log",
+    "relays": "Relays",
+    "quickstart": "Quick Start"
+  }
+}

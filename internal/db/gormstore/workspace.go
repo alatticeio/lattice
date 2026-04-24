@@ -81,6 +81,7 @@ func (r *workspaceMemberRepo) ListMembers(ctx context.Context, workspaceID strin
 	err := r.DB().WithContext(ctx).
 		Where("workspace_id = ?", workspaceID).
 		Preload("User").
+		Preload("User.Identities").
 		Find(&members).Error
 	return members, err
 }

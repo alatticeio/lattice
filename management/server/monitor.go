@@ -4,7 +4,6 @@ package server
 
 import (
 	"wireflow/internal/infra"
-	"wireflow/management/server/middleware"
 	"wireflow/pkg/utils/resp"
 
 	"github.com/gin-gonic/gin"
@@ -16,7 +15,7 @@ func (s *Server) monitorRouter() {
 	//monitorRouter.Use(dex.AuthMiddleware())
 	{
 		monitorRouter.GET("/topology", s.topology())
-		monitorRouter.GET("/ws-snapshot", middleware.TenantContextMiddleware(), s.workspaceSnapshot())
+		monitorRouter.GET("/ws-snapshot", s.tenantMiddleware.Handle(), s.workspaceSnapshot())
 
 	}
 

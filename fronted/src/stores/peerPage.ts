@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, watch } from 'vue'
 import { listPeer, updatePeer } from '@/api/user'
 import { useAction, useTable } from '@/composables/useApi'
+import { useWorkspaceStore } from '@/stores/workspace'
 import { toast } from 'vue-sonner'
 
 export const usePeerPageStore = defineStore('peerPage', () => {
@@ -9,6 +10,12 @@ export const usePeerPageStore = defineStore('peerPage', () => {
     // ── State ──────────────────────────────────────────────────────
     const { rows, total, loading, params, refresh } = useTable(listPeer, {
         successMsg: '刷新列表成功'
+    })
+
+    // Refresh when workspace switches
+    const workspaceStore = useWorkspaceStore()
+    watch(() => workspaceStore.currentWorkspace?.id, (newId, oldId) => {
+        if (newId && newId !== oldId) refresh()
     })
 
     const isDrawerOpen  = ref(false)
@@ -19,6 +26,7 @@ export const usePeerPageStore = defineStore('peerPage', () => {
     const selectedNode = ref<{
         appId: string
         name?: string
+        displayName?: string
         publicKey: string
         region?: string
         namespace?: string
@@ -106,7 +114,11 @@ export const usePeerPageStore = defineStore('peerPage', () => {
                         labelMap[item.trim()] = 'true'
                     }
                 })
-                await runUpdate({ ...selectedNode.value, labels: labelMap })
+                await runUpdate({
+                    ...selectedNode.value,
+                    labels: labelMap,
+                    displayName: selectedNode.value.displayName ?? '',
+                })
             } finally {
                 isUpdating.value = false
             }

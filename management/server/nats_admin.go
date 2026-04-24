@@ -179,7 +179,7 @@ func (s *Server) NatsAddPolicy(data []byte) ([]byte, error) {
 		return nil, err
 	}
 	// Empty Ingress/Egress + empty PeerSelector means "match all peers, all ports".
-	vo, err := s.policyController.CreateOrUpdatePolicy(ctx, &dto.PolicyDto{
+	vo, err := s.policyController.ApplyDirect(ctx, ctx.Value(infra.WorkspaceKey).(string), &dto.PolicyDto{
 		Name:        req.Name,
 		Namespace:   req.Namespace,
 		Action:      req.Action,
@@ -379,7 +379,7 @@ func (s *Server) NatsAllowAll(data []byte) ([]byte, error) {
 		return nil, err
 	}
 
-	vo, err := s.policyController.CreateOrUpdatePolicy(ctx, &dto.PolicyDto{
+	vo, err := s.policyController.ApplyDirect(ctx, ctx.Value(infra.WorkspaceKey).(string), &dto.PolicyDto{
 		Name:        "allow-all",
 		Namespace:   req.Namespace,
 		Action:      "ALLOW",

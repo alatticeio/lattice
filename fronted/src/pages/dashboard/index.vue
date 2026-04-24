@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted } from 'vue'
+import { computed, watch, onMounted, onUnmounted } from 'vue'
 import {
   Activity, Server, ShieldCheck, AlertTriangle,
-  ArrowUpRight, ArrowDownRight, Zap, MoreHorizontal,
+  ArrowUpRight, ArrowDownRight, Zap, MoreHorizontal, Globe, Building2,
 } from 'lucide-vue-next'
 import { useDashboardStore } from '@/stores/useDashboard'
+import { useWorkspaceStore } from '@/stores/workspace'
 
 definePage({
   meta: {
@@ -16,6 +17,14 @@ definePage({
 const store = useDashboardStore()
 onMounted(() => store.startPolling())
 onUnmounted(() => store.stopPolling())
+
+const workspaceStore = useWorkspaceStore()
+watch(() => workspaceStore.currentWorkspace?.id, (newId, oldId) => {
+  if (newId !== oldId) {
+    store.fetch()
+    store.fetchWorkspace()
+  }
+})
 
 // ── colour mapping for audit log dots ────────────────────────────────
 const toneMap: Record<string, string> = {
@@ -29,9 +38,9 @@ const toneMap: Record<string, string> = {
 // ── icon lookup for stat cards ────────────────────────────────────────
 const iconByIndex = [Server, Activity, ShieldCheck, AlertTriangle]
 
-// ── stat cards (mapped from API GlobalStats) ──────────────────────────
+// ── stat cards: workspace when active, global otherwise ──────────────
 const stats = computed(() =>
-  store.statCards.map((s, i) => ({
+  store.displayStatCards.map((s, i) => ({
     ...s,
     icon: iconByIndex[i] ?? Server,
   }))
@@ -54,12 +63,26 @@ function buildPath(data: number[], w: number, h: number, pad = 8) {
 }
 
 // ── throughput chart ──────────────────────────────────────────────────
-const upChart  = computed(() => buildPath(store.txChartData, 520, 180, 16))
+const upChart   = computed(() => buildPath(store.txChartData, 520, 180, 16))
 const downChart = computed(() => buildPath(store.rxChartData, 520, 180, 16))
+
+// ── mode label ────────────────────────────────────────────────────────
+const modeLabel = computed(() => store.isWorkspaceMode ? '工作空间' : '全域')
+const modeIcon  = computed(() => store.isWorkspaceMode ? Building2 : Globe)
+const throughputUnit = computed(() => store.isWorkspaceMode ? 'Mbps' : 'Gbps')
 </script>
 
 <template>
   <div class="flex flex-col gap-5 p-6">
+
+    <!-- ── Mode badge ──────────────────────────────────────────────── -->
+    <div class="flex items-center gap-2">
+      <div class="flex items-center gap-1.5 rounded-full border border-border bg-muted/50 px-3 py-1 text-xs font-medium text-muted-foreground">
+        <component :is="modeIcon" class="size-3" />
+        {{ modeLabel }}视图
+        <span v-if="store.wsLoading" class="ml-1 size-1.5 rounded-full bg-amber-400 animate-pulse" />
+      </div>
+    </div>
 
     <!-- ── Stat Cards ──────────────────────────────────────────────── -->
     <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -72,7 +95,7 @@ const downChart = computed(() => buildPath(store.rxChartData, 520, 180, 16))
           <div class="flex flex-col gap-1">
             <span class="text-muted-foreground text-sm font-medium">{{ stat.title }}</span>
             <span class="text-2xl font-bold tracking-tight">
-              <template v-if="store.loading">—</template>
+              <template v-if="store.loading || store.wsLoading">—</template>
               <template v-else>{{ stat.value }}</template>
             </span>
           </div>
@@ -121,7 +144,7 @@ const downChart = computed(() => buildPath(store.rxChartData, 520, 180, 16))
         <div class="mb-4 flex items-start justify-between">
           <div>
             <h3 class="font-semibold">Network Throughput</h3>
-            <p class="text-muted-foreground text-sm">全域实时流量监控 (Gbps)</p>
+            <p class="text-muted-foreground text-sm">{{ modeLabel }}实时流量监控 ({{ throughputUnit }})</p>
           </div>
           <div class="flex items-center gap-4 text-xs font-medium">
             <div class="flex items-center gap-1.5">

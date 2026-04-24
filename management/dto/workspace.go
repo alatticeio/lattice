@@ -34,3 +34,11 @@ func GetRoleWeight(role WorkspaceRole) int {
 	}
 	return weights[role]
 }
+
+// SystemRole defines platform-level roles (not workspace-level).
+type SystemRole string
+
+const (
+	SystemRolePlatformAdmin SystemRole = "platform_admin"
+	SystemRoleUser          SystemRole = "user"
+)

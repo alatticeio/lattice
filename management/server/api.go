@@ -16,10 +16,12 @@ import (
 func (s *Server) apiRouter() error {
 	// 跨域处理（对接 Vite 开发环境）
 	s.Use(middleware.CORSMiddleware())
+	// 审计中间件：记录所有非 GET 写操作
+	s.Use(middleware.AuditMiddleware(s.auditService))
 
 	// Dex OIDC 为可选依赖：providerUrl 为空时跳过初始化，注册降级 handler。
 	if s.cfg.Dex.ProviderUrl != "" {
-		dexSvc, err := dex.NewDex(service.NewWorkspaceService(s.client, s.store))
+		dexSvc, err := dex.NewDex(service.NewUserService(s.store))
 		if err != nil {
 			s.logger.Warn("Dex init failed, /auth/callback will return 503", "err", err)
 			s.GET("/auth/callback", func(c *gin.Context) {
@@ -43,29 +45,30 @@ func (s *Server) apiRouter() error {
 		api.GET("/networks", s.ListNetworks) // 获取网络列表
 
 		// 节点管理 (Peers)
-		api.GET("/networks/peers", middleware.TenantContextMiddleware(), s.GetPeers) // 获取该网络下的所有机器
+		api.GET("/networks/peers", s.tenantMiddleware.Handle(), s.GetPeers) // 获取该网络下的所有机器
 	}
 	tokenApi := s.Group("/api/v1/token")
+	tokenApi.Use(middleware.AuthMiddleware())
 	{
-		// Token 管理
-		tokenApi.POST("/generate", middleware.TenantContextMiddleware(), s.generateToken()) // 为指定网络生成入网 Token// Token 管理
-		tokenApi.DELETE("/:token", middleware.TenantContextMiddleware(), s.rmToken())
-		tokenApi.GET("/list", middleware.TenantContextMiddleware(), s.listTokens())
-
+		tokenApi.POST("/generate", s.tenantMiddleware.Handle(), s.generateToken())
+		tokenApi.DELETE("/:token", s.tenantMiddleware.Handle(), s.rmToken())
+		tokenApi.GET("/list", s.tenantMiddleware.Handle(), s.listTokens())
 	}
 
 	peerApi := s.Group("/api/v1/peers")
+	peerApi.Use(middleware.AuthMiddleware())
 	{
-		peerApi.GET("/list", middleware.TenantContextMiddleware(), s.listPeers)
+		peerApi.GET("/list", s.tenantMiddleware.Handle(), s.listPeers)
 		peerApi.PUT("/update", s.updatePeer)
 	}
 
 	policyApi := s.Group("/api/v1/policies")
+	policyApi.Use(middleware.AuthMiddleware())
 	{
-		policyApi.GET("/list", middleware.TenantContextMiddleware(), s.listPolicies)
-		policyApi.PUT("/update", middleware.TenantContextMiddleware(), s.createOrUpdatePolicy)
-		policyApi.POST("/create", middleware.TenantContextMiddleware(), s.createOrUpdatePolicy)
-		policyApi.DELETE("/:name", middleware.TenantContextMiddleware(), s.deletePolicy)
+		policyApi.GET("/list", s.tenantMiddleware.Handle(), s.listPolicies)
+		policyApi.PUT("/update", s.tenantMiddleware.Handle(), s.createOrUpdatePolicy)
+		policyApi.POST("/create", s.tenantMiddleware.Handle(), s.createOrUpdatePolicy)
+		policyApi.DELETE("/:name", s.tenantMiddleware.Handle(), s.deletePolicy)
 	}
 
 	s.userRouter()
@@ -74,14 +77,19 @@ func (s *Server) apiRouter() error {
 
 	s.relayRouter()
 
+	s.memberRouter()
+
+	s.invitationRouter()
+
 	s.monitorRouter()
 
 	s.profileRouter()
 
 	s.dashboardRouter()
 
-	// 实时状态推送 (WebSocket)
-	//r.GET("/ws/status", HandleStatusWS)
+	s.auditRouter()
+
+	s.workflowRouter()
 
 	// SPA 静态资源：必须最后注册，通过 NoRoute 捕获所有未匹配路径
 	s.logger.Info("Registering SPA static files")
@@ -98,7 +106,6 @@ func (s *Server) GetPeers(c *gin.Context) {}
 
 func (s *Server) listTokens() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// 1. 获取参数
 		var pageParam dto.PageRequest
 		err := c.ShouldBindQuery(&pageParam)
 		if err != nil {
@@ -115,7 +122,6 @@ func (s *Server) listTokens() gin.HandlerFunc {
 	}
 }
 
-// 模拟 JWT 或加密 Token 的生成
 func (s *Server) generateToken() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		token, err := s.tokenController.Create(c.Request.Context())
@@ -156,18 +162,13 @@ func CreateNetwork(c *gin.Context) {
 		return
 	}
 
-	// 调用 K8s SDK 创建 Namespace
-	// err := k8sClient.AddWorkspace(req.Name)
-
 	resp.OK(c, gin.H{
 		"message": "网络创建成功",
 		"id":      req.Name,
 	})
 }
 
-// 模拟获取所有节点（实际可能来自 wg show 或 内存 Map）
 func (s *Server) listPeers(c *gin.Context) {
-	// 1. 获取参数
 	var pageParam dto.PageRequest
 	err := c.ShouldBindQuery(&pageParam)
 	if err != nil {

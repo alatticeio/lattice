@@ -350,8 +350,9 @@ type JWTConfig struct {
 }
 
 type DexConfig struct {
-	Issur       string `mapstructure:"issur"`
-	ProviderUrl string `mapstructure:"providerUrl"`
+	Issur       string   `mapstructure:"issur"`
+	ProviderUrl string   `mapstructure:"providerUrl"`
+	AdminEmails []string `mapstructure:"adminEmails"` // Dex 登录用户中自动授予 platform_admin 的邮箱白名单
 }
 
 // NetworkOptions 用于网络操作的选项参数。

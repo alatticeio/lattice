@@ -209,6 +209,30 @@ const columns: ColumnDef<Policy>[] = [
     },
   },
   {
+    id: 'creator',
+    header: '创建人',
+    cell: ({ row }) => {
+      const name = (row.original as any).createdByName as string
+      if (!name) return h('span', { class: 'text-[11px] text-muted-foreground/40' }, '—')
+      return h('span', { class: 'text-xs text-muted-foreground' }, name)
+    },
+  },
+  {
+    id: 'status',
+    header: '状态',
+    cell: ({ row }) => {
+      const s = (row.original as any).status as string
+      const map: Record<string, { label: string; cls: string }> = {
+        active:   { label: '已部署', cls: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 ring-1 ring-emerald-500/20' },
+        pending:  { label: '审批中', cls: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 ring-1 ring-amber-500/20' },
+        approved: { label: '执行中', cls: 'bg-blue-500/10 text-blue-600 dark:text-blue-400 ring-1 ring-blue-500/20' },
+        failed:   { label: '执行失败', cls: 'bg-red-500/10 text-red-500 ring-1 ring-red-500/20' },
+      }
+      const { label, cls } = map[s] ?? { label: s || '未知', cls: 'bg-muted text-muted-foreground ring-1 ring-border' }
+      return h('span', { class: `text-[11px] font-bold px-2.5 py-1 rounded-full ${cls}` }, label)
+    },
+  },
+  {
     id: 'actions',
     header: '',
     cell: ({ row }) => {
@@ -221,7 +245,10 @@ const columns: ColumnDef<Policy>[] = [
             )
           ),
           h(DropdownMenuContent, { align: 'end', class: 'w-36' }, () => [
-            h(DropdownMenuItem, { onClick: () => store.actions.openDrawer('edit', policy) }, () => [
+            h(DropdownMenuItem, {
+              class: (policy as any).status === 'pending' ? 'opacity-50 pointer-events-none' : '',
+              onClick: () => store.actions.openDrawer('edit', policy),
+            }, () => [
               h(Pencil, { class: 'mr-2 size-3.5' }), '编辑',
             ]),
             h(DropdownMenuSeparator),
@@ -254,16 +281,15 @@ const table = useVueTable({
 
       <!-- 全部策略 -->
       <button
-        class="relative bg-card border border-border rounded-xl p-4 text-left hover:border-primary/30 hover:shadow-sm transition-all group overflow-hidden"
+        class="bg-card border border-border rounded-xl p-4 text-left hover:border-primary/30 hover:shadow-sm transition-all"
         :class="actionFilter === 'all' ? 'border-primary/40 ring-1 ring-primary/10' : ''"
         @click="setActionFilter('all')"
       >
-        <div class="absolute -right-3 -top-3 size-16 rounded-full bg-primary/5 group-hover:bg-primary/8 transition-colors" />
-        <div class="relative">
+        <div>
           <div class="flex items-center justify-between mb-3">
             <span class="text-xs font-semibold text-muted-foreground uppercase tracking-wider">全部策略</span>
-            <div class="size-7 rounded-lg bg-primary/10 flex items-center justify-center">
-              <Shield class="size-3.5 text-primary" />
+            <div class="bg-muted rounded-lg p-2">
+              <Shield class="size-4 text-muted-foreground" />
             </div>
           </div>
           <p class="text-3xl font-black tracking-tighter tabular-nums">{{ stats.total }}</p>
@@ -284,16 +310,15 @@ const table = useVueTable({
 
       <!-- Allow -->
       <button
-        class="relative bg-card border border-border rounded-xl p-4 text-left hover:border-emerald-500/30 hover:shadow-sm transition-all group overflow-hidden"
+        class="bg-card border border-border rounded-xl p-4 text-left hover:border-emerald-500/30 hover:shadow-sm transition-all"
         :class="actionFilter === 'Allow' ? 'border-emerald-500/40 ring-1 ring-emerald-500/10' : ''"
         @click="setActionFilter('Allow')"
       >
-        <div class="absolute -right-3 -top-3 size-16 rounded-full bg-emerald-500/5 group-hover:bg-emerald-500/10 transition-colors" />
-        <div class="relative">
+        <div>
           <div class="flex items-center justify-between mb-3">
             <span class="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Allow</span>
-            <div class="size-7 rounded-lg bg-emerald-500/10 flex items-center justify-center">
-              <CheckCircle2 class="size-3.5 text-emerald-500" />
+            <div class="bg-muted rounded-lg p-2">
+              <CheckCircle2 class="size-4 text-muted-foreground" />
             </div>
           </div>
           <p class="text-3xl font-black tracking-tighter tabular-nums text-emerald-500">{{ stats.allow }}</p>
@@ -311,16 +336,15 @@ const table = useVueTable({
 
       <!-- Deny -->
       <button
-        class="relative bg-card border border-border rounded-xl p-4 text-left hover:border-rose-500/30 hover:shadow-sm transition-all group overflow-hidden"
+        class="bg-card border border-border rounded-xl p-4 text-left hover:border-rose-500/30 hover:shadow-sm transition-all"
         :class="actionFilter === 'Deny' ? 'border-rose-500/40 ring-1 ring-rose-500/10' : ''"
         @click="setActionFilter('Deny')"
       >
-        <div class="absolute -right-3 -top-3 size-16 rounded-full bg-rose-500/5 group-hover:bg-rose-500/10 transition-colors" />
-        <div class="relative">
+        <div>
           <div class="flex items-center justify-between mb-3">
             <span class="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Deny</span>
-            <div class="size-7 rounded-lg bg-rose-500/10 flex items-center justify-center">
-              <XCircle class="size-3.5 text-rose-500" />
+            <div class="bg-muted rounded-lg p-2">
+              <XCircle class="size-4 text-muted-foreground" />
             </div>
           </div>
           <p class="text-3xl font-black tracking-tighter tabular-nums text-rose-500">{{ stats.deny }}</p>
@@ -337,13 +361,12 @@ const table = useVueTable({
       </button>
 
       <!-- 总规则数 -->
-      <div class="relative bg-card border border-border rounded-xl p-4 text-left overflow-hidden">
-        <div class="absolute -right-3 -top-3 size-16 rounded-full bg-primary/5" />
-        <div class="relative">
+      <div class="bg-card border border-border rounded-xl p-4 text-left">
+        <div>
           <div class="flex items-center justify-between mb-3">
             <span class="text-xs font-semibold text-muted-foreground uppercase tracking-wider">总规则数</span>
-            <div class="size-7 rounded-lg bg-primary/10 flex items-center justify-center">
-              <ArrowDown class="size-3.5 text-primary" />
+            <div class="bg-muted rounded-lg p-2">
+              <ArrowDown class="size-4 text-muted-foreground" />
             </div>
           </div>
           <p class="text-3xl font-black tracking-tighter tabular-nums text-primary">{{ stats.totalRules }}</p>
@@ -356,6 +379,7 @@ const table = useVueTable({
           </div>
         </div>
       </div>
+
 
     </div>
 

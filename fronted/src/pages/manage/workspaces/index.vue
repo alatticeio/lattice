@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, h } from 'vue'
+import { useI18n } from 'vue-i18n'
 import {
   useVueTable,
   getCoreRowModel,
@@ -26,19 +27,20 @@ import {
   DropdownMenuSeparator, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { useWorkspaceStore, getWsInitials } from '@/stores/workspace'
-import {getWsColor} from "@/utils/color";
+import { getWsColor } from '@/utils/color'
 import type { Workspace } from '@/stores/workspace'
 import AppAlertDialog from '@/components/AlertDialog.vue'
 
 definePage({
-  meta: { title: '空间管理', description: '管理网络隔离工作空间。' },
+  meta: { titleKey: 'manage.workspaces.title', descKey: 'manage.workspaces.desc' },
 })
 
+const { t } = useI18n()
 const store = useWorkspaceStore()
 onMounted(() => store.fetchList())
 
 // ── Delete confirm ───────────────────────────────────────────────
-const deleteTarget    = ref<Workspace | null>(null)
+const deleteTarget     = ref<Workspace | null>(null)
 const deleteDialogOpen = ref(false)
 
 function promptDelete(ws: Workspace) {
@@ -81,17 +83,15 @@ const usagePct = (ws: Workspace) => {
   return max > 0 ? Math.round((used / max) * 100) : 0
 }
 
-// 格式化创建时间
 function formatCreatedAt(isoStr: string | undefined | null): string {
   if (!isoStr) return '—'
   try {
     const date = new Date(isoStr)
     if (isNaN(date.getTime())) return '—'
-    // 格式: YYYY-MM-DD HH:mm
-    const year = date.getFullYear()
-    const month = String(date.getMonth() + 1).padStart(2, '0')
-    const day = String(date.getDate()).padStart(2, '0')
-    const hours = String(date.getHours()).padStart(2, '0')
+    const year    = date.getFullYear()
+    const month   = String(date.getMonth() + 1).padStart(2, '0')
+    const day     = String(date.getDate()).padStart(2, '0')
+    const hours   = String(date.getHours()).padStart(2, '0')
     const minutes = String(date.getMinutes()).padStart(2, '0')
     return `${year}-${month}-${day} ${hours}:${minutes}`
   } catch {
@@ -99,23 +99,14 @@ function formatCreatedAt(isoStr: string | undefined | null): string {
   }
 }
 
-// 网络状态映射
-const networkStatusLabel: Record<string, string> = {
-  Ready: '就绪',
-  Pending: '等待中',
-  Error: '错误',
-  Failed: '失败',
-}
-
 // ── Stats ────────────────────────────────────────────────────────
 const stats = computed(() => {
-  const rows     = store.rows
-  const active   = rows.filter(w => w.status === 'active').length
-  const inactive = rows.filter(w => w.status === 'inactive').length
-  const total    = rows.length
-  // 使用 quotaUsage（实际使用量）而不是 nodeCount（配额限制）
-  const totalNodes = rows.reduce((s, w) => s + (w.quotaUsage ?? 0), 0)
-  const topWs = [...rows].sort((a, b) => (b.quotaUsage ?? 0) - (a.quotaUsage ?? 0))[0]
+  const rows        = store.rows
+  const active      = rows.filter(w => w.status === 'active').length
+  const inactive    = rows.filter(w => w.status === 'inactive').length
+  const total       = rows.length
+  const totalNodes  = rows.reduce((s, w) => s + (w.quotaUsage ?? 0), 0)
+  const topWs       = [...rows].sort((a, b) => (b.quotaUsage ?? 0) - (a.quotaUsage ?? 0))[0]
   const networksReady = rows.filter(w => w.networkStatus === 'Ready').length
   return {
     total, active, inactive, totalNodes, networksReady,
@@ -129,10 +120,10 @@ const stats = computed(() => {
 })
 
 // ── Column definitions ───────────────────────────────────────────
-const columns: ColumnDef<Workspace>[] = [
+const columns = computed<ColumnDef<Workspace>[]>(() => [
   {
     accessorKey: 'displayName',
-    header: '工作空间',
+    header: t('manage.workspaces.col.workspace'),
     cell: ({ row }) => {
       const ws = row.original
       return h('div', { class: 'flex items-center gap-3' }, [
@@ -148,7 +139,7 @@ const columns: ColumnDef<Workspace>[] = [
   },
   {
     accessorKey: 'status',
-    header: '状态',
+    header: t('manage.workspaces.col.status'),
     cell: ({ row }) => {
       const active = row.original.status === 'active'
       return h('div', { class: 'flex items-center gap-1.5' }, [
@@ -160,33 +151,32 @@ const columns: ColumnDef<Workspace>[] = [
           class: `text-xs font-medium px-2 py-0.5 rounded-full ${active
             ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 ring-1 ring-emerald-500/20'
             : 'bg-muted text-muted-foreground ring-1 ring-border'}`,
-        }, active ? '运行中' : '已停用'),
+        }, active ? t('manage.workspaces.statusLabel.active') : t('manage.workspaces.statusLabel.inactive')),
       ])
     },
   },
   {
     accessorKey: 'nodeCount',
-    header: '节点使用',
+    header: t('manage.workspaces.col.nodeUsage'),
     cell: ({ row }) => {
-      const ws = row.original
-      // 后端 nodeCount 实际是 Hard（最大值），quotaUsage 是 Used（当前使用量）
+      const ws   = row.original
       const used = ws.quotaUsage ?? 0
-      const max = ws.nodeCount ?? ws.maxNodeCount ?? 0
+      const max  = ws.nodeCount ?? ws.maxNodeCount ?? 0
       return h('div', { class: 'flex flex-col gap-0.5' }, [
         h('div', { class: 'flex items-baseline gap-1' }, [
           h('span', { class: 'font-semibold tabular-nums text-sm' }, String(used)),
           max > 0 && h('span', { class: 'text-[11px] text-muted-foreground/60' }, `/ ${max}`),
         ]),
-        max > 0 && h('span', { class: 'text-[10px] text-muted-foreground/50' }, `${Math.round((used / max) * 100)}% 已用`),
+        max > 0 && h('span', { class: 'text-[10px] text-muted-foreground/50' }, t('manage.workspaces.nodeUsagePct', { pct: Math.round((used / max) * 100) })),
       ])
     },
   },
   {
     id: 'usage',
-    header: '空间利用率',
+    header: t('manage.workspaces.col.utilization'),
     cell: ({ row }) => {
-      const pct = usagePct(row.original)
-      const barColor = pct > 80 ? 'bg-rose-500' : pct > 60 ? 'bg-amber-500' : 'bg-emerald-500'
+      const pct       = usagePct(row.original)
+      const barColor  = pct > 80 ? 'bg-rose-500' : pct > 60 ? 'bg-amber-500' : 'bg-emerald-500'
       const textColor = pct > 80 ? 'text-rose-500' : pct > 60 ? 'text-amber-500' : 'text-emerald-600 dark:text-emerald-400'
       return h('div', { class: 'flex items-center gap-2.5 w-36' }, [
         h('div', { class: 'flex-1 h-1.5 bg-muted rounded-full overflow-hidden' },
@@ -207,40 +197,48 @@ const columns: ColumnDef<Workspace>[] = [
   },
   {
     id: 'network',
-    header: '网络信息',
+    header: t('manage.workspaces.col.network'),
     cell: ({ row }) => {
-      const ws = row.original
+      const ws     = row.original
       const status = ws.networkStatus
+      const nsMap: Record<string, string> = {
+        Ready:   t('manage.workspaces.networkStatus.ready'),
+        Pending: t('manage.workspaces.networkStatus.pending'),
+        Error:   t('manage.workspaces.networkStatus.error'),
+        Failed:  t('manage.workspaces.networkStatus.failed'),
+      }
 
-      // 如果完全没有网络信息
       if (!ws.networkName && !ws.networkCIDR && !status) {
         return h('div', { class: 'flex items-center gap-1.5' }, [
           h(WifiOff, { class: 'size-3 shrink-0 text-muted-foreground/40' }),
-          h('span', { class: 'text-xs text-muted-foreground/40' }, '未配置'),
+          h('span', { class: 'text-xs text-muted-foreground/40' }, t('manage.workspaces.networkStatus.unconfigured')),
         ])
       }
 
-      // 状态颜色和图标
-      const statusColor = status === 'Ready' ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 ring-1 ring-emerald-500/20'
-        : status === 'Pending' ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 ring-1 ring-amber-500/20'
-        : status === 'Error' || status === 'Failed' ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400 ring-1 ring-rose-500/20'
-        : 'bg-zinc-500/10 text-zinc-600 dark:text-zinc-400 ring-1 ring-zinc-500/20'
+      const statusColor = status === 'Ready'
+        ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 ring-1 ring-emerald-500/20'
+        : status === 'Pending'
+          ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 ring-1 ring-amber-500/20'
+          : status === 'Error' || status === 'Failed'
+            ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400 ring-1 ring-rose-500/20'
+            : 'bg-zinc-500/10 text-zinc-600 dark:text-zinc-400 ring-1 ring-zinc-500/20'
 
-      const statusText = status ? (networkStatusLabel[status] || status) : '初始化中'
+      const statusText = status ? (nsMap[status] || status) : t('manage.workspaces.networkStatus.initializing')
       const statusIcon = status === 'Ready' ? Wifi : status === 'Pending' ? Network : WifiOff
 
       return h('div', { class: 'flex flex-col gap-1.5' }, [
-        // 网络名称
-        ws.networkName ? h('div', { class: 'flex items-center gap-1.5' }, [
-          h(statusIcon, { class: 'size-3 shrink-0 text-muted-foreground' }),
-          h('span', { class: 'text-xs font-medium leading-none' }, ws.networkName),
-        ]) : h('div', { class: 'flex items-center gap-1.5' }, [
-          h(Network, { class: 'size-3 shrink-0 text-muted-foreground/40' }),
-          h('span', { class: 'text-xs text-muted-foreground/40 leading-none' }, '网络配置中'),
-        ]),
-        // CIDR 网段
-        ws.networkCIDR ? h('span', { class: 'font-mono text-[11px] text-muted-foreground/70 leading-none' }, ws.networkCIDR) : null,
-        // 状态徽章
+        ws.networkName
+          ? h('div', { class: 'flex items-center gap-1.5' }, [
+              h(statusIcon, { class: 'size-3 shrink-0 text-muted-foreground' }),
+              h('span', { class: 'text-xs font-medium leading-none' }, ws.networkName),
+            ])
+          : h('div', { class: 'flex items-center gap-1.5' }, [
+              h(Network, { class: 'size-3 shrink-0 text-muted-foreground/40' }),
+              h('span', { class: 'text-xs text-muted-foreground/40 leading-none' }, t('manage.workspaces.networkStatus.configuring')),
+            ]),
+        ws.networkCIDR
+          ? h('span', { class: 'font-mono text-[11px] text-muted-foreground/70 leading-none' }, ws.networkCIDR)
+          : null,
         h('div', { class: 'flex items-center gap-1 mt-0.5' }, [
           h('span', { class: `text-[10px] font-medium px-1.5 py-0.5 rounded-full leading-none ${statusColor}` }, statusText),
         ]),
@@ -249,13 +247,13 @@ const columns: ColumnDef<Workspace>[] = [
   },
   {
     accessorKey: 'createdAt',
-    header: '创建时间',
+    header: t('manage.workspaces.col.createdAt'),
     cell: ({ row }) => {
       const timeStr = formatCreatedAt(row.original.createdAt)
       if (timeStr === '—') return h('span', { class: 'text-xs text-muted-foreground/40' }, '—')
       return h('span', {
         class: 'text-xs text-muted-foreground tabular-nums',
-        title: row.original.createdAt
+        title: row.original.createdAt,
       }, timeStr)
     },
   },
@@ -270,24 +268,33 @@ const columns: ColumnDef<Workspace>[] = [
             h(Button, { variant: 'ghost', size: 'sm', class: 'size-8 p-0' }, () => h(MoreHorizontal, { class: 'size-4' }))
           ),
           h(DropdownMenuContent, { align: 'end', class: 'w-36' }, () => [
-            h(DropdownMenuItem, { onClick: () => store.switchWorkspace(ws) }, () => [h(ArrowRight, { class: 'mr-2 size-3.5' }), '进入空间']),
-            h(DropdownMenuItem, { onClick: () => openEdit(ws) }, () => [h(Pencil, { class: 'mr-2 size-3.5' }), '编辑']),
+            h(DropdownMenuItem, { onClick: () => store.switchWorkspace(ws) }, () => [
+              h(ArrowRight, { class: 'mr-2 size-3.5' }),
+              t('manage.workspaces.menu.enter'),
+            ]),
+            h(DropdownMenuItem, { onClick: () => openEdit(ws) }, () => [
+              h(Pencil, { class: 'mr-2 size-3.5' }),
+              t('manage.workspaces.menu.edit'),
+            ]),
             h(DropdownMenuSeparator),
             h(DropdownMenuItem, {
               class: 'text-destructive focus:text-destructive',
               onClick: () => promptDelete(ws),
-            }, () => [h(Trash2, { class: 'mr-2 size-3.5' }), '删除']),
+            }, () => [
+              h(Trash2, { class: 'mr-2 size-3.5' }),
+              t('manage.workspaces.menu.delete'),
+            ]),
           ]),
         ],
       })
     },
   },
-]
+])
 
 // ── TanStack Table（仅渲染，分页/过滤交由后端）────────────────────
 const table = useVueTable({
   get data() { return store.rows },
-  columns,
+  get columns() { return columns.value },
   getCoreRowModel: getCoreRowModel(),
   manualPagination: true,
   manualFiltering: true,
@@ -310,7 +317,7 @@ function goToPage(p: number) {
   store.fetchList({ page: p, search: searchValue.value, status: statusFilter.value === 'all' ? undefined : statusFilter.value })
 }
 
-// ── 搜索 & 状态过滤（触发后端重新拉取）───────────────────────────
+// ── 搜索 & 状态过滤 ───────────────────────────────────────────────
 const searchValue  = ref('')
 const statusFilter = ref<'all' | 'active' | 'inactive'>('all')
 
@@ -347,7 +354,7 @@ function handleRefresh() {
       >
         <div class="flex items-start justify-between">
           <div class="flex flex-col gap-1">
-            <span class="text-muted-foreground text-sm font-medium">全部空间</span>
+            <span class="text-muted-foreground text-sm font-medium">{{ t('manage.workspaces.stats.allWorkspaces') }}</span>
             <span class="text-2xl font-bold tracking-tight tabular-nums">{{ stats.total }}</span>
           </div>
           <div class="bg-muted rounded-lg p-2">
@@ -374,8 +381,14 @@ function handleRefresh() {
             <div class="bg-zinc-300 dark:bg-zinc-600 transition-all" :style="{ width: `${100 - stats.activeRate}%` }" />
           </div>
           <div class="flex items-center justify-between text-[10px] text-muted-foreground/60">
-            <span class="flex items-center gap-1"><span class="size-1.5 rounded-full bg-emerald-500 inline-block" />{{ stats.active }} 运行中</span>
-            <span class="flex items-center gap-1"><span class="size-1.5 rounded-full bg-zinc-400 inline-block" />{{ stats.inactive }} 已停用</span>
+            <span class="flex items-center gap-1">
+              <span class="size-1.5 rounded-full bg-emerald-500 inline-block" />
+              {{ stats.active }} {{ t('manage.workspaces.stats.active') }}
+            </span>
+            <span class="flex items-center gap-1">
+              <span class="size-1.5 rounded-full bg-zinc-400 inline-block" />
+              {{ stats.inactive }} {{ t('manage.workspaces.stats.inactive') }}
+            </span>
           </div>
         </div>
       </button>
@@ -388,7 +401,7 @@ function handleRefresh() {
       >
         <div class="flex items-start justify-between">
           <div class="flex flex-col gap-1">
-            <span class="text-muted-foreground text-sm font-medium">运行中</span>
+            <span class="text-muted-foreground text-sm font-medium">{{ t('manage.workspaces.stats.active') }}</span>
             <span class="text-2xl font-bold tracking-tight tabular-nums">{{ stats.active }}</span>
           </div>
           <div class="bg-muted rounded-lg p-2">
@@ -398,7 +411,7 @@ function handleRefresh() {
         <div class="mt-3 flex items-center gap-1 text-sm">
           <ArrowUpRight class="text-emerald-600 size-4 shrink-0" />
           <span class="text-emerald-600 font-semibold">{{ stats.activeRate }}%</span>
-          <span class="text-muted-foreground">健康率</span>
+          <span class="text-muted-foreground">{{ t('manage.workspaces.stats.healthRate') }}</span>
         </div>
       </button>
 
@@ -410,7 +423,7 @@ function handleRefresh() {
       >
         <div class="flex items-start justify-between">
           <div class="flex flex-col gap-1">
-            <span class="text-muted-foreground text-sm font-medium">已停用</span>
+            <span class="text-muted-foreground text-sm font-medium">{{ t('manage.workspaces.stats.inactive') }}</span>
             <span class="text-2xl font-bold tracking-tight tabular-nums">{{ stats.inactive }}</span>
           </div>
           <div class="bg-muted rounded-lg p-2">
@@ -424,9 +437,11 @@ function handleRefresh() {
             class="size-4 shrink-0"
           />
           <span :class="stats.inactive === 0 ? 'text-emerald-600 font-semibold' : 'text-rose-500 font-semibold'">
-            {{ stats.inactive === 0 ? '全部运行中' : stats.inactive + ' 个已停用' }}
+            {{ stats.inactive === 0 ? t('manage.workspaces.stats.allRunning') : t('manage.workspaces.stats.someInactive', { n: stats.inactive }) }}
           </span>
-          <span class="text-muted-foreground">{{ stats.inactive === 0 ? '状态健康' : '需要检查' }}</span>
+          <span class="text-muted-foreground">
+            {{ stats.inactive === 0 ? t('manage.workspaces.stats.healthy') : t('manage.workspaces.stats.needsCheck') }}
+          </span>
         </div>
       </button>
 
@@ -434,7 +449,7 @@ function handleRefresh() {
       <div class="border-border bg-card text-card-foreground rounded-xl border p-5 shadow-sm text-left">
         <div class="flex items-start justify-between">
           <div class="flex flex-col gap-1">
-            <span class="text-muted-foreground text-sm font-medium">在线节点</span>
+            <span class="text-muted-foreground text-sm font-medium">{{ t('manage.workspaces.stats.onlineNodes') }}</span>
             <span class="text-2xl font-bold tracking-tight tabular-nums">{{ stats.totalNodes }}</span>
           </div>
           <div class="bg-muted rounded-lg p-2">
@@ -443,7 +458,7 @@ function handleRefresh() {
         </div>
         <div class="mt-3 flex items-center gap-1 text-sm">
           <Network class="text-muted-foreground size-4 shrink-0" />
-          <span class="text-muted-foreground">均 <span class="font-semibold text-foreground">{{ stats.avgNodes }}</span> 节点/空间</span>
+          <span class="text-muted-foreground">{{ t('manage.workspaces.stats.avgNodes', { n: stats.avgNodes }) }}</span>
         </div>
       </div>
 
@@ -453,16 +468,22 @@ function handleRefresh() {
     <div class="flex items-center gap-2">
       <div class="relative w-64">
         <Search class="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-        <Input v-model="searchValue" placeholder="搜索名称或 Slug..." class="pl-8 h-9" @input="onSearchInput" />
+        <Input
+          v-model="searchValue"
+          :placeholder="t('manage.workspaces.searchPlaceholder')"
+          class="pl-8 h-9"
+          @input="onSearchInput"
+        />
       </div>
       <div class="ml-auto flex items-center gap-2">
         <Button variant="outline" size="sm" class="gap-1.5"
           :disabled="isRefreshing" @click="handleRefresh">
           <RefreshCw class="size-3.5" :class="isRefreshing ? 'animate-spin' : ''" />
-          刷新
+          {{ t('common.action.refresh') }}
         </Button>
         <Button size="sm" class="gap-1.5" @click="openCreate">
-          <Plus class="size-3.5" /> 创建空间
+          <Plus class="size-3.5" />
+          {{ t('manage.workspaces.createBtn') }}
         </Button>
       </div>
     </div>
@@ -499,17 +520,16 @@ function handleRefresh() {
           </template>
           <TableRow v-else>
             <TableCell :colspan="columns.length" class="h-32 text-center text-muted-foreground">
-              暂无工作空间
+              {{ t('manage.workspaces.empty') }}
             </TableCell>
           </TableRow>
         </TableBody>
       </Table>
     </div>
 
-
     <!-- ── Pagination ─────────────────────────────────────────────── -->
     <div class="flex items-center justify-between text-sm text-muted-foreground">
-      <span>共 {{ store.total }} 条 · 第 {{ currentPage }} / {{ totalPages }} 页</span>
+      <span>{{ t('common.pagination.total', { total: store.total, page: currentPage, totalPages }) }}</span>
       <div class="flex items-center gap-1">
         <Button variant="outline" size="sm" class="size-8 p-0"
           :disabled="currentPage <= 1" @click="goToPage(currentPage - 1)">
@@ -527,12 +547,13 @@ function handleRefresh() {
         </Button>
       </div>
     </div>
+
     <!-- ── Delete confirm ────────────────────────────────────────── -->
     <AppAlertDialog
       v-model:open="deleteDialogOpen"
-      title="删除工作空间"
-      :description="`确认删除「${deleteTarget?.displayName}」？该操作不可撤销，空间内所有节点和策略将被移除。`"
-      confirm-text="删除"
+      :title="t('manage.workspaces.delete.title')"
+      :description="t('manage.workspaces.delete.desc', { name: deleteTarget?.displayName ?? '' })"
+      :confirm-text="t('common.action.delete')"
       variant="destructive"
       @confirm="confirmDelete"
     />
@@ -541,36 +562,36 @@ function handleRefresh() {
     <Dialog v-model:open="dialogOpen">
       <DialogContent class="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>{{ editingWorkspace ? '编辑空间' : '创建空间' }}</DialogTitle>
+          <DialogTitle>{{ editingWorkspace ? t('manage.workspaces.dialog.editTitle') : t('manage.workspaces.dialog.createTitle') }}</DialogTitle>
           <DialogDescription>
-            {{ editingWorkspace ? '修改工作空间配置' : '新建一个隔离的网络工作空间' }}
+            {{ editingWorkspace ? t('manage.workspaces.dialog.editDesc') : t('manage.workspaces.dialog.createDesc') }}
           </DialogDescription>
         </DialogHeader>
         <div class="space-y-4 py-2">
           <div class="space-y-1.5">
-            <label class="text-sm font-medium">显示名称</label>
+            <label class="text-sm font-medium">{{ t('manage.workspaces.dialog.displayName') }}</label>
             <Input
               v-model="form.displayName"
-              placeholder="例如：生产环境"
+              :placeholder="t('manage.workspaces.dialog.displayNamePlaceholder')"
               @input="!editingWorkspace && slugify(form.displayName)"
             />
           </div>
           <div class="space-y-1.5">
             <label class="text-sm font-medium">
-              Slug
-              <span class="text-muted-foreground font-normal text-xs ml-1">(唯一标识符)</span>
+              {{ t('manage.workspaces.dialog.slug') }}
+              <span class="text-muted-foreground font-normal text-xs ml-1">{{ t('manage.workspaces.dialog.slugHint') }}</span>
             </label>
-            <Input v-model="form.slug" placeholder="例如：production" class="font-mono" />
+            <Input v-model="form.slug" :placeholder="t('manage.workspaces.dialog.slugPlaceholder')" class="font-mono" />
           </div>
           <div class="space-y-1.5">
-            <label class="text-sm font-medium">最大节点数（限额）</label>
+            <label class="text-sm font-medium">{{ t('manage.workspaces.dialog.maxNodes') }}</label>
             <Input v-model.number="form.maxNodeCount" type="number" min="1" max="1000" />
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" @click="dialogOpen = false">取消</Button>
+          <Button variant="outline" @click="dialogOpen = false">{{ t('common.action.cancel') }}</Button>
           <Button :disabled="store.saving || !form.displayName || !form.slug" @click="saveWorkspace">
-            {{ store.saving ? '保存中...' : editingWorkspace ? '保存' : '创建' }}
+            {{ store.saving ? t('common.status.saving') : editingWorkspace ? t('common.action.save') : t('common.action.create') }}
           </Button>
         </DialogFooter>
       </DialogContent>

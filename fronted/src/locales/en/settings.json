@@ -1,0 +1,95 @@
+{
+  "approvals": {
+    "title": "Approval Workbench",
+    "desc": "View and process pending approval requests.",
+    "searchPlaceholder": "Search by requester or resource name...",
+    "stats": {
+      "total": "All",
+      "totalDesc": "All requests on current page",
+      "pending": "Pending",
+      "pendingDesc": "Waiting for approval",
+      "executed": "Executed",
+      "executedDesc": "Approved and executed",
+      "failed": "Failed",
+      "failedDesc": "Needs attention",
+      "allGood": "All good"
+    },
+    "tabs": {
+      "all": "All",
+      "pending": "Pending",
+      "approved": "Approved",
+      "rejected": "Rejected",
+      "executed": "Executed",
+      "failed": "Failed"
+    },
+    "col": {
+      "time": "Submitted At",
+      "requester": "Requester",
+      "resource": "Resource",
+      "action": "Action",
+      "status": "Status",
+      "reviewer": "Reviewer"
+    },
+    "status": {
+      "pending": "Pending",
+      "approved": "Approved",
+      "rejected": "Rejected",
+      "executed": "Executed",
+      "failed": "Failed"
+    },
+    "resourceType": {
+      "policy": "Policy",
+      "member": "Member",
+      "relay": "Relay",
+      "token": "Token"
+    },
+    "actionType": {
+      "create": "Create",
+      "update": "Update",
+      "delete": "Delete"
+    },
+    "reviewDialog": {
+      "approveTitle": "Approve Request",
+      "rejectTitle": "Reject Request",
+      "requester": "Requester",
+      "resource": "Resource",
+      "operation": "Operation",
+      "submittedAt": "Submitted At",
+      "submittedAtText": "Submitted {time}",
+      "noteLabel": "Review Note (optional)",
+      "notePlaceholder": "Add a reason or comment...",
+      "confirmApprove": "Confirm Approve",
+      "confirmReject": "Confirm Reject"
+    },
+    "reviewNote": "Review note: {note}",
+    "reviewNoteLabel": "Review note: ",
+    "noRequests": "No approval requests",
+    "noPending": "No pending requests",
+    "toast": {
+      "approved": "Approved, executing...",
+      "rejected": "Rejected",
+      "failed": "Operation failed"
+    }
+  },
+  "audit": {
+    "title": "Audit Log",
+    "desc": "View the complete operation history for this workspace.",
+    "searchPlaceholder": "Search by operator or resource...",
+    "col": {
+      "time": "Time",
+      "operator": "Operator",
+      "action": "Action",
+      "resource": "Resource",
+      "status": "Status",
+      "detail": "Detail"
+    },
+    "status": {
+      "success": "Success",
+      "failed": "Failed"
+    }
+  },
+  "relays": {
+    "title": "Relay Nodes",
+    "desc": "Manage WireGuard relay servers."
+  }
+}

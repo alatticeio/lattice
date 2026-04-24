@@ -84,9 +84,7 @@ const advantages = [
     <header class="sticky top-0 z-50 border-b border-border bg-background/80 backdrop-blur-md">
       <div class="max-w-6xl mx-auto px-6 h-14 flex items-center justify-between">
         <div class="flex items-center gap-2.5">
-          <div class="size-7 rounded-lg bg-primary flex items-center justify-center">
-            <Network class="size-4 text-primary-foreground" />
-          </div>
+          <img src="@/assets/logo.svg" class="size-7" alt="Wireflow" />
           <span class="font-black tracking-tighter text-sm">Wireflow</span>
           <span class="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-primary/10 text-primary ring-1 ring-primary/20">v0.1.2</span>
         </div>
@@ -371,9 +369,7 @@ const advantages = [
     <footer class="border-t border-border px-6 py-7">
       <div class="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
         <div class="flex items-center gap-2">
-          <div class="size-5 rounded bg-primary flex items-center justify-center">
-            <Network class="size-3 text-primary-foreground" />
-          </div>
+          <img src="@/assets/logo.svg" class="size-5" alt="Wireflow" />
           <span class="text-sm font-black tracking-tighter text-muted-foreground">Wireflow</span>
         </div>
         <p class="text-[11px] text-muted-foreground font-mono uppercase tracking-widest">

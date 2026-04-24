@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import { Separator } from '@/components/ui/separator'
@@ -14,13 +15,16 @@ import AppSidebar from '@/components/app-sidebar/AppSidebar.vue'
 import PageHeader from '@/components/PageHeader.vue'
 import SettingsPanel from '@/components/SettingsPanel.vue'
 import { useAppConfig } from '@/composables/useAppConfig'
-import { Search, Sun, Moon, Bell, User, LogOut, CreditCard, LifeBuoy, Settings } from 'lucide-vue-next'
+import { Search, Sun, Moon, Bell, User, LogOut, CreditCard, LifeBuoy, Settings, Check } from 'lucide-vue-next'
 import { useUserStore } from '@/stores/user'
+import { setLocale } from '@/locales'
+import type { Locale } from '@/locales'
 
 const { config } = useAppConfig()
 const router = useRouter()
 const userStore = useUserStore()
 const { userInfo, logout } = userStore
+const { t, locale } = useI18n()
 
 const avatarFallback = computed(() => {
   const name = userInfo?.username ?? userInfo?.email ?? '?'
@@ -34,9 +38,24 @@ function toggleTheme() {
   config.value.theme = isDark.value ? 'light' : 'dark'
 }
 
+function switchLocale(lang: Locale) {
+  setLocale(lang)
+}
+
+const localeOptions: { value: Locale; label: string }[] = [
+  { value: 'zh-CN', label: '中文' },
+  { value: 'en',    label: 'English' },
+]
+
 const route = useRoute()
-const pageTitle = computed(() => route.meta.title ?? '')
-const pageDescription = computed(() => route.meta.description)
+const pageTitle = computed(() => {
+  const key = route.meta.titleKey as string | undefined
+  return key ? t(key) : (route.meta.title as string ?? '')
+})
+const pageDescription = computed(() => {
+  const key = route.meta.descKey as string | undefined
+  return key ? t(key) : (route.meta.description as string | undefined)
+})
 
 </script>
 
@@ -57,6 +76,26 @@ const pageDescription = computed(() => route.meta.description)
         </div>
 
         <div class="ml-auto flex items-center gap-1">
+          <!-- Language switcher -->
+          <DropdownMenu>
+            <DropdownMenuTrigger as-child>
+              <button class="text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg px-2 py-1.5 text-xs font-medium transition-colors">
+                {{ locale === 'zh-CN' ? '中文' : 'EN' }}
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" class="min-w-32">
+              <DropdownMenuItem
+                v-for="opt in localeOptions"
+                :key="opt.value"
+                @click="switchLocale(opt.value)"
+                class="flex items-center justify-between"
+              >
+                {{ opt.label }}
+                <Check v-if="locale === opt.value" class="size-3.5 text-primary" />
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
           <!-- Light / Dark quick toggle -->
           <button
             @click="toggleTheme"

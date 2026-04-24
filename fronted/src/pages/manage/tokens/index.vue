@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, h } from 'vue'
+import { ref, computed, watch, onMounted, h } from 'vue'
 import {
   useVueTable, getCoreRowModel, FlexRender, type ColumnDef,
 } from '@tanstack/vue-table'
@@ -23,6 +23,7 @@ import {
 import { listTokens, create, rmToken } from '@/api/token'
 import AppAlertDialog from '@/components/AlertDialog.vue'
 import { toast } from 'vue-sonner'
+import { useWorkspaceStore } from '@/stores/workspace'
 
 definePage({
   meta: { title: 'Token 管理', description: '管理接入网络的访问令牌。' },
@@ -117,6 +118,11 @@ async function fetchList(params?: { page?: number, pageSize?: number, search?: s
 }
 
 onMounted(() => fetchList())
+
+const workspaceStore = useWorkspaceStore()
+watch(() => workspaceStore.currentWorkspace?.id, (newId, oldId) => {
+  if (newId && newId !== oldId) fetchList()
+})
 
 const filteredRows = computed(() => {
   const q = searchValue.value.toLowerCase().trim()

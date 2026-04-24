@@ -49,8 +49,9 @@ type PeerDto struct {
 	LastUpdatedAt       time.Time `json:"lastUpdatedAt"`
 	Token               string    `json:"token,omitempty"`
 
-	Namespace string            `json:"namespace,omitempty"`
-	Labels    map[string]string `json:"labels,omitempty"`
+	Namespace   string            `json:"namespace,omitempty"`
+	Labels      map[string]string `json:"labels,omitempty"`
+	DisplayName string            `json:"displayName,omitempty"`
 }
 
 type TokenDto struct {

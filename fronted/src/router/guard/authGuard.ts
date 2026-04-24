@@ -5,13 +5,15 @@ import type { Router } from "vue-router";
 export function setupAuthGuard(router: Router) {
     // 1. 定义免登录白名单
     const whiteList = ['/', '/auth/login', '/auth/signup']
+    const whiteListPrefixes = ['/invite/']
 
     router.beforeEach(async (to, _from, next) => {
         const userStore = useUserStore()
         const tokenExists = hasToken()
 
         // 判断当前页面是否在白名单中
-        const isWhiteListed = whiteList.includes(to.path)
+        const isWhiteListed = whiteList.includes(to.path) ||
+            whiteListPrefixes.some(p => to.path.startsWith(p))
 
         // 2. 尝试找回身份（仅当有 Token 且内存没数据时）
         if (tokenExists && !userStore.isLoggedIn) {

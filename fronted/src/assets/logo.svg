@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none">
+    <!-- K8s 风格 pointy-top 六边形边框 -->
+    <polygon
+            points="50,4 90,27 90,73 50,96 10,73 10,27"
+            stroke="#007BFF"
+            stroke-width="5"
+            stroke-linejoin="round"
+            fill="none"
+    />
+
+    <!-- 菱形拓扑连接线 -->
+    <g stroke="#007BFF" stroke-width="4.5" stroke-linecap="round">
+        <line x1="33" y1="44" x2="44" y2="33"/>
+        <line x1="33" y1="56" x2="44" y2="67"/>
+        <line x1="56" y1="33" x2="67" y2="44"/>
+        <line x1="56" y1="67" x2="67" y2="56"/>
+    </g>
+
+    <!-- 网络节点 -->
+    <circle cx="27" cy="50" r="8" fill="#007BFF"/>
+    <circle cx="50" cy="27" r="8" fill="#007BFF"/>
+    <circle cx="50" cy="73" r="8" fill="#007BFF"/>
+    <circle cx="73" cy="50" r="8" fill="#007BFF"/>
+</svg>

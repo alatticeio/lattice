@@ -103,7 +103,7 @@ function handleSocialLogin(_provider: string) {
               </Button>
               <FieldDescription class="text-center">
                 Don't have an account?
-                <router-link to="/signup" class="underline">Sign up</router-link>
+                <router-link to="/auth/signup" class="underline">Sign up</router-link>
               </FieldDescription>
             </Field>
           </FieldGroup>

@@ -10,6 +10,7 @@ export interface User {
     username: string
     email: string
     role: 'admin' | 'user' | 'guest'
+    systemRole?: 'platform_admin' | 'user' | ''
     avatarUrl?: string
 }
 
@@ -22,6 +23,7 @@ export const useUserStore = defineStore('user', () => {
 
     // --- Getters ---
     const isLoggedIn = computed(() => !!userInfo.value)
+    const isPlatformAdmin = computed(() => userInfo.value?.systemRole === 'platform_admin')
 
     // --- Actions ---
 
@@ -107,6 +109,7 @@ export const useUserStore = defineStore('user', () => {
         userInfo,
         loading,
         isLoggedIn,
+        isPlatformAdmin,
         login,
         logout,
         fetchUserInfo

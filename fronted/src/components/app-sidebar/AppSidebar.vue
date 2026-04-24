@@ -1,8 +1,15 @@
 <script setup lang="ts">
-import type {SidebarProps} from "@/components/ui/sidebar"
-import {Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarRail,} from "@/components/ui/sidebar"
-
-import { LayoutDashboard, Server, Settings2, Zap } from "lucide-vue-next"
+import { computed } from "vue"
+import { useRoute } from "vue-router"
+import { useI18n } from "vue-i18n"
+import type { SidebarProps } from "@/components/ui/sidebar"
+import {
+  Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarRail,
+} from "@/components/ui/sidebar"
+import {
+  LayoutDashboard, Network, Settings2,
+  ShieldCheck,
+} from "lucide-vue-next"
 import NavMain from "@/components/app-sidebar/NavMain.vue"
 import NavUser from "@/components/app-sidebar/NavUser.vue"
 import TeamSwitcher from "@/components/app-sidebar/TeamSwitcher.vue"
@@ -12,92 +19,78 @@ const props = withDefaults(defineProps<SidebarProps>(), {
   collapsible: "icon",
 })
 
+const route = useRoute()
 const userStore = useUserStore()
+const { t } = useI18n()
+
 const navUser = computed(() => ({
   name: userStore.userInfo?.username ?? '...',
   email: userStore.userInfo?.email ?? '',
   avatar: userStore.userInfo?.avatarUrl ?? '',
 }))
 
-const data = {
-  navMain: [
+const navMain = computed(() => {
+  const path = route.path
+  const isAdmin = userStore.isPlatformAdmin
+
+  const groups = [
+    // ── Overview ──────────────────────────────────────────────────
     {
-      title: "Quickstart",
-      url: "/manage/stepper",
-      icon: Zap,
-      items: [],
-    },
-    {
-      title: "Dashboard",
+      title: t('nav.group.overview'),
       url: "/dashboard",
       icon: LayoutDashboard,
-      items: [],
-    },
-    {
-      title: "Management",
-      url: "#",
-      icon: Server,
-      isActive: true,
       items: [
-        {
-          title: "Memberes",
-          url: "/manage/members",
-        },
-        {
-          title: "topology",
-          url: "/manage/topology",
-        },
-        {
-          title: "Nodes",
-          url: "/manage/nodes",
-        },
-        {
-          title: "Workspaces",
-          url: "/manage/workspaces",
-        },
-        {
-          title: "Tokens",
-          url: "/manage/tokens",
-        },
-        {
-          title: "Policies",
-          url: "/manage/policies",
-        },
-        {
-          title: "Peering",
-          url: "/manage/peers",
-        },
+        { title: t('nav.dashboard'),  url: "/dashboard" },
+        { title: t('nav.quickstart'), url: "/manage/stepper" },
       ],
     },
+
+    // ── Workspace ─────────────────────────────────────────────────
     {
-      title: "Settings",
+      title: t('nav.group.workspace'),
+      url: "#",
+      icon: Network,
+      items: [
+        { title: t('nav.members'),  url: "/manage/members" },
+        { title: t('nav.topology'), url: "/manage/topology" },
+        { title: t('nav.nodes'),    url: "/manage/nodes" },
+        { title: t('nav.tokens'),   url: "/manage/tokens" },
+        { title: t('nav.policies'), url: "/manage/policies" },
+        { title: t('nav.peers'),    url: "/manage/peers" },
+      ],
+    },
+
+    // ── Platform Admin ────────────────────────────────────────────
+    ...(isAdmin ? [{
+      title: t('nav.group.platform'),
+      url: "#",
+      icon: ShieldCheck,
+      items: [
+        { title: t('nav.users'),      url: "/manage/users" },
+        { title: t('nav.workspaces'), url: "/manage/workspaces" },
+        { title: t('nav.approvals'),  url: "/settings/approvals" },
+      ],
+    }] : []),
+
+    // ── Settings ──────────────────────────────────────────────────
+    {
+      title: t('nav.group.settings'),
       url: "#",
       icon: Settings2,
       items: [
-        {
-          title: "Relay Servers",
-          url: "/settings/relays",
-        },
-        {
-          title: "General",
-          url: "#",
-        },
-        {
-          title: "Team",
-          url: "#",
-        },
-        {
-          title: "Billing",
-          url: "#",
-        },
-        {
-          title: "Limits",
-          url: "#",
-        },
+        { title: t('nav.relays'), url: "/settings/relays" },
+        { title: t('nav.audit'), url: "/settings/audit" },
       ],
     },
-  ],
-}
+  ]
+
+  return groups.map(g => ({
+    ...g,
+    isActive: g.url !== '#' && path.startsWith(g.url)
+      ? true
+      : (g.items?.some(i => i.url !== '#' && path.startsWith(i.url)) ?? false),
+  }))
+})
 </script>
 
 <template>
@@ -106,13 +99,11 @@ const data = {
       <TeamSwitcher />
     </SidebarHeader>
     <SidebarContent>
-      <NavMain :items="data.navMain"/>
-      <!--      <NavMain label="网络管理" :items="data.navNetwork" />-->
-      <!--      <NavProjects :projects="data.projects" />-->
+      <NavMain :items="navMain" />
     </SidebarContent>
     <SidebarFooter>
-      <NavUser :user="navUser"/>
+      <NavUser :user="navUser" />
     </SidebarFooter>
-    <SidebarRail/>
+    <SidebarRail />
   </Sidebar>
 </template>

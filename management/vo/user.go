@@ -9,6 +9,10 @@ type UserVo struct {
 	Address     string        `json:"address,omitempty"`
 	Role        string        `json:"role,omitempty"`
 	Workspaces  []WorkspaceVo `json:"workspaces,omitempty"`
+	// Enriched fields for the admin user list
+	Source      string `json:"source,omitempty"`      // e.g. "local", "github", "dex"
+	InviterName string `json:"inviterName,omitempty"` // set when the user joined via invitation
+	RegisteredAt string `json:"registeredAt,omitempty"` // ISO-8601 creation time
 }
 
 type InviteVo struct {

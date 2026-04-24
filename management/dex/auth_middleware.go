@@ -46,7 +46,6 @@ func AuthMiddleware() gin.HandlerFunc {
 		// 4. 关键信息注入 Gin Context
 		// 这样后续的路由 Handler 就可以通过 c.GetString("namespace") 直接拿到了
 		c.Set(CtxUserKey, claims.Subject)
-		c.Set(CtxTeamKey, claims.WorkspaceId)
 
 		c.Next() // 继续执行后续流程
 	}

@@ -3,46 +3,65 @@ package middleware
 import (
 	"context"
 	"wireflow/internal/infra"
+	"wireflow/internal/store"
+	"wireflow/management/dto"
 	"wireflow/pkg/utils/resp"
 
 	"github.com/gin-gonic/gin"
 )
 
-func TenantContextMiddleware() gin.HandlerFunc {
+// TenantMiddleware enforces workspace membership on requests.
+type TenantMiddleware struct {
+	store store.Store
+}
+
+func NewTenantMiddleware(st store.Store) *TenantMiddleware {
+	return &TenantMiddleware{store: st}
+}
+
+func (m *TenantMiddleware) Handle() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		userRole, _ := c.Get("role")
+		userID := c.GetString("user_id")
 		wsID := c.GetHeader("X-Workspace-Id")
 
-		// 1. 超级管理员：拥有“选择性隔离”的特权
-		if userRole == "admin" {
+		// Query the DB for the user's current system_role so that role changes
+		// take effect immediately without requiring re-login.
+		var systemRole string
+		if userID != "" {
+			if user, err := m.store.Users().GetByID(c.Request.Context(), userID); err == nil {
+				systemRole = string(user.SystemRole)
+			}
+		}
+
+		// Platform admins may operate without a workspace, or across any workspace.
+		if systemRole == string(dto.SystemRolePlatformAdmin) {
 			if wsID != "" {
-				injectWorkspace(c, wsID, false) // 管理员不需要强制校验归属关系
+				injectWorkspace(c, wsID, false)
 			}
 			c.Next()
 			return
 		}
 
-		// 2. 普通用户：必须提供 wsID
 		if wsID == "" {
-			resp.Forbidden(c, "请先选择工作空间")
+			resp.Forbidden(c, "workspace required: set X-Workspace-Id header")
 			c.Abort()
 			return
 		}
 
-		// 3. 核心安全逻辑：此处应有校验（建议查缓存或鉴权服务）
-		// 确保该用户真的属于这个 Workspace，防止 ID 遍历攻击
-		// if !checkUserInWorkspace(c.GetUint("user_id"), wsID) { ... }
+		_, err := m.store.WorkspaceMembers().GetMembership(c.Request.Context(), wsID, userID)
+		if err != nil {
+			resp.Forbidden(c, "not a member of this workspace")
+			c.Abort()
+			return
+		}
 
-		// 4. 普通用户强制进入“严格模式”
 		injectWorkspace(c, wsID, true)
 		c.Next()
 	}
 }
 
 func injectWorkspace(c *gin.Context, wsID string, strict bool) {
-	// 注入 workspaceId
 	ctx := context.WithValue(c.Request.Context(), infra.WorkspaceKey, wsID)
-	// 注入是否严格过滤的标记
 	ctx = context.WithValue(ctx, infra.StrictTenantKey, strict)
 	c.Request = c.Request.WithContext(ctx)
 }

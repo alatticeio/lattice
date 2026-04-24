@@ -70,7 +70,32 @@ export interface DashboardResponse {
     top_nodes: NodeMonitorDetail[]
 }
 
-// ── Workspace Monitor ─────────────────────────────────────────────────
+// ── Workspace Dashboard ───────────────────────────────────────────────
+
+export interface WorkspaceStatCard {
+    label: string
+    value: string
+    unit: string
+    trend: string      // "up" | "down" | "stable"
+    trend_pct: string  // e.g. "+5%", may be empty
+    color: string      // Tailwind class
+}
+
+export interface NodeCPUItem {
+    peer_id: string
+    name: string
+    cpu: number       // 0–100
+    memory_mb: number
+}
+
+export interface WorkspaceDashboardResponse {
+    stat_cards: WorkspaceStatCard[]
+    throughput_trend: TrendData
+    node_cpu: NodeCPUItem[]
+    top_nodes: NodeMonitorDetail[]
+}
+
+// ── Workspace Monitor (legacy) ────────────────────────────────────────
 
 export interface StatCard {
     label: string

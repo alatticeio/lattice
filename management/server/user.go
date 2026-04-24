@@ -13,15 +13,15 @@ import (
 func (s *Server) userRouter() {
 
 	userApi := s.Group("/api/v1/users")
-	//userApi.Use(dex.AuthMiddleware())
 	{
-		userApi.POST("/register", s.RegisterUser) //注册用户
-		userApi.POST("/login", s.login)           //登陆
+		userApi.POST("/register", s.RegisterUser)
+		userApi.POST("/login", s.login)
 		userApi.GET("/getme", middleware.AuthMiddleware(), s.getMe())
 		userApi.GET("/list", middleware.AuthMiddleware(), s.listUser())
-
 		userApi.POST("/add", middleware.AuthMiddleware(), s.handleAddUser())
 		userApi.DELETE("/:name", middleware.AuthMiddleware(), s.handleDeleteUser())
+		userApi.PATCH("/:id/system-role", middleware.AuthMiddleware(), s.handleUpdateSystemRole())
+		userApi.GET("/:id/workspaces", middleware.AuthMiddleware(), s.handleGetUserWorkspaces())
 	}
 }
 
@@ -58,7 +58,7 @@ func (s *Server) login(c *gin.Context) {
 		return
 	}
 
-	businessToken, err := utils.GenerateBusinessJWT(user.ID, user.Username)
+	businessToken, err := utils.GenerateBusinessJWT(user.ID, user.Email, user.Username, string(user.SystemRole))
 	if err != nil {
 		resp.Error(c, err.Error())
 		return
@@ -126,6 +126,37 @@ func (s *Server) handleDeleteUser() gin.HandlerFunc {
 	}
 }
 
+func (s *Server) handleUpdateSystemRole() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		// Only platform_admin can change system roles.
+		if c.GetString("system_role") != "platform_admin" {
+			resp.Error(c, "forbidden: platform_admin only")
+			return
+		}
+
+		userID := c.Param("id")
+		if userID == "" {
+			resp.BadRequest(c, "user id is required")
+			return
+		}
+
+		var body struct {
+			SystemRole string `json:"systemRole" binding:"required"`
+		}
+		if err := c.ShouldBindJSON(&body); err != nil {
+			resp.BadRequest(c, err.Error())
+			return
+		}
+
+		role := dto.SystemRole(body.SystemRole)
+		if err := s.userController.UpdateSystemRole(c.Request.Context(), userID, role); err != nil {
+			resp.Error(c, err.Error())
+			return
+		}
+		resp.OK(c, nil)
+	}
+}
+
 // listUser list members
 func (s *Server) listUser() gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -142,5 +173,45 @@ func (s *Server) listUser() gin.HandlerFunc {
 		}
 
 		resp.OK(c, res)
+	}
+}
+
+// handleGetUserWorkspaces returns all workspace memberships for a given user.
+func (s *Server) handleGetUserWorkspaces() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		userID := c.Param("id")
+		if userID == "" {
+			resp.BadRequest(c, "user id is required")
+			return
+		}
+
+		ctx := c.Request.Context()
+
+		members, _, err := s.store.WorkspaceMembers().ListByUser(ctx, userID, 1, 999)
+		if err != nil {
+			resp.Error(c, err.Error())
+			return
+		}
+
+		type wsEntry struct {
+			WorkspaceID   string `json:"workspaceId"`
+			WorkspaceName string `json:"workspaceName"`
+			Role          string `json:"role"`
+		}
+
+		result := make([]wsEntry, 0, len(members))
+		for _, m := range members {
+			ws, err := s.store.Workspaces().GetByID(ctx, m.WorkspaceID)
+			if err != nil {
+				continue
+			}
+			result = append(result, wsEntry{
+				WorkspaceID:   m.WorkspaceID,
+				WorkspaceName: ws.DisplayName,
+				Role:          string(m.Role),
+			})
+		}
+
+		resp.OK(c, result)
 	}
 }

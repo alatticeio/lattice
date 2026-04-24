@@ -20,8 +20,12 @@ import (
 
 type MonitorService interface {
 	GetTopologySnapshot(ctx context.Context) ([]models.PeerSnapshot, error)
-	GetNodeSnapshot(ctx context.Context, wsID string) ([]models.NodeSnapshot, error)
-	GetWorkspaceAggregatedMonitor(ctx context.Context, wsID string) (*models.AggregatedMonitorResponse, error)
+	// GetNodeSnapshot returns snapshots for all nodes in the given namespace (= network_id label).
+	GetNodeSnapshot(ctx context.Context, namespace string) ([]models.NodeSnapshot, error)
+	// GetWorkspaceAggregatedMonitor returns live stats for the given namespace.
+	GetWorkspaceAggregatedMonitor(ctx context.Context, namespace string) (*models.AggregatedMonitorResponse, error)
+	// GetWorkspaceDashboard returns a workspace-scoped dashboard response for the given namespace.
+	GetWorkspaceDashboard(ctx context.Context, namespace string) (*models.WorkspaceDashboardResponse, error)
 	GetGlobalDashboard(ctx context.Context) (*models.DashboardResponse, error)
 }
 
@@ -76,6 +80,7 @@ func NewMonitorServiceWithOptions(opts MonitorServiceOptions) (MonitorService, e
 		api:     v1.NewAPI(client),
 		log:     opts.Logger,
 		timeout: opts.Timeout,
+		cache:   cache.New(5*time.Minute, 10*time.Minute),
 	}, nil
 }
 
@@ -182,15 +187,12 @@ func (v *monitorService) QueryByTime(ctx context.Context, query string, t time.T
 	return vector, nil
 }
 
-// GetNodeSnapshots 获取特定空间的节点快照
-func (s *monitorService) GetNodeSnapshot(ctx context.Context, wsID string) ([]models.NodeSnapshot, error) {
-	// GetSnapshotsByPrometheus 从 VM 获取实时快照
+// GetNodeSnapshot 获取特定空间的节点快照
+func (s *monitorService) GetNodeSnapshot(ctx context.Context, namespace string) ([]models.NodeSnapshot, error) {
 	ctx, cancel := context.WithTimeout(ctx, s.timeout)
 	defer cancel()
 
-	// 1. 定义 PromQL：查询该空间下所有节点的最新 CPU、内存和在线状态
-	// 假设我们在 vmagent 上传时打上了 workspace_id 标签
-	query := fmt.Sprintf(`last_over_time({node_id="%s"}[5m])`, "macbook-pro.local")
+	query := fmt.Sprintf(`last_over_time({network_id="%s"}[5m])`, namespace)
 
 	// 执行即时查询 (Instant Query)
 	val, _, err := s.api.Query(ctx, query, time.Now())
@@ -286,22 +288,22 @@ func (s *monitorService) GetGlobalStats(ctx context.Context, metricName string) 
 	return stats, nil
 }
 
-func (s *monitorService) GetWorkspaceAggregatedMonitor(ctx context.Context, wsID string) (*models.AggregatedMonitorResponse, error) {
+func (s *monitorService) GetWorkspaceAggregatedMonitor(ctx context.Context, namespace string) (*models.AggregatedMonitorResponse, error) {
 	var eg errgroup.Group
 	resp := &models.AggregatedMonitorResponse{
-		WorkspaceID: wsID,
-		LiveStats:   make([]models.StatCard, 4), // 预分配固定长度
+		WorkspaceID: namespace,
+		LiveStats:   make([]models.StatCard, 4),
 	}
 
-	// 1. 获取实时吞吐量 (TX/RX)
+	// 1. 获取实时吞吐量 (TX)
 	eg.Go(func() error {
-		resp.LiveStats[0] = s.fetchThroughput(ctx, wsID)
+		resp.LiveStats[0] = s.fetchThroughput(ctx, namespace)
 		return nil
 	})
 
 	// 2. 获取平均延迟
 	eg.Go(func() error {
-		query := fmt.Sprintf(`avg(wireflow_peer_latency_ms{workspace_id="%s"})`, wsID)
+		query := fmt.Sprintf(`avg(wireflow_peer_latency_ms{network_id="%s"})`, namespace)
 		val, _, err := s.api.Query(ctx, query, time.Now())
 		if err == nil {
 			resp.LiveStats[1] = models.StatCard{
@@ -316,7 +318,7 @@ func (s *monitorService) GetWorkspaceAggregatedMonitor(ctx context.Context, wsID
 
 	// 3. 获取丢包率
 	eg.Go(func() error {
-		query := fmt.Sprintf(`avg(wireflow_peer_packet_loss_percent{workspace_id="%s"})`, wsID)
+		query := fmt.Sprintf(`avg(wireflow_peer_packet_loss_percent{network_id="%s"})`, namespace)
 		val, _, err := s.api.Query(ctx, query, time.Now())
 		if err == nil {
 			resp.LiveStats[2] = models.StatCard{
@@ -329,9 +331,9 @@ func (s *monitorService) GetWorkspaceAggregatedMonitor(ctx context.Context, wsID
 		return err
 	})
 
-	// 4. 获取活动隧道数
+	// 4. 活动隧道数：peer_status==1 的连接数 / 2（每条隧道两端各上报一次）
 	eg.Go(func() error {
-		query := fmt.Sprintf(`sum(wireflow_workspace_tunnels{workspace_id="%s",status="established"})`, wsID)
+		query := fmt.Sprintf(`ceil(sum(wireflow_peer_status{network_id="%s"} == 1) / 2)`, namespace)
 		val, _, err := s.api.Query(ctx, query, time.Now())
 		if err == nil {
 			resp.LiveStats[3] = models.StatCard{
@@ -344,15 +346,15 @@ func (s *monitorService) GetWorkspaceAggregatedMonitor(ctx context.Context, wsID
 		return err
 	})
 
-	// 5. 获取趋势图数据 (过去 1 小时，TX + RX)
+	// 5. 吞吐趋势（过去 1h，2m 粒度，TX + RX）
 	eg.Go(func() error {
 		r := v1.Range{
 			Start: time.Now().Add(-1 * time.Hour),
 			End:   time.Now(),
 			Step:  time.Minute * 2,
 		}
-		txQuery := fmt.Sprintf(`sum(irate(wireflow_peer_traffic_bytes_total{workspace_id="%s",direction="tx"}[5m]))`, wsID)
-		rxQuery := fmt.Sprintf(`sum(irate(wireflow_peer_traffic_bytes_total{workspace_id="%s",direction="rx"}[5m]))`, wsID)
+		txQuery := fmt.Sprintf(`sum(irate(wireflow_node_traffic_bytes_total{network_id="%s",direction="tx"}[5m])) * 8 / 1e6`, namespace)
+		rxQuery := fmt.Sprintf(`sum(irate(wireflow_node_traffic_bytes_total{network_id="%s",direction="rx"}[5m])) * 8 / 1e6`, namespace)
 		txResult, _, err := s.api.QueryRange(ctx, txQuery, r)
 		if err == nil {
 			rxResult, _, _ := s.api.QueryRange(ctx, rxQuery, r)
@@ -361,9 +363,9 @@ func (s *monitorService) GetWorkspaceAggregatedMonitor(ctx context.Context, wsID
 		return err
 	})
 
-	// 6. 获取节点列表明细
+	// 6. 节点列表明细
 	eg.Go(func() error {
-		query := fmt.Sprintf(`last_over_time(wireflow_peer_status{workspace_id="%s"}[5m])`, wsID)
+		query := fmt.Sprintf(`last_over_time(wireflow_peer_status{network_id="%s"}[5m])`, namespace)
 		val, _, err := s.api.Query(ctx, query, time.Now())
 		if err == nil {
 			resp.Nodes = s.convertVectorToNodes(val)
@@ -374,6 +376,176 @@ func (s *monitorService) GetWorkspaceAggregatedMonitor(ctx context.Context, wsID
 	if err := eg.Wait(); err != nil {
 		return nil, err
 	}
+	return resp, nil
+}
+
+// GetWorkspaceDashboard 工作空间维度 Dashboard：并发查询 VM，返回 4 个指标卡 + 吞吐趋势 + 节点 CPU + Top 节点。
+// namespace 对应 VictoriaMetrics 里 network_id label 的值（即 workspace.Namespace）。
+func (s *monitorService) GetWorkspaceDashboard(ctx context.Context, namespace string) (*models.WorkspaceDashboardResponse, error) {
+	var (
+		eg    errgroup.Group
+		mu    sync.Mutex
+		cards = make([]models.WorkspaceStatCard, 4) // 0:节点 1:吞吐 2:延迟 3:丢包
+		resp  = &models.WorkspaceDashboardResponse{}
+	)
+
+	// 0. 在线节点数
+	eg.Go(func() error {
+		q := fmt.Sprintf(`count(last_over_time(wireflow_node_uptime_seconds{network_id="%s"}[5m]))`, namespace)
+		vec, _ := s.QueryByTime(ctx, q, time.Now())
+		val := 0
+		if len(vec) > 0 {
+			val = int(vec[0].Value)
+		}
+		cards[0] = models.WorkspaceStatCard{
+			Label: "在线节点", Value: strconv.Itoa(val), Unit: "台",
+			Trend: "stable", Color: "text-emerald-500",
+		}
+		return nil
+	})
+
+	// 1. 实时吞吐 TX（Mbps）
+	eg.Go(func() error {
+		q := fmt.Sprintf(`sum(irate(wireflow_node_traffic_bytes_total{network_id="%s",direction="tx"}[2m])) * 8 / 1e6`, namespace)
+		vec, _ := s.QueryByTime(ctx, q, time.Now())
+		val := 0.0
+		if len(vec) > 0 {
+			val = float64(vec[0].Value)
+		}
+		cards[1] = models.WorkspaceStatCard{
+			Label: "实时吞吐", Value: fmt.Sprintf("%.1f", val), Unit: "Mbps",
+			Trend: s.getTrend(namespace+"_tx", val), Color: "text-blue-500",
+		}
+		return nil
+	})
+
+	// 2. 平均延迟（ms）
+	eg.Go(func() error {
+		q := fmt.Sprintf(`avg(wireflow_peer_latency_ms{network_id="%s"})`, namespace)
+		vec, _ := s.QueryByTime(ctx, q, time.Now())
+		val := 0.0
+		if len(vec) > 0 {
+			val = float64(vec[0].Value)
+		}
+		trend := "stable"
+		if val > 100 {
+			trend = "up"
+		}
+		cards[2] = models.WorkspaceStatCard{
+			Label: "平均延迟", Value: fmt.Sprintf("%.1f", val), Unit: "ms",
+			Trend: trend, Color: "text-amber-500",
+		}
+		return nil
+	})
+
+	// 3. 平均丢包率（%）
+	eg.Go(func() error {
+		q := fmt.Sprintf(`avg(wireflow_peer_packet_loss_percent{network_id="%s"})`, namespace)
+		vec, _ := s.QueryByTime(ctx, q, time.Now())
+		val := 0.0
+		if len(vec) > 0 {
+			val = float64(vec[0].Value)
+		}
+		trend := "stable"
+		if val > 1 {
+			trend = "up"
+		}
+		cards[3] = models.WorkspaceStatCard{
+			Label: "丢包率", Value: fmt.Sprintf("%.2f", val), Unit: "%",
+			Trend: trend, Color: "text-emerald-500",
+		}
+		return nil
+	})
+
+	// 4. 吞吐趋势（近 1h，2m 粒度，TX + RX，单位 Mbps）
+	eg.Go(func() error {
+		r := v1.Range{
+			Start: time.Now().Add(-1 * time.Hour),
+			End:   time.Now(),
+			Step:  2 * time.Minute,
+		}
+		txQ := fmt.Sprintf(`sum(irate(wireflow_node_traffic_bytes_total{network_id="%s",direction="tx"}[5m])) * 8 / 1e6`, namespace)
+		rxQ := fmt.Sprintf(`sum(irate(wireflow_node_traffic_bytes_total{network_id="%s",direction="rx"}[5m])) * 8 / 1e6`, namespace)
+		txResult, _, _ := s.api.QueryRange(ctx, txQ, r)
+		rxResult, _, _ := s.api.QueryRange(ctx, rxQ, r)
+		trend := s.processMatrixToTrendWithRX(txResult, rxResult)
+		mu.Lock()
+		resp.ThroughputTrend = trend
+		mu.Unlock()
+		return nil
+	})
+
+	// 5. 节点 CPU + Memory
+	eg.Go(func() error {
+		cpuQ := fmt.Sprintf(`last_over_time(wireflow_node_cpu_usage_percent{network_id="%s"}[5m])`, namespace)
+		memQ := fmt.Sprintf(`last_over_time(wireflow_node_memory_bytes{network_id="%s"}[5m])`, namespace)
+		cpuVec, _ := s.QueryByTime(ctx, cpuQ, time.Now())
+		memVec, _ := s.QueryByTime(ctx, memQ, time.Now())
+
+		memMap := make(map[string]float64, len(memVec))
+		for _, samp := range memVec {
+			memMap[string(samp.Metric["peer_id"])] = float64(samp.Value) / 1e6
+		}
+
+		items := make([]models.NodeCPUItem, 0, len(cpuVec))
+		for _, samp := range cpuVec {
+			pid := string(samp.Metric["peer_id"])
+			items = append(items, models.NodeCPUItem{
+				PeerID:   pid,
+				Name:     pid,
+				CPU:      float64(samp.Value),
+				MemoryMB: memMap[pid],
+			})
+		}
+		mu.Lock()
+		resp.NodeCPU = items
+		mu.Unlock()
+		return nil
+	})
+
+	// 6. Top 10 节点（24h 流量）
+	eg.Go(func() error {
+		trafficQ := fmt.Sprintf(
+			`topk(10, sum by (peer_id)(increase(wireflow_node_traffic_bytes_total{network_id="%s"}[24h])))`,
+			namespace)
+		trafficVec, _ := s.QueryByTime(ctx, trafficQ, time.Now())
+
+		statusQ := fmt.Sprintf(`last_over_time(wireflow_peer_status{network_id="%s"}[5m])`, namespace)
+		statusVec, _ := s.QueryByTime(ctx, statusQ, time.Now())
+
+		onlineMap := make(map[string]bool)
+		endpointMap := make(map[string]string)
+		for _, samp := range statusVec {
+			pid := string(samp.Metric["peer_id"])
+			if float64(samp.Value) == 1 {
+				onlineMap[pid] = true
+			}
+			if ep := string(samp.Metric["endpoint"]); ep != "" && endpointMap[pid] == "" {
+				endpointMap[pid] = ep
+			}
+		}
+
+		nodes := make([]models.NodeMonitorDetail, 0, len(trafficVec))
+		for _, samp := range trafficVec {
+			pid := string(samp.Metric["peer_id"])
+			nodes = append(nodes, models.NodeMonitorDetail{
+				ID:       pid,
+				Name:     pid,
+				Endpoint: endpointMap[pid],
+				Online:   onlineMap[pid],
+				TotalTx:  int64(float64(samp.Value)),
+			})
+		}
+		mu.Lock()
+		resp.TopNodes = nodes
+		mu.Unlock()
+		return nil
+	})
+
+	if err := eg.Wait(); err != nil {
+		return nil, err
+	}
+	resp.StatCards = cards
 	return resp, nil
 }
 
@@ -431,30 +603,22 @@ func (s *monitorService) convertVectorToNodes(val model.Value) []models.NodeMoni
 	return nodes
 }
 
-func (s *monitorService) fetchThroughput(ctx context.Context, wsID string) models.StatCard {
-	// 1. 定义查询语句
-	// 使用 irate 获取瞬时速率
-	query := fmt.Sprintf(`sum(irate(wireflow_peer_traffic_bytes_total{workspace_id="%s",direction="tx"}[1m])) * 8 / 1000000`, wsID)
+func (s *monitorService) fetchThroughput(ctx context.Context, namespace string) models.StatCard {
+	query := fmt.Sprintf(`sum(irate(wireflow_node_traffic_bytes_total{network_id="%s",direction="tx"}[2m])) * 8 / 1e6`, namespace)
 
 	// 2. 执行查询
 	val, _, err := s.api.Query(ctx, query, time.Now())
 
-	// 3. 默认值处理
-	if err != nil || len(val.(model.Vector)) == 0 {
-		return models.StatCard{
-			Label:   "实时吞吐",
-			Value:   "0.0",
-			Unit:    "Mbps",
-			Trend:   "stable",
-			Color:   "text-blue-500",
-			Percent: 0,
-		}
+	if err != nil {
+		return models.StatCard{Label: "实时吞吐", Value: "0.0", Unit: "Mbps", Trend: "stable", Color: "text-blue-500"}
 	}
 
-	// 4. 数值解析与趋势判断
-	currentValue := float64(val.(model.Vector)[0].Value)
+	vec, _ := val.(model.Vector)
+	if len(vec) == 0 {
+		return models.StatCard{Label: "实时吞吐", Value: "0.0", Unit: "Mbps", Trend: "stable", Color: "text-blue-500"}
+	}
 
-	// 这里的 Percent 可以根据你预设的带宽上限（例如 1000Mbps）计算进度条
+	currentValue := float64(vec[0].Value)
 	percent := int((currentValue / 1000.0) * 100)
 	if percent > 100 {
 		percent = 100
@@ -464,7 +628,7 @@ func (s *monitorService) fetchThroughput(ctx context.Context, wsID string) model
 		Label:   "实时吞吐",
 		Value:   fmt.Sprintf("%.1f", currentValue),
 		Unit:    "Mbps",
-		Trend:   s.getTrend(wsID, currentValue), // 见下方趋势逻辑
+		Trend:   s.getTrend(namespace, currentValue),
 		Color:   "text-blue-500",
 		Percent: percent,
 	}
@@ -528,47 +692,47 @@ func (s *monitorService) GetGlobalDashboard(ctx context.Context) (*models.Dashbo
 		return nil
 	})
 
-	// 4. 每个空间的在线节点数
+	// 4. 每个空间的在线节点数（按 network_id 分组）
 	eg.Go(func() error {
-		vec, err := s.QueryByTime(ctx, `count by (workspace_id) (last_over_time(wireflow_node_uptime_seconds[5m]))`, time.Now())
+		vec, err := s.QueryByTime(ctx, `count by (network_id) (last_over_time(wireflow_node_uptime_seconds[5m]))`, time.Now())
 		if err != nil {
 			return nil
 		}
 		mu.Lock()
 		defer mu.Unlock()
 		for _, sample := range vec {
-			wsID := string(sample.Metric["workspace_id"])
-			wsNodes[wsID] = int(sample.Value)
+			nsID := string(sample.Metric["network_id"])
+			wsNodes[nsID] = int(sample.Value)
 		}
 		return nil
 	})
 
-	// 5. 每个空间 24h 发送流量
+	// 5. 每个空间 24h 发送流量（用节点级聚合，避免双倍计数）
 	eg.Go(func() error {
-		vec, err := s.QueryByTime(ctx, `sum by (workspace_id) (increase(wireflow_peer_traffic_bytes_total{direction="tx"}[24h]))`, time.Now())
+		vec, err := s.QueryByTime(ctx, `sum by (network_id) (increase(wireflow_node_traffic_bytes_total{direction="tx"}[24h]))`, time.Now())
 		if err != nil {
 			return nil
 		}
 		mu.Lock()
 		defer mu.Unlock()
 		for _, sample := range vec {
-			wsID := string(sample.Metric["workspace_id"])
-			wsTraffic[wsID] = float64(sample.Value)
+			nsID := string(sample.Metric["network_id"])
+			wsTraffic[nsID] = float64(sample.Value)
 		}
 		return nil
 	})
 
 	// 6. 每个空间健康度（在线 peer 占比）
 	eg.Go(func() error {
-		vec, err := s.QueryByTime(ctx, `avg by (workspace_id) (wireflow_peer_status) * 100`, time.Now())
+		vec, err := s.QueryByTime(ctx, `avg by (network_id) (wireflow_peer_status) * 100`, time.Now())
 		if err != nil {
 			return nil
 		}
 		mu.Lock()
 		defer mu.Unlock()
 		for _, sample := range vec {
-			wsID := string(sample.Metric["workspace_id"])
-			wsHealth[wsID] = float64(sample.Value)
+			nsID := string(sample.Metric["network_id"])
+			wsHealth[nsID] = float64(sample.Value)
 		}
 		return nil
 	})

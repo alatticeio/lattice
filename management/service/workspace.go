@@ -2,9 +2,7 @@ package service
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"wireflow/internal/config"
 	"wireflow/internal/infra"
 	"wireflow/internal/log"
 	"wireflow/internal/store"
@@ -15,7 +13,6 @@ import (
 	"wireflow/pkg/utils"
 
 	"golang.org/x/sync/errgroup"
-	"gorm.io/gorm"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
@@ -27,7 +24,6 @@ import (
 )
 
 type WorkspaceService interface {
-	OnboardExternalUser(ctx context.Context, userId, extEmail string) (*models.User, error)
 	AddWorkspace(ctx context.Context, dto *dto.WorkspaceDto) (*vo.WorkspaceVo, error)
 	DeleteWorkspace(ctx context.Context, id string) error
 	ListWorkspaces(ctx context.Context, search *dto.PageRequest) (*dto.PageResult[vo.WorkspaceVo], error)
@@ -37,7 +33,7 @@ type WorkspaceMemberService interface {
 	Create(ctx context.Context, workspace *models.WorkspaceMember) (*models.WorkspaceMember, error)
 	Update(ctx context.Context, workspace *models.WorkspaceMember) (*models.WorkspaceMember, error)
 	Delete(ctx context.Context, workspace *models.WorkspaceMember) error
-	List(ctx context.Context) ([]*models.WorkspaceMember, error)
+	List(ctx context.Context, workspaceID string) ([]*models.WorkspaceMember, error)
 
 	// GetMemberRole 获取用户在特定工作区中的角色
 	GetMemberRole(ctx context.Context, workspaceNamespace string, userID string) (dto.WorkspaceRole, error)
@@ -180,24 +176,26 @@ func (w *workspaceMemberService) GetMemberRole(ctx context.Context, workspaceNam
 	return member.Role, nil
 }
 
-func (w *workspaceMemberService) Create(ctx context.Context, workspace *models.WorkspaceMember) (*models.WorkspaceMember, error) {
-	//TODO implement me
-	panic("implement me")
+func (w *workspaceMemberService) Create(ctx context.Context, member *models.WorkspaceMember) (*models.WorkspaceMember, error) {
+	if err := w.store.WorkspaceMembers().AddMember(ctx, member); err != nil {
+		return nil, err
+	}
+	return member, nil
 }
 
-func (w *workspaceMemberService) Update(ctx context.Context, workspace *models.WorkspaceMember) (*models.WorkspaceMember, error) {
-	//TODO implement me
-	panic("implement me")
+func (w *workspaceMemberService) Update(ctx context.Context, member *models.WorkspaceMember) (*models.WorkspaceMember, error) {
+	if err := w.store.WorkspaceMembers().UpdateRole(ctx, member.WorkspaceID, member.UserID, member.Role); err != nil {
+		return nil, err
+	}
+	return member, nil
 }
 
-func (w *workspaceMemberService) Delete(ctx context.Context, workspace *models.WorkspaceMember) error {
-	//TODO implement me
-	panic("implement me")
+func (w *workspaceMemberService) Delete(ctx context.Context, member *models.WorkspaceMember) error {
+	return w.store.WorkspaceMembers().RemoveMember(ctx, member.WorkspaceID, member.UserID)
 }
 
-func (w *workspaceMemberService) List(ctx context.Context) ([]*models.WorkspaceMember, error) {
-	//TODO implement me
-	panic("implement me")
+func (w *workspaceMemberService) List(ctx context.Context, workspaceID string) ([]*models.WorkspaceMember, error) {
+	return w.store.WorkspaceMembers().ListMembers(ctx, workspaceID)
 }
 
 func NewWorkspaceService(client *client_r.Client, st store.Store) WorkspaceService {
@@ -219,30 +217,6 @@ func NewWorkspaceMemberService(st store.Store) WorkspaceMemberService {
 		log:   log.GetLogger("workspace-member-service"),
 		store: st,
 	}
-}
-
-func (w *workspaceService) OnboardExternalUser(ctx context.Context, externalID, email string) (*models.User, error) {
-	existing, err := w.store.Users().GetByExternalID(ctx, externalID)
-	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, err
-	}
-	if existing != nil {
-		return existing, nil
-	}
-
-	role := dto.RoleViewer
-	for _, adminEmail := range config.GlobalConfig.App.InitAdmins {
-		if email == adminEmail.Username {
-			role = dto.RoleAdmin
-			break
-		}
-	}
-
-	user := &models.User{ExternalID: externalID, Email: email, Role: role}
-	if err := w.store.Users().Create(ctx, user); err != nil {
-		return nil, err
-	}
-	return user, nil
 }
 
 func (w *workspaceService) AddWorkspace(ctx context.Context, dto *dto.WorkspaceDto) (*vo.WorkspaceVo, error) {
@@ -284,10 +258,6 @@ func (w *workspaceService) InitNewNamespace(ctx context.Context, workspaceId str
 	return w.InitializeTenant(ctx, workspaceId, "admin")
 }
 
-func (w *workspaceService) CreateRoleBinding(ctx context.Context, perm *models.UserNamespacePermission) error {
-	return nil
-}
-
 func (w *workspaceService) InitializeTenant(ctx context.Context, wsID, role string) error {
 	nsName := fmt.Sprintf("wf-%s", wsID)
 
@@ -317,7 +287,7 @@ func (w *workspaceService) InitializeTenant(ctx context.Context, wsID, role stri
 	}
 
 	// 3. 创建RoleBinding
-	for _, r := range []string{"admin", "member", "viewer"} {
+	for _, r := range []string{"admin", "editor", "member", "viewer"} {
 		if err := w.createRoleBinding(ctx, nsName, wsID, r); err != nil {
 			return fmt.Errorf("failed to create role binding: %v", err)
 		}

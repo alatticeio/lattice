@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+    <!-- 实心蓝色六边形背景 -->
+    <polygon
+            points="50,2 91,26 91,74 50,98 9,74 9,26"
+            fill="#007BFF"
+    />
+
+    <!-- 白色菱形连接线 -->
+    <g stroke="white" stroke-width="4.5" stroke-linecap="round">
+        <line x1="33" y1="44" x2="44" y2="33"/>
+        <line x1="33" y1="56" x2="44" y2="67"/>
+        <line x1="56" y1="33" x2="67" y2="44"/>
+        <line x1="56" y1="67" x2="67" y2="56"/>
+    </g>
+
+    <!-- 白色节点 -->
+    <g fill="white">
+        <circle cx="27" cy="50" r="8"/>
+        <circle cx="50" cy="27" r="8"/>
+        <circle cx="50" cy="73" r="8"/>
+        <circle cx="73" cy="50" r="8"/>
+    </g>
+</svg>
