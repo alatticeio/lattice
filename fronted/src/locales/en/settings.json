@@ -1,4 +1,17 @@
 {
+  "dashboard": {
+    "title": "Dashboard",
+    "desc": "Real-time network status monitoring.",
+    "workspaceMode": "Workspace",
+    "globalMode": "Global",
+    "viewLabel": "{mode} View",
+    "throughputSub": "{mode} real-time traffic ({unit})",
+    "nodeLoadTitle": "Node Load",
+    "nodeLoadSub": "Current node CPU load distribution",
+    "accelerating": "Acceleration engine active",
+    "noNodeData": "No node data — ensure monitoring service is ready",
+    "noLogs": "No logs"
+  },
   "approvals": {
     "title": "Approval Workbench",
     "desc": "View and process pending approval requests.",
@@ -75,21 +88,135 @@
     "title": "Audit Log",
     "desc": "View the complete operation history for this workspace.",
     "searchPlaceholder": "Search by operator or resource...",
+    "stats": {
+      "totalOps": "Total Operations",
+      "failedOps": "Failed Operations",
+      "allSuccess": "All successful",
+      "anomalies": "{n} anomalies",
+      "needsAttention": "Needs attention",
+      "runningNormal": "Running normally",
+      "activeUsers": "Active Users",
+      "activeUsersSub": "Unique users with activity",
+      "deleteOps": "Delete Operations",
+      "noDeletes": "No deletes",
+      "nDeleteOps": "{n} deletions",
+      "dataSecure": "Data secure",
+      "needsConfirm": "Needs review"
+    },
+    "filter": {
+      "allActions": "All Actions",
+      "allResources": "All Resources",
+      "allResults": "All Results"
+    },
+    "actionLabel": {
+      "CREATE": "Create",
+      "UPDATE": "Update",
+      "DELETE": "Delete",
+      "LOGIN": "Login",
+      "INVITE": "Invite",
+      "REVOKE": "Revoke",
+      "EXPORT": "Export",
+      "ACCEPT": "Accept"
+    },
+    "resourceLabel": {
+      "member": "Member",
+      "workspace": "Workspace",
+      "policy": "Policy",
+      "token": "Token",
+      "relay": "Relay",
+      "invitation": "Invitation",
+      "peer": "Node",
+      "user": "User"
+    },
     "col": {
       "time": "Time",
       "operator": "Operator",
       "action": "Action",
       "resource": "Resource",
+      "scope": "Scope",
       "status": "Status",
-      "detail": "Detail"
+      "detail": ""
     },
-    "status": {
+    "result": {
       "success": "Success",
       "failed": "Failed"
-    }
+    },
+    "detailBtn": "Detail",
+    "empty": "No audit records"
   },
   "relays": {
     "title": "Relay Nodes",
-    "desc": "Manage WireGuard relay servers."
+    "desc": "Manage WireGuard relay servers.",
+    "createBtn": "Add Relay",
+    "searchPlaceholder": "Search name or address...",
+    "stats": {
+      "all": "All Relays",
+      "allSub": "{n} QUIC-enabled",
+      "healthy": "Healthy",
+      "healthySub": "Connectivity normal",
+      "degraded": "Degraded",
+      "degradedSub": "High latency or packet loss",
+      "offline": "Offline / Disabled",
+      "offlineSub": "Unavailable or disabled"
+    },
+    "status": {
+      "healthy": "Healthy",
+      "degraded": "Degraded",
+      "offline": "Offline",
+      "disabled": "Disabled",
+      "unknown": "Unknown"
+    },
+    "col": {
+      "status": "Status",
+      "name": "Name",
+      "tcp": "TCP",
+      "quic": "QUIC",
+      "latency": "Latency",
+      "peers": "Connected Nodes",
+      "workspaces": "Workspaces",
+      "actions": ""
+    },
+    "allWorkspaces": "All",
+    "menu": {
+      "test": "Test",
+      "testing": "Testing...",
+      "edit": "Edit",
+      "delete": "Delete"
+    },
+    "deleteDialog": {
+      "title": "Delete Relay",
+      "desc": "Delete \"{name}\"? Nodes using this relay will fall back or direct-connect on next sync."
+    },
+    "dialog": {
+      "createTitle": "Add Relay",
+      "editTitle": "Edit Relay",
+      "desc": "Relay address will be synced to WireflowPeer in corresponding workspaces.",
+      "nameLabel": "Name",
+      "descLabel": "Description",
+      "tcpLabel": "TCP Address",
+      "tcpHint": "Corresponds to the --wrrp-url parameter (WrrpUrl field)",
+      "quicLabel": "QUIC Address",
+      "quicOptional": "(optional, recommended)",
+      "quicHint": "Corresponds to --wrrp-quic-url. Higher priority than TCP, supports 0-RTT.",
+      "enabledLabel": "Enable this relay",
+      "enabledDesc": "When disabled, not pushed to any nodes",
+      "saving": "Saving...",
+      "save": "Save Changes",
+      "create": "Create"
+    },
+    "empty": "No relays",
+    "toast": {
+      "fetchFailed": "Failed to load relays",
+      "created": "Relay created",
+      "updated": "Relay updated",
+      "deleted": "Relay deleted",
+      "updateFailed": "Update failed",
+      "createFailed": "Create failed",
+      "deleteFailed": "Delete failed",
+      "testSuccess": "Connectivity OK, latency {ms} ms",
+      "testFailed": "Connectivity test failed",
+      "nameRequired": "Please enter a name",
+      "tcpRequired": "Please enter a TCP address"
+    }
   }
 }

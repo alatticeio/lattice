@@ -25,6 +25,7 @@ import (
 	"wireflow/internal/log"
 	"wireflow/internal/store"
 	"wireflow/management/controller"
+	"wireflow/management/llm"
 	managementnats "wireflow/management/nats"
 	"wireflow/management/resource"
 	"wireflow/management/server/middleware"
@@ -63,6 +64,8 @@ type Server struct {
 	profileController  controller.ProfileController
 	auditController    controller.AuditController
 	workflowController controller.WorkflowController
+
+	aiService service.AIService
 
 	tenantMiddleware *middleware.TenantMiddleware
 	auditService     service.AuditService
@@ -147,6 +150,20 @@ func NewServer(ctx context.Context, serverConfig *ServerConfig) (*Server, error)
 
 	workflowSvc := service.NewWorkflowService(st)
 
+	// ── 弱依赖③：AI 服务（APIKey 未配置时降级为 nil）──────────────────────
+	var aiSvc service.AIService
+	if cfg.AI.Enabled && cfg.AI.APIKey != "" {
+		llmClient, aiErr := llm.NewClient(cfg.AI)
+		if aiErr != nil {
+			logger.Warn("AI init failed, AI features disabled", "err", aiErr)
+		} else {
+			aiSvc = service.NewAIService(llmClient, st, client, presence, cfg.AI.MaxToolCalls)
+			logger.Info("AI service initialized", "provider", cfg.AI.Provider)
+		}
+	} else {
+		logger.Info("AI service disabled (set ai.enabled=true and ai.api-key to enable)")
+	}
+
 	s := &Server{
 		Engine:               gin.Default(),
 		logger:               logger,
@@ -174,6 +191,7 @@ func NewServer(ctx context.Context, serverConfig *ServerConfig) (*Server, error)
 		auditService:         auditSvc,
 		workflowService:      workflowSvc,
 		store:                st,
+		aiService:            aiSvc,
 	}
 
 	// initAdmins：DB 已就绪后执行；失败只告警，不阻断启动。

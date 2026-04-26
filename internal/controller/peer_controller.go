@@ -90,6 +90,13 @@ func (r *PeerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 		return ctrl.Result{}, err
 	}
 
+	// Shadow peers are managed exclusively by NetworkPeeringReconciler /
+	// ClusterPeeringReconciler; skip them here to avoid conflicting updates.
+	if node.GetLabels()[LabelShadow] == "true" {
+		log.Info("Skipping shadow peer", "namespace", req.Namespace, "name", req.Name)
+		return ctrl.Result{}, nil
+	}
+
 	action, err := r.determineAction(ctx, &node)
 	if err != nil {
 		return ctrl.Result{}, err

@@ -91,7 +91,7 @@ type NodeConfig struct {
 //
 // Phase 1 — Network foundation (no business dependencies)
 //
-//	TUN device → UDP sockets → ICE UDP Mux → NATS signal service
+//	TUN device → UDP sockets → FilteringUDPMux (v4/v6) → NATS signal service
 //
 // Phase 2 — Identity and signaling (depends on phase 1)
 //
@@ -133,7 +133,8 @@ func NewNode(ctx context.Context, cfg *NodeConfig) (*Node, error) {
 	}
 
 	// UDP sockets: ICE candidate gathering and WireGuard encapsulated packets
-	// share the same port (default 51820) via the ICE UDP Mux below.
+	// share the same port (default 51820). FilteringUDPMux is the sole reader
+	// of each socket and demultiplexes traffic: STUN → ICE mux, non-STUN → WireGuard.
 	if v4conn, _, err = infra.ListenUDP("udp4", uint16(cfg.Port)); err != nil {
 		return nil, err
 	}
@@ -142,9 +143,24 @@ func NewNode(ctx context.Context, cfg *NodeConfig) (*Node, error) {
 		return nil, err
 	}
 
-	// ICE UDP Mux: multiplexes a single UDP port across multiple concurrent ICE
-	// agents, avoiding the need for a dedicated port per peer connection.
-	universalUdpMuxDefault := infra.NewUdpMux(v4conn, cfg.ShowLog)
+	// FilteringUDPMux (v4): sole reader of the shared UDP4 socket. Classifies
+	// packets: STUN → ICE mux connWorker; non-STUN → passThroughCh → WireGuard.
+	passThroughCh := make(chan infra.PassThroughPacket, 512)
+	filteringMux := infra.NewFilteringMux(v4conn, cfg.ShowLog)
+	filteringMux.SetPassThrough(passThroughCh)
+	filteringMux.Start()
+
+	// FilteringUDPMux (v6): same design for the UDP6 socket so that ICE over IPv6
+	// can share v6conn with WireGuard without a connWorker race. Skipped when
+	// IPv6 is unavailable (v6conn == nil, e.g. EAFNOSUPPORT).
+	var filteringMux6 *infra.FilteringUDPMux
+	var passThroughCh6 chan infra.PassThroughPacket
+	if v6conn != nil {
+		passThroughCh6 = make(chan infra.PassThroughPacket, 512)
+		filteringMux6 = infra.NewFilteringMux(v6conn, cfg.ShowLog)
+		filteringMux6.SetPassThrough(passThroughCh6)
+		filteringMux6.Start()
+	}
 
 	// NATS signal service: exchanges ICE signaling messages (SYN/ACK/Offer/Answer)
 	// with the control plane and remote peers.
@@ -189,8 +205,8 @@ func NewNode(ctx context.Context, cfg *NodeConfig) (*Node, error) {
 	node.manager.keyManager = infra.NewKeyManager(privateKey)
 
 	// PeerIdentity is this node's unique signaling identity: AppID + PublicKey.
-	// It is used as the ICE tiebreaker to deterministically elect the ICE
-	// initiator when two peers attempt to connect simultaneously.
+	// isInitiator() compares two PeerIdentities numerically to deterministically
+	// elect the controlling peer when two nodes attempt to connect simultaneously.
 	localIdentity := infra.NewPeerIdentity(node.current.AppID, privateKey.PublicKey())
 
 	// Register this node in the PeerManager so hole-punching logic can look up
@@ -206,7 +222,8 @@ func NewNode(ctx context.Context, cfg *NodeConfig) (*Node, error) {
 		LocalId:                localIdentity,
 		Signal:                 natsSignalService,
 		PeerManager:            node.manager.peerManager,
-		UniversalUdpMuxDefault: universalUdpMuxDefault,
+		FilteringMux:  filteringMux,
+		FilteringMux6: filteringMux6,
 		ShowLog:                cfg.ShowLog,
 		GetProvisioner: func() infra.Provisioner {
 			return node.provisioner
@@ -259,7 +276,8 @@ func NewNode(ctx context.Context, cfg *NodeConfig) (*Node, error) {
 	// during the handshake.
 	node.bind = infra.NewBind(&infra.BindConfig{
 		Logger:          cfg.Logger,
-		UniversalUDPMux: universalUdpMuxDefault,
+		PassThrough:  passThroughCh,
+		PassThrough6: passThroughCh6,
 		V4Conn:          v4conn,
 		V6Conn:          v6conn,
 		WrrpClient:      wrrp,

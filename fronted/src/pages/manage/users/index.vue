@@ -201,9 +201,9 @@ watch(rows, async (newRows) => {
 
 // ── Styles ────────────────────────────────────────────────────────
 const roleLabel = computed<Record<string, string>>(() => ({
-  platform_admin: t('role.platform_admin'),
-  user: t('role.user'),
-  '': t('role.user'),
+  platform_admin: t('common.role.platform_admin'),
+  user: t('common.role.user'),
+  '': t('common.role.user'),
 }))
 const roleStyle: Record<string, string> = {
   platform_admin: 'bg-primary/10 text-primary ring-1 ring-primary/20',
@@ -255,7 +255,7 @@ const columns = computed((): ColumnDef<UserVo>[] => [
     cell: ({ row }) => {
       const u = row.original
       const isAdmin = u.role === 'platform_admin'
-      const label = roleLabel.value[u.role ?? ''] ?? t('role.user')
+      const label = roleLabel.value[u.role ?? ''] ?? t('common.role.user')
       const style = roleStyle[u.role ?? ''] ?? roleStyle['']
       return h('span', {
         class: `inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full ${style}`,
@@ -288,10 +288,10 @@ const columns = computed((): ColumnDef<UserVo>[] => [
         return h('span', { class: 'text-xs text-muted-foreground' }, t('manage.users.noWorkspace'))
       }
       const wsRoleLabel: Record<string, string> = {
-        admin:  t('role.admin'),
-        editor: t('role.editor'),
-        member: t('role.member'),
-        viewer: t('role.viewer'),
+        admin:  t('common.role.admin'),
+        editor: t('common.role.editor'),
+        member: t('common.role.member'),
+        viewer: t('common.role.viewer'),
       }
       const wsRoleStyle: Record<string, string> = {
         admin:  'bg-primary/10 text-primary ring-primary/20',
@@ -486,7 +486,7 @@ const table = useVueTable({
         </div>
         <Button variant="outline" size="sm" class="gap-1.5 h-9" :disabled="loading" @click="doRefresh()">
           <RefreshCw class="size-3.5" :class="loading ? 'animate-spin' : ''" />
-          {{ t('action.refresh') }}
+          {{ t('common.action.refresh') }}
         </Button>
       </div>
     </div>
@@ -529,7 +529,7 @@ const table = useVueTable({
                   <Users class="size-6" />
                 </div>
                 <p class="text-sm font-medium">
-                  {{ loading ? t('status.loading') : t('status.empty') }}
+                  {{ loading ? t('common.status.loading') : t('common.status.empty') }}
                 </p>
               </div>
             </TableCell>
@@ -540,7 +540,7 @@ const table = useVueTable({
 
     <!-- ── Pagination ─────────────────────────────────────────────── -->
     <div class="flex items-center justify-between text-sm text-muted-foreground">
-      <span>{{ t('pagination.totalUsers', { total, page, totalPages }) }}</span>
+      <span>{{ t('common.pagination.totalUsers', { total, page, totalPages }) }}</span>
       <div class="flex items-center gap-1">
         <Button variant="outline" size="sm" class="size-8 p-0"
           :disabled="page <= 1" @click="doRefresh(page - 1)">
@@ -574,7 +574,7 @@ const table = useVueTable({
       <div class="max-h-[55vh] overflow-y-auto -mx-6 px-6 space-y-1 py-1">
         <!-- Loading -->
         <div v-if="wsPermLoading" class="flex items-center justify-center h-32 text-muted-foreground text-sm">
-          {{ t('status.loading') }}
+          {{ t('common.status.loading') }}
         </div>
         <!-- Empty -->
         <div v-else-if="wsRows.length === 0" class="flex items-center justify-center h-32 text-muted-foreground text-sm">
@@ -610,10 +610,10 @@ const table = useVueTable({
             :disabled="!row.checked"
             class="h-7 rounded-md border border-input bg-background px-2 text-xs focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:opacity-40 disabled:cursor-not-allowed w-28"
           >
-            <option value="admin">{{ t('role.admin') }}</option>
-            <option value="editor">{{ t('role.editor') }}</option>
-            <option value="member">{{ t('role.member') }}</option>
-            <option value="viewer">{{ t('role.viewer') }}</option>
+            <option value="admin">{{ t('common.role.admin') }}</option>
+            <option value="editor">{{ t('common.role.editor') }}</option>
+            <option value="member">{{ t('common.role.member') }}</option>
+            <option value="viewer">{{ t('common.role.viewer') }}</option>
           </select>
 
           <!-- Already member badge -->
@@ -626,12 +626,12 @@ const table = useVueTable({
       </div>
 
       <DialogFooter>
-        <Button variant="outline" @click="wsPermOpen = false">{{ t('action.cancel') }}</Button>
+        <Button variant="outline" @click="wsPermOpen = false">{{ t('common.action.cancel') }}</Button>
         <Button
           :disabled="wsPermSaving || pendingChanges === 0"
           @click="saveWsPermissions"
         >
-          {{ wsPermSaving ? t('status.saving') : pendingChanges > 0 ? t('manage.users.wsDialog.saveCount', { n: pendingChanges }) : t('manage.users.wsDialog.noChanges') }}
+          {{ wsPermSaving ? t('common.status.saving') : pendingChanges > 0 ? t('manage.users.wsDialog.saveCount', { n: pendingChanges }) : t('manage.users.wsDialog.noChanges') }}
         </Button>
       </DialogFooter>
     </DialogContent>

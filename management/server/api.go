@@ -91,6 +91,10 @@ func (s *Server) apiRouter() error {
 
 	s.workflowRouter()
 
+	s.peeringRouter()
+
+	s.aiRouter()
+
 	// SPA 静态资源：必须最后注册，通过 NoRoute 捕获所有未匹配路径
 	s.logger.Info("Registering SPA static files")
 	web.RegisterHandlers(s.Engine)

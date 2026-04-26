@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, h } from 'vue'
+import { useI18n } from 'vue-i18n'
 import {
   useVueTable, getCoreRowModel,
   FlexRender, type ColumnDef,
@@ -19,8 +20,10 @@ import { listAuditLogs, type AuditLogVo } from '@/api/audit'
 import { useTable } from '@/composables/useApi'
 
 definePage({
-  meta: { title: '审计日志', description: '查看 Workspace 内所有操作的完整记录。' },
+  meta: { titleKey: 'settings.audit.title', descKey: 'settings.audit.desc' },
 })
+
+const { t, locale } = useI18n()
 
 // ── Data ──────────────────────────────────────────────────────────
 const { rows: logs, total, loading, refresh } = useTable(listAuditLogs)
@@ -29,19 +32,20 @@ const pageSize = ref(10)
 onMounted(() => refresh({ page: page.value, pageSize: pageSize.value }))
 
 // ── Filters ───────────────────────────────────────────────────────
-const searchValue  = ref('')
-const actionFilter = ref('')
+const searchValue    = ref('')
+const actionFilter   = ref('')
 const resourceFilter = ref('')
-const statusFilter = ref('')
-const timeRange    = ref('7d')
+const statusFilter   = ref('')
+const timeRange      = ref('7d')
 
 const actions   = ['CREATE', 'UPDATE', 'DELETE', 'LOGIN', 'INVITE', 'REVOKE', 'EXPORT', 'ACCEPT']
 const resources = ['member', 'workspace', 'policy', 'token', 'relay', 'invitation', 'peer', 'user']
-const timeRanges = [
-  { label: '今天',   value: '1d' },
-  { label: '近 7 天', value: '7d' },
-  { label: '近 30 天', value: '30d' },
-]
+
+const timeRanges = computed(() => [
+  { label: t('common.time.today'),      value: '1d' },
+  { label: t('common.time.last7Days'),  value: '7d' },
+  { label: t('common.time.last30Days'), value: '30d' },
+])
 
 function fromDate(range: string): string {
   const d = new Date()
@@ -72,7 +76,7 @@ const visiblePages = computed(() => {
   return Array.from({ length: end - start + 1 }, (_, i) => start + i)
 })
 
-// ── Style maps ────────────────────────────────────────────────────
+// ── Style / label maps ────────────────────────────────────────────
 const actionStyle: Record<string, string> = {
   CREATE: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 ring-1 ring-emerald-500/20',
   UPDATE: 'bg-blue-500/10 text-blue-600 dark:text-blue-400 ring-1 ring-blue-500/20',
@@ -83,30 +87,47 @@ const actionStyle: Record<string, string> = {
   EXPORT: 'bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 ring-1 ring-cyan-500/20',
   ACCEPT: 'bg-teal-500/10 text-teal-600 dark:text-teal-400 ring-1 ring-teal-500/20',
 }
-const actionLabel: Record<string, string> = {
-  CREATE: '创建', UPDATE: '更新', DELETE: '删除', LOGIN: '登录',
-  INVITE: '邀请', REVOKE: '撤销', EXPORT: '导出', ACCEPT: '接受',
-}
-const resourceLabel: Record<string, string> = {
-  member: '成员', workspace: '空间', policy: '策略', token: '令牌',
-  relay: '中继', invitation: '邀请', peer: '节点', user: '用户',
-}
+
+const actionLabel = computed<Record<string, string>>(() => ({
+  CREATE: t('settings.audit.actionLabel.CREATE'),
+  UPDATE: t('settings.audit.actionLabel.UPDATE'),
+  DELETE: t('settings.audit.actionLabel.DELETE'),
+  LOGIN:  t('settings.audit.actionLabel.LOGIN'),
+  INVITE: t('settings.audit.actionLabel.INVITE'),
+  REVOKE: t('settings.audit.actionLabel.REVOKE'),
+  EXPORT: t('settings.audit.actionLabel.EXPORT'),
+  ACCEPT: t('settings.audit.actionLabel.ACCEPT'),
+}))
+
+const resourceLabel = computed<Record<string, string>>(() => ({
+  member:     t('settings.audit.resourceLabel.member'),
+  workspace:  t('settings.audit.resourceLabel.workspace'),
+  policy:     t('settings.audit.resourceLabel.policy'),
+  token:      t('settings.audit.resourceLabel.token'),
+  relay:      t('settings.audit.resourceLabel.relay'),
+  invitation: t('settings.audit.resourceLabel.invitation'),
+  peer:       t('settings.audit.resourceLabel.peer'),
+  user:       t('settings.audit.resourceLabel.user'),
+}))
 
 function formatTime(iso: string): string {
   if (!iso) return '—'
   const diff = Date.now() - new Date(iso).getTime()
-  if (diff < 60_000)     return '刚刚'
-  if (diff < 3_600_000)  return `${Math.floor(diff / 60_000)} 分钟前`
-  if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)} 小时前`
-  return new Date(iso).toLocaleString('zh-CN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+  if (diff < 60_000)     return t('common.time.justNow')
+  if (diff < 3_600_000)  return t('common.time.minutesAgo', { n: Math.floor(diff / 60_000) })
+  if (diff < 86_400_000) return t('common.time.hoursAgo', { n: Math.floor(diff / 3_600_000) })
+  return new Date(iso).toLocaleString(
+    locale.value === 'zh-CN' ? 'zh-CN' : 'en-US',
+    { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' },
+  )
 }
 
 // ── Stats ─────────────────────────────────────────────────────────
 const stats = computed(() => {
   const all = logs.value as AuditLogVo[]
-  const failed   = all.filter(l => l.status === 'failed').length
-  const users    = new Set(all.map(l => l.userId).filter(Boolean)).size
-  const deletes  = all.filter(l => l.action === 'DELETE').length
+  const failed  = all.filter(l => l.status === 'failed').length
+  const users   = new Set(all.map(l => l.userId).filter(Boolean)).size
+  const deletes = all.filter(l => l.action === 'DELETE').length
   return { total: total.value || all.length, failed, users, deletes }
 })
 
@@ -120,7 +141,7 @@ function toggleExpand(id: string) {
 const columns: ColumnDef<AuditLogVo>[] = [
   {
     id: 'time',
-    header: '时间',
+    header: () => t('settings.audit.col.time'),
     cell: ({ row }) => {
       const l = row.original
       return h('div', { class: 'flex items-center gap-1.5 text-xs text-muted-foreground whitespace-nowrap' }, [
@@ -131,7 +152,7 @@ const columns: ColumnDef<AuditLogVo>[] = [
   },
   {
     id: 'user',
-    header: '操作者',
+    header: () => t('settings.audit.col.operator'),
     cell: ({ row }) => {
       const l = row.original
       const displayName = l.userName || l.userEmail || '—'
@@ -143,28 +164,28 @@ const columns: ColumnDef<AuditLogVo>[] = [
   },
   {
     id: 'action',
-    header: '操作',
+    header: () => t('settings.audit.col.action'),
     cell: ({ row }) => {
       const action = row.original.action
       return h('span', {
         class: `text-[11px] font-bold px-2.5 py-1 rounded-full w-fit ${actionStyle[action] ?? 'bg-muted text-muted-foreground ring-1 ring-border'}`,
-      }, actionLabel[action] ?? action)
+      }, actionLabel.value[action] ?? action)
     },
   },
   {
     id: 'resource',
-    header: '资源',
+    header: () => t('settings.audit.col.resource'),
     cell: ({ row }) => {
       const l = row.original
       return h('div', { class: 'flex flex-col gap-0.5' }, [
-        h('span', { class: 'text-xs font-medium' }, resourceLabel[l.resource] ?? l.resource),
+        h('span', { class: 'text-xs font-medium' }, resourceLabel.value[l.resource] ?? l.resource),
         l.resourceName && h('span', { class: 'text-[11px] text-muted-foreground/60 truncate max-w-32' }, l.resourceName),
       ])
     },
   },
   {
     id: 'scope',
-    header: '影响范围',
+    header: () => t('settings.audit.col.scope'),
     cell: ({ row }) => {
       const scope = row.original.scope
       if (!scope) return h('span', { class: 'text-[11px] text-muted-foreground/40 italic' }, '—')
@@ -173,7 +194,7 @@ const columns: ColumnDef<AuditLogVo>[] = [
   },
   {
     id: 'status',
-    header: '结果',
+    header: () => t('settings.audit.col.status'),
     cell: ({ row }) => {
       const s = row.original.status
       const ok = s === 'success'
@@ -183,13 +204,13 @@ const columns: ColumnDef<AuditLogVo>[] = [
         }),
         h('span', {
           class: `text-[11px] font-medium ${ok ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500'}`,
-        }, ok ? '成功' : '失败'),
+        }, ok ? t('settings.audit.result.success') : t('settings.audit.result.failed')),
       ])
     },
   },
   {
     id: 'detail',
-    header: '',
+    header: () => t('settings.audit.col.detail'),
     cell: ({ row }) => {
       const l = row.original
       if (!l.detail) return h('span')
@@ -201,7 +222,7 @@ const columns: ColumnDef<AuditLogVo>[] = [
         onClick: () => toggleExpand(l.id),
       }, () => [
         h(FileText, { class: 'size-3' }),
-        '详情',
+        t('settings.audit.detailBtn'),
         h(ChevronDown, { class: `size-3 transition-transform ${expanded ? 'rotate-180' : ''}` }),
       ])
     },
@@ -223,11 +244,10 @@ const table = useVueTable({
     <!-- ── Stat cards ─────────────────────────────────────────────── -->
     <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
 
-      <!-- 总操作数 -->
       <div class="border-border bg-card text-card-foreground rounded-xl border p-5 shadow-sm">
         <div class="flex items-start justify-between">
           <div class="flex flex-col gap-1">
-            <span class="text-muted-foreground text-sm font-medium">操作总数</span>
+            <span class="text-muted-foreground text-sm font-medium">{{ t('settings.audit.stats.totalOps') }}</span>
             <span class="text-2xl font-bold tracking-tight">{{ stats.total }}</span>
           </div>
           <div class="bg-muted rounded-lg p-2">
@@ -236,15 +256,14 @@ const table = useVueTable({
         </div>
         <div class="mt-3 flex items-center gap-1 text-sm">
           <ArrowUpRight class="text-muted-foreground size-4 shrink-0" />
-          <span class="text-muted-foreground">近 <span class="font-semibold text-foreground">{{ timeRanges.find(t => t.value === timeRange)?.label }}</span> 记录</span>
+          <span class="text-muted-foreground">{{ timeRanges.find(r => r.value === timeRange)?.label }}</span>
         </div>
       </div>
 
-      <!-- 失败操作 -->
       <div class="border-border bg-card text-card-foreground rounded-xl border p-5 shadow-sm">
         <div class="flex items-start justify-between">
           <div class="flex flex-col gap-1">
-            <span class="text-muted-foreground text-sm font-medium">失败操作</span>
+            <span class="text-muted-foreground text-sm font-medium">{{ t('settings.audit.stats.failedOps') }}</span>
             <span class="text-2xl font-bold tracking-tight">{{ stats.failed }}</span>
           </div>
           <div class="bg-muted rounded-lg p-2">
@@ -258,17 +277,16 @@ const table = useVueTable({
             class="size-4 shrink-0"
           />
           <span :class="stats.failed === 0 ? 'text-emerald-600 font-semibold' : 'text-red-500 font-semibold'">
-            {{ stats.failed === 0 ? '全部成功' : stats.failed + ' 次异常' }}
+            {{ stats.failed === 0 ? t('settings.audit.stats.allSuccess') : t('settings.audit.stats.anomalies', { n: stats.failed }) }}
           </span>
-          <span class="text-muted-foreground">{{ stats.failed === 0 ? '运行正常' : '需要关注' }}</span>
+          <span class="text-muted-foreground">{{ t(stats.failed === 0 ? 'settings.audit.stats.runningNormal' : 'settings.audit.stats.needsAttention') }}</span>
         </div>
       </div>
 
-      <!-- 活跃用户 -->
       <div class="border-border bg-card text-card-foreground rounded-xl border p-5 shadow-sm">
         <div class="flex items-start justify-between">
           <div class="flex flex-col gap-1">
-            <span class="text-muted-foreground text-sm font-medium">活跃用户</span>
+            <span class="text-muted-foreground text-sm font-medium">{{ t('settings.audit.stats.activeUsers') }}</span>
             <span class="text-2xl font-bold tracking-tight">{{ stats.users }}</span>
           </div>
           <div class="bg-muted rounded-lg p-2">
@@ -277,15 +295,14 @@ const table = useVueTable({
         </div>
         <div class="mt-3 flex items-center gap-1 text-sm">
           <ArrowUpRight class="text-muted-foreground size-4 shrink-0" />
-          <span class="text-muted-foreground">产生操作的独立用户</span>
+          <span class="text-muted-foreground">{{ t('settings.audit.stats.activeUsersSub') }}</span>
         </div>
       </div>
 
-      <!-- 删除操作 -->
       <div class="border-border bg-card text-card-foreground rounded-xl border p-5 shadow-sm">
         <div class="flex items-start justify-between">
           <div class="flex flex-col gap-1">
-            <span class="text-muted-foreground text-sm font-medium">删除操作</span>
+            <span class="text-muted-foreground text-sm font-medium">{{ t('settings.audit.stats.deleteOps') }}</span>
             <span class="text-2xl font-bold tracking-tight">{{ stats.deletes }}</span>
           </div>
           <div class="bg-muted rounded-lg p-2">
@@ -299,9 +316,9 @@ const table = useVueTable({
             class="size-4 shrink-0"
           />
           <span :class="stats.deletes === 0 ? 'text-emerald-600 font-semibold' : 'text-amber-500 font-semibold'">
-            {{ stats.deletes === 0 ? '无删除记录' : stats.deletes + ' 次删除' }}
+            {{ stats.deletes === 0 ? t('settings.audit.stats.noDeletes') : t('settings.audit.stats.nDeleteOps', { n: stats.deletes }) }}
           </span>
-          <span class="text-muted-foreground">{{ stats.deletes === 0 ? '数据安全' : '需确认' }}</span>
+          <span class="text-muted-foreground">{{ t(stats.deletes === 0 ? 'settings.audit.stats.dataSecure' : 'settings.audit.stats.needsConfirm') }}</span>
         </div>
       </div>
 
@@ -310,55 +327,50 @@ const table = useVueTable({
     <!-- ── Toolbar ────────────────────────────────────────────────── -->
     <div class="flex flex-wrap items-center gap-2">
 
-      <!-- 时间范围 -->
       <div class="flex bg-muted/50 rounded-lg p-1 border border-border gap-0.5">
         <button
-          v-for="t in timeRanges" :key="t.value"
+          v-for="r in timeRanges" :key="r.value"
           class="px-3 py-1.5 rounded-md text-xs font-semibold transition-all"
-          :class="timeRange === t.value
+          :class="timeRange === r.value
             ? 'bg-background text-foreground shadow-sm ring-1 ring-border'
             : 'text-muted-foreground hover:text-foreground'"
-          @click="timeRange = t.value; doRefresh()"
-        >{{ t.label }}</button>
+          @click="timeRange = r.value; doRefresh()"
+        >{{ r.label }}</button>
       </div>
 
-      <!-- 操作类型 -->
       <select
         v-model="actionFilter"
         class="h-9 rounded-md border border-input bg-background px-3 text-xs focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 transition-[color,box-shadow]"
         @change="() => doRefresh()"
       >
-        <option value="">全部操作</option>
+        <option value="">{{ t('settings.audit.filter.allActions') }}</option>
         <option v-for="a in actions" :key="a" :value="a">{{ actionLabel[a] ?? a }}</option>
       </select>
 
-      <!-- 资源类型 -->
       <select
         v-model="resourceFilter"
         class="h-9 rounded-md border border-input bg-background px-3 text-xs focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 transition-[color,box-shadow]"
         @change="() => doRefresh()"
       >
-        <option value="">全部资源</option>
+        <option value="">{{ t('settings.audit.filter.allResources') }}</option>
         <option v-for="r in resources" :key="r" :value="r">{{ resourceLabel[r] ?? r }}</option>
       </select>
 
-      <!-- 结果 -->
       <select
         v-model="statusFilter"
         class="h-9 rounded-md border border-input bg-background px-3 text-xs focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 transition-[color,box-shadow]"
         @change="() => doRefresh()"
       >
-        <option value="">全部结果</option>
-        <option value="success">成功</option>
-        <option value="failed">失败</option>
+        <option value="">{{ t('settings.audit.filter.allResults') }}</option>
+        <option value="success">{{ t('settings.audit.result.success') }}</option>
+        <option value="failed">{{ t('settings.audit.result.failed') }}</option>
       </select>
 
-      <!-- 搜索 -->
       <div class="relative w-56 ml-auto">
         <Search class="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
         <Input
           v-model="searchValue"
-          placeholder="搜索用户或资源..."
+          :placeholder="t('settings.audit.searchPlaceholder')"
           class="pl-8 h-9"
           @keyup.enter="doRefresh"
         />
@@ -366,7 +378,7 @@ const table = useVueTable({
 
       <Button variant="outline" size="sm" class="gap-1.5" :disabled="loading" @click="doRefresh">
         <RefreshCw class="size-3.5" :class="loading ? 'animate-spin' : ''" />
-        刷新
+        {{ t('common.action.refresh') }}
       </Button>
     </div>
 
@@ -392,7 +404,6 @@ const table = useVueTable({
                   <FlexRender :render="cell.column.columnDef.cell" :props="cell.getContext()" />
                 </TableCell>
               </TableRow>
-              <!-- 展开的 detail 行 -->
               <TableRow v-if="expandedRow === row.original.id && row.original.detail" class="bg-muted/20 hover:bg-muted/20">
                 <TableCell :colspan="columns.length" class="py-3 px-6">
                   <pre class="font-mono text-[11px] text-muted-foreground whitespace-pre-wrap break-all leading-relaxed">{{ (() => { try { return JSON.stringify(JSON.parse(row.original.detail!), null, 2) } catch { return row.original.detail } })() }}</pre>
@@ -402,7 +413,7 @@ const table = useVueTable({
           </template>
           <TableRow v-else>
             <TableCell :colspan="columns.length" class="h-32 text-center text-muted-foreground">
-              {{ loading ? '加载中...' : '暂无审计记录' }}
+              {{ loading ? t('common.status.loading') : t('settings.audit.empty') }}
             </TableCell>
           </TableRow>
         </TableBody>
@@ -411,7 +422,7 @@ const table = useVueTable({
 
     <!-- pagination -->
     <div class="flex items-center justify-between text-sm text-muted-foreground">
-      <span>共 {{ total }} 条 · 第 {{ page }} / {{ totalPages }} 页</span>
+      <span>{{ t('common.pagination.total', { total: total || 0, page, totalPages }) }}</span>
       <div class="flex items-center gap-1">
         <Button variant="outline" size="sm" class="size-8 p-0"
           :disabled="page <= 1" @click="doRefresh(page - 1)">

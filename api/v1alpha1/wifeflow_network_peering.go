@@ -2,32 +2,81 @@ package v1alpha1
 
 import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-// Using for peering network, two networks will be connected together when they have same ip and different namespace
+// PeeringMode controls how traffic is forwarded between peered networks.
+// +kubebuilder:validation:Enum=gateway;mesh
+type PeeringMode string
+
+const (
+	// PeeringModeGateway routes cross-workspace traffic through a designated
+	// gateway peer in each workspace. This is the default and recommended mode.
+	PeeringModeGateway PeeringMode = "gateway"
+
+	// PeeringModeMesh establishes direct WireGuard tunnels between every peer in
+	// each workspace. Suitable only for small deployments.
+	PeeringModeMesh PeeringMode = "mesh"
+)
+
+// WireflowNetworkPeeringSpec declares a peering relationship between two networks
+// that may reside in different namespaces (workspaces).
+type WireflowNetworkPeeringSpec struct {
+	// NamespaceA is the Kubernetes namespace of the first workspace.
+	NamespaceA string `json:"namespaceA"`
+	// NetworkA is the WireflowNetwork name in NamespaceA.
+	NetworkA string `json:"networkA"`
+
+	// NamespaceB is the Kubernetes namespace of the second workspace.
+	NamespaceB string `json:"namespaceB"`
+	// NetworkB is the WireflowNetwork name in NamespaceB.
+	NetworkB string `json:"networkB"`
+
+	// PeeringMode controls the traffic forwarding strategy.
+	// Defaults to "gateway".
+	// +kubebuilder:default=gateway
+	PeeringMode PeeringMode `json:"peeringMode,omitempty"`
+}
+
+// WireflowNetworkPeeringStatus reports the observed state of the peering.
+type WireflowNetworkPeeringStatus struct {
+	// Phase summarises the peering lifecycle: Pending | Ready | Error.
+	Phase WireflowNetworkPhase `json:"phase,omitempty"`
+
+	// CIDRA is the ActiveCIDR of NetworkA, populated once the peering is Ready.
+	CIDRA string `json:"cidrA,omitempty"`
+
+	// CIDRB is the ActiveCIDR of NetworkB, populated once the peering is Ready.
+	CIDRB string `json:"cidrB,omitempty"`
+
+	// Conditions contains fine-grained status conditions.
+	Conditions []metav1.Condition `json:"conditions,omitempty"`
+}
+
+// +kubebuilder:object:root=true
+// +kubebuilder:subresource:status
+// +kubebuilder:resource:scope=Cluster,shortName=wfpeering
+// +kubebuilder:printcolumn:name="PHASE",type="string",JSONPath=".status.phase"
+// +kubebuilder:printcolumn:name="CIDR-A",type="string",JSONPath=".status.cidrA"
+// +kubebuilder:printcolumn:name="CIDR-B",type="string",JSONPath=".status.cidrB"
+// +kubebuilder:printcolumn:name="MODE",type="string",JSONPath=".spec.peeringMode"
+// +kubebuilder:printcolumn:name="AGE",type="date",JSONPath=".metadata.creationTimestamp"
+
+// WireflowNetworkPeering connects two WireflowNetworks across different workspaces
+// so their peers can communicate directly over WireGuard.
 type WireflowNetworkPeering struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
-	Spec              WireflowEndpointSpec `json:"spec,omitempty"`
+	Spec              WireflowNetworkPeeringSpec   `json:"spec,omitempty"`
+	Status            WireflowNetworkPeeringStatus `json:"status,omitempty"`
 }
 
+// +kubebuilder:object:root=true
+
+// WireflowNetworkPeeringList contains a list of WireflowNetworkPeering.
 type WireflowNetworkPeeringList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []WireflowNetworkPeering `json:"items"`
 }
 
-type WireflowNetworkPeeringSpec struct {
-	// 租户 A 的网络
-	NamespaceA string `json:"namespaceA"`
-	NetworkA   string `json:"networkA"`
-
-	// 租户 B 的网络
-	NamespaceB string `json:"namespaceB"`
-	NetworkB   string `json:"networkB"`
-
-	// 通讯策略：是全局 VIP 模式，还是影子网段模式？
-	PeeringMode string `json:"peeringMode"`
-}
-
-type WireflowNetworkPeeringStatus struct {
-	Phase WireflowNetworkPhase `json:"phase,omitempty"`
+func init() {
+	SchemeBuilder.Register(&WireflowNetworkPeering{}, &WireflowNetworkPeeringList{})
 }

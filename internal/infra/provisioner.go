@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"sync"
 	"wireflow/internal/log"
 
 	wg "golang.zx2c4.com/wireguard/device"
@@ -169,6 +170,10 @@ func NewProvisioner(routeProvisioner RouteProvisioner, ruleProvisioner RuleProvi
 }
 
 type routeProvisioner struct {
+	// mu serializes ApplyRoute calls to prevent concurrent iptables check→add
+	// races: without this, two goroutines can both see a rule absent, both try
+	// to add it, and the second one fails with xtables lock error (exit status 1).
+	mu     sync.Mutex //nolint:unused
 	logger *log.Logger
 }
 

@@ -566,7 +566,11 @@ func (s *monitorService) processMatrixToTrend(val model.Value) models.TrendData 
 
 // processMatrixToTrendWithRX 同时填充 TX 和 RX 趋势数据
 func (s *monitorService) processMatrixToTrendWithRX(txVal model.Value, rxVal model.Value) models.TrendData {
-	trend := models.TrendData{}
+	trend := models.TrendData{
+		Timestamps: []string{},
+		TXData:     []float64{},
+		RXData:     []float64{},
+	}
 
 	txMatrix, ok := txVal.(model.Matrix)
 	if ok && len(txMatrix) > 0 {

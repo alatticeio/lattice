@@ -303,6 +303,39 @@ type Config struct {
 	Telemetry TelemetryConfig `mapstructure:"telemetry"`
 	JWT       JWTConfig       `mapstructure:"jwt"`
 	Dex       DexConfig       `mapstructure:"dex"`
+	AI        AIConfig        `mapstructure:"ai"`
+}
+
+// AIConfig 聚合 AI 功能相关配置。
+// AI 功能为弱依赖：Enabled=false 或 APIKey 为空时所有 /api/v1/ai/* 接口返回 503。
+type AIConfig struct {
+	// Enabled 是否启用 AI 功能，默认 false。
+	// 对应环境变量: WIREFLOW_AI_ENABLED
+	Enabled bool `mapstructure:"enabled"`
+
+	// Provider 指定 LLM 服务商：anthropic（默认）、deepseek、openai，
+	// 或配合 base-url 使用任意 OpenAI 兼容服务。
+	// 对应环境变量: WIREFLOW_AI_PROVIDER
+	Provider string `mapstructure:"provider"`
+
+	// APIKey 服务商 API Key。
+	// 对应环境变量: WIREFLOW_AI_API_KEY
+	APIKey string `mapstructure:"api-key"`
+
+	// Model 指定模型名称，留空时各 Provider 使用内置默认值。
+	// 对应环境变量: WIREFLOW_AI_MODEL
+	Model string `mapstructure:"model"`
+
+	// BaseURL 自定义 API 端点，用于 DeepSeek、私有部署或 API 中转代理。
+	// 对应环境变量: WIREFLOW_AI_BASE_URL
+	BaseURL string `mapstructure:"base-url"`
+
+	// MaxToolCalls 单轮对话最大工具调用次数，默认 5。
+	MaxToolCalls int `mapstructure:"max-tool-calls"`
+
+	// AuditSchedule 安全审计定时任务 cron 表达式，默认 "0 2 * * *"（每日凌晨 2 点）。
+	// 留空时禁用定时审计。
+	AuditSchedule string `mapstructure:"audit-schedule"`
 }
 
 // AppConfig 聚合应用层服务端配置（不含 CLI 覆盖字段）。
@@ -527,6 +560,12 @@ func setDefaults(v *viper.Viper) {
 
 	v.SetDefault("metrics-addr", ":8443")
 	v.SetDefault("health-probe-bind-address", ":8081")
+
+	v.SetDefault("ai.enabled", false)
+	v.SetDefault("ai.provider", "anthropic")
+	v.SetDefault("ai.model", "")
+	v.SetDefault("ai.max-tool-calls", 5)
+	v.SetDefault("ai.audit-schedule", "0 2 * * *")
 
 	v.SetDefault("app.name", "WireFlow")
 	v.SetDefault("app.initAdmins", []map[string]string{

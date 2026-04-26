@@ -24,7 +24,7 @@ import (
 	"wireflow/internal/infra"
 	"wireflow/internal/log"
 
-	"github.com/wireflowio/ice"
+	"github.com/pion/ice/v4"
 )
 
 var (
@@ -42,7 +42,15 @@ type Probe struct {
 	log       *log.Logger
 	rtt       time.Duration // nolint
 
-	started atomic.Bool
+	// epoch is incremented on each restart().  A discover() goroutine captures
+	// its epoch at launch and checks it before calling onSuccess/onFailure.
+	// If the epoch changed (restart fired while discover was in flight), the
+	// goroutine discards its result — preventing a stale goroutine from racing
+	// a freshly started one to onSuccess.
+	epoch atomic.Uint64
+	// running is true while a discover() goroutine is active.  CAS(false→true)
+	// in Start() ensures only one goroutine runs at a time.
+	running atomic.Bool
 
 	// Add wrrp
 	wrrpDialer infra.Dialer
@@ -51,6 +59,11 @@ type Probe struct {
 	newIceDialer func() infra.Dialer
 	// newWrrpDialer creates a fresh wrrpDialer instance for reconnection.
 	newWrrpDialer func() infra.Dialer
+
+	// onBeforeRestart is called at the top of restart() to clean up stale
+	// WireGuard peer state (RemovePeer) and reset onPeerKnown guards before
+	// fresh dialers start their SYN/ACK exchange.
+	onBeforeRestart func()
 
 	onSuccess        func(transport infra.Transport) error
 	onFailure        func(error) error
@@ -81,13 +94,23 @@ func (p *Probe) restart() {
 	if p.newIceDialer == nil {
 		return
 	}
+	// Clean up stale WireGuard peer state before creating new dialers so the
+	// fresh SYN/ACK exchange starts from a known-clean baseline.
+	if p.onBeforeRestart != nil {
+		p.onBeforeRestart()
+	}
 	p.mu.Lock()
 	p.iceDialer = p.newIceDialer()
 	if p.newWrrpDialer != nil {
 		p.wrrpDialer = p.newWrrpDialer()
 	}
 	p.mu.Unlock()
-	p.started.Store(false)
+	// Increment epoch to invalidate any in-flight discover() goroutine.
+	// The goroutine will see a changed epoch, discard its result, and exit
+	// without calling onSuccess/onFailure — so the fresh Start() below is
+	// the sole owner of the next connection outcome.
+	p.epoch.Add(1)
+	p.running.Store(false) // allow Start() to proceed
 	_ = p.Start(context.Background(), p.remoteId)
 }
 
@@ -118,16 +141,33 @@ func (p *Probe) OnConnectionStateChange(state ice.ConnectionState) {
 }
 
 func (p *Probe) Start(ctx context.Context, remoteId infra.PeerIdentity) error {
-	if p.started.Load() {
+	if !p.running.CompareAndSwap(false, true) {
 		p.log.Warn("Probe already started")
 		return nil
 	}
 
-	p.started.Store(true)
+	// Capture epoch at launch.  If restart() fires before discover() returns,
+	// epoch will have been incremented and running reset to false — the check
+	// below detects this and prevents a stale goroutine from calling onSuccess.
+	myEpoch := p.epoch.Load()
 	p.log.Debug("Start probe peer", "localId", p.localId, "remoteId", remoteId)
 
 	go func() {
 		t, err := p.discover(ctx)
+
+		// If epoch changed, restart() fired while we were in discover().
+		// The new goroutine launched by restart() owns the connection outcome;
+		// we discard our result and exit silently.
+		if p.epoch.Load() != myEpoch {
+			if t != nil {
+				t.Close() //nolint:errcheck
+			}
+			return
+		}
+		// Release the running slot so a future Start() (e.g. from onFailure
+		// scheduling probe.restart()) can proceed.
+		p.running.Store(false)
+
 		if err != nil {
 			p.updateState(ice.ConnectionStateFailed)
 			p.log.Error("Discover transport failed", err)
@@ -143,6 +183,8 @@ func (p *Probe) Start(ctx context.Context, remoteId infra.PeerIdentity) error {
 		p.mu.Unlock()
 		if err = p.onSuccess(t); err != nil {
 			p.updateState(ice.ConnectionStateFailed)
+			p.log.Warn("onSuccess failed, restarting probe in 3s", "remoteId", p.remoteId.AppID, "err", err)
+			time.AfterFunc(3*time.Second, p.restart)
 		}
 	}()
 

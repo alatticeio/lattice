@@ -11,6 +11,12 @@ export {}
 /* prettier-ignore */
 declare module 'vue' {
   export interface GlobalComponents {
+    AiChatInput: typeof import('./../components/ai/ChatInput.vue')['default']
+    AiChatSidebar: typeof import('./../components/ai/ChatSidebar.vue')['default']
+    AiChatWindow: typeof import('./../components/ai/ChatWindow.vue')['default']
+    AiMessageBubble: typeof import('./../components/ai/MessageBubble.vue')['default']
+    AiSuggestedPrompts: typeof import('./../components/ai/SuggestedPrompts.vue')['default']
+    AiToolCallCard: typeof import('./../components/ai/ToolCallCard.vue')['default']
     AlertDialog: typeof import('./../components/AlertDialog.vue')['default']
     AppSidebar: typeof import('./../components/app-sidebar/AppSidebar.vue')['default']
     AppSidebarAddWorkspaceDialog: typeof import('./../components/app-sidebar/AddWorkspaceDialog.vue')['default']

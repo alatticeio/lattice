@@ -1,0 +1,86 @@
+[2026-04-25 08:13:47] 发现带有 wf0 接口的容器...
+[2026-04-25 08:13:48]   #1  pod-a(10.0.7.2)  ← k8s_agent_pod-a-94776f46f-phmhv_wf-7acda537-fb95-4fb4-82c9-abf738306cdd_eb6387fc-a409-42b8-886e-f334f359aba7_16
+[2026-04-25 08:13:48]   #2  pod-a(10.0.8.3)  ← k8s_agent_pod-a-6c8cb84b7-jrkls_wf-b6001521-f363-4a92-903a-e18ce6162c09_7d741cbb-0058-4c56-a190-fa05e6c132e0_11
+[2026-04-25 08:13:48]   #3  pod-a(10.0.2.3)  ← k8s_agent_pod-a-854bb8b75f-7wlvq_wf-a9092ab0-06b6-459e-ba7c-38e9bd06a763_008cfae2-5d53-43f0-b445-13fca2cadb13_32
+[2026-04-25 08:13:48]   #4  pod-b(10.0.1.4)  ← k8s_agent_pod-b-6f4947cc47-gs7ng_wf-4b3000fb-6e0d-4fe9-b71d-f48b77500fa4_4b421094-0b3b-4d35-9b38-13a0f4714b31_12
+[2026-04-25 08:13:48]   #5  pod-a(10.0.9.3)  ← k8s_agent_pod-a-5fbbb656db-tck5f_wf-3002578e-3635-4281-bbcd-898beb74a061_4c91960a-54a4-4bb5-9d02-0a56069de3d8_11
+[2026-04-25 08:13:48]   #6  pod-b(10.0.8.2)  ← k8s_agent_pod-b-84cd5d9895-9ffg6_wf-b6001521-f363-4a92-903a-e18ce6162c09_92813cc0-902e-4a72-8186-df0ab388322b_14
+[2026-04-25 08:13:48]   #7  pod-a(10.0.11.3)  ← k8s_agent_pod-a-c6589d595-l9294_wf-8d7f91bb-02c7-487b-818f-eec71b3b933b_16151e38-620f-4d18-acdd-f02810c6ec58_13
+[2026-04-25 08:13:48]   #8  pod-b(10.0.11.2)  ← k8s_agent_pod-b-75ccc5cf-ltzx7_wf-8d7f91bb-02c7-487b-818f-eec71b3b933b_06c83288-2208-4159-bdc1-8355586244ea_13
+[2026-04-25 08:13:48]   #9  pod-b(10.0.2.4)  ← k8s_agent_pod-b-6ffcd8c8c-vx9jn_wf-a9092ab0-06b6-459e-ba7c-38e9bd06a763_312b66e1-8e1e-4f45-a7ae-65e746b0e60e_24
+[2026-04-25 08:13:48]   #10  pod-a(10.0.10.3)  ← k8s_agent_pod-a-795cb55c54-g7987_wf-70f9e286-a7e7-42be-9337-bfe34503288b_36afd795-bcd4-4502-8d37-895a9eba205d_14
+[2026-04-25 08:13:48]   #11  pod-b(10.0.10.2)  ← k8s_agent_pod-b-7c88dd6b6-h9x86_wf-70f9e286-a7e7-42be-9337-bfe34503288b_a7e00c6b-9813-40b0-9d66-9ec8588decd7_13
+[2026-04-25 08:13:48]   #12  pod-b(10.0.7.3)  ← k8s_agent_pod-b-765f9d49b9-qvgsr_wf-7acda537-fb95-4fb4-82c9-abf738306cdd_7617c45a-7d3b-442c-862e-7f4a2e81dfc4_13
+[2026-04-25 08:13:48]   #13  pod-b(10.0.6.3)  ← k8s_agent_pod-b-cc57f8fbf-75bkc_wf-107f89cf-8a20-434e-b177-8954ee37fcb3_7b6cce30-9f08-42d8-ba57-db1c98c7a0e9_20
+[2026-04-25 08:13:48]   #14  pod-b(10.0.9.2)  ← k8s_agent_pod-b-6bf7599474-2ctsh_wf-3002578e-3635-4281-bbcd-898beb74a061_6937afc5-a95d-4f18-adc7-0ab0973f9ea4_14
+[2026-04-25 08:13:48]   #15  pod-a(10.0.4.3)  ← k8s_agent_pod-a-7c8854d89c-rhnsx_wf-65bd1349-a445-41f8-ac10-63ba564e15ff_47ef54b8-2c43-4532-a0a4-a052b15a20bb_21
+[2026-04-25 08:13:48]   #16  pod-b(10.0.4.2)  ← k8s_agent_pod-b-6c549577cc-pgh4s_wf-65bd1349-a445-41f8-ac10-63ba564e15ff_abdfb764-0d95-426e-a7dc-a15f2c98de20_14
+[2026-04-25 08:13:48]   #17  pod-a(10.0.6.2)  ← k8s_agent_pod-a-8f85bf76f-wbkfm_wf-107f89cf-8a20-434e-b177-8954ee37fcb3_eb3010be-1148-4fea-94a1-f44d302cfef3_16
+[2026-04-25 08:13:49]   #18  pod-a(10.0.1.3)  ← k8s_agent_pod-a-fd7d4494c-n4cfv_wf-4b3000fb-6e0d-4fe9-b71d-f48b77500fa4_8503e79b-41a0-4b74-908e-33595677fcac_39
+[2026-04-25 08:13:49]   #19  pod-a(10.0.0.2)  ← k8s_agent_pod-a-6469f4dc94-nzkcs_wf-a1ac5a3a-97ff-4220-967a-09ac46e2189f_0d5af14d-480e-4214-9f43-11eac32126fd_32
+[2026-04-25 08:13:49]   #20  pod-b(10.0.0.4)  ← k8s_agent_pod-b-58ffd6cdcb-sp7lr_wf-a1ac5a3a-97ff-4220-967a-09ac46e2189f_ed1cd99d-a57e-474b-a0cf-9c081d988dd3_57
+[2026-04-25 08:13:49] 共发现 20 个节点
+[2026-04-25 08:13:49] 创建 CSV: ./deploy/test/transfer_records.csv
+[2026-04-25 08:13:49] 开始传输测试  节点数=20  每轮=2对  间隔=30s  数据量=1-2MB
+[2026-04-25 08:13:49] CSV 输出: ./deploy/test/transfer_records.csv
+[2026-04-25 08:13:50] ━━━ 第 1 轮 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[2026-04-25 08:15:50] 发现带有 wf0 接口的容器...
+[2026-04-25 08:15:50]   #1  pod-a(10.0.7.2)  ← k8s_agent_pod-a-94776f46f-phmhv_wf-7acda537-fb95-4fb4-82c9-abf738306cdd_eb6387fc-a409-42b8-886e-f334f359aba7_16
+[2026-04-25 08:15:50]   #2  pod-a(10.0.8.3)  ← k8s_agent_pod-a-6c8cb84b7-jrkls_wf-b6001521-f363-4a92-903a-e18ce6162c09_7d741cbb-0058-4c56-a190-fa05e6c132e0_11
+[2026-04-25 08:15:50]   #3  pod-a(10.0.2.3)  ← k8s_agent_pod-a-854bb8b75f-7wlvq_wf-a9092ab0-06b6-459e-ba7c-38e9bd06a763_008cfae2-5d53-43f0-b445-13fca2cadb13_32
+[2026-04-25 08:15:50]   #4  pod-b(10.0.1.4)  ← k8s_agent_pod-b-6f4947cc47-gs7ng_wf-4b3000fb-6e0d-4fe9-b71d-f48b77500fa4_4b421094-0b3b-4d35-9b38-13a0f4714b31_12
+[2026-04-25 08:15:50]   #5  pod-a(10.0.9.3)  ← k8s_agent_pod-a-5fbbb656db-tck5f_wf-3002578e-3635-4281-bbcd-898beb74a061_4c91960a-54a4-4bb5-9d02-0a56069de3d8_11
+[2026-04-25 08:15:50]   #6  pod-b(10.0.8.2)  ← k8s_agent_pod-b-84cd5d9895-9ffg6_wf-b6001521-f363-4a92-903a-e18ce6162c09_92813cc0-902e-4a72-8186-df0ab388322b_14
+[2026-04-25 08:15:50]   #7  pod-a(10.0.11.3)  ← k8s_agent_pod-a-c6589d595-l9294_wf-8d7f91bb-02c7-487b-818f-eec71b3b933b_16151e38-620f-4d18-acdd-f02810c6ec58_13
+[2026-04-25 08:15:51]   #8  pod-b(10.0.11.2)  ← k8s_agent_pod-b-75ccc5cf-ltzx7_wf-8d7f91bb-02c7-487b-818f-eec71b3b933b_06c83288-2208-4159-bdc1-8355586244ea_13
+[2026-04-25 08:15:51]   #9  pod-b(10.0.2.4)  ← k8s_agent_pod-b-6ffcd8c8c-vx9jn_wf-a9092ab0-06b6-459e-ba7c-38e9bd06a763_312b66e1-8e1e-4f45-a7ae-65e746b0e60e_24
+[2026-04-25 08:15:51]   #10  pod-a(10.0.10.3)  ← k8s_agent_pod-a-795cb55c54-g7987_wf-70f9e286-a7e7-42be-9337-bfe34503288b_36afd795-bcd4-4502-8d37-895a9eba205d_14
+[2026-04-25 08:15:51]   #11  pod-b(10.0.10.2)  ← k8s_agent_pod-b-7c88dd6b6-h9x86_wf-70f9e286-a7e7-42be-9337-bfe34503288b_a7e00c6b-9813-40b0-9d66-9ec8588decd7_13
+[2026-04-25 08:15:51]   #12  pod-b(10.0.7.3)  ← k8s_agent_pod-b-765f9d49b9-qvgsr_wf-7acda537-fb95-4fb4-82c9-abf738306cdd_7617c45a-7d3b-442c-862e-7f4a2e81dfc4_13
+[2026-04-25 08:15:51]   #13  pod-b(10.0.6.3)  ← k8s_agent_pod-b-cc57f8fbf-75bkc_wf-107f89cf-8a20-434e-b177-8954ee37fcb3_7b6cce30-9f08-42d8-ba57-db1c98c7a0e9_20
+[2026-04-25 08:15:51]   #14  pod-b(10.0.9.2)  ← k8s_agent_pod-b-6bf7599474-2ctsh_wf-3002578e-3635-4281-bbcd-898beb74a061_6937afc5-a95d-4f18-adc7-0ab0973f9ea4_14
+[2026-04-25 08:15:51]   #15  pod-a(10.0.4.3)  ← k8s_agent_pod-a-7c8854d89c-rhnsx_wf-65bd1349-a445-41f8-ac10-63ba564e15ff_47ef54b8-2c43-4532-a0a4-a052b15a20bb_21
+[2026-04-25 08:15:51]   #16  pod-b(10.0.4.2)  ← k8s_agent_pod-b-6c549577cc-pgh4s_wf-65bd1349-a445-41f8-ac10-63ba564e15ff_abdfb764-0d95-426e-a7dc-a15f2c98de20_14
+[2026-04-25 08:15:51]   #17  pod-a(10.0.6.2)  ← k8s_agent_pod-a-8f85bf76f-wbkfm_wf-107f89cf-8a20-434e-b177-8954ee37fcb3_eb3010be-1148-4fea-94a1-f44d302cfef3_16
+[2026-04-25 08:15:51]   #18  pod-a(10.0.1.3)  ← k8s_agent_pod-a-fd7d4494c-n4cfv_wf-4b3000fb-6e0d-4fe9-b71d-f48b77500fa4_8503e79b-41a0-4b74-908e-33595677fcac_39
+[2026-04-25 08:15:51]   #19  pod-a(10.0.0.2)  ← k8s_agent_pod-a-6469f4dc94-nzkcs_wf-a1ac5a3a-97ff-4220-967a-09ac46e2189f_0d5af14d-480e-4214-9f43-11eac32126fd_32
+[2026-04-25 08:15:51]   #20  pod-b(10.0.0.4)  ← k8s_agent_pod-b-58ffd6cdcb-sp7lr_wf-a1ac5a3a-97ff-4220-967a-09ac46e2189f_ed1cd99d-a57e-474b-a0cf-9c081d988dd3_57
+[2026-04-25 08:15:52] 共发现 20 个节点
+[2026-04-25 08:15:52] 开始传输测试  节点数=20  每轮=2对  间隔=30s  数据量=1-2MB
+[2026-04-25 08:15:52] CSV: /Users/francis/workspc/wireflow/deploy/test/transfer_records.csv
+[2026-04-25 08:15:52] ━━━ 第 1 轮  2026-04-25 08:15:52 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[2026-04-25 08:16:07] 发现带有 wf0 接口的容器...
+[2026-04-25 08:16:07]   #1  pod-a(10.0.7.2)  ← k8s_agent_pod-a-94776f46f-phmhv_wf-7acda537-fb95-4fb4-82c9-abf738306cdd_eb6387fc-a409-42b8-886e-f334f359aba7_16
+[2026-04-25 08:16:07]   #2  pod-a(10.0.8.3)  ← k8s_agent_pod-a-6c8cb84b7-jrkls_wf-b6001521-f363-4a92-903a-e18ce6162c09_7d741cbb-0058-4c56-a190-fa05e6c132e0_11
+[2026-04-25 08:16:07]   #3  pod-a(10.0.2.3)  ← k8s_agent_pod-a-854bb8b75f-7wlvq_wf-a9092ab0-06b6-459e-ba7c-38e9bd06a763_008cfae2-5d53-43f0-b445-13fca2cadb13_32
+[2026-04-25 08:16:07]   #4  pod-b(10.0.1.4)  ← k8s_agent_pod-b-6f4947cc47-gs7ng_wf-4b3000fb-6e0d-4fe9-b71d-f48b77500fa4_4b421094-0b3b-4d35-9b38-13a0f4714b31_12
+[2026-04-25 08:16:07]   #5  pod-a(10.0.9.3)  ← k8s_agent_pod-a-5fbbb656db-tck5f_wf-3002578e-3635-4281-bbcd-898beb74a061_4c91960a-54a4-4bb5-9d02-0a56069de3d8_11
+[2026-04-25 08:16:07]   #6  pod-b(10.0.8.2)  ← k8s_agent_pod-b-84cd5d9895-9ffg6_wf-b6001521-f363-4a92-903a-e18ce6162c09_92813cc0-902e-4a72-8186-df0ab388322b_14
+[2026-04-25 08:16:08]   #7  pod-a(10.0.11.3)  ← k8s_agent_pod-a-c6589d595-l9294_wf-8d7f91bb-02c7-487b-818f-eec71b3b933b_16151e38-620f-4d18-acdd-f02810c6ec58_13
+[2026-04-25 08:16:08]   #8  pod-b(10.0.11.2)  ← k8s_agent_pod-b-75ccc5cf-ltzx7_wf-8d7f91bb-02c7-487b-818f-eec71b3b933b_06c83288-2208-4159-bdc1-8355586244ea_13
+[2026-04-25 08:16:08]   #9  pod-b(10.0.2.4)  ← k8s_agent_pod-b-6ffcd8c8c-vx9jn_wf-a9092ab0-06b6-459e-ba7c-38e9bd06a763_312b66e1-8e1e-4f45-a7ae-65e746b0e60e_24
+[2026-04-25 08:16:08]   #10  pod-a(10.0.10.3)  ← k8s_agent_pod-a-795cb55c54-g7987_wf-70f9e286-a7e7-42be-9337-bfe34503288b_36afd795-bcd4-4502-8d37-895a9eba205d_14
+[2026-04-25 08:16:08]   #11  pod-b(10.0.10.2)  ← k8s_agent_pod-b-7c88dd6b6-h9x86_wf-70f9e286-a7e7-42be-9337-bfe34503288b_a7e00c6b-9813-40b0-9d66-9ec8588decd7_13
+[2026-04-25 08:16:08]   #12  pod-b(10.0.7.3)  ← k8s_agent_pod-b-765f9d49b9-qvgsr_wf-7acda537-fb95-4fb4-82c9-abf738306cdd_7617c45a-7d3b-442c-862e-7f4a2e81dfc4_13
+[2026-04-25 08:16:08]   #13  pod-b(10.0.6.3)  ← k8s_agent_pod-b-cc57f8fbf-75bkc_wf-107f89cf-8a20-434e-b177-8954ee37fcb3_7b6cce30-9f08-42d8-ba57-db1c98c7a0e9_20
+[2026-04-25 08:16:08]   #14  pod-b(10.0.9.2)  ← k8s_agent_pod-b-6bf7599474-2ctsh_wf-3002578e-3635-4281-bbcd-898beb74a061_6937afc5-a95d-4f18-adc7-0ab0973f9ea4_14
+[2026-04-25 08:16:08]   #15  pod-a(10.0.4.3)  ← k8s_agent_pod-a-7c8854d89c-rhnsx_wf-65bd1349-a445-41f8-ac10-63ba564e15ff_47ef54b8-2c43-4532-a0a4-a052b15a20bb_21
+[2026-04-25 08:16:08]   #16  pod-b(10.0.4.2)  ← k8s_agent_pod-b-6c549577cc-pgh4s_wf-65bd1349-a445-41f8-ac10-63ba564e15ff_abdfb764-0d95-426e-a7dc-a15f2c98de20_14
+[2026-04-25 08:16:08]   #17  pod-a(10.0.6.2)  ← k8s_agent_pod-a-8f85bf76f-wbkfm_wf-107f89cf-8a20-434e-b177-8954ee37fcb3_eb3010be-1148-4fea-94a1-f44d302cfef3_16
+[2026-04-25 08:16:08]   #18  pod-a(10.0.1.3)  ← k8s_agent_pod-a-fd7d4494c-n4cfv_wf-4b3000fb-6e0d-4fe9-b71d-f48b77500fa4_8503e79b-41a0-4b74-908e-33595677fcac_39
+[2026-04-25 08:16:08]   #19  pod-a(10.0.0.2)  ← k8s_agent_pod-a-6469f4dc94-nzkcs_wf-a1ac5a3a-97ff-4220-967a-09ac46e2189f_0d5af14d-480e-4214-9f43-11eac32126fd_32
+[2026-04-25 08:16:08]   #20  pod-b(10.0.0.4)  ← k8s_agent_pod-b-58ffd6cdcb-sp7lr_wf-a1ac5a3a-97ff-4220-967a-09ac46e2189f_ed1cd99d-a57e-474b-a0cf-9c081d988dd3_57
+[2026-04-25 08:16:09] 共发现 20 个节点
+[2026-04-25 08:16:09] 开始传输测试  节点数=20  每轮=2对  间隔=30s  数据量=1-2MB
+[2026-04-25 08:16:09] CSV: /Users/francis/workspc/wireflow/deploy/test/transfer_records.csv
+[2026-04-25 08:16:09] ━━━ 第 1 轮  2026-04-25 08:16:09 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[2026-04-25 08:16:16]   ✗  pod-b(10.0.7.3)        → pod-a(10.0.8.3)         1MB  recv=0B  5.146s  0.00MB/s  [MISMATCH(diff=1048576)]
+[2026-04-25 08:16:22]   ✗  pod-a(10.0.9.3)        → pod-a(10.0.0.2)         2MB  recv=0B  5.166s  0.00MB/s  [MISMATCH(diff=2097152)]
+[2026-04-25 08:19:19] 发现带有 wf0 接口的容器...
+[2026-04-25 08:19:20]   #1  pod-a(10.0.7.2)  ← k8s_agent_pod-a-94776f46f-phmhv_wf-7acda537-fb95-4fb4-82c9-abf738306cdd_eb6387fc-a409-42b8-886e-f334f359aba7_16
+[2026-04-25 08:19:20]   #2  pod-b(10.0.7.3)  ← k8s_agent_pod-b-765f9d49b9-qvgsr_wf-7acda537-fb95-4fb4-82c9-abf738306cdd_7617c45a-7d3b-442c-862e-7f4a2e81dfc4_13
+[2026-04-25 08:19:20] 共发现 2 个节点
+[2026-04-25 08:19:20] 开始传输测试  节点数=2  每轮=1对  间隔=30s  数据量=1-1MB
+[2026-04-25 08:19:20] CSV: /Users/francis/workspc/wireflow/deploy/test/transfer_records.csv
+[2026-04-25 08:19:20] ━━━ 第 1 轮  2026-04-25 08:19:20 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[2026-04-25 08:19:21]   ✓  pod-a(10.0.7.2)        → pod-b(10.0.7.3)         1MB  recv=1048576B  0.149s  6.71MB/s  [OK]

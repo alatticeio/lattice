@@ -431,7 +431,7 @@ deploy: manifests kustomize ## 根据 ENV 部署 (usage: make deploy ENV=product
 
 .PHONY: Yaml
 yaml:
-	$(KUSTOMIZE) build config/default > config/wireflow.yaml
+	$(KUSTOMIZE) build config/wireflow/overlays/all-in-one > config/wireflow.yaml
 
 .PHONY: undeploy
 undeploy: kustomize ## Undeploy controller from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.

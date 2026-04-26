@@ -34,6 +34,13 @@ declare module 'vue-router/auto-routes' {
       Record<never, never>,
       | never
     >,
+    '/ai/': RouteRecordInfo<
+      '/ai/',
+      '/ai',
+      Record<never, never>,
+      Record<never, never>,
+      | never
+    >,
     '/apps/ecommerce/customers/': RouteRecordInfo<
       '/apps/ecommerce/customers/',
       '/apps/ecommerce/customers',
@@ -219,6 +226,12 @@ declare module 'vue-router/auto-routes' {
     'src/pages/index.vue': {
       routes:
         | '/'
+      views:
+        | never
+    }
+    'src/pages/ai/index.vue': {
+      routes:
+        | '/ai/'
       views:
         | never
     }

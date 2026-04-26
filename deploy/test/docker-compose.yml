@@ -1,0 +1,86 @@
+version: "3.8"
+
+# Wireflow 10-node integration test
+#
+# 用真实的 wireflow pro 镜像跑 10 个节点，接入同一个 workspace，
+# 指标直接 push 到 VictoriaMetrics（无需 vmagent）。
+#
+# 前置条件:
+#   - WF_IMAGE      pro 构建的镜像，需包含 telemetry（--enable-metric 才有效）
+#   - WF_TOKEN      workspace enrollment token（在管理界面创建）
+#   - WF_SERVER_URL wireflow management server 地址，如 http://192.168.1.10:8080
+#   - WF_SIGNALING_URL nats/signaling 地址，如 nats://192.168.1.10:4222
+#   - VM_ENDPOINT   VictoriaMetrics 地址，如 http://192.168.1.10:8428
+#
+# 启动:
+#   WF_TOKEN=xxx WF_SERVER_URL=http://... VM_ENDPOINT=http://... docker compose up -d
+#
+# 验证指标是否上报:
+#   go run ../../hack/verify_metrics/main.go \
+#     --vm-url http://your-vm:8428 \
+#     --network-id <workspace namespace>
+#
+# 停止:
+#   docker compose down
+
+x-node: &node
+  image: ${WF_IMAGE:-ghcr.io/wireflowio/wireflowd:latest}
+  cap_add:
+    - NET_ADMIN
+    - SYS_MODULE
+  devices:
+    - /dev/net/tun:/dev/net/tun
+  volumes:
+    - /lib/modules:/lib/modules:ro
+  restart: unless-stopped
+  # 每个节点 hostname 即为它在 wireflow 里注册的 AppId
+  command: >
+    up
+    --token=${WF_TOKEN}
+    --server-url=${WF_SERVER_URL}
+    --signaling-url=${WF_SIGNALING_URL}
+    --vm-endpoint=${VM_ENDPOINT}/api/v1/write
+    --enable-metric
+    --enable-sys-log=true
+    --level=debug
+
+services:
+  node-01:
+    <<: *node
+    hostname: wf-test-node-01
+
+  node-02:
+    <<: *node
+    hostname: wf-test-node-02
+
+  node-03:
+    <<: *node
+    hostname: wf-test-node-03
+
+  node-04:
+    <<: *node
+    hostname: wf-test-node-04
+
+  node-05:
+    <<: *node
+    hostname: wf-test-node-05
+
+  node-06:
+    <<: *node
+    hostname: wf-test-node-06
+
+  node-07:
+    <<: *node
+    hostname: wf-test-node-07
+
+  node-08:
+    <<: *node
+    hostname: wf-test-node-08
+
+  node-09:
+    <<: *node
+    hostname: wf-test-node-09
+
+  node-10:
+    <<: *node
+    hostname: wf-test-node-10

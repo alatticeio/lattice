@@ -1,30 +1,15 @@
 services:
-  # 1. Wireflow Agent (被测主体)
   wf-agent:
-    image: ghcr.io/winstonfly/wireflow:e2e
+    image: ${WF_IMAGE:-ghcr.io/wireflowio/wireflowd:latest}
     container_name: wf-agent
     privileged: true
     network_mode: "host"
     restart: always
-    volumes:
-      - ./config.yaml:/etc/wireflow/config.yaml
-    # 假设你的 Agent 支持通过命令行指定 Metrics 监听端口
-    command: ["/app/wireflow", "--signaling-url","nats://localhost:4222", "--token", "w5mML1dDvCl1xjNM", "--level", "debug", "--metrics-addr", ":9100"]
-
-  # 2. vmagent (数据采集器)
-  # 它负责从 wf-agent 抓取数据并推送到后端
-  vmagent:
-    image: victoriametrics/vmagent:v1.99.0
-    container_name: wf-vmagent
-    depends_on:
-      - wf-agent
-    volumes:
-      - ./prometheus.yml:/etc/prometheus/prometheus.yml
     command:
-      - "-promscrape.config=/etc/prometheus/prometheus.yml"
-      - "-remoteWrite.url=http://101.36.119.12:8428/api/v1/write"
-    restart: always
-
-
-volumes:
-  vmdata:
+      - up
+      - --token=${WF_TOKEN}
+      - --server-url=${WF_SERVER_URL}
+      - --signaling-url=${WF_SIGNALING_URL}
+      - --vm-endpoint=${VM_ENDPOINT}/api/v1/write
+      - --enable-metric
+      - --save

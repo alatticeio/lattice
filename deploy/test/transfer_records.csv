@@ -1,0 +1,4 @@
+timestamp,round,src_label,dst_label,size_mb,sent_bytes,recv_bytes,duration_s,throughput_mbps,status
+2026-04-25 08:16:16,1,pod-b(10.0.7.3),pod-a(10.0.8.3),1,1048576,0,5.146,0.00,MISMATCH(diff=1048576)
+2026-04-25 08:16:22,1,pod-a(10.0.9.3),pod-a(10.0.0.2),2,2097152,0,5.166,0.00,MISMATCH(diff=2097152)
+2026-04-25 08:19:21,1,pod-a(10.0.7.2),pod-b(10.0.7.3),1,1048576,1048576,0.149,6.71,OK

@@ -1,4 +1,17 @@
 {
+  "dashboard": {
+    "title": "仪表盘",
+    "desc": "全域网络态势实时监控。",
+    "workspaceMode": "工作空间",
+    "globalMode": "全域",
+    "viewLabel": "{mode}视图",
+    "throughputSub": "{mode}实时流量监控 ({unit})",
+    "nodeLoadTitle": "节点负载",
+    "nodeLoadSub": "当前节点 CPU 负载分布",
+    "accelerating": "加速引擎活动中",
+    "noNodeData": "暂无节点数据 — 请确认监控服务已就绪",
+    "noLogs": "暂无日志"
+  },
   "approvals": {
     "title": "审批工作台",
     "desc": "查看并处理需要审批的操作请求。",
@@ -75,21 +88,135 @@
     "title": "审计日志",
     "desc": "查看 Workspace 内所有操作的完整记录。",
     "searchPlaceholder": "搜索操作者或资源...",
+    "stats": {
+      "totalOps": "操作总数",
+      "failedOps": "失败操作",
+      "allSuccess": "全部成功",
+      "anomalies": "{n} 次异常",
+      "needsAttention": "需要关注",
+      "runningNormal": "运行正常",
+      "activeUsers": "活跃用户",
+      "activeUsersSub": "产生操作的独立用户",
+      "deleteOps": "删除操作",
+      "noDeletes": "无删除记录",
+      "nDeleteOps": "{n} 次删除",
+      "dataSecure": "数据安全",
+      "needsConfirm": "需确认"
+    },
+    "filter": {
+      "allActions": "全部操作",
+      "allResources": "全部资源",
+      "allResults": "全部结果"
+    },
+    "actionLabel": {
+      "CREATE": "创建",
+      "UPDATE": "更新",
+      "DELETE": "删除",
+      "LOGIN": "登录",
+      "INVITE": "邀请",
+      "REVOKE": "撤销",
+      "EXPORT": "导出",
+      "ACCEPT": "接受"
+    },
+    "resourceLabel": {
+      "member": "成员",
+      "workspace": "空间",
+      "policy": "策略",
+      "token": "令牌",
+      "relay": "中继",
+      "invitation": "邀请",
+      "peer": "节点",
+      "user": "用户"
+    },
     "col": {
       "time": "时间",
       "operator": "操作者",
       "action": "操作",
       "resource": "资源",
-      "status": "状态",
-      "detail": "详情"
+      "scope": "影响范围",
+      "status": "结果",
+      "detail": ""
     },
-    "status": {
+    "result": {
       "success": "成功",
       "failed": "失败"
-    }
+    },
+    "detailBtn": "详情",
+    "empty": "暂无审计记录"
   },
   "relays": {
     "title": "中继节点",
-    "desc": "管理 WireGuard 中继服务器。"
+    "desc": "管理 WireGuard 中继服务器。",
+    "createBtn": "添加中继",
+    "searchPlaceholder": "搜索名称或地址...",
+    "stats": {
+      "all": "全部中继",
+      "allSub": "{n} 个支持 QUIC",
+      "healthy": "运行正常",
+      "healthySub": "连通性正常",
+      "degraded": "性能降级",
+      "degradedSub": "延迟偏高或丢包",
+      "offline": "离线/禁用",
+      "offlineSub": "不可用或已禁用"
+    },
+    "status": {
+      "healthy": "正常",
+      "degraded": "降级",
+      "offline": "离线",
+      "disabled": "已禁用",
+      "unknown": "未知"
+    },
+    "col": {
+      "status": "状态",
+      "name": "名称",
+      "tcp": "TCP 地址",
+      "quic": "QUIC 地址",
+      "latency": "延迟",
+      "peers": "已连接节点",
+      "workspaces": "适用空间",
+      "actions": ""
+    },
+    "allWorkspaces": "全部",
+    "menu": {
+      "test": "连通测试",
+      "testing": "测试中...",
+      "edit": "编辑",
+      "delete": "删除"
+    },
+    "deleteDialog": {
+      "title": "删除中继服务器",
+      "desc": "确认删除「{name}」？关联该中继的节点将在下次同步时切换至其他中继或直连。"
+    },
+    "dialog": {
+      "createTitle": "添加中继服务器",
+      "editTitle": "编辑中继服务器",
+      "desc": "中继服务器地址保存后将同步到对应工作空间下的 WireflowPeer，节点启动时自动配置。",
+      "nameLabel": "名称",
+      "descLabel": "备注说明",
+      "tcpLabel": "TCP 地址",
+      "tcpHint": "对应节点配置中的 --wrrp-url 参数（WrrpUrl 字段）",
+      "quicLabel": "QUIC 地址",
+      "quicOptional": "（可选，推荐）",
+      "quicHint": "对应 --wrrp-quic-url，优先级高于 TCP，支持 0-RTT 和无 HoL 阻塞",
+      "enabledLabel": "启用该中继",
+      "enabledDesc": "禁用后不会下发给任何节点",
+      "saving": "保存中...",
+      "save": "保存更改",
+      "create": "创建"
+    },
+    "empty": "暂无中继服务器",
+    "toast": {
+      "fetchFailed": "获取中继服务器列表失败",
+      "created": "中继服务器已创建",
+      "updated": "中继服务器已更新",
+      "deleted": "中继服务器已删除",
+      "updateFailed": "更新失败",
+      "createFailed": "创建失败",
+      "deleteFailed": "删除失败",
+      "testSuccess": "连通性正常，延迟 {ms} ms",
+      "testFailed": "连通性测试失败",
+      "nameRequired": "请填写名称",
+      "tcpRequired": "请填写 TCP 地址"
+    }
   }
 }

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, h } from 'vue'
+import { useI18n } from 'vue-i18n'
 import {
   useVueTable, getCoreRowModel, FlexRender, type ColumnDef,
 } from '@tanstack/vue-table'
@@ -26,8 +27,10 @@ import { toast } from 'vue-sonner'
 import { useWorkspaceStore } from '@/stores/workspace'
 
 definePage({
-  meta: { title: 'Token 管理', description: '管理接入网络的访问令牌。' },
+  meta: { titleKey: 'manage.tokens.title', descKey: 'manage.tokens.desc' },
 })
+
+const { t } = useI18n()
 
 interface TokenRow {
   token: string
@@ -74,7 +77,7 @@ function isPermanent(expiry?: string | null) {
 }
 
 function formatExpiry(expiry?: string | null) {
-  if (isPermanent(expiry)) return '永久有效'
+  if (isPermanent(expiry)) return t('manage.tokens.expiryPermanent')
   if (!expiry) return '—'
   const date = new Date(expiry)
   if (Number.isNaN(date.getTime())) return '—'
@@ -111,7 +114,7 @@ async function fetchList(params?: { page?: number, pageSize?: number, search?: s
       total.value = Array.isArray(data) ? rows.value.length : (data?.total ?? rows.value.length)
     }
   } catch {
-    toast.error('获取 Token 列表失败')
+    toast.error(t('manage.tokens.toast.fetchFailed'))
   } finally {
     loading.value = false
   }
@@ -172,12 +175,12 @@ async function handleCreateToken() {
   try {
     const { code } = await create({}) as any
     if (code === 200) {
-      toast.success('Token 创建成功')
+      toast.success(t('manage.tokens.toast.created'))
       createDialogOpen.value = false
       await fetchList({ page: 1 })
     }
   } catch {
-    toast.error('Token 创建失败')
+    toast.error(t('manage.tokens.toast.createFailed'))
   } finally {
     creating.value = false
   }
@@ -194,13 +197,13 @@ async function confirmDelete() {
   try {
     const { code } = await rmToken(deleteTarget.value.token) as any
     if (code === 200) {
-      toast.success('Token 已删除')
+      toast.success(t('manage.tokens.toast.deleted'))
       deleteDialogOpen.value = false
       deleteTarget.value = null
       await fetchList()
     }
   } catch {
-    toast.error('删除 Token 失败')
+    toast.error(t('manage.tokens.toast.deleteFailed'))
   } finally {
     deleting.value = false
   }
@@ -224,23 +227,23 @@ async function copyText(text: string, key: string) {
 const columns: ColumnDef<TokenRow>[] = [
   {
     id: 'status',
-    header: '状态',
+    header: () => t('manage.tokens.col.status'),
     cell: ({ row }) => {
       const token = row.original
       const expired = isExpired(token.expiry, token.isExpired)
       const permanent = isPermanent(token.expiry)
       if (expired) {
-        return h('span', { class: 'text-xs font-medium px-2 py-0.5 rounded-full bg-rose-500/10 text-rose-600 dark:text-rose-400 ring-1 ring-rose-500/20' }, token.phase || '已过期')
+        return h('span', { class: 'text-xs font-medium px-2 py-0.5 rounded-full bg-rose-500/10 text-rose-600 dark:text-rose-400 ring-1 ring-rose-500/20' }, token.phase || t('manage.tokens.status.expired'))
       }
       if (permanent) {
-        return h('span', { class: 'text-xs font-medium px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 ring-1 ring-blue-500/20' }, token.phase || '永久')
+        return h('span', { class: 'text-xs font-medium px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 ring-1 ring-blue-500/20' }, token.phase || t('manage.tokens.status.permanent'))
       }
-      return h('span', { class: 'text-xs font-medium px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 ring-1 ring-emerald-500/20' }, token.phase || '有效')
+      return h('span', { class: 'text-xs font-medium px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 ring-1 ring-emerald-500/20' }, token.phase || t('manage.tokens.status.valid'))
     },
   },
   {
     id: 'token',
-    header: 'Token 标识',
+    header: () => t('manage.tokens.col.tokenId'),
     cell: ({ row }) => {
       const token = row.original
       return h('div', { class: 'flex items-center gap-3' }, [
@@ -256,7 +259,7 @@ const columns: ColumnDef<TokenRow>[] = [
   },
   {
     id: 'workspace',
-    header: '所属空间',
+    header: () => t('manage.tokens.col.workspace'),
     cell: ({ row }) => {
       const token = row.original
       const name = token.workspaceDisplayName ?? token.namespace ?? ''
@@ -266,7 +269,7 @@ const columns: ColumnDef<TokenRow>[] = [
   },
   {
     id: 'tokenContent',
-    header: 'Token 内容',
+    header: () => t('manage.tokens.col.tokenContent'),
     cell: ({ row }) => {
       const token = row.original.token || ''
       if (!token) return h('span', { class: 'text-[11px] text-muted-foreground/40' }, '—')
@@ -289,7 +292,7 @@ const columns: ColumnDef<TokenRow>[] = [
   },
   {
     accessorKey: 'usageLimit',
-    header: '使用情况',
+    header: () => t('manage.tokens.col.usage'),
     cell: ({ row }) => {
       const used = row.original.usedCount ?? 0
       const limit = row.original.usageLimit ?? 0
@@ -299,14 +302,14 @@ const columns: ColumnDef<TokenRow>[] = [
           h('span', { class: 'text-[11px] text-muted-foreground/60' }, `/ ${limit}`),
         ]),
         limit > 0
-          ? h('span', { class: 'text-[10px] text-muted-foreground/50' }, `${Math.round((used / limit) * 100)}% 已用`)
+          ? h('span', { class: 'text-[10px] text-muted-foreground/50' }, t('manage.tokens.pctUsed', { pct: Math.round((used / limit) * 100) }))
           : null,
       ])
     },
   },
   {
     id: 'boundPeers',
-    header: '已绑定节点',
+    header: () => t('manage.tokens.col.boundPeers'),
     cell: ({ row }) => {
       const count = row.original.boundPeers?.length ?? row.original.usedCount ?? 0
       return h('span', { class: 'text-sm text-muted-foreground tabular-nums' }, String(count))
@@ -314,13 +317,13 @@ const columns: ColumnDef<TokenRow>[] = [
   },
   {
     accessorKey: 'expiry',
-    header: '到期时间',
+    header: () => t('manage.tokens.col.expiry'),
     cell: ({ row }) => {
       const token = row.original
       if (isPermanent(token.expiry)) {
         return h('div', { class: 'flex items-center gap-1.5 text-xs text-muted-foreground' }, [
           h(Infinity, { class: 'size-3.5 shrink-0' }),
-          h('span', '永久有效'),
+          h('span', t('manage.tokens.expiryPermanent')),
         ])
       }
       const text = formatExpiry(token.expiry)
@@ -346,16 +349,16 @@ const columns: ColumnDef<TokenRow>[] = [
           ),
           h(DropdownMenuContent, { align: 'end', class: 'w-36' }, () => [
             h(DropdownMenuItem, { onClick: () => openDetail(token) }, () => [
-              h(Terminal, { class: 'mr-2 size-3.5' }), '查看详情',
+              h(Terminal, { class: 'mr-2 size-3.5' }), t('manage.tokens.menu.viewDetail'),
             ]),
             h(DropdownMenuItem, { onClick: () => copyText(token.token, `token-${token.token}`) }, () => [
-              h(Copy, { class: 'mr-2 size-3.5' }), '复制 Token',
+              h(Copy, { class: 'mr-2 size-3.5' }), t('manage.tokens.menu.copyToken'),
             ]),
             h(DropdownMenuSeparator),
             h(DropdownMenuItem, {
               class: 'text-destructive focus:text-destructive',
               onClick: () => promptDelete(token),
-            }, () => [h(Trash2, { class: 'mr-2 size-3.5' }), '删除 Token']),
+            }, () => [h(Trash2, { class: 'mr-2 size-3.5' }), t('manage.tokens.menu.delete')]),
           ]),
         ],
       })
@@ -397,7 +400,7 @@ function goToPage(p: number) {
       >
         <div class="flex items-start justify-between">
           <div class="flex flex-col gap-1">
-            <span class="text-muted-foreground text-sm font-medium">全部 Token</span>
+            <span class="text-muted-foreground text-sm font-medium">{{ t('manage.tokens.stats.all') }}</span>
             <span class="text-2xl font-bold tracking-tight">{{ stats.total }}</span>
           </div>
           <div class="bg-muted rounded-lg p-2">
@@ -406,7 +409,7 @@ function goToPage(p: number) {
         </div>
         <div class="mt-3 flex items-center gap-1 text-sm">
           <Terminal class="text-muted-foreground size-4 shrink-0" />
-          <span class="text-muted-foreground">总使用上限 <span class="font-semibold text-foreground">{{ stats.totalUsageLimit }}</span></span>
+          <span class="text-muted-foreground">{{ t('manage.tokens.stats.allSub', { n: stats.totalUsageLimit }) }}</span>
         </div>
       </button>
 
@@ -417,7 +420,7 @@ function goToPage(p: number) {
       >
         <div class="flex items-start justify-between">
           <div class="flex flex-col gap-1">
-            <span class="text-muted-foreground text-sm font-medium">有效 Token</span>
+            <span class="text-muted-foreground text-sm font-medium">{{ t('manage.tokens.stats.valid') }}</span>
             <span class="text-2xl font-bold tracking-tight">{{ stats.valid }}</span>
           </div>
           <div class="bg-muted rounded-lg p-2">
@@ -426,7 +429,7 @@ function goToPage(p: number) {
         </div>
         <div class="mt-3 flex items-center gap-1 text-sm">
           <Check class="text-emerald-600 size-4 shrink-0" />
-          <span class="text-muted-foreground">可正常用于接入</span>
+          <span class="text-muted-foreground">{{ t('manage.tokens.stats.validSub') }}</span>
         </div>
       </button>
 
@@ -437,7 +440,7 @@ function goToPage(p: number) {
       >
         <div class="flex items-start justify-between">
           <div class="flex flex-col gap-1">
-            <span class="text-muted-foreground text-sm font-medium">已过期</span>
+            <span class="text-muted-foreground text-sm font-medium">{{ t('manage.tokens.stats.expired') }}</span>
             <span class="text-2xl font-bold tracking-tight">{{ stats.expired }}</span>
           </div>
           <div class="bg-muted rounded-lg p-2">
@@ -446,7 +449,7 @@ function goToPage(p: number) {
         </div>
         <div class="mt-3 flex items-center gap-1 text-sm">
           <Clock class="text-rose-500 size-4 shrink-0" />
-          <span class="text-muted-foreground">需要清理或重建</span>
+          <span class="text-muted-foreground">{{ t('manage.tokens.stats.expiredSub') }}</span>
         </div>
       </button>
 
@@ -457,7 +460,7 @@ function goToPage(p: number) {
       >
         <div class="flex items-start justify-between">
           <div class="flex flex-col gap-1">
-            <span class="text-muted-foreground text-sm font-medium">永久有效</span>
+            <span class="text-muted-foreground text-sm font-medium">{{ t('manage.tokens.stats.permanent') }}</span>
             <span class="text-2xl font-bold tracking-tight">{{ stats.permanent }}</span>
           </div>
           <div class="bg-muted rounded-lg p-2">
@@ -466,7 +469,7 @@ function goToPage(p: number) {
         </div>
         <div class="mt-3 flex items-center gap-1 text-sm">
           <Copy class="text-blue-600 size-4 shrink-0" />
-          <span class="text-muted-foreground">长期接入凭证</span>
+          <span class="text-muted-foreground">{{ t('manage.tokens.stats.permanentSub') }}</span>
         </div>
       </button>
     </div>
@@ -476,7 +479,7 @@ function goToPage(p: number) {
         <Search class="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
         <Input
           v-model="searchValue"
-          placeholder="搜索 Token 或命名空间..."
+          :placeholder="t('manage.tokens.searchPlaceholder')"
           class="pl-8 h-9"
           @input="onSearchInput"
         />
@@ -484,10 +487,10 @@ function goToPage(p: number) {
       <div class="ml-auto flex items-center gap-2">
         <Button variant="outline" size="sm" class="gap-1.5" :disabled="loading" @click="fetchList()">
           <RefreshCw class="size-3.5" :class="loading ? 'animate-spin' : ''" />
-          刷新
+          {{ t('common.action.refresh') }}
         </Button>
         <Button size="sm" class="gap-1.5" @click="createDialogOpen = true">
-          <Plus class="size-3.5" /> 创建 Token
+          <Plus class="size-3.5" /> {{ t('manage.tokens.createBtn') }}
         </Button>
       </div>
     </div>
@@ -524,7 +527,7 @@ function goToPage(p: number) {
           </template>
           <TableRow v-else>
             <TableCell :colspan="columns.length" class="h-32 text-center text-muted-foreground">
-              {{ loading ? '加载中...' : '暂无 Token 数据' }}
+              {{ loading ? t('common.status.loading') : t('manage.tokens.empty') }}
             </TableCell>
           </TableRow>
         </TableBody>
@@ -532,7 +535,7 @@ function goToPage(p: number) {
     </div>
 
     <div class="flex items-center justify-between text-sm text-muted-foreground">
-      <span>共 {{ total }} 条 · 第 {{ currentPage }} / {{ totalPages }} 页</span>
+      <span>{{ t('common.pagination.total', { total, page: currentPage, totalPages }) }}</span>
       <div class="flex items-center gap-1">
         <Button variant="outline" size="sm" class="size-8 p-0"
           :disabled="currentPage <= 1" @click="goToPage(currentPage - 1)">
@@ -553,9 +556,9 @@ function goToPage(p: number) {
 
     <AppAlertDialog
       v-model:open="deleteDialogOpen"
-      title="删除 Token"
-      :description="`确认删除 Token「${maskToken(deleteTarget?.token || '')}」？该操作不可撤销。`"
-      confirm-text="删除"
+      :title="t('manage.tokens.deleteDialog.title')"
+      :description="t('manage.tokens.deleteDialog.desc', { token: maskToken(deleteTarget?.token || '') })"
+      :confirm-text="t('common.action.delete')"
       variant="destructive"
       @confirm="confirmDelete"
     />
@@ -563,18 +566,18 @@ function goToPage(p: number) {
     <Dialog v-model:open="createDialogOpen">
       <DialogContent class="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>创建 Token</DialogTitle>
+          <DialogTitle>{{ t('manage.tokens.createDialog.title') }}</DialogTitle>
           <DialogDescription>
-            当前后端会自动生成 Token，并绑定到当前工作空间。
+            {{ t('manage.tokens.createDialog.desc') }}
           </DialogDescription>
         </DialogHeader>
         <div class="py-2 text-sm text-muted-foreground">
-          创建后可在列表中查看完整 Token，并复制接入命令。
+          {{ t('manage.tokens.createDialog.hint') }}
         </div>
         <DialogFooter>
-          <Button variant="outline" @click="createDialogOpen = false">取消</Button>
+          <Button variant="outline" @click="createDialogOpen = false">{{ t('common.action.cancel') }}</Button>
           <Button :disabled="creating" @click="handleCreateToken">
-            {{ creating ? '创建中...' : '创建' }}
+            {{ creating ? t('common.status.saving') : t('common.action.create') }}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -584,17 +587,17 @@ function goToPage(p: number) {
       <DialogContent class="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle class="flex items-center gap-2">
-            <Terminal class="size-4" /> Token 详情
+            <Terminal class="size-4" /> {{ t('manage.tokens.detailDialog.title') }}
           </DialogTitle>
           <DialogDescription>
-            查看 Token 详情并复制节点接入命令。
+            {{ t('manage.tokens.detailDialog.desc') }}
           </DialogDescription>
         </DialogHeader>
 
         <div v-if="selectedToken" class="space-y-4 py-2">
           <div class="rounded-lg border bg-muted/30 p-4 space-y-3">
             <div class="flex items-center justify-between gap-3">
-              <span class="text-xs text-muted-foreground">真实 Token 内容</span>
+              <span class="text-xs text-muted-foreground">{{ t('manage.tokens.detailDialog.tokenContent') }}</span>
               <Button variant="ghost" size="icon" class="size-7" @click="copyText(selectedToken.token, 'detail-token')">
                 <Check v-if="copiedKey === 'detail-token'" class="size-3.5 text-emerald-500" />
                 <Copy v-else class="size-3.5" />
@@ -605,29 +608,29 @@ function goToPage(p: number) {
 
           <div class="grid grid-cols-2 gap-3 text-sm">
             <div class="rounded-md bg-muted px-3 py-2">
-              <p class="text-xs text-muted-foreground mb-1">命名空间</p>
+              <p class="text-xs text-muted-foreground mb-1">{{ t('manage.tokens.detailDialog.namespace') }}</p>
               <p class="font-mono">{{ selectedToken.namespace }}</p>
             </div>
             <div class="rounded-md bg-muted px-3 py-2">
-              <p class="text-xs text-muted-foreground mb-1">使用情况</p>
+              <p class="text-xs text-muted-foreground mb-1">{{ t('manage.tokens.detailDialog.usage') }}</p>
               <p>{{ selectedToken.usedCount ?? 0 }} / {{ selectedToken.usageLimit }}</p>
             </div>
             <div class="rounded-md bg-muted px-3 py-2">
-              <p class="text-xs text-muted-foreground mb-1">状态</p>
+              <p class="text-xs text-muted-foreground mb-1">{{ t('manage.tokens.detailDialog.status') }}</p>
               <p>{{ selectedToken.phase || (selectedToken.isExpired ? 'Expired' : 'Active') }}</p>
             </div>
             <div class="rounded-md bg-muted px-3 py-2">
-              <p class="text-xs text-muted-foreground mb-1">到期时间</p>
+              <p class="text-xs text-muted-foreground mb-1">{{ t('manage.tokens.detailDialog.expiry') }}</p>
               <p>{{ formatExpiry(selectedToken.expiry) }}</p>
             </div>
             <div class="rounded-md bg-muted px-3 py-2">
-              <p class="text-xs text-muted-foreground mb-1">绑定节点</p>
+              <p class="text-xs text-muted-foreground mb-1">{{ t('manage.tokens.detailDialog.boundPeers') }}</p>
               <p>{{ selectedToken.boundPeers?.length ?? selectedToken.usedCount ?? 0 }}</p>
             </div>
           </div>
 
           <div class="space-y-2">
-            <p class="text-sm font-medium">接入命令（使用 status.token）</p>
+            <p class="text-sm font-medium">{{ t('manage.tokens.detailDialog.cmdLabel') }}</p>
             <div class="relative">
               <div class="bg-zinc-950 dark:bg-zinc-900 rounded-lg p-4 pr-12 font-mono text-sm text-emerald-400 border border-zinc-800">
                 <span class="text-zinc-500 select-none">$ </span>{{ installCommand }}
@@ -644,7 +647,7 @@ function goToPage(p: number) {
         </div>
 
         <DialogFooter>
-          <Button variant="outline" @click="detailDialogOpen = false">关闭</Button>
+          <Button variant="outline" @click="detailDialogOpen = false">{{ t('common.action.close') }}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

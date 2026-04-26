@@ -139,7 +139,14 @@
     "title": "策略管理",
     "desc": "管理工作空间的网络访问策略。",
     "createBtn": "创建策略",
-    "searchPlaceholder": "搜索策略名称...",
+    "searchPlaceholder": "搜索策略名称或描述...",
+    "noDesc": "无描述",
+    "notSet": "未设置",
+    "empty": "暂无策略",
+    "allowTrafficDesc": "放通流量，允许访问",
+    "denyTrafficDesc": "拦截流量，拒绝访问",
+    "totalRulesLabel": "总规则数",
+    "avgRulesLabel": "均 {n} 条/策略",
     "col": {
       "name": "策略名称",
       "action": "动作",
@@ -154,7 +161,8 @@
       "active": "已部署",
       "pending": "审批中",
       "approved": "执行中",
-      "failed": "执行失败"
+      "failed": "执行失败",
+      "unknown": "未知"
     },
     "stats": {
       "total": "全部策略",
@@ -163,7 +171,57 @@
       "ingress": "入站",
       "egress": "出站"
     },
-    "deleteConfirm": "确认删除策略「{name}」？此操作将同时从 Kubernetes 集群移除对应 CRD。"
+    "deleteConfirm": "确认删除策略「{name}」？此操作将同时从 Kubernetes 集群移除对应 CRD。",
+    "deleteDialog": {
+      "title": "删除策略",
+      "desc": "确认删除策略「{name}」？该操作不可撤销。"
+    },
+    "detailDialog": {
+      "direction": "策略方向",
+      "targetSelector": "目标选择器",
+      "source": "来源",
+      "port": "端口",
+      "destination": "目标",
+      "noRules": "无具体规则",
+      "edit": "编辑"
+    },
+    "createDialog": {
+      "createTitle": "新建策略",
+      "editTitle": "编辑策略",
+      "createDesc": "定义一条网络访问控制规则",
+      "editDesc": "修改策略配置",
+      "allowAllLabel": "一键放通 Allow All",
+      "allowAllDesc": "允许网络内所有节点双向互通，适合快速调试",
+      "recommended": "推荐",
+      "nameLabel": "策略名称",
+      "selectorLabel": "目标选择器",
+      "actionLabel": "动作",
+      "directionLabel": "策略方向",
+      "descLabel": "描述",
+      "descOptional": "(可选)",
+      "ingressTitle": "Ingress 规则",
+      "egressTitle": "Egress 规则",
+      "addRule": "+ 添加",
+      "srcSelector": "来源选择器",
+      "dstSelector": "目标选择器",
+      "portLabel": "端口",
+      "noIngressRules": "无规则 — 拒绝所有入站",
+      "noEgressRules": "无规则 — 拒绝所有出站",
+      "crdHint": "策略将以 WireflowPolicy CRD 形式同步至集群，生效可能需要数秒。",
+      "publish": "发布策略",
+      "save": "保存更改"
+    },
+    "templates": {
+      "isolate": "全隔离",
+      "db": "数据库保护",
+      "internet": "放通出口"
+    },
+    "toast": {
+      "created": "策略已发布",
+      "updated": "策略已更新",
+      "deleted": "策略已删除",
+      "failed": "操作失败"
+    }
   },
   "workspaces": {
     "title": "空间管理",
@@ -232,12 +290,66 @@
     "title": "接入令牌",
     "desc": "管理 WireGuard 节点接入凭证。",
     "createBtn": "创建令牌",
+    "searchPlaceholder": "搜索 Token 或命名空间...",
+    "stats": {
+      "all": "全部 Token",
+      "allSub": "总使用上限 {n}",
+      "valid": "有效 Token",
+      "validSub": "可正常用于接入",
+      "expired": "已过期",
+      "expiredSub": "需要清理或重建",
+      "permanent": "永久有效",
+      "permanentSub": "长期接入凭证"
+    },
+    "status": {
+      "expired": "已过期",
+      "permanent": "永久",
+      "valid": "有效"
+    },
+    "expiryPermanent": "永久有效",
+    "pctUsed": "{pct}% 已用",
     "col": {
-      "name": "名称",
-      "token": "令牌",
       "status": "状态",
-      "createdAt": "创建时间",
+      "tokenId": "Token 标识",
+      "workspace": "所属空间",
+      "tokenContent": "Token 内容",
+      "usage": "使用情况",
+      "boundPeers": "已绑定节点",
+      "expiry": "到期时间",
       "actions": ""
+    },
+    "menu": {
+      "viewDetail": "查看详情",
+      "copyToken": "复制 Token",
+      "delete": "删除 Token"
+    },
+    "empty": "暂无 Token 数据",
+    "deleteDialog": {
+      "title": "删除 Token",
+      "desc": "确认删除 Token「{token}」？该操作不可撤销。"
+    },
+    "createDialog": {
+      "title": "创建 Token",
+      "desc": "当前后端会自动生成 Token，并绑定到当前工作空间。",
+      "hint": "创建后可在列表中查看完整 Token，并复制接入命令。"
+    },
+    "detailDialog": {
+      "title": "Token 详情",
+      "desc": "查看 Token 详情并复制节点接入命令。",
+      "tokenContent": "真实 Token 内容",
+      "namespace": "命名空间",
+      "usage": "使用情况",
+      "status": "状态",
+      "expiry": "到期时间",
+      "boundPeers": "绑定节点",
+      "cmdLabel": "接入命令（使用 status.token）"
+    },
+    "toast": {
+      "fetchFailed": "获取 Token 列表失败",
+      "created": "Token 创建成功",
+      "createFailed": "Token 创建失败",
+      "deleted": "Token 已删除",
+      "deleteFailed": "删除 Token 失败"
     }
   },
   "nodes": {

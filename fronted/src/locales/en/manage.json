@@ -139,7 +139,14 @@
     "title": "Policy Management",
     "desc": "Manage network access policies for this workspace.",
     "createBtn": "Create Policy",
-    "searchPlaceholder": "Search policy name...",
+    "searchPlaceholder": "Search policy name or description...",
+    "noDesc": "No description",
+    "notSet": "Not set",
+    "empty": "No policies",
+    "allowTrafficDesc": "Allow traffic, permit access",
+    "denyTrafficDesc": "Block traffic, deny access",
+    "totalRulesLabel": "Total Rules",
+    "avgRulesLabel": "Avg {n} rules/policy",
     "col": {
       "name": "Policy Name",
       "action": "Action",
@@ -154,7 +161,8 @@
       "active": "Deployed",
       "pending": "Pending Approval",
       "approved": "Executing",
-      "failed": "Failed"
+      "failed": "Failed",
+      "unknown": "Unknown"
     },
     "stats": {
       "total": "All Policies",
@@ -163,7 +171,57 @@
       "ingress": "Ingress",
       "egress": "Egress"
     },
-    "deleteConfirm": "Delete policy \"{name}\"? This will also remove the CRD from the Kubernetes cluster."
+    "deleteConfirm": "Delete policy \"{name}\"? This will also remove the CRD from the Kubernetes cluster.",
+    "deleteDialog": {
+      "title": "Delete Policy",
+      "desc": "Delete policy \"{name}\"? This cannot be undone."
+    },
+    "detailDialog": {
+      "direction": "Policy Direction",
+      "targetSelector": "Target Selector",
+      "source": "Source",
+      "port": "Port",
+      "destination": "Destination",
+      "noRules": "No specific rules",
+      "edit": "Edit"
+    },
+    "createDialog": {
+      "createTitle": "Create Policy",
+      "editTitle": "Edit Policy",
+      "createDesc": "Define a network access control rule",
+      "editDesc": "Modify policy configuration",
+      "allowAllLabel": "Allow All — One-click permit",
+      "allowAllDesc": "Allow all nodes to communicate bidirectionally. Good for quick debugging.",
+      "recommended": "Recommended",
+      "nameLabel": "Policy Name",
+      "selectorLabel": "Target Selector",
+      "actionLabel": "Action",
+      "directionLabel": "Policy Direction",
+      "descLabel": "Description",
+      "descOptional": "(optional)",
+      "ingressTitle": "Ingress Rules",
+      "egressTitle": "Egress Rules",
+      "addRule": "+ Add",
+      "srcSelector": "Source Selector",
+      "dstSelector": "Target Selector",
+      "portLabel": "Port",
+      "noIngressRules": "No rules — deny all inbound",
+      "noEgressRules": "No rules — deny all outbound",
+      "crdHint": "The policy will be synced to the cluster as a WireflowPolicy CRD. It may take a few seconds.",
+      "publish": "Publish Policy",
+      "save": "Save Changes"
+    },
+    "templates": {
+      "isolate": "Isolate",
+      "db": "DB Guard",
+      "internet": "Allow Egress"
+    },
+    "toast": {
+      "created": "Policy published",
+      "updated": "Policy updated",
+      "deleted": "Policy deleted",
+      "failed": "Operation failed"
+    }
   },
   "workspaces": {
     "title": "Workspace Management",
@@ -232,12 +290,66 @@
     "title": "Access Tokens",
     "desc": "Manage WireGuard node enrollment tokens.",
     "createBtn": "Create Token",
+    "searchPlaceholder": "Search token or namespace...",
+    "stats": {
+      "all": "All Tokens",
+      "allSub": "Total usage limit {n}",
+      "valid": "Valid",
+      "validSub": "Available for enrollment",
+      "expired": "Expired",
+      "expiredSub": "Clean up or recreate",
+      "permanent": "Permanent",
+      "permanentSub": "Long-term credentials"
+    },
+    "status": {
+      "expired": "Expired",
+      "permanent": "Permanent",
+      "valid": "Valid"
+    },
+    "expiryPermanent": "Permanent",
+    "pctUsed": "{pct}% used",
     "col": {
-      "name": "Name",
-      "token": "Token",
       "status": "Status",
-      "createdAt": "Created At",
+      "tokenId": "Token ID",
+      "workspace": "Workspace",
+      "tokenContent": "Token Content",
+      "usage": "Usage",
+      "boundPeers": "Bound Nodes",
+      "expiry": "Expiry",
       "actions": ""
+    },
+    "menu": {
+      "viewDetail": "View Details",
+      "copyToken": "Copy Token",
+      "delete": "Delete Token"
+    },
+    "empty": "No tokens",
+    "deleteDialog": {
+      "title": "Delete Token",
+      "desc": "Delete token \"{token}\"? This cannot be undone."
+    },
+    "createDialog": {
+      "title": "Create Token",
+      "desc": "The backend will auto-generate a token bound to the current workspace.",
+      "hint": "After creation, view the full token in the list and copy the join command."
+    },
+    "detailDialog": {
+      "title": "Token Details",
+      "desc": "View token details and copy the node join command.",
+      "tokenContent": "Token Content",
+      "namespace": "Namespace",
+      "usage": "Usage",
+      "status": "Status",
+      "expiry": "Expiry",
+      "boundPeers": "Bound Nodes",
+      "cmdLabel": "Join command (using status.token)"
+    },
+    "toast": {
+      "fetchFailed": "Failed to load tokens",
+      "created": "Token created",
+      "createFailed": "Token creation failed",
+      "deleted": "Token deleted",
+      "deleteFailed": "Delete failed"
     }
   },
   "nodes": {

@@ -204,6 +204,20 @@ func Start(flags *config.Config) error {
 		setupLog.Error(err, "unable to create controller", "controller", "WireflowRelayServer")
 		return err
 	}
+	if err := (&NetworkPeeringReconciler{
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "WireflowNetworkPeering")
+		return err
+	}
+	if err := (&ClusterPeeringReconciler{
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "WireflowClusterPeering")
+		return err
+	}
 	// +kubebuilder:scaffold:builder
 
 	if metricsCertWatcher != nil {

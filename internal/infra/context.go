@@ -6,4 +6,5 @@ const (
 	UserIDKey ContextKey = iota
 	WorkspaceKey
 	StrictTenantKey
+	SystemRoleKey
 )

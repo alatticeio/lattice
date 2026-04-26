@@ -217,7 +217,12 @@ export const useDashboardStore = defineStore('dashboard', {
                 this.globalStats  = d.global_stats  ?? []
                 this.globalEvents = d.global_events ?? []
                 this.topNodes     = d.top_nodes      ?? []
-                this.globalTrend  = d.global_trend   ?? { timestamps: [], tx_data: [], rx_data: [] }
+                const rawTrend    = d.global_trend   ?? {}
+                this.globalTrend  = {
+                    timestamps: rawTrend.timestamps ?? [],
+                    tx_data:    rawTrend.tx_data    ?? [],
+                    rx_data:    rawTrend.rx_data    ?? [],
+                }
 
                 const txLast = this.globalTrend.tx_data.at(-1) ?? 0
                 const rxLast = this.globalTrend.rx_data.at(-1) ?? 0
@@ -239,9 +244,21 @@ export const useDashboardStore = defineStore('dashboard', {
             this.wsLoading = true
             try {
                 const res = await getWorkspaceDashboard(wsID)
-                this.wsData = res.data
-                const tx = this.wsData?.throughput_trend.tx_data.at(-1) ?? 0
-                const rx = this.wsData?.throughput_trend.rx_data.at(-1) ?? 0
+                const d = res.data
+                const rawTrend = d.throughput_trend ?? {}
+                // Normalize null slices (Go nil slice → JSON null)
+                this.wsData = {
+                    stat_cards: d.stat_cards ?? [],
+                    node_cpu:   d.node_cpu   ?? [],
+                    top_nodes:  d.top_nodes  ?? [],
+                    throughput_trend: {
+                        timestamps: rawTrend.timestamps ?? [],
+                        tx_data:    rawTrend.tx_data    ?? [],
+                        rx_data:    rawTrend.rx_data    ?? [],
+                    },
+                }
+                const tx = this.wsData.throughput_trend.tx_data.at(-1) ?? 0
+                const rx = this.wsData.throughput_trend.rx_data.at(-1) ?? 0
                 this.txRate = tx
                 this.rxRate = rx
             } catch {

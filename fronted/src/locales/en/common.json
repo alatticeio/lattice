@@ -90,8 +90,10 @@
       "overview": "Overview",
       "workspace": "Workspace",
       "platform": "Platform",
+      "ai": "AI Assistant",
       "settings": "Settings"
     },
+    "ai": "AI Assistant",
     "dashboard": "Dashboard",
     "members": "Members",
     "policies": "Policies",

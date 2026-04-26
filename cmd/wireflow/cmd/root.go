@@ -76,7 +76,6 @@ func init() {
 	fs.StringP("server-url", "", "", "management server URL")
 	fs.StringP("signaling-url", "", "", "signaling server URL")
 	fs.BoolP("version", "", false, "print version information")
-	fs.BoolP("show-system-log", "", false, "show low-level WireGuard/ICE logs")
 	fs.BoolP("save", "", false, "persist flags to config file")
 
 	rootCmd.AddCommand(upCmd())

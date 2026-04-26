@@ -1,17 +1,398 @@
-database:
-    driver: mysql
-    dsn: root:root@tcp(wireflow-mariadb.wireflow-system.svc.cluster.local:3306)/wireflow?charset=utf8mb4&parseTime=True&loc=Local
-dex:
-    providerurl: http://wireflow-dex.wireflow-system.svc.cluster.local:5556
-env: dev
-health-probe-bind-address: :8081
-level: info
-listen: :8080
-metrics-addr: :8443
-monitor:
-  address: "http://101.36.119.12:8428"
-port: 3478
-server-url: http://wireflow.run
-signaling-url: nats://wireflow-nats-service.wireflow-system.svc.cluster.local:4222
-stun-url: stun.wireflow.run:3478
-wrrper-url: :6266
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/part-of: wireflow
+  name: wireflow-controller-admin
+  namespace: wireflow-system
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: wireflow-controller
+    app.kubernetes.io/part-of: wireflow
+  name: wireflow-controller-manager
+  namespace: wireflow-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: wireflow-controller
+    app.kubernetes.io/part-of: wireflow
+  name: wireflow-leader-election-role
+  namespace: wireflow-system
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - patch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/part-of: wireflow
+  name: wireflow-manager-extra-role
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - namespaces
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - wireflowcontroller.wireflow.run
+  resources:
+  - wireflowendpoints
+  - wireflowglobalippools
+  - wireflowsubnetallocations
+  - wireflowenrollmenttokens
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - wireflowcontroller.wireflow.run
+  resources:
+  - wireflowendpoints/finalizers
+  - wireflowglobalippools/finalizers
+  - wireflowsubnetallocations/finalizers
+  - wireflowenrollmenttokens/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - wireflowcontroller.wireflow.run
+  resources:
+  - wireflowglobalippools/status
+  - wireflowenrollmenttokens/status
+  verbs:
+  - get
+  - patch
+  - update
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/part-of: wireflow
+  name: wireflow-manager-role
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - wireflowcontroller.wireflow.run
+  resources:
+  - wireflowenrollmenttokens
+  - wireflownetworks
+  - wireflowpeers
+  - wireflowpolicies
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - wireflowcontroller.wireflow.run
+  resources:
+  - wireflowenrollmenttokens/finalizers
+  - wireflownetworks/finalizers
+  - wireflowpeers/finalizers
+  - wireflowpolicies/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - wireflowcontroller.wireflow.run
+  resources:
+  - wireflowenrollmenttokens/status
+  - wireflownetworks/status
+  - wireflowpeers/status
+  - wireflowpolicies/status
+  verbs:
+  - get
+  - patch
+  - update
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: wireflow-controller
+    app.kubernetes.io/part-of: wireflow
+  name: wireflow-leader-election-rolebinding
+  namespace: wireflow-system
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: wireflow-leader-election-role
+subjects:
+- kind: ServiceAccount
+  name: wireflow-controller-manager
+  namespace: wireflow-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/part-of: wireflow
+  name: wireflow-controller-admin
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-admin
+subjects:
+- kind: ServiceAccount
+  name: wireflow-controller-admin
+  namespace: wireflow-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: wireflow-controller
+    app.kubernetes.io/part-of: wireflow
+  name: wireflow-manager-extra-rolebinding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: wireflow-manager-extra-role
+subjects:
+- kind: ServiceAccount
+  name: wireflow-controller-manager
+  namespace: wireflow-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: wireflow-controller
+    app.kubernetes.io/part-of: wireflow
+  name: wireflow-manager-rolebinding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: wireflow-manager-role
+subjects:
+- kind: ServiceAccount
+  name: wireflow-controller-manager
+  namespace: wireflow-system
+---
+apiVersion: v1
+data:
+  wireflow.yaml: |
+    app:
+      listen: :8080
+      name: "WireFlow"
+      env: "production"
+      init_admins:
+        - username: "admin"
+          password: "changeme"   # ⚠️ 请修改默认密码
+
+    jwt:
+      secret: "replace-with-random-secret"  # ⚠️ 请替换为随机密钥
+      expire_hours: 24
+
+    # all-in-one 模式：NATS 内嵌于 wireflowd 进程，进程内直连
+    signaling-url: "nats://localhost:4222"
+
+    database:
+      # SQLite 路径相对于进程工作目录（Dockerfile WORKDIR=/app）
+      # 实际文件：/app/data/wireflow.db（对应 PVC 挂载点 /app/data）
+      # 如需接入外部 MariaDB（企业级），替换为：
+      # dsn: "root:pass@tcp(mariadb.wireflow-system.svc:3306)/wireflow?charset=utf8mb4&parseTime=True"
+      dsn: "data/wireflow.db"
+kind: ConfigMap
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/part-of: wireflow
+  name: wireflow-aio-config
+  namespace: wireflow-system
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: wireflowd
+    app.kubernetes.io/part-of: wireflow
+  name: wireflow-api-service
+  namespace: wireflow-system
+spec:
+  ports:
+  - name: http
+    port: 8080
+    targetPort: 8080
+  selector:
+    app.kubernetes.io/name: wireflowd
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: wireflowd
+    app.kubernetes.io/part-of: wireflow
+  name: wireflow-nats-service
+  namespace: wireflow-system
+spec:
+  ports:
+  - name: client
+    port: 4222
+    targetPort: 4222
+  selector:
+    app.kubernetes.io/name: wireflowd
+  type: ClusterIP
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/part-of: wireflow
+  name: wireflow-aio-data
+  namespace: wireflow-system
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: wireflowd
+    app.kubernetes.io/part-of: wireflow
+  name: wireflow-aio
+  namespace: wireflow-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: wireflowd
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/managed-by: kustomize
+        app.kubernetes.io/name: wireflowd
+        app.kubernetes.io/part-of: wireflow
+    spec:
+      containers:
+      - image: ghcr.io/wireflowio/wireflowd:latest
+        imagePullPolicy: Always
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 15
+          periodSeconds: 20
+        name: wireflowd
+        ports:
+        - containerPort: 8080
+          name: http
+        - containerPort: 4222
+          name: nats
+        readinessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        resources:
+          limits:
+            cpu: 1000m
+            memory: 512Mi
+          requests:
+            cpu: 100m
+            memory: 128Mi
+        volumeMounts:
+        - mountPath: /app/data
+          name: data
+        - mountPath: /etc/wireflow/wireflow.yaml
+          name: conf
+          subPath: wireflow.yaml
+      serviceAccountName: wireflow-controller-admin
+      volumes:
+      - name: data
+        persistentVolumeClaim:
+          claimName: wireflow-aio-data
+      - configMap:
+          name: wireflow-aio-config
+        name: conf
+---
+apiVersion: wireflowcontroller.wireflow.run/v1alpha1
+kind: WireflowGlobalIPPool
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/part-of: wireflow
+  name: wireflow-ip-pool
+  namespace: wireflow-system
+spec:
+  cidr: 10.0.0.0/8
+  subnetMask: 24

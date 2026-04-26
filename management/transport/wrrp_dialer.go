@@ -18,7 +18,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net"
 	"sync"
 	"time"
 	"wireflow/internal/grpc"
@@ -26,7 +25,7 @@ import (
 	"wireflow/internal/log"
 	"wireflow/pkg/wrrp"
 
-	"github.com/wireflowio/ice"
+	"github.com/pion/ice/v4"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -42,22 +41,24 @@ type wrrpDialer struct {
 	wrrp           infra.Wrrp
 	readyChan      chan struct{}
 	readyOnce      sync.Once // guards close(readyChan)
-	active         bool      // true once OFFER/ANSWER exchange completes; guarded by mu
+	active         bool      // true once SYN/ACK exchange completes; guarded by mu
 	cancel         context.CancelFunc
 	sender         func(ctx context.Context, peerId infra.PeerID, data []byte) error
-	localPeer      *infra.Peer
+	getLocalPeer   func() *infra.Peer
 	onPeerReceived func(peer infra.Peer)
 	onRestart      func() // called when SYN arrives on an active session (remote restarted)
 	sm             *SessionManager
 }
 
 type WrrpDialerConfig struct {
-	LocalId        infra.PeerIdentity
-	RemoteId       infra.PeerIdentity
-	Wrrp           infra.Wrrp
-	SM             *SessionManager
-	SessionId      uint64
-	LocalPeer      *infra.Peer
+	LocalId   infra.PeerIdentity
+	RemoteId  infra.PeerIdentity
+	Wrrp      infra.Wrrp
+	SM        *SessionManager
+	SessionId uint64
+	// GetLocalPeer is called at send time so late-arriving ApplyFullConfig
+	// updates (Address, AllowedIPs) are always reflected in SYN/ACK peer info.
+	GetLocalPeer   func() *infra.Peer
 	OnPeerReceived func(peer infra.Peer)
 	Sender         func(ctx context.Context, peerId infra.PeerID, data []byte) error
 	// OnRestart is called when a HANDSHAKE_SYN arrives while the session is
@@ -75,7 +76,7 @@ func NewWrrpDialer(cfg *WrrpDialerConfig) infra.Dialer {
 		readyChan:      make(chan struct{}),
 		sm:             cfg.SM,
 		sender:         cfg.Sender,
-		localPeer:      cfg.LocalPeer,
+		getLocalPeer:   cfg.GetLocalPeer,
 		onPeerReceived: cfg.OnPeerReceived,
 		onRestart:      cfg.OnRestart,
 	}
@@ -121,7 +122,7 @@ func (w *wrrpDialer) Prepare(ctx context.Context, remoteId infra.PeerIdentity) e
 	return nil
 }
 
-func (w *wrrpDialer) sendPacket(ctx context.Context, remoteId infra.PeerIdentity, packetType grpc.PacketType, candidate ice.Candidate) error {
+func (w *wrrpDialer) sendPacket(ctx context.Context, remoteId infra.PeerIdentity, packetType grpc.PacketType, _ ice.Candidate) error {
 	p := &grpc.SignalPacket{
 		Type:     packetType,
 		Dialer:   grpc.DialerType_WRRP,
@@ -130,11 +131,15 @@ func (w *wrrpDialer) sendPacket(ctx context.Context, remoteId infra.PeerIdentity
 
 	switch packetType {
 	case grpc.PacketType_HANDSHAKE_SYN, grpc.PacketType_HANDSHAKE_ACK:
-		p.Payload = &grpc.SignalPacket_Handshake{
-			Handshake: &grpc.Handshake{
-				Timestamp: time.Now().Unix(),
-			},
+		// Include local peer info so the remote learns our WG config at
+		// SYN/ACK time, before any transport negotiation begins.
+		hs := &grpc.Handshake{Timestamp: time.Now().Unix()}
+		if lp := w.getLocalPeer(); lp != nil {
+			if data, err := json.Marshal(lp); err == nil {
+				hs.PeerInfo = data
+			}
 		}
+		p.Payload = &grpc.SignalPacket_Handshake{Handshake: hs}
 	}
 
 	data, err := proto.Marshal(p)
@@ -147,7 +152,7 @@ func (w *wrrpDialer) sendPacket(ctx context.Context, remoteId infra.PeerIdentity
 }
 
 func (w *wrrpDialer) sendOfferFromWrrp(ctx context.Context, offerType grpc.PacketType) error {
-	data, err := json.Marshal(w.localPeer)
+	data, err := json.Marshal(w.getLocalPeer())
 	if err != nil {
 		return err
 	}
@@ -176,6 +181,14 @@ func (w *wrrpDialer) Handle(ctx context.Context, remoteId infra.PeerIdentity, pa
 	}
 	switch packet.Type {
 	case grpc.PacketType_HANDSHAKE_SYN:
+		// Extract peer info from SYN — new design: peer info in SYN/ACK.
+		if hs := packet.GetHandshake(); hs != nil && len(hs.PeerInfo) > 0 {
+			var remotePeer infra.Peer
+			if err := json.Unmarshal(hs.PeerInfo, &remotePeer); err == nil {
+				w.onPeerReceived(remotePeer)
+			}
+		}
+
 		// If the session is already active, a SYN means the remote peer restarted.
 		// Close this dialer to tear down stale state and trigger probe.restart()
 		// so both sides re-run discovery with fresh dialers — same pattern as
@@ -197,15 +210,23 @@ func (w *wrrpDialer) Handle(ctx context.Context, remoteId infra.PeerIdentity, pa
 		return w.sendPacket(ctx, remoteId, grpc.PacketType_HANDSHAKE_ACK, nil)
 
 	case grpc.PacketType_HANDSHAKE_ACK:
+		// Extract peer info from ACK — new design: peer info in SYN/ACK.
+		if hs := packet.GetHandshake(); hs != nil && len(hs.PeerInfo) > 0 {
+			var remotePeer infra.Peer
+			if err := json.Unmarshal(hs.PeerInfo, &remotePeer); err == nil {
+				w.onPeerReceived(remotePeer)
+			}
+		}
+
 		w.mu.Lock()
 		cancel := w.cancel
 		w.mu.Unlock()
 		if cancel != nil {
 			cancel()
 		}
-		// Only the bigger-ID side drives the OFFER/ANSWER exchange.
-		// The smaller-ID side stops its SYN ticker and waits for an OFFER.
-		if w.localId.String() > w.remoteId.String() {
+		// Only the initiator (bigger-ID numerically) drives the OFFER/ANSWER exchange.
+		// Use numeric comparison to avoid decimal string ordering bugs.
+		if isInitiator(w.localId, w.remoteId) {
 			return w.sendOfferFromWrrp(ctx, grpc.PacketType_OFFER)
 		}
 		return nil
@@ -259,12 +280,11 @@ func (w *wrrpDialer) Dial(ctx context.Context) (infra.Transport, error) {
 	case <-dialCtx.Done():
 		return nil, fmt.Errorf("wrrpDialer: timed out waiting for ready: %w", dialCtx.Err())
 	case <-w.readyChan:
-		return &WrrpTransport{
-			conn: &WrrpRawConn{
-				wrrp:       w.wrrp,
-				remoteAddr: w.wrrp.RemoteAddr(),
-			},
-		}, nil
+		remoteAddr := ""
+		if ra := w.wrrp.RemoteAddr(); ra != nil {
+			remoteAddr = ra.String()
+		}
+		return &WrrpTransport{remoteAddr: remoteAddr}, nil
 	}
 }
 
@@ -277,7 +297,7 @@ func (w *wrrpDialer) Close() error {
 }
 
 type WrrpTransport struct {
-	conn net.Conn
+	remoteAddr string
 }
 
 func (w WrrpTransport) Priority() uint8 {
@@ -285,7 +305,7 @@ func (w WrrpTransport) Priority() uint8 {
 }
 
 func (w WrrpTransport) Close() error {
-	return w.conn.Close()
+	return nil
 }
 
 func (w WrrpTransport) Write(data []byte) error {
@@ -297,7 +317,7 @@ func (w WrrpTransport) Read(buff []byte) (int, error) {
 }
 
 func (w WrrpTransport) RemoteAddr() string {
-	return w.conn.RemoteAddr().String()
+	return w.remoteAddr
 }
 
 func (w WrrpTransport) Type() infra.TransportType {

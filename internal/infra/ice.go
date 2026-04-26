@@ -18,24 +18,17 @@ import (
 	"net"
 
 	"github.com/pion/logging"
-	"github.com/wireflowio/ice"
 )
 
-func NewUdpMux(conn net.PacketConn, showLog bool) *ice.UniversalUDPMuxDefault {
-
-	var loggerFactory *logging.DefaultLoggerFactory
+// NewFilteringMux creates a FilteringUDPMux that wraps conn as the sole UDP
+// reader. When showLog is true the ICE subsystem logs at DEBUG level.
+// Call SetPassThrough then Start on the returned mux before creating ICE agents.
+func NewFilteringMux(conn net.PacketConn, showLog bool) *FilteringUDPMux {
 	var logger logging.LeveledLogger
 	if showLog {
-		loggerFactory = logging.NewDefaultLoggerFactory()
-		loggerFactory.DefaultLogLevel = logging.LogLevelDebug
-		logger = loggerFactory.NewLogger("ice")
+		f := logging.NewDefaultLoggerFactory()
+		f.DefaultLogLevel = logging.LogLevelDebug
+		logger = f.NewLogger("ice")
 	}
-
-	universalUdpMux := ice.NewUniversalUDPMuxDefault(ice.UniversalUDPMuxParams{
-		Logger:  logger,
-		UDPConn: conn,
-		Net:     nil,
-	})
-
-	return universalUdpMux
+	return NewFilteringUDPMux(conn, logger)
 }

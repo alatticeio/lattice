@@ -56,7 +56,7 @@ func (w *workspaceService) DeleteWorkspace(ctx context.Context, id string) error
 }
 
 func (w *workspaceService) ListWorkspaces(ctx context.Context, request *dto.PageRequest) (*dto.PageResult[vo.WorkspaceVo], error) {
-	userRole := "super_admin"
+	systemRole, _ := ctx.Value(infra.SystemRoleKey).(string)
 
 	var (
 		workspaces []*models.Workspace
@@ -64,7 +64,7 @@ func (w *workspaceService) ListWorkspaces(ctx context.Context, request *dto.Page
 		err        error
 	)
 
-	if userRole == "super_admin" {
+	if systemRole == "platform_admin" {
 		workspaces, total, err = w.store.Workspaces().List(ctx, request.Keyword, request.Page, request.PageSize)
 		if err != nil {
 			return nil, err

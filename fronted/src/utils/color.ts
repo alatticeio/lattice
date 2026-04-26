@@ -1,12 +1,14 @@
 // utils/color.ts
 
-// Workspace avatar 背景色类（带背景和文字颜色）
+// Workspace avatar 背景色类（实心色 + 白色文字，与 Members 风格一致）
 const WS_COLOR_CLASSES = [
-    'bg-chart-1/10 text-chart-1 ring-1 ring-chart-1/20',
-    'bg-chart-2/10 text-chart-2 ring-1 ring-chart-2/20',
-    'bg-chart-3/10 text-chart-3 ring-1 ring-chart-3/20',
-    'bg-chart-4/10 text-chart-4 ring-1 ring-chart-4/20',
-    'bg-chart-5/10 text-chart-5 ring-1 ring-chart-5/20',
+    'bg-blue-500 text-white',
+    'bg-violet-500 text-white',
+    'bg-emerald-500 text-white',
+    'bg-orange-500 text-white',
+    'bg-rose-500 text-white',
+    'bg-cyan-500 text-white',
+    'bg-indigo-500 text-white',
 ]
 
 export function getWsColor(name: string): string {

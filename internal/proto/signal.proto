@@ -49,4 +49,5 @@ message Message {
 
 message Handshake {
   int64 timestamp = 1;
+  bytes peer_info = 2;  // JSON-encoded infra.Peer (local WG config)
 }

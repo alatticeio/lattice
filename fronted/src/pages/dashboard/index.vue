@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, watch, onMounted, onUnmounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import {
   Activity, Server, ShieldCheck, AlertTriangle,
   ArrowUpRight, ArrowDownRight, Zap, MoreHorizontal, Globe, Building2,
@@ -9,10 +10,12 @@ import { useWorkspaceStore } from '@/stores/workspace'
 
 definePage({
   meta: {
-    title: 'Wireflow Dashboard',
-    description: '全域网络态势实时监控中。',
+    titleKey: 'settings.dashboard.title',
+    descKey:  'settings.dashboard.desc',
   },
 })
+
+const { t } = useI18n()
 
 const store = useDashboardStore()
 onMounted(() => store.startPolling())
@@ -67,8 +70,8 @@ const upChart   = computed(() => buildPath(store.txChartData, 520, 180, 16))
 const downChart = computed(() => buildPath(store.rxChartData, 520, 180, 16))
 
 // ── mode label ────────────────────────────────────────────────────────
-const modeLabel = computed(() => store.isWorkspaceMode ? '工作空间' : '全域')
-const modeIcon  = computed(() => store.isWorkspaceMode ? Building2 : Globe)
+const modeLabel      = computed(() => store.isWorkspaceMode ? t('settings.dashboard.workspaceMode') : t('settings.dashboard.globalMode'))
+const modeIcon       = computed(() => store.isWorkspaceMode ? Building2 : Globe)
 const throughputUnit = computed(() => store.isWorkspaceMode ? 'Mbps' : 'Gbps')
 </script>
 
@@ -79,7 +82,7 @@ const throughputUnit = computed(() => store.isWorkspaceMode ? 'Mbps' : 'Gbps')
     <div class="flex items-center gap-2">
       <div class="flex items-center gap-1.5 rounded-full border border-border bg-muted/50 px-3 py-1 text-xs font-medium text-muted-foreground">
         <component :is="modeIcon" class="size-3" />
-        {{ modeLabel }}视图
+        {{ t('settings.dashboard.viewLabel', { mode: modeLabel }) }}
         <span v-if="store.wsLoading" class="ml-1 size-1.5 rounded-full bg-amber-400 animate-pulse" />
       </div>
     </div>
@@ -144,7 +147,7 @@ const throughputUnit = computed(() => store.isWorkspaceMode ? 'Mbps' : 'Gbps')
         <div class="mb-4 flex items-start justify-between">
           <div>
             <h3 class="font-semibold">Network Throughput</h3>
-            <p class="text-muted-foreground text-sm">{{ modeLabel }}实时流量监控 ({{ throughputUnit }})</p>
+            <p class="text-muted-foreground text-sm">{{ t('settings.dashboard.throughputSub', { mode: modeLabel, unit: throughputUnit }) }}</p>
           </div>
           <div class="flex items-center gap-4 text-xs font-medium">
             <div class="flex items-center gap-1.5">
@@ -175,8 +178,8 @@ const throughputUnit = computed(() => store.isWorkspaceMode ? 'Mbps' : 'Gbps')
 
       <div class="border-border bg-card text-card-foreground rounded-xl border p-5">
         <div class="mb-4">
-          <h3 class="font-semibold">Node Load</h3>
-          <p class="text-muted-foreground text-sm">当前节点 CPU 负载分布</p>
+          <h3 class="font-semibold">{{ t('settings.dashboard.nodeLoadTitle') }}</h3>
+          <p class="text-muted-foreground text-sm">{{ t('settings.dashboard.nodeLoadSub') }}</p>
         </div>
         <div class="flex h-40 items-end gap-2">
           <template v-if="store.nodeLoadBar.length > 0">
@@ -201,7 +204,7 @@ const throughputUnit = computed(() => store.isWorkspaceMode ? 'Mbps' : 'Gbps')
         </div>
         <div class="mt-4 border-t border-border pt-4 flex items-center justify-between">
           <div class="flex items-center gap-2 text-primary font-semibold text-sm">
-            <Zap class="size-4" /> 加速引擎活动中
+            <Zap class="size-4" /> {{ t('settings.dashboard.accelerating') }}
           </div>
           <span class="text-xs text-muted-foreground italic">Optimal</span>
         </div>
@@ -249,7 +252,7 @@ const throughputUnit = computed(() => store.isWorkspaceMode ? 'Mbps' : 'Gbps')
               </tr>
               <tr v-if="store.topTrafficNodes.length === 0 && !store.loading">
                 <td colspan="4" class="px-5 py-6 text-center text-muted-foreground text-sm">
-                  暂无节点数据 — 请确认监控服务已就绪
+                  {{ t('settings.dashboard.noNodeData') }}
                 </td>
               </tr>
               <tr v-if="store.loading">
@@ -277,7 +280,7 @@ const throughputUnit = computed(() => store.isWorkspaceMode ? 'Mbps' : 'Gbps')
           </div>
           <p v-if="store.auditLogs.length === 0 && !store.loading"
              class="text-xs text-muted-foreground text-center py-4">
-            暂无日志
+            {{ t('settings.dashboard.noLogs') }}
           </p>
         </div>
         <button class="mt-4 w-full py-2 border border-border rounded-md text-xs font-medium hover:bg-muted transition-colors">

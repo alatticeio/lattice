@@ -64,6 +64,7 @@ declare global {
   const triggerRef: typeof import('vue').triggerRef
   const unref: typeof import('vue').unref
   const useAction: typeof import('../composables/useApi').useAction
+  const useAiStore: typeof import('../stores/useAiStore').useAiStore
   const useAppConfig: typeof import('../composables/useAppConfig').useAppConfig
   const useAttrs: typeof import('vue').useAttrs
   const useConfirm: typeof import('../composables/useConfirm').useConfirm
@@ -103,6 +104,9 @@ declare global {
   // @ts-ignore
   export type { Theme, ColorScheme, RadiusValue, FontFamily, AppConfig } from '../composables/useAppConfig'
   import('../composables/useAppConfig')
+  // @ts-ignore
+  export type { ToolCall, Message, Conversation } from '../stores/useAiStore'
+  import('../stores/useAiStore')
   // @ts-ignore
   export type { User } from '../stores/user'
   import('../stores/user')

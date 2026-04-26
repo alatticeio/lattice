@@ -90,8 +90,10 @@
       "overview": "概览",
       "workspace": "工作空间",
       "platform": "平台管理",
+      "ai": "AI 助手",
       "settings": "设置"
     },
+    "ai": "AI 助手",
     "dashboard": "仪表盘",
     "members": "成员管理",
     "policies": "策略管理",

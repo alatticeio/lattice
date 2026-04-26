@@ -19,7 +19,7 @@ const breadcrumbs = computed(() => {
   const segments = route.path.split('/').filter(Boolean)
   return segments.map((seg, i) => {
     const path = '/' + segments.slice(0, i + 1).join('/')
-    const key = `breadcrumb.${seg}`
+    const key = `common.breadcrumb.${seg}`
     const label = te(key) ? t(key) : seg.charAt(0).toUpperCase() + seg.slice(1)
     return { label, path, isLast: i === segments.length - 1 }
   })
@@ -38,7 +38,7 @@ const breadcrumbs = computed(() => {
     <Breadcrumb>
       <BreadcrumbList>
         <BreadcrumbItem>
-          <BreadcrumbLink href="/">{{ t('breadcrumb.home') }}</BreadcrumbLink>
+          <BreadcrumbLink href="/">{{ t('common.breadcrumb.home') }}</BreadcrumbLink>
         </BreadcrumbItem>
         <template v-for="crumb in breadcrumbs" :key="crumb.path">
           <BreadcrumbSeparator />

@@ -21,14 +21,19 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"sync"
 )
 
 func (r *routeProvisioner) ApplyRoute(action, address, name string) error {
 	cidr := GetCidrFromIP(address)
 	switch action {
 	case "add":
-		// Use -C (check) before -A so rules are idempotent across reconnects.
-		// Resolve the default outbound interface dynamically instead of hardcoding eth0.
+		// Serialize under mu: iptables check→add is not atomic, and concurrent
+		// callers (multiple onPeerKnown firing simultaneously) will race: both
+		// see the rule absent, both attempt -A, the second gets xtables lock
+		// error and returns exit status 1.  Holding the mutex makes the
+		// check→add sequence atomic within this process.
+		r.mu.Lock()
 		iptCmds := fmt.Sprintf(
 			"iptables -w 5 -C FORWARD -i %[1]s -j ACCEPT 2>/dev/null || iptables -w 5 -A FORWARD -i %[1]s -j ACCEPT; "+
 				"iptables -w 5 -C FORWARD -o %[1]s -j ACCEPT 2>/dev/null || iptables -w 5 -A FORWARD -o %[1]s -j ACCEPT; "+
@@ -36,10 +41,12 @@ func (r *routeProvisioner) ApplyRoute(action, address, name string) error {
 				"iptables -w 5 -t nat -C POSTROUTING -o \"$DEV\" -j MASQUERADE 2>/dev/null || iptables -w 5 -t nat -A POSTROUTING -o \"$DEV\" -j MASQUERADE",
 			name,
 		)
-		if err := ExecCommand("/bin/sh", "-c", iptCmds); err != nil {
-			return err
+		iptErr := ExecCommand("/bin/sh", "-c", iptCmds)
+		r.mu.Unlock()
+		if iptErr != nil {
+			return iptErr
 		}
-		// ip route replace is idempotent: adds the route if absent, updates if already present.
+		// ip route replace is idempotent; no lock needed.
 		if err := ExecCommand("/bin/sh", "-c", fmt.Sprintf("ip route replace %s dev %s", cidr, name)); err != nil {
 			return err
 		}
@@ -55,6 +62,10 @@ func (r *routeProvisioner) ApplyRoute(action, address, name string) error {
 func (r *routeProvisioner) ApplyIP(action, address, name string) error {
 	switch action {
 	case "add":
+		// ip address replace 要求 CIDR 格式；若管理服务下发裸 IP（无前缀）则补 /32。
+		if !strings.Contains(address, "/") {
+			address = address + "/32"
+		}
 		if err := ExecCommand("/bin/sh", "-c", fmt.Sprintf("ip address replace %s dev %s", address, name)); err != nil {
 			return err
 		}
@@ -185,20 +196,43 @@ func isRunningInDocker() bool {
 // Docker container acting as a VPN gateway. It is a no-op on bare-metal or VM
 // deployments because ApplyRoute already installs the correct MASQUERADE rule
 // on the default outbound interface.
+// iptablesMu serializes SetupNAT iptables operations across concurrent callers.
+// ruleProvisioner is a separate type from routeProvisioner so it has its own lock.
+var iptablesMu sync.Mutex
+
 func (r *ruleProvisioner) SetupNAT(interfaceName string) error {
 	if !isRunningInDocker() {
 		return nil
 	}
 
-	cmds := []string{
-		fmt.Sprintf("iptables -w 5 -t nat -A POSTROUTING -o %s -j MASQUERADE", interfaceName),
-		"iptables -w 5 -A FORWARD -j ACCEPT",
-		fmt.Sprintf("iptables -w 5 -A FORWARD -i %s -o eth0 -m state --state RELATED,ESTABLISHED -j ACCEPT", interfaceName),
+	// 每条规则先用 -C 检查是否已存在，避免重连时重复追加。
+	type natRule struct {
+		check string
+		add   string
+	}
+	rules := []natRule{
+		{
+			check: fmt.Sprintf("iptables -w 5 -t nat -C POSTROUTING -o %s -j MASQUERADE", interfaceName),
+			add:   fmt.Sprintf("iptables -w 5 -t nat -A POSTROUTING -o %s -j MASQUERADE", interfaceName),
+		},
+		{
+			check: "iptables -w 5 -C FORWARD -j ACCEPT",
+			add:   "iptables -w 5 -A FORWARD -j ACCEPT",
+		},
+		{
+			check: fmt.Sprintf("iptables -w 5 -C FORWARD -i %s -o eth0 -m state --state RELATED,ESTABLISHED -j ACCEPT", interfaceName),
+			add:   fmt.Sprintf("iptables -w 5 -A FORWARD -i %s -o eth0 -m state --state RELATED,ESTABLISHED -j ACCEPT", interfaceName),
+		},
 	}
 
-	for _, args := range cmds {
-		if err := ExecCommand("/bin/sh", "-c", args); err != nil {
-			return err
+	iptablesMu.Lock()
+	defer iptablesMu.Unlock()
+	for _, r := range rules {
+		if err := ExecCommand("/bin/sh", "-c", r.check); err != nil {
+			// 规则不存在，添加
+			if err := ExecCommand("/bin/sh", "-c", r.add); err != nil {
+				return err
+			}
 		}
 	}
 

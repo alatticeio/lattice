@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, h } from 'vue'
+import { useI18n } from 'vue-i18n'
 import {
   useVueTable, getCoreRowModel, FlexRender, type ColumnDef,
 } from '@tanstack/vue-table'
@@ -29,8 +30,10 @@ import {
 } from '@/api/relay'
 
 definePage({
-  meta: { title: '中继服务器', description: '管理 WRRP 中继服务器，并将其推送至节点配置。' },
+  meta: { titleKey: 'settings.relays.title', descKey: 'settings.relays.desc' },
 })
+
+const { t } = useI18n()
 
 // ── state ───────────────────────────────────────────────────────────────────
 const rows = ref<RelayServer[]>([])
@@ -99,7 +102,7 @@ async function fetchList(params?: { page?: number }) {
       total.value = Array.isArray(data) ? rows.value.length : (data?.total ?? rows.value.length)
     }
   } catch {
-    toast.error('获取中继服务器列表失败')
+    toast.error(t('settings.relays.toast.fetchFailed'))
   } finally {
     loading.value = false
   }
@@ -108,27 +111,27 @@ async function fetchList(params?: { page?: number }) {
 onMounted(() => fetchList())
 
 async function handleSave() {
-  if (!form.value.name.trim()) { toast.error('请填写名称'); return }
-  if (!form.value.tcpUrl.trim()) { toast.error('请填写 TCP 地址'); return }
+  if (!form.value.name.trim()) { toast.error(t('settings.relays.toast.nameRequired')); return }
+  if (!form.value.tcpUrl.trim()) { toast.error(t('settings.relays.toast.tcpRequired')); return }
   saving.value = true
   try {
     if (editingItem.value) {
       const { code } = await updateRelay(editingItem.value.id, form.value) as any
       if (code === 200) {
-        toast.success('中继服务器已更新')
+        toast.success(t('settings.relays.toast.updated'))
         dialogOpen.value = false
         await fetchList()
       }
     } else {
       const { code } = await createRelay(form.value) as any
       if (code === 200) {
-        toast.success('中继服务器已创建')
+        toast.success(t('settings.relays.toast.created'))
         dialogOpen.value = false
         await fetchList({ page: 1 })
       }
     }
   } catch {
-    toast.error(editingItem.value ? '更新失败' : '创建失败')
+    toast.error(t(editingItem.value ? 'settings.relays.toast.updateFailed' : 'settings.relays.toast.createFailed'))
   } finally {
     saving.value = false
   }
@@ -145,13 +148,13 @@ async function confirmDelete() {
   try {
     const { code } = await deleteRelay(deleteTarget.value.id) as any
     if (code === 200) {
-      toast.success('中继服务器已删除')
+      toast.success(t('settings.relays.toast.deleted'))
       deleteDialogOpen.value = false
       deleteTarget.value = null
       await fetchList()
     }
   } catch {
-    toast.error('删除失败')
+    toast.error(t('settings.relays.toast.deleteFailed'))
   } finally {
     deleting.value = false
   }
@@ -162,13 +165,13 @@ async function handleTest(row: RelayServer) {
   try {
     const { code, data } = await testRelay(row.id) as any
     if (code === 200) {
-      toast.success(`连通性正常，延迟 ${data?.latencyMs ?? '—'} ms`)
+      toast.success(t('settings.relays.toast.testSuccess', { ms: data?.latencyMs ?? '—' }))
       await fetchList()
     } else {
-      toast.error('连通性测试失败')
+      toast.error(t('settings.relays.toast.testFailed'))
     }
   } catch {
-    toast.error('连通性测试失败')
+    toast.error(t('settings.relays.toast.testFailed'))
   } finally {
     testing.value = null
   }
@@ -211,31 +214,21 @@ function onSearchInput() {
 // ── helpers ───────────────────────────────────────────────────────────────────
 function statusBadge(row: RelayServer) {
   if (!row.enabled) {
-    return { label: '已禁用', cls: 'bg-zinc-500/10 text-zinc-500 ring-zinc-500/20' }
+    return { label: t('settings.relays.status.disabled'), cls: 'bg-zinc-500/10 text-zinc-500 ring-zinc-500/20' }
   }
   switch (row.status) {
-    case 'healthy':  return { label: '正常',   cls: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 ring-emerald-500/20' }
-    case 'degraded': return { label: '降级',   cls: 'bg-amber-500/10  text-amber-600  dark:text-amber-400  ring-amber-500/20' }
-    case 'offline':  return { label: '离线',   cls: 'bg-rose-500/10   text-rose-600   dark:text-rose-400   ring-rose-500/20' }
-    default:         return { label: '未知',   cls: 'bg-muted text-muted-foreground ring-border' }
+    case 'healthy':  return { label: t('settings.relays.status.healthy'),  cls: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 ring-emerald-500/20' }
+    case 'degraded': return { label: t('settings.relays.status.degraded'), cls: 'bg-amber-500/10  text-amber-600  dark:text-amber-400  ring-amber-500/20' }
+    case 'offline':  return { label: t('settings.relays.status.offline'),  cls: 'bg-rose-500/10   text-rose-600   dark:text-rose-400   ring-rose-500/20' }
+    default:         return { label: t('settings.relays.status.unknown'),  cls: 'bg-muted text-muted-foreground ring-border' }
   }
 }
-
-// function statusIcon(row: RelayServer) {
-//   if (!row.enabled) return h(WifiOff,       { class: 'size-3.5 text-zinc-400' })
-//   switch (row.status) {
-//     case 'healthy':  return h(CheckCircle2, { class: 'size-3.5 text-emerald-500' })
-//     case 'degraded': return h(AlertCircle,  { class: 'size-3.5 text-amber-500' })
-//     case 'offline':  return h(WifiOff,      { class: 'size-3.5 text-rose-500' })
-//     default:         return h(CircleDashed, { class: 'size-3.5 text-muted-foreground' })
-//   }
-// }
 
 // ── table columns ─────────────────────────────────────────────────────────────
 const columns: ColumnDef<RelayServer>[] = [
   {
     id: 'status',
-    header: '状态',
+    header: () => t('settings.relays.col.status'),
     cell: ({ row }) => {
       const b = statusBadge(row.original)
       return h('span', {
@@ -245,7 +238,7 @@ const columns: ColumnDef<RelayServer>[] = [
   },
   {
     id: 'name',
-    header: '名称',
+    header: () => t('settings.relays.col.name'),
     cell: ({ row }) => {
       const relay = row.original
       return h('div', { class: 'flex items-center gap-3' }, [
@@ -263,7 +256,7 @@ const columns: ColumnDef<RelayServer>[] = [
   },
   {
     id: 'tcp',
-    header: 'TCP 地址',
+    header: () => t('settings.relays.col.tcp'),
     cell: ({ row }) => {
       const url = row.original.tcpUrl
       return h('div', { class: 'flex items-center gap-1.5' }, [
@@ -274,7 +267,7 @@ const columns: ColumnDef<RelayServer>[] = [
   },
   {
     id: 'quic',
-    header: 'QUIC 地址',
+    header: () => t('settings.relays.col.quic'),
     cell: ({ row }) => {
       const url = row.original.quicUrl
       if (!url) return h('span', { class: 'text-[11px] text-muted-foreground/40' }, '—')
@@ -286,7 +279,7 @@ const columns: ColumnDef<RelayServer>[] = [
   },
   {
     id: 'latency',
-    header: '延迟',
+    header: () => t('settings.relays.col.latency'),
     cell: ({ row }) => {
       const ms = row.original.latencyMs
       if (ms == null) return h('span', { class: 'text-[11px] text-muted-foreground/40' }, '—')
@@ -296,7 +289,7 @@ const columns: ColumnDef<RelayServer>[] = [
   },
   {
     id: 'peers',
-    header: '已连接节点',
+    header: () => t('settings.relays.col.peers'),
     cell: ({ row }) => {
       const n = row.original.connectedPeers ?? 0
       return h('div', { class: 'flex items-center gap-1.5' }, [
@@ -307,11 +300,11 @@ const columns: ColumnDef<RelayServer>[] = [
   },
   {
     id: 'workspaces',
-    header: '适用空间',
+    header: () => t('settings.relays.col.workspaces'),
     cell: ({ row }) => {
       const ws = row.original.workspaces ?? []
       if (ws.length === 0) {
-        return h('span', { class: 'text-xs text-muted-foreground/50' }, '全部')
+        return h('span', { class: 'text-xs text-muted-foreground/50' }, t('settings.relays.allWorkspaces'))
       }
       return h('div', { class: 'flex flex-wrap gap-1' }, ws.slice(0, 3).map(w =>
         h('span', {
@@ -325,7 +318,7 @@ const columns: ColumnDef<RelayServer>[] = [
   },
   {
     id: 'actions',
-    header: '',
+    header: () => t('settings.relays.col.actions'),
     cell: ({ row }) => {
       const relay = row.original
       return h(DropdownMenu, {}, {
@@ -341,16 +334,16 @@ const columns: ColumnDef<RelayServer>[] = [
               disabled: testing.value === relay.id,
             }, () => [
               h(ActivitySquare, { class: 'mr-2 size-3.5' }),
-              testing.value === relay.id ? '测试中...' : '连通测试',
+              testing.value === relay.id ? t('settings.relays.menu.testing') : t('settings.relays.menu.test'),
             ]),
             h(DropdownMenuItem, { onClick: () => openEdit(relay) }, () => [
-              h(Pencil, { class: 'mr-2 size-3.5' }), '编辑',
+              h(Pencil, { class: 'mr-2 size-3.5' }), t('settings.relays.menu.edit'),
             ]),
             h(DropdownMenuSeparator),
             h(DropdownMenuItem, {
               class: 'text-destructive focus:text-destructive',
               onClick: () => promptDelete(relay),
-            }, () => [h(Trash2, { class: 'mr-2 size-3.5' }), '删除']),
+            }, () => [h(Trash2, { class: 'mr-2 size-3.5' }), t('settings.relays.menu.delete')]),
           ]),
         ],
       })
@@ -393,16 +386,14 @@ function goToPage(p: number) {
       >
         <div class="flex items-start justify-between">
           <div class="flex flex-col gap-1">
-            <span class="text-muted-foreground text-sm font-medium">全部中继</span>
+            <span class="text-muted-foreground text-sm font-medium">{{ t('settings.relays.stats.all') }}</span>
             <span class="text-2xl font-bold tracking-tight">{{ stats.total }}</span>
           </div>
           <div class="bg-muted rounded-lg p-2"><Server class="text-muted-foreground size-4" /></div>
         </div>
         <div class="mt-3 flex items-center gap-1 text-sm">
           <Zap class="size-4 text-amber-500 shrink-0" />
-          <span class="text-muted-foreground">
-            其中 <span class="font-semibold text-foreground">{{ stats.quicEnabled }}</span> 个支持 QUIC
-          </span>
+          <span class="text-muted-foreground">{{ t('settings.relays.stats.allSub', { n: stats.quicEnabled }) }}</span>
         </div>
       </button>
 
@@ -413,14 +404,14 @@ function goToPage(p: number) {
       >
         <div class="flex items-start justify-between">
           <div class="flex flex-col gap-1">
-            <span class="text-muted-foreground text-sm font-medium">运行正常</span>
+            <span class="text-muted-foreground text-sm font-medium">{{ t('settings.relays.stats.healthy') }}</span>
             <span class="text-2xl font-bold tracking-tight">{{ stats.healthy }}</span>
           </div>
           <div class="bg-muted rounded-lg p-2"><Wifi class="text-muted-foreground size-4" /></div>
         </div>
         <div class="mt-3 flex items-center gap-1 text-sm">
           <CheckCircle2 class="text-emerald-600 size-4 shrink-0" />
-          <span class="text-muted-foreground">连通性正常</span>
+          <span class="text-muted-foreground">{{ t('settings.relays.stats.healthySub') }}</span>
         </div>
       </button>
 
@@ -431,14 +422,14 @@ function goToPage(p: number) {
       >
         <div class="flex items-start justify-between">
           <div class="flex flex-col gap-1">
-            <span class="text-muted-foreground text-sm font-medium">性能降级</span>
+            <span class="text-muted-foreground text-sm font-medium">{{ t('settings.relays.stats.degraded') }}</span>
             <span class="text-2xl font-bold tracking-tight">{{ stats.degraded }}</span>
           </div>
           <div class="bg-muted rounded-lg p-2"><AlertCircle class="text-muted-foreground size-4" /></div>
         </div>
         <div class="mt-3 flex items-center gap-1 text-sm">
           <AlertCircle class="text-amber-500 size-4 shrink-0" />
-          <span class="text-muted-foreground">延迟偏高或丢包</span>
+          <span class="text-muted-foreground">{{ t('settings.relays.stats.degradedSub') }}</span>
         </div>
       </button>
 
@@ -449,14 +440,14 @@ function goToPage(p: number) {
       >
         <div class="flex items-start justify-between">
           <div class="flex flex-col gap-1">
-            <span class="text-muted-foreground text-sm font-medium">离线/禁用</span>
+            <span class="text-muted-foreground text-sm font-medium">{{ t('settings.relays.stats.offline') }}</span>
             <span class="text-2xl font-bold tracking-tight">{{ stats.offline }}</span>
           </div>
           <div class="bg-muted rounded-lg p-2"><WifiOff class="text-muted-foreground size-4" /></div>
         </div>
         <div class="mt-3 flex items-center gap-1 text-sm">
           <WifiOff class="text-rose-500 size-4 shrink-0" />
-          <span class="text-muted-foreground">不可用或已禁用</span>
+          <span class="text-muted-foreground">{{ t('settings.relays.stats.offlineSub') }}</span>
         </div>
       </button>
     </div>
@@ -467,7 +458,7 @@ function goToPage(p: number) {
         <Search class="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
         <Input
           v-model="searchValue"
-          placeholder="搜索名称或地址..."
+          :placeholder="t('settings.relays.searchPlaceholder')"
           class="pl-8 h-9"
           @input="onSearchInput"
         />
@@ -475,10 +466,10 @@ function goToPage(p: number) {
       <div class="ml-auto flex items-center gap-2">
         <Button variant="outline" size="sm" class="gap-1.5" :disabled="loading" @click="fetchList()">
           <RefreshCw class="size-3.5" :class="loading ? 'animate-spin' : ''" />
-          刷新
+          {{ t('common.action.refresh') }}
         </Button>
         <Button size="sm" class="gap-1.5" @click="openCreate">
-          <Plus class="size-3.5" /> 添加中继
+          <Plus class="size-3.5" /> {{ t('settings.relays.createBtn') }}
         </Button>
       </div>
     </div>
@@ -507,7 +498,7 @@ function goToPage(p: number) {
           </template>
           <TableRow v-else>
             <TableCell :colspan="columns.length" class="h-32 text-center text-muted-foreground">
-              {{ loading ? '加载中...' : '暂无中继服务器，点击「添加中继」创建一个' }}
+              {{ loading ? t('common.status.loading') : t('settings.relays.empty') }}
             </TableCell>
           </TableRow>
         </TableBody>
@@ -516,7 +507,7 @@ function goToPage(p: number) {
 
     <!-- pagination -->
     <div class="flex items-center justify-between text-sm text-muted-foreground">
-      <span>共 {{ total }} 条 · 第 {{ currentPage }} / {{ totalPages }} 页</span>
+      <span>{{ t('common.pagination.total', { total, page: currentPage, totalPages }) }}</span>
       <div class="flex items-center gap-1">
         <Button variant="outline" size="sm" class="size-8 p-0"
           :disabled="currentPage <= 1" @click="goToPage(currentPage - 1)">
@@ -538,9 +529,9 @@ function goToPage(p: number) {
     <!-- delete confirmation -->
     <AppAlertDialog
       v-model:open="deleteDialogOpen"
-      title="删除中继服务器"
-      :description="`确认删除「${deleteTarget?.name ?? ''}」？关联该中继的节点将在下次同步时切换至其他中继或直连。`"
-      confirm-text="删除"
+      :title="t('settings.relays.deleteDialog.title')"
+      :description="t('settings.relays.deleteDialog.desc', { name: deleteTarget?.name ?? '' })"
+      :confirm-text="t('common.action.delete')"
       variant="destructive"
       @confirm="confirmDelete"
     />
@@ -549,63 +540,57 @@ function goToPage(p: number) {
     <Dialog v-model:open="dialogOpen">
       <DialogContent class="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>{{ editingItem ? '编辑中继服务器' : '添加中继服务器' }}</DialogTitle>
-          <DialogDescription>
-            中继服务器地址保存后将同步到对应工作空间下的 WireflowPeer，节点启动时自动配置。
-          </DialogDescription>
+          <DialogTitle>{{ t(editingItem ? 'settings.relays.dialog.editTitle' : 'settings.relays.dialog.createTitle') }}</DialogTitle>
+          <DialogDescription>{{ t('settings.relays.dialog.desc') }}</DialogDescription>
         </DialogHeader>
 
         <div class="space-y-4 py-1">
           <!-- name -->
           <div class="space-y-1.5">
-            <label class="text-sm font-medium">名称 <span class="text-destructive">*</span></label>
-            <Input v-model="form.name" placeholder="例：Asia-HK-01" />
+            <label class="text-sm font-medium">{{ t('settings.relays.dialog.nameLabel') }} <span class="text-destructive">*</span></label>
+            <Input v-model="form.name" placeholder="Asia-HK-01" />
           </div>
 
           <!-- description -->
           <div class="space-y-1.5">
-            <label class="text-sm font-medium">备注说明</label>
-            <Input v-model="form.description" placeholder="可选，帮助区分不同中继节点" />
+            <label class="text-sm font-medium">{{ t('settings.relays.dialog.descLabel') }}</label>
+            <Input v-model="form.description" :placeholder="t('settings.relays.dialog.descLabel')" />
           </div>
 
           <!-- tcp url -->
           <div class="space-y-1.5">
             <label class="text-sm font-medium flex items-center gap-1.5">
               <Globe class="size-3.5 text-muted-foreground" />
-              TCP 地址 <span class="text-destructive">*</span>
+              {{ t('settings.relays.dialog.tcpLabel') }} <span class="text-destructive">*</span>
             </label>
             <Input
               v-model="form.tcpUrl"
               placeholder="relay.example.com:6266"
               class="font-mono text-sm"
             />
-            <p class="text-[11px] text-muted-foreground">
-              对应节点配置中的 <code class="bg-muted px-1 rounded">--wrrp-url</code> 参数（WrrpUrl 字段）
-            </p>
+            <p class="text-[11px] text-muted-foreground">{{ t('settings.relays.dialog.tcpHint') }}</p>
           </div>
 
           <!-- quic url -->
           <div class="space-y-1.5">
             <label class="text-sm font-medium flex items-center gap-1.5">
               <Zap class="size-3.5 text-amber-500" />
-              QUIC 地址
-              <span class="text-[10px] font-normal text-muted-foreground ml-1">（可选，推荐）</span>
+              {{ t('settings.relays.dialog.quicLabel') }}
+              <span class="text-[10px] font-normal text-muted-foreground ml-1">{{ t('settings.relays.dialog.quicOptional') }}</span>
             </label>
             <Input
               v-model="form.quicUrl"
               placeholder="relay.example.com:6267"
               class="font-mono text-sm"
             />
-            <p class="text-[11px] text-muted-foreground">
-              对应 <code class="bg-muted px-1 rounded">--wrrp-quic-url</code>，优先级高于 TCP，支持 0-RTT 和无 HoL 阻塞
-            </p>
+            <p class="text-[11px] text-muted-foreground">{{ t('settings.relays.dialog.quicHint') }}</p>
           </div>
 
           <!-- enabled -->
           <div class="flex items-center justify-between rounded-lg border px-4 py-3">
             <div>
-              <p class="text-sm font-medium">启用该中继</p>
-              <p class="text-[11px] text-muted-foreground mt-0.5">禁用后不会下发给任何节点</p>
+              <p class="text-sm font-medium">{{ t('settings.relays.dialog.enabledLabel') }}</p>
+              <p class="text-[11px] text-muted-foreground mt-0.5">{{ t('settings.relays.dialog.enabledDesc') }}</p>
             </div>
             <button
               type="button"
@@ -622,9 +607,9 @@ function goToPage(p: number) {
         </div>
 
         <DialogFooter>
-          <Button variant="outline" @click="dialogOpen = false">取消</Button>
+          <Button variant="outline" @click="dialogOpen = false">{{ t('common.action.cancel') }}</Button>
           <Button :disabled="saving" @click="handleSave">
-            {{ saving ? '保存中...' : (editingItem ? '保存更改' : '创建') }}
+            {{ saving ? t('settings.relays.dialog.saving') : t(editingItem ? 'settings.relays.dialog.save' : 'settings.relays.dialog.create') }}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -20,12 +20,13 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 	"wireflow/internal/grpc"
 	"wireflow/internal/infra"
 	"wireflow/internal/log"
 
-	"github.com/wireflowio/ice"
+	"github.com/pion/ice/v4"
 )
 
 type ProbeFactory struct {
@@ -47,20 +48,21 @@ type ProbeFactory struct {
 	peerManager *infra.PeerManager
 	showLog     bool
 
-	UniversalUdpMuxDefault *ice.UniversalUDPMuxDefault
+	FilteringMux  *infra.FilteringUDPMux
+	FilteringMux6 *infra.FilteringUDPMux
 }
 
 type ProbeFactoryConfig struct {
-	LocalId                infra.PeerIdentity
-	Signal                 infra.SignalService
-	GetOnMessage           func() func(context.Context, *infra.Message) error
-	PeerManager            *infra.PeerManager
-	GetWrrp                func() infra.Wrrp
-	UniversalUdpMuxDefault *ice.UniversalUDPMuxDefault
+	LocalId       infra.PeerIdentity
+	Signal        infra.SignalService
+	GetOnMessage  func() func(context.Context, *infra.Message) error
+	PeerManager   *infra.PeerManager
+	GetWrrp       func() infra.Wrrp
+	FilteringMux  *infra.FilteringUDPMux
+	FilteringMux6 *infra.FilteringUDPMux
 	GetProvisioner         func() infra.Provisioner
 	ShowLog                bool
 }
-
 
 func NewProbeFactory(cfg *ProbeFactoryConfig) *ProbeFactory {
 	return &ProbeFactory{
@@ -71,7 +73,8 @@ func NewProbeFactory(cfg *ProbeFactoryConfig) *ProbeFactory {
 		peerManager:            cfg.PeerManager,
 		getWrrp:                cfg.GetWrrp,
 		showLog:                cfg.ShowLog,
-		UniversalUdpMuxDefault: cfg.UniversalUdpMuxDefault,
+		FilteringMux:  cfg.FilteringMux,
+		FilteringMux6: cfg.FilteringMux6,
 		getProvisioner:         cfg.GetProvisioner,
 		getOnMessage:           cfg.GetOnMessage,
 	}
@@ -82,17 +85,22 @@ func (f *ProbeFactory) Register(remoteId infra.PeerIdentity, probe *Probe) {
 }
 
 func (f *ProbeFactory) Get(remoteId infra.PeerIdentity) (*Probe, error) {
+	// Fast path: probe already exists, read lock is sufficient.
 	f.mu.RLock()
-	defer f.mu.RUnlock()
-	var err error
 	probe := f.probes[remoteId.AppID]
-	if probe == nil {
-		probe, err = f.NewProbe(remoteId)
-		if err != nil {
-			return nil, err
-		}
+	f.mu.RUnlock()
+	if probe != nil {
+		return probe, nil
 	}
-	return probe, err
+
+	// Slow path: create a new probe under write lock.
+	// Double-check after acquiring the lock in case another goroutine raced here.
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if probe = f.probes[remoteId.AppID]; probe != nil {
+		return probe, nil
+	}
+	return f.NewProbe(remoteId)
 }
 
 func (f *ProbeFactory) Remove(appId string) {
@@ -109,21 +117,72 @@ func (f *ProbeFactory) Remove(appId string) {
 }
 
 func (p *ProbeFactory) NewProbe(remoteId infra.PeerIdentity) (*Probe, error) {
-	localPeer := p.peerManager.GetPeer(p.localId.AppID)
-	if localPeer != nil && localPeer.AllowedIPs == "" && localPeer.Address != nil {
-		peerCopy := *localPeer
-		peerCopy.AllowedIPs = fmt.Sprintf("%s/32", *localPeer.Address)
-		localPeer = &peerCopy
+	// getLocalPeer reads the local peer's current info from the peer manager.
+	// Called at dialer construction time (including on each restart) so that a
+	// late-arriving Address/AllowedIPs assignment (from ApplyFullConfig) is
+	// picked up rather than a stale nil captured at probe creation time.
+	getLocalPeer := func() *infra.Peer {
+		lp := p.peerManager.GetPeer(p.localId.AppID)
+		if lp != nil && lp.AllowedIPs == "" && lp.Address != nil {
+			lpCopy := *lp
+			lpCopy.AllowedIPs = fmt.Sprintf("%s/32", *lp.Address)
+			return &lpCopy
+		}
+		return lp
 	}
 
 	var mu sync.Mutex
 	var remotePeer *infra.Peer
 	var firstFailureAt time.Time
+
+	// peerKnownDone guards the one-time onPeerKnown call.  Unlike sync.Once,
+	// it allows a retry if the provisioner was nil on the first attempt.
+	var peerKnownDone atomic.Bool
+
+	// onPeerKnown pre-configures the WireGuard peer entry (AllowedIPs, no
+	// endpoint yet) and installs the kernel route as soon as the peer's
+	// identity is known from SYN/ACK — before any transport is established.
+	// This decouples route programming from endpoint discovery so that
+	// inbound WireGuard handshakes from the peer can be accepted immediately.
+	onPeerKnown := func(peer infra.Peer) {
+		if peerKnownDone.Load() {
+			return
+		}
+		provisioner := p.getProvisioner()
+		if provisioner == nil {
+			return // provisioner not ready; onEndpointReady will apply full config
+		}
+		if peer.Address == nil {
+			return // insufficient info; will retry on next onPeerReceived
+		}
+		if !peerKnownDone.CompareAndSwap(false, true) {
+			return // another goroutine won the race
+		}
+		allowedIPs := peer.AllowedIPs
+		if allowedIPs == "" {
+			allowedIPs = fmt.Sprintf("%s/32", *peer.Address)
+		}
+		if err := provisioner.AddPeer(&infra.SetPeer{
+			PublicKey:  remoteId.PublicKey.String(),
+			AllowedIPs: allowedIPs,
+		}); err != nil {
+			p.log.Warn("onPeerKnown: AddPeer failed", "remoteId", remoteId.AppID, "err", err)
+			peerKnownDone.Store(false) // allow retry
+			return
+		}
+		if err := provisioner.ApplyRoute("add", *peer.Address, provisioner.GetIfaceName()); err != nil {
+			p.log.Warn("onPeerKnown: ApplyRoute failed", "remoteId", remoteId.AppID, "err", err)
+			// ApplyRoute failure is non-fatal: onEndpointReady will retry (ip route replace is idempotent).
+		}
+		p.log.Info("peer known, pre-configured WG entry", "remoteId", remoteId.AppID, "allowedIPs", allowedIPs)
+	}
+
 	onPeerReceived := func(peer infra.Peer) {
 		mu.Lock()
 		p.peerManager.AddPeer(peer.AppID, &peer)
 		remotePeer = &peer
 		mu.Unlock()
+		onPeerKnown(peer)
 	}
 
 	// makeWrrpDialer is the factory used both for the initial dialer and for
@@ -136,7 +195,7 @@ func (p *ProbeFactory) NewProbe(remoteId infra.PeerIdentity) (*Probe, error) {
 			RemoteId:       remoteId,
 			Wrrp:           p.getWrrp(),
 			Sender:         p.signal.Send,
-			LocalPeer:      localPeer,
+			GetLocalPeer:   getLocalPeer,
 			OnPeerReceived: onPeerReceived,
 			OnRestart:      func() { probe.restart() },
 		})
@@ -148,6 +207,9 @@ func (p *ProbeFactory) NewProbe(remoteId infra.PeerIdentity) (*Probe, error) {
 		remoteId: remoteId,
 		signal:   p.signal,
 		state:    ice.ConnectionStateNew,
+		// onEndpointReady is called once transport (ICE or WRRP) is established.
+		// At this point peer identity is already known (onPeerKnown ran on SYN/ACK),
+		// so we only need to update the WireGuard endpoint and finish NAT setup.
 		onSuccess: func(transport infra.Transport) error {
 			mu.Lock()
 			firstFailureAt = time.Time{} // reset failure clock on successful connection
@@ -156,40 +218,45 @@ func (p *ProbeFactory) NewProbe(remoteId infra.PeerIdentity) (*Probe, error) {
 			if rp == nil {
 				return fmt.Errorf("remote peer info not yet received for %s", remoteId.AppID)
 			}
+			if rp.Address == nil {
+				return fmt.Errorf("remote peer %s address not yet received", remoteId.AppID)
+			}
 			provisioner := p.getProvisioner()
 			if provisioner == nil {
 				return fmt.Errorf("provisioner not ready for peer %s", remoteId.AppID)
 			}
 			p.log.Info("connection established", "transportType", transport.Type(), "remoteAddr", transport.RemoteAddr())
-			// Only the ICE initiator (localId > remoteId, i.e. the SYN sender)
-			// drives WireGuard keepalives.  If both ends set PersistentKeepalive
-			// they simultaneously send Handshake Initiations, continuously
-			// overwriting each other's session state and causing all Responses
-			// to be rejected (~90 s before one side gives up and the other can
-			// finally complete the handshake).
+			// Only the initiator drives WireGuard keepalives to avoid both ends
+			// simultaneously sending Handshake Initiations (causes ~90 s stall).
 			persistentKA := 0
-			if p.localId.String() > remoteId.String() {
+			if isInitiator(p.localId, remoteId) {
 				persistentKA = infra.PersistentKeepalive
 			}
+			allowedIPs := rp.AllowedIPs
+			if allowedIPs == "" {
+				allowedIPs = fmt.Sprintf("%s/32", *rp.Address)
+			}
+			// Update WireGuard peer entry with the resolved endpoint.
+			// AllowedIPs is re-applied (idempotent with replace_allowed_ips=true).
 			setPeer := &infra.SetPeer{
 				PublicKey:            remoteId.PublicKey.String(),
 				PersistentKeepalived: persistentKA,
-				AllowedIPs:           rp.AllowedIPs,
+				AllowedIPs:           allowedIPs,
 			}
 			if transport.Type() == infra.WRRP {
 				setPeer.Endpoint = infra.WrrpFakeAddrPort(remoteId.ID().ToUint64()).String()
 			} else {
 				setPeer.Endpoint = transport.RemoteAddr()
 			}
-			err := provisioner.AddPeer(setPeer)
-			if err != nil {
-				p.log.Error("probe add peer failed", err)
+			if err := provisioner.AddPeer(setPeer); err != nil {
+				p.log.Error("onEndpointReady: AddPeer failed", err)
 				return err
 			}
 
-			err = provisioner.ApplyRoute("add", *rp.Address, provisioner.GetIfaceName())
-			if err != nil {
-				p.log.Error("probe apply route failed", err)
+			// ApplyRoute is idempotent (ip route replace); re-run in case
+			// onPeerKnown was skipped because the provisioner was not ready yet.
+			if err := provisioner.ApplyRoute("add", *rp.Address, provisioner.GetIfaceName()); err != nil {
+				p.log.Error("onEndpointReady: ApplyRoute failed", err)
 				return err
 			}
 
@@ -241,15 +308,33 @@ func (p *ProbeFactory) NewProbe(remoteId infra.PeerIdentity) (*Probe, error) {
 			LocalId:                p.localId,
 			RemoteId:               remoteId,
 			Sender:                 p.signal.Send,
-			LocalPeer:              localPeer,
+			GetLocalPeer:           getLocalPeer,
 			OnPeerReceived:         onPeerReceived,
-			UniversalUdpMuxDefault: p.UniversalUdpMuxDefault,
+			FilteringMux: p.FilteringMux,
+			// FilteringMux6: p.FilteringMux6, // IPv6 ICE disabled until e2e tests pass
 			ShowLog:                p.showLog,
 		})
 	}
 	probe.newIceDialer = makeIceDialer
 	probe.iceDialer = makeIceDialer()
 	probe.newWrrpDialer = makeWrrpDialer
+
+	// onBeforeRestart clears stale WireGuard peer state so that the new
+	// SYN/ACK exchange starts from a clean baseline.  peerKnownDone is reset
+	// so onPeerKnown will re-run when the fresh SYN/ACK arrives.
+	probe.onBeforeRestart = func() {
+		peerKnownDone.Store(false)
+		provisioner := p.getProvisioner()
+		if provisioner == nil {
+			return
+		}
+		if err := provisioner.RemovePeer(&infra.SetPeer{
+			PublicKey: remoteId.PublicKey.String(),
+			Remove:    true,
+		}); err != nil {
+			p.log.Warn("restart: RemovePeer failed", "remoteId", remoteId.AppID, "err", err)
+		}
+	}
 
 	p.Register(remoteId, probe)
 	return probe, nil
@@ -275,7 +360,10 @@ func (p *ProbeFactory) Handle(ctx context.Context, remoteId infra.PeerID, packet
 
 	remoteIdentity, ok := p.peerManager.GetIdentity(remoteId)
 	if !ok {
-		return fmt.Errorf("unknown peer: %s", remoteId)
+		// Peer not yet registered (config message hasn't arrived yet). Drop
+		// the packet — the sender will retry the handshake after backoff.
+		p.log.Warn("dropping signal packet from unknown peer, config not yet applied", "remoteId", remoteId)
+		return nil
 	}
 	probe, err := p.Get(remoteIdentity)
 	if err != nil {

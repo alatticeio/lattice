@@ -29,7 +29,6 @@ import (
 	"wireflow/internal/log"
 	"wireflow/pkg/wrrp"
 
-	"github.com/wireflowio/ice"
 	"golang.org/x/net/ipv4"
 	"golang.org/x/net/ipv6"
 	"golang.zx2c4.com/wireguard/conn"
@@ -46,13 +45,17 @@ var (
 // methods for sending and receiving multiple datagrams per-syscall. See the
 // proposal in https://github.com/golang/go/issues/45886#issuecomment-1218301564.
 type DefaultBind struct {
-	logger          *log.Logger
-	universalUdpMux *ice.UniversalUDPMuxDefault
-	PublicKey       wgtypes.Key
-	keyManager      KeyManager
-
-	// used for turn relay
+	logger       *log.Logger
+	PublicKey    wgtypes.Key
+	keyManager   KeyManager
 	wrrperClient Wrrp
+
+	// passThroughCh receives non-STUN packets forwarded by FilteringUDPMux (v4).
+	// makeReceiveIPv4 reads from here instead of the raw socket.
+	passThroughCh  <-chan PassThroughPacket
+	// passThrough6Ch receives non-STUN packets forwarded by FilteringUDPMux (v6).
+	// makeReceiveIPv6 reads from here instead of the raw socket.
+	passThrough6Ch <-chan PassThroughPacket
 
 	mu     sync.Mutex // protects all fields except as specified
 	v4conn *net.UDPConn
@@ -72,22 +75,24 @@ type DefaultBind struct {
 }
 
 type BindConfig struct {
-	Logger          *log.Logger
-	V4Conn          *net.UDPConn
-	V6Conn          *net.UDPConn
-	UniversalUDPMux *ice.UniversalUDPMuxDefault
-	WrrpClient      Wrrp
-	KeyManager      KeyManager
+	Logger       *log.Logger
+	V4Conn       *net.UDPConn
+	V6Conn       *net.UDPConn
+	PassThrough  <-chan PassThroughPacket // non-STUN v4 packets from FilteringUDPMux
+	PassThrough6 <-chan PassThroughPacket // non-STUN v6 packets from FilteringUDPMux (v6)
+	WrrpClient   Wrrp
+	KeyManager   KeyManager
 }
 
 func NewBind(cfg *BindConfig) *DefaultBind {
 	return &DefaultBind{
-		logger:          cfg.Logger,
-		v4conn:          cfg.V4Conn,
-		v6conn:          cfg.V6Conn,
-		universalUdpMux: cfg.UniversalUDPMux,
-		keyManager:      cfg.KeyManager,
-		wrrperClient:    cfg.WrrpClient,
+		logger:        cfg.Logger,
+		v4conn:        cfg.V4Conn,
+		v6conn:        cfg.V6Conn,
+		passThroughCh:  cfg.PassThrough,
+		passThrough6Ch: cfg.PassThrough6,
+		keyManager:    cfg.KeyManager,
+		wrrperClient:  cfg.WrrpClient,
 		udpAddrPool: sync.Pool{
 			New: func() any {
 				return &net.UDPAddr{
@@ -202,7 +207,15 @@ func ListenUDP(net string, uport uint16) (*net.UDPConn, int, error) {
 	return conn, port, nil
 }
 
-// Open copy from wiregaurd, add a drp ReceiveFunc
+// Open registers ReceiveFunc handlers for WireGuard.
+//
+// IPv4 receive: reads from passThroughCh, populated by FilteringUDPMux.readLoop
+// (the sole reader of the v4 socket). STUN packets are routed to ICE; all others
+// arrive here.
+// IPv6 receive: reads from passThrough6Ch, populated by a separate
+// FilteringUDPMux.readLoop for v6conn. When ICE over IPv6 is enabled, STUN
+// packets on v6conn are also routed to the ICE mux, and WireGuard packets arrive
+// here via the channel — eliminating the same race that existed on v4.
 func (b *DefaultBind) Open(uport uint16) ([]conn.ReceiveFunc, uint16, error) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -212,33 +225,30 @@ func (b *DefaultBind) Open(uport uint16) ([]conn.ReceiveFunc, uint16, error) {
 	}
 
 	port := int(uport)
-	var v4pc *ipv4.PacketConn
-	var v6pc *ipv6.PacketConn
-
-	// ReceiveFunc on the same port as we're using for ipv4.
 	var fns []conn.ReceiveFunc
+
+	// v4: FilteringUDPMux owns the socket; we read from the passthrough channel.
 	if b.v4conn != nil {
 		if runtime.GOOS == "linux" {
-			v4pc = ipv4.NewPacketConn(b.v4conn)
-			b.ipv4PC = v4pc
+			b.ipv4PC = ipv4.NewPacketConn(b.v4conn)
 		}
-		fns = append(fns, b.makeReceiveIPv4(v4pc, b.v4conn))
-		b.ipv4 = b.v4conn
+		fns = append(fns, b.makeReceiveIPv4())
+		b.ipv4 = b.v4conn // kept so Send() knows v4 is open
 	}
 
+	// v6: FilteringUDPMux (v6) owns the socket; we read from passThrough6Ch.
+	// ipv6PC is still set here for the send path (send6 uses WriteBatch on Linux).
 	if b.v6conn != nil {
 		if runtime.GOOS == "linux" {
-			v6pc = ipv6.NewPacketConn(b.v6conn)
-			b.ipv6PC = v6pc
+			b.ipv6PC = ipv6.NewPacketConn(b.v6conn)
 		}
-		fns = append(fns, b.makeReceiveIPv6(v6pc, b.v6conn))
+		fns = append(fns, b.makeReceiveIPv6())
 		b.ipv6 = b.v6conn
 	}
 	if len(fns) == 0 {
 		return nil, 0, syscall.EAFNOSUPPORT
 	}
 
-	// add wireflow wrrp
 	if config.Conf.EnableWrrp {
 		fns = append(fns, b.wrrperClient.ReceiveFunc())
 	}
@@ -246,119 +256,41 @@ func (b *DefaultBind) Open(uport uint16) ([]conn.ReceiveFunc, uint16, error) {
 	return fns, uint16(port), nil
 }
 
-func (b *DefaultBind) makeReceiveIPv4(pc *ipv4.PacketConn, udpConn *net.UDPConn) conn.ReceiveFunc {
+// makeReceiveIPv4 returns a ReceiveFunc that reads WireGuard packets from
+// passThroughCh. FilteringUDPMux.readLoop is the sole reader of the real
+// socket and forwards non-STUN packets here, so there is no race with the
+// mux's internal connWorker goroutine.
+func (b *DefaultBind) makeReceiveIPv4() conn.ReceiveFunc {
 	return func(bufs [][]byte, sizes []int, eps []conn.Endpoint) (n int, err error) {
-		msgs := b.ipv4MsgsPool.Get().(*[]ipv4.Message)
-		defer b.ipv4MsgsPool.Put(msgs)
-		for i := range bufs {
-			(*msgs)[i].Buffers[0] = bufs[i]
+		pkt, ok := <-b.passThroughCh
+		if !ok {
+			return 0, net.ErrClosed
 		}
-
-		var numMsgs int
-		if runtime.GOOS == "linux" {
-			numMsgs, err = pc.ReadBatch(*msgs, 0)
-			if err != nil {
-				return 0, err
-			}
-		} else {
-			msg := &(*msgs)[0]
-			msg.N, msg.NN, _, msg.Addr, err = udpConn.ReadMsgUDP(msg.Buffers[0], msg.OOB)
-			if err != nil {
-				return 0, err
-			}
-			numMsgs = 1
+		sizes[0] = copy(bufs[0], pkt.Data)
+		eps[0] = &WRRPEndpoint{
+			Addr:          pkt.Addr.AddrPort(),
+			TransportType: ICE,
 		}
-		n = 0
-		for i := 0; i < numMsgs; i++ {
-			msg := &(*msgs)[i]
-			ok, err := b.universalUdpMux.FilterMessage(msg.Buffers[0], msg.N, msg.Addr.(*net.UDPAddr))
-			if err != nil {
-				b.logger.Error("handle stun message error", err)
-				continue // skip malformed packet, keep processing the rest
-			}
-			if ok {
-				continue // STUN handled internally; skip without dropping other packets
-			}
-			// Non-STUN (WireGuard) packet: compact to position n.
-			// When STUN packets appear earlier in the batch (i > n), swap the
-			// buffer and metadata so the caller sees a contiguous slice [0, n).
-			if n != i {
-				bufs[n], bufs[i] = bufs[i], bufs[n]
-				(*msgs)[n].Buffers[0] = bufs[n]
-				(*msgs)[i].Buffers[0] = bufs[i]
-				(*msgs)[n].N, (*msgs)[i].N = (*msgs)[i].N, (*msgs)[n].N
-				(*msgs)[n].Addr, (*msgs)[i].Addr = (*msgs)[i].Addr, (*msgs)[n].Addr
-				(*msgs)[n].OOB, (*msgs)[i].OOB = (*msgs)[i].OOB, (*msgs)[n].OOB
-				(*msgs)[n].NN, (*msgs)[i].NN = (*msgs)[i].NN, (*msgs)[n].NN
-			}
-			msgN := &(*msgs)[n]
-			sizes[n] = msgN.N
-			addrPort := msgN.Addr.(*net.UDPAddr).AddrPort()
-			ep := &WRRPEndpoint{
-				Addr:          addrPort,
-				TransportType: ICE,
-			}
-			getSrcFromControl(msgN.OOB[:msgN.NN], ep)
-			eps[n] = ep
-			n++
-		}
-		return n, nil
+		return 1, nil
 	}
 }
 
-func (b *DefaultBind) makeReceiveIPv6(pc *ipv6.PacketConn, udpConn *net.UDPConn) conn.ReceiveFunc {
+// makeReceiveIPv6 returns a ReceiveFunc that reads WireGuard packets from
+// passThrough6Ch. FilteringUDPMux (v6) is the sole reader of v6conn and
+// forwards non-STUN packets here, mirroring the v4 design and supporting
+// ICE over IPv6 without a race with the mux's connWorker goroutine.
+func (b *DefaultBind) makeReceiveIPv6() conn.ReceiveFunc {
 	return func(bufs [][]byte, sizes []int, eps []conn.Endpoint) (n int, err error) {
-		msgs := b.ipv6MsgsPool.Get().(*[]ipv6.Message)
-		defer b.ipv6MsgsPool.Put(msgs)
-		for i := range bufs {
-			(*msgs)[i].Buffers[0] = bufs[i]
+		pkt, ok := <-b.passThrough6Ch
+		if !ok {
+			return 0, net.ErrClosed
 		}
-		var numMsgs int
-		if runtime.GOOS == "linux" {
-			numMsgs, err = pc.ReadBatch(*msgs, 0)
-			if err != nil {
-				return 0, err
-			}
-		} else {
-			msg := &(*msgs)[0]
-			msg.N, msg.NN, _, msg.Addr, err = udpConn.ReadMsgUDP(msg.Buffers[0], msg.OOB)
-			if err != nil {
-				return 0, err
-			}
-			numMsgs = 1
+		sizes[0] = copy(bufs[0], pkt.Data)
+		eps[0] = &WRRPEndpoint{
+			Addr:          pkt.Addr.AddrPort(),
+			TransportType: ICE,
 		}
-		n = 0
-		for i := 0; i < numMsgs; i++ {
-			msg := &(*msgs)[i]
-			ok, err := b.universalUdpMux.FilterMessage(msg.Buffers[0], msg.N, msg.Addr.(*net.UDPAddr))
-			if err != nil {
-				b.logger.Error("handle stun message error", err)
-				continue
-			}
-			if ok {
-				continue
-			}
-			if n != i {
-				bufs[n], bufs[i] = bufs[i], bufs[n]
-				(*msgs)[n].Buffers[0] = bufs[n]
-				(*msgs)[i].Buffers[0] = bufs[i]
-				(*msgs)[n].N, (*msgs)[i].N = (*msgs)[i].N, (*msgs)[n].N
-				(*msgs)[n].Addr, (*msgs)[i].Addr = (*msgs)[i].Addr, (*msgs)[n].Addr
-				(*msgs)[n].OOB, (*msgs)[i].OOB = (*msgs)[i].OOB, (*msgs)[n].OOB
-				(*msgs)[n].NN, (*msgs)[i].NN = (*msgs)[i].NN, (*msgs)[n].NN
-			}
-			msgN := &(*msgs)[n]
-			sizes[n] = msgN.N
-			addrPort := msgN.Addr.(*net.UDPAddr).AddrPort()
-			ep := &WRRPEndpoint{
-				Addr:          addrPort,
-				TransportType: ICE,
-			}
-			getSrcFromControl(msgN.OOB[:msgN.NN], ep)
-			eps[n] = ep
-			n++
-		}
-		return n, nil
+		return 1, nil
 	}
 }
 

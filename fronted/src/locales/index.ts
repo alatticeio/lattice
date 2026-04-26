@@ -26,12 +26,12 @@ export const i18n = createI18n({
   fallbackLocale: 'zh-CN',
   messages: {
     'zh-CN': {
-      ...zhCommon,
+      common: zhCommon,
       manage: zhManage,
       settings: zhSettings,
     },
     en: {
-      ...enCommon,
+      common: enCommon,
       manage: enManage,
       settings: enSettings,
     },

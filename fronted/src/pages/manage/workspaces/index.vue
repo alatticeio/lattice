@@ -128,7 +128,7 @@ const columns = computed<ColumnDef<Workspace>[]>(() => [
       const ws = row.original
       return h('div', { class: 'flex items-center gap-3' }, [
         h('div', {
-          class: `size-9 rounded-lg flex items-center justify-center shrink-0 text-xs font-bold bg-primary/10 text-primary ring-1 ring-primary/20 ${getWsColor(ws.displayName)}`,
+          class: `size-9 rounded-lg flex items-center justify-center shrink-0 text-xs font-bold ${getWsColor(ws.displayName)}`,
         }, getWsInitials(ws.displayName)),
         h('div', { class: 'min-w-0' }, [
           h('p', { class: 'font-semibold text-sm leading-none' }, ws.displayName),
@@ -367,7 +367,7 @@ function handleRefresh() {
           <div class="flex -space-x-2">
             <div
               v-for="(ws, i) in stats.initials" :key="i"
-              class="size-6 rounded-lg ring-2 ring-card flex items-center justify-center text-[9px] font-black shrink-0 bg-primary/10 text-primary"
+              class="size-6 rounded-lg ring-2 ring-card flex items-center justify-center text-[9px] font-black shrink-0"
               :class="ws.color"
             >{{ ws.label }}</div>
           </div>

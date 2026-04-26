@@ -62,7 +62,6 @@ func init() {
 	fs.StringP("server-url", "", "", "management server url")
 	fs.StringP("signaling-url", "", "", "signaling server url")
 	fs.BoolP("version", "", false, "Print version information")
-	fs.BoolP("show-system-log", "", false, "whether show (wireguard/ice) detail log")
 	fs.BoolP("save", "", false, "whether save config to file")
 
 }

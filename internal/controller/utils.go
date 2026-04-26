@@ -17,8 +17,33 @@ package controller
 import (
 	"fmt"
 	"strconv"
+	"strings"
 	wireflowv1alpha1 "wireflow/api/v1alpha1"
 	"wireflow/internal/infra"
+)
+
+const (
+	// LabelGateway marks a peer as the designated workspace gateway for peering.
+	LabelGateway = "wireflow.run/gateway"
+
+	// LabelShadow marks a peer as a synthetic shadow peer managed by
+	// NetworkPeeringReconciler. PeerReconciler skips shadow peers.
+	LabelShadow = "wireflow.run/shadow"
+
+	// AnnotationShadowAllowedIPs is set on shadow peers and contains the CIDR
+	// of the remote network that should be routed through this peer.
+	// Example: "10.0.1.0/24"
+	AnnotationShadowAllowedIPs = "wireflow.run/shadow-allowed-ips"
+
+	// AnnotationPeeringRoutePrefix is the prefix for per-peering route annotations
+	// on gateway peers. The suffix is the WireflowNetworkPeering name.
+	// Example: "wireflow.run/peering-route-ws-a-to-ws-b" = "10.0.2.0/24"
+	// When other local peers build their WireGuard config, they see this gateway
+	// with AllowedIPs expanded to include all annotated CIDRs.
+	AnnotationPeeringRoutePrefix = "wireflow.run/peering-route-"
+
+	// PeeringFinalizer is the finalizer added to WireflowNetworkPeering resources.
+	PeeringFinalizer = "wireflow.run/peering-finalizer"
 )
 
 // 辅助函数
@@ -113,6 +138,34 @@ func transferToPeer(peer *wireflowv1alpha1.WireflowPeer) *infra.Peer {
 
 	if peer.Status.AllocatedAddress != nil {
 		p.AllowedIPs = fmt.Sprintf("%s/32", *peer.Status.AllocatedAddress)
+	}
+
+	// Shadow peers carry the remote network CIDR in an annotation so that any
+	// peer routing through them gets a route for the entire remote subnet.
+	if shadowCIDR := peer.GetAnnotations()[AnnotationShadowAllowedIPs]; shadowCIDR != "" {
+		if p.AllowedIPs != "" {
+			p.AllowedIPs += "," + shadowCIDR
+		} else {
+			p.AllowedIPs = shadowCIDR
+		}
+	}
+
+	// Gateway peers carry per-peering route annotations. When other local peers
+	// include this gateway in their WireGuard config, they route the listed CIDRs
+	// through the gateway's tunnel, enabling cross-workspace forwarding.
+	var extraRoutes []string
+	for k, v := range peer.GetAnnotations() {
+		if strings.HasPrefix(k, AnnotationPeeringRoutePrefix) && v != "" {
+			extraRoutes = append(extraRoutes, v)
+		}
+	}
+	if len(extraRoutes) > 0 {
+		extra := strings.Join(extraRoutes, ",")
+		if p.AllowedIPs != "" {
+			p.AllowedIPs += "," + extra
+		} else {
+			p.AllowedIPs = extra
+		}
 	}
 
 	return p

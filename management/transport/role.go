@@ -14,25 +14,15 @@
 
 package transport
 
-import (
-	"context"
-	"sync/atomic"
+import "wireflow/internal/infra"
 
-	"github.com/wireflowio/ice"
-)
-
-type AgentWrapper struct {
-	sender func(ctx context.Context, peerId string, data []byte) error // nolint
-	*ice.Agent
-	IsCredentialsInited atomic.Bool
-	RUfrag              string
-	RPwd                string
-	RTieBreaker         uint64
-}
-
-type AgentConfig struct {
-	Send    func(ctx context.Context, peerId string, data []byte) error
-	LocalId string
-	PeerID  string
-	StunURI string
+// isInitiator returns true when the local node should drive the ICE/WRRP
+// handshake (send SYN, drive OFFER/ANSWER, set PersistentKeepalive).
+//
+// Numeric uint64 comparison is used throughout to avoid decimal string ordering
+// bugs: "9" > "14" lexicographically but 9 < 14 numerically.  The previous
+// code had three different comparisons (two string, one numeric) which gave
+// inconsistent results for IDs that differ in decimal digit count.
+func isInitiator(local, remote infra.PeerIdentity) bool {
+	return local.ID().ToUint64() > remote.ID().ToUint64()
 }
