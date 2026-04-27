@@ -104,6 +104,7 @@ func (c *Client) Register(ctx context.Context, namespace string, e *dto.PeerDto)
 		PrivateKey: node.Spec.PrivateKey,
 		PublicKey:  node.Spec.PublicKey,
 		PeerID:     peerId.ToUint64(),
+		NetworkId:  namespace,
 	}, err
 }
 

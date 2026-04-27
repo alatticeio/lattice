@@ -50,7 +50,7 @@ function promptDelete(ws: Workspace) {
 async function confirmDelete() {
   if (deleteTarget.value) await store.deleteWorkspace(deleteTarget.value.id)
   deleteTarget.value = null
-  await store.fetchList()
+  await store.fetchList({ page: 1, ...currentFilter.value })
 }
 
 // ── Edit / Create dialog ─────────────────────────────────────────
@@ -246,6 +246,20 @@ const columns = computed<ColumnDef<Workspace>[]>(() => [
     },
   },
   {
+    accessorKey: 'createdBy',
+    header: t('manage.workspaces.col.createdBy'),
+    cell: ({ row }) => {
+      const name = row.original.createdBy
+      if (!name) return h('span', { class: 'text-xs text-muted-foreground/40' }, '—')
+      return h('div', { class: 'flex items-center gap-1.5' }, [
+        h('div', {
+          class: 'size-5 rounded-full bg-muted flex items-center justify-center text-[10px] font-bold shrink-0',
+        }, name.slice(0, 1).toUpperCase()),
+        h('span', { class: 'text-xs text-muted-foreground' }, name),
+      ])
+    },
+  },
+  {
     accessorKey: 'createdAt',
     header: t('manage.workspaces.col.createdAt'),
     cell: ({ row }) => {
@@ -291,15 +305,42 @@ const columns = computed<ColumnDef<Workspace>[]>(() => [
   },
 ])
 
-// ── TanStack Table（仅渲染，分页/过滤交由后端）────────────────────
+// ── 搜索 & 状态过滤 ───────────────────────────────────────────────
+const searchValue  = ref('')
+const statusFilter = ref<'all' | 'active' | 'inactive'>('all')
+
+// ── 前端过滤（作为后端过滤的兜底）────────────────────────────────
+// 即使后端未实现 status/search 过滤，前端也能正确响应卡片点击
+const filteredRows = computed(() => {
+  let rows = store.rows
+  if (statusFilter.value !== 'all') {
+    rows = rows.filter(w => w.status === statusFilter.value)
+  }
+  if (searchValue.value) {
+    const q = searchValue.value.toLowerCase()
+    rows = rows.filter(w =>
+      w.displayName.toLowerCase().includes(q) ||
+      w.slug.toLowerCase().includes(q)
+    )
+  }
+  return rows
+})
+
+// ── TanStack Table ────────────────────────────────────────────────
 const table = useVueTable({
-  get data() { return store.rows },
+  get data() { return filteredRows.value },
   get columns() { return columns.value },
   getCoreRowModel: getCoreRowModel(),
   manualPagination: true,
   manualFiltering: true,
   get rowCount() { return store.total },
 })
+
+// 当前过滤参数，统一从这里读取，避免各处散乱传参
+const currentFilter = computed(() => ({
+  search: searchValue.value || undefined,
+  status: statusFilter.value === 'all' ? undefined : statusFilter.value,
+}))
 
 // ── 后端分页 ─────────────────────────────────────────────────────
 const currentPage  = computed(() => store.page)
@@ -314,12 +355,8 @@ const visiblePages = computed(() => {
 
 function goToPage(p: number) {
   if (p < 1 || p > totalPages.value) return
-  store.fetchList({ page: p, search: searchValue.value, status: statusFilter.value === 'all' ? undefined : statusFilter.value })
+  store.fetchList({ page: p, ...currentFilter.value })
 }
-
-// ── 搜索 & 状态过滤 ───────────────────────────────────────────────
-const searchValue  = ref('')
-const statusFilter = ref<'all' | 'active' | 'inactive'>('all')
 
 let searchTimer: ReturnType<typeof setTimeout>
 function onSearchInput() {
@@ -329,14 +366,18 @@ function onSearchInput() {
 
 function setStatusFilter(val: typeof statusFilter.value) {
   statusFilter.value = val
-  goToPage(1)
+  store.fetchList({
+    page: 1,
+    search: searchValue.value || undefined,
+    status: val === 'all' ? undefined : val,
+  })
 }
 
 // ── Refresh ──────────────────────────────────────────────────────
 const isRefreshing = ref(false)
 function handleRefresh() {
   isRefreshing.value = true
-  store.fetchList({ page: currentPage.value }).finally(() => (isRefreshing.value = false))
+  store.fetchList({ page: currentPage.value, ...currentFilter.value }).finally(() => (isRefreshing.value = false))
 }
 </script>
 

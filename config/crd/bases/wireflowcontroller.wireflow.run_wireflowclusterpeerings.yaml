@@ -4,30 +4,30 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.18.0
-  name: wireflownetworkpeerings.wireflowcontroller.wireflow.run
+  name: wireflowclusterpeerings.wireflowcontroller.wireflow.run
 spec:
   group: wireflowcontroller.wireflow.run
   names:
-    kind: WireflowNetworkPeering
-    listKind: WireflowNetworkPeeringList
-    plural: wireflownetworkpeerings
+    kind: WireflowClusterPeering
+    listKind: WireflowClusterPeeringList
+    plural: wireflowclusterpeerings
     shortNames:
-    - wfpeering
-    singular: wireflownetworkpeering
+    - wfcpeering
+    singular: wireflowclusterpeering
   scope: Cluster
   versions:
   - additionalPrinterColumns:
     - jsonPath: .status.phase
       name: PHASE
       type: string
-    - jsonPath: .status.cidrA
-      name: CIDR-A
+    - jsonPath: .status.localCIDR
+      name: LOCAL-CIDR
       type: string
-    - jsonPath: .status.cidrB
-      name: CIDR-B
+    - jsonPath: .status.remoteCIDR
+      name: REMOTE-CIDR
       type: string
-    - jsonPath: .spec.peeringMode
-      name: MODE
+    - jsonPath: .spec.remoteCluster
+      name: REMOTE-CLUSTER
       type: string
     - jsonPath: .metadata.creationTimestamp
       name: AGE
@@ -36,8 +36,8 @@ spec:
     schema:
       openAPIV3Schema:
         description: |-
-          WireflowNetworkPeering connects two WireflowNetworks across different workspaces
-          so their peers can communicate directly over WireGuard.
+          WireflowClusterPeering connects a local workspace network with a network in a
+          remote Wireflow cluster via the gateway-mode peering mechanism.
         properties:
           apiVersion:
             description: |-
@@ -57,50 +57,38 @@ spec:
           metadata:
             type: object
           spec:
-            description: |-
-              WireflowNetworkPeeringSpec declares a peering relationship between two networks
-              that may reside in different namespaces (workspaces).
+            description: WireflowClusterPeeringSpec declares a cross-cluster network
+              peering.
             properties:
-              namespaceA:
-                description: NamespaceA is the Kubernetes namespace of the first workspace.
+              localNamespace:
+                description: LocalNamespace is the workspace namespace in this cluster.
                 type: string
-              namespaceB:
-                description: NamespaceB is the Kubernetes namespace of the second
-                  workspace.
+              localNetwork:
+                description: LocalNetwork is the WireflowNetwork name in LocalNamespace.
                 type: string
-              networkA:
-                description: NetworkA is the WireflowNetwork name in NamespaceA.
-                type: string
-              networkB:
-                description: NetworkB is the WireflowNetwork name in NamespaceB.
-                type: string
-              peeringMode:
-                default: gateway
+              remoteCluster:
                 description: |-
-                  PeeringMode controls the traffic forwarding strategy.
-                  Defaults to "gateway".
-                enum:
-                - gateway
-                - mesh
+                  RemoteCluster references a WireflowCluster resource that describes the
+                  remote Wireflow deployment.
+                type: string
+              remoteNamespace:
+                description: RemoteNamespace is the workspace namespace in the remote
+                  cluster.
+                type: string
+              remoteNetwork:
+                description: RemoteNetwork is the WireflowNetwork name in RemoteNamespace.
                 type: string
             required:
-            - namespaceA
-            - namespaceB
-            - networkA
-            - networkB
+            - localNamespace
+            - localNetwork
+            - remoteCluster
+            - remoteNamespace
+            - remoteNetwork
             type: object
           status:
-            description: WireflowNetworkPeeringStatus reports the observed state of
-              the peering.
+            description: WireflowClusterPeeringStatus reports the observed state of
+              a cross-cluster peering.
             properties:
-              cidrA:
-                description: CIDRA is the ActiveCIDR of NetworkA, populated once the
-                  peering is Ready.
-                type: string
-              cidrB:
-                description: CIDRB is the ActiveCIDR of NetworkB, populated once the
-                  peering is Ready.
-                type: string
               conditions:
                 description: Conditions contains fine-grained status conditions.
                 items:
@@ -158,9 +146,16 @@ spec:
                   - type
                   type: object
                 type: array
+              localCIDR:
+                description: LocalCIDR is the ActiveCIDR of the local network, populated
+                  once Ready.
+                type: string
               phase:
-                description: 'Phase summarises the peering lifecycle: Pending | Ready
-                  | Error.'
+                description: Phase is Pending | Ready | Error.
+                type: string
+              remoteCIDR:
+                description: RemoteCIDR is the ActiveCIDR of the remote network, populated
+                  once Ready.
                 type: string
             type: object
         type: object

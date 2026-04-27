@@ -6,6 +6,7 @@ type PageRequest struct {
 	PageSize  int    `form:"pageSize" json:"pageSize"`   // 每页条数
 	Keyword   string `form:"search" json:"search"`       // 搜索关键词
 	Namespace string `form:"namespace" json:"namespace"` // 命名空间/隔离字段
+	Status    string `form:"status" json:"status"`       // 状态过滤
 }
 
 // PageResult 通用的分页返回容器（使用泛型 T）

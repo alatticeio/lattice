@@ -94,6 +94,9 @@ Use --save to persist the current flags back to the config file.`,
 			if ep, _ := cmd.Flags().GetString("vm-endpoint"); ep != "" {
 				config.Conf.Telemetry.VMEndpoint = ep
 			}
+			if em, _ := cmd.Flags().GetBool("enable-metric"); em {
+				config.Conf.EnableMetric = em
+			}
 
 			return node.Start(ctx, config.Conf)
 		},

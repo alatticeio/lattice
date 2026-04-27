@@ -32,6 +32,8 @@ type RelayVo struct {
 	// Empty slice means all workspaces.
 	Workspaces []string `json:"workspaces,omitempty"`
 
-	CreatedAt time.Time  `json:"createdAt"`
-	UpdatedAt *time.Time `json:"updatedAt,omitempty"`
+	CreatedBy string    `json:"createdBy,omitempty"`
+	CreatedAt time.Time `json:"createdAt"`
+	UpdatedBy string    `json:"updatedBy,omitempty"`
+	UpdatedAt time.Time `json:"updatedAt,omitempty"`
 }

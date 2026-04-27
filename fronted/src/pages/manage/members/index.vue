@@ -128,7 +128,7 @@ function formatDate(iso?: string) {
 
 // ── Stats ─────────────────────────────────────────────────────────
 const stats = computed(() => {
-  const all = members.value as any[]
+  const all = filteredMembers.value as any[]
   const adminCount  = all.filter(m => m.role === 'admin').length
   const activeCount = all.filter(m => m.status === 'active').length
   const pendingInvs = (invitations.value as any[]).filter(i => i.status === 'pending').length

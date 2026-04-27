@@ -235,6 +235,7 @@
       "nodeUsage": "Node Usage",
       "utilization": "Utilization",
       "network": "Network Info",
+      "createdBy": "Created By",
       "createdAt": "Created At",
       "actions": ""
     },

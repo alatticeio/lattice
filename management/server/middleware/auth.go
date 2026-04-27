@@ -40,6 +40,7 @@ func AuthMiddleware() gin.HandlerFunc {
 		// 可以重写 Request 的 Context (可选，但在纯净的架构中很有用)
 		ctx := context.WithValue(c.Request.Context(), infra.UserIDKey, claims.Subject)
 		ctx = context.WithValue(ctx, infra.SystemRoleKey, claims.SystemRole)
+		ctx = context.WithValue(ctx, infra.UsernameKey, claims.Username)
 		c.Request = c.Request.WithContext(ctx)
 		c.Next()
 	}

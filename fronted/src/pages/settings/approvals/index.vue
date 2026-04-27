@@ -412,14 +412,14 @@ function toggleExpand(id: string) {
       <div class="rounded-xl border border-border overflow-hidden">
         <Table>
           <TableHeader>
-            <TableRow class="bg-muted/30">
-              <TableHead class="text-xs font-semibold text-muted-foreground pl-5">{{ t('settings.approvals.col.time') }}</TableHead>
-              <TableHead class="text-xs font-semibold text-muted-foreground">{{ t('settings.approvals.col.requester') }}</TableHead>
-              <TableHead class="text-xs font-semibold text-muted-foreground">{{ t('settings.approvals.col.resource') }}</TableHead>
-              <TableHead class="text-xs font-semibold text-muted-foreground">{{ t('settings.approvals.col.action') }}</TableHead>
-              <TableHead class="text-xs font-semibold text-muted-foreground">{{ t('settings.approvals.col.status') }}</TableHead>
-              <TableHead class="text-xs font-semibold text-muted-foreground">{{ t('settings.approvals.col.reviewer') }}</TableHead>
-              <TableHead v-if="statusFilter === ''" class="text-xs font-semibold text-muted-foreground" />
+            <TableRow>
+              <TableHead class="text-left align-middle"><div class="flex w-full items-center justify-start text-left">{{ t('settings.approvals.col.time') }}</div></TableHead>
+              <TableHead class="text-left align-middle"><div class="flex w-full items-center justify-start text-left">{{ t('settings.approvals.col.requester') }}</div></TableHead>
+              <TableHead class="text-left align-middle"><div class="flex w-full items-center justify-start text-left">{{ t('settings.approvals.col.resource') }}</div></TableHead>
+              <TableHead class="text-left align-middle"><div class="flex w-full items-center justify-start text-left">{{ t('settings.approvals.col.action') }}</div></TableHead>
+              <TableHead class="text-left align-middle"><div class="flex w-full items-center justify-start text-left">{{ t('settings.approvals.col.status') }}</div></TableHead>
+              <TableHead class="text-left align-middle"><div class="flex w-full items-center justify-start text-left">{{ t('settings.approvals.col.reviewer') }}</div></TableHead>
+              <TableHead v-if="statusFilter === ''" class="text-left align-middle" />
             </TableRow>
           </TableHeader>
           <TableBody>

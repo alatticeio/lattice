@@ -102,12 +102,16 @@ info "Applying CRDs..."
 for crd in \
     wireflowcontroller.wireflow.run_wireflowinvitations.yaml \
     wireflowcontroller.wireflow.run_wireflownetworks.yaml \
+    wireflowcontroller.wireflow.run_wireflownetworkpeerings.yaml \
     wireflowcontroller.wireflow.run_wireflowpolicies.yaml \
     wireflowcontroller.wireflow.run_wireflowpeers.yaml \
     wireflowcontroller.wireflow.run_wireflowglobalippools.yaml \
     wireflowcontroller.wireflow.run_wireflowendpoints.yaml \
     wireflowcontroller.wireflow.run_wireflowsubnetallocations.yaml \
-    wireflowcontroller.wireflow.run_wireflowenrollmenttokens.yaml; do
+    wireflowcontroller.wireflow.run_wireflowenrollmenttokens.yaml \
+    wireflowcontroller.wireflow.run_wireflowrelayservers.yaml \
+    wireflowcontroller.wireflow.run_wireflowclusters.yaml \
+    wireflowcontroller.wireflow.run_wireflowclusterpeerings.yaml; do
     kubectl apply -f "${CRD_BASE}/${crd}" >/dev/null
 done
 ok "CRDs applied"

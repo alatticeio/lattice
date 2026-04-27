@@ -7,4 +7,5 @@ const (
 	WorkspaceKey
 	StrictTenantKey
 	SystemRoleKey
+	UsernameKey
 )

@@ -3,7 +3,7 @@ import { computed, watch, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
   Activity, Server, ShieldCheck, AlertTriangle,
-  ArrowUpRight, ArrowDownRight, Zap, MoreHorizontal, Globe, Building2,
+  ArrowUpRight, ArrowDownRight, MoreHorizontal, Globe, Building2, RefreshCw,
 } from 'lucide-vue-next'
 import { useDashboardStore } from '@/stores/useDashboard'
 import { useWorkspaceStore } from '@/stores/workspace'
@@ -28,15 +28,6 @@ watch(() => workspaceStore.currentWorkspace?.id, (newId, oldId) => {
     store.fetchWorkspace()
   }
 })
-
-// ── colour mapping for audit log dots ────────────────────────────────
-const toneMap: Record<string, string> = {
-  emerald: 'bg-emerald-500',
-  blue:    'bg-blue-500',
-  amber:   'bg-amber-500',
-  red:     'bg-red-500',
-  rose:    'bg-rose-500',
-}
 
 // ── icon lookup for stat cards ────────────────────────────────────────
 const iconByIndex = [Server, Activity, ShieldCheck, AlertTriangle]
@@ -73,18 +64,56 @@ const downChart = computed(() => buildPath(store.rxChartData, 520, 180, 16))
 const modeLabel      = computed(() => store.isWorkspaceMode ? t('settings.dashboard.workspaceMode') : t('settings.dashboard.globalMode'))
 const modeIcon       = computed(() => store.isWorkspaceMode ? Building2 : Globe)
 const throughputUnit = computed(() => store.isWorkspaceMode ? 'Mbps' : 'Gbps')
+
+// ── connection quality cards ──────────────────────────────────────────
+const qualityMetrics = computed(() => {
+  const c = store.wsData?.stat_cards
+  return [
+    { label: 'Online Nodes', value: c?.[0]?.value ?? '—', unit: c?.[0]?.unit ?? '',  icon: Server,      cls: 'text-primary/50' },
+    { label: 'Avg Latency',  value: c?.[2]?.value ?? '—', unit: c?.[2]?.unit ?? '',  icon: Activity,    cls: 'text-amber-500/50' },
+    { label: 'Packet Loss',  value: c?.[3]?.value ?? '—', unit: c?.[3]?.unit ?? '',  icon: ShieldCheck, cls: 'text-emerald-500/50' },
+  ]
+})
+
+// ── cpu bars with memory ──────────────────────────────────────────────
+const cpuBars = computed(() => {
+  const nodes = store.wsData?.node_cpu
+  if (nodes?.length) {
+    return [...nodes]
+      .sort((a, b) => b.cpu - a.cpu)
+      .slice(0, 5)
+      .map(n => ({
+        name:  n.name || n.peer_id,
+        cpu:   Math.round(n.cpu),
+        memMB: Math.round(n.memory_mb),
+      }))
+  }
+  return store.nodeLoadBar.map(n => ({ name: n.name, cpu: n.load, memMB: 0 }))
+})
+
+// normalize bars to the busiest node so even low-CPU clusters look good
+const maxCpu = computed(() => Math.max(...cpuBars.value.map(n => n.cpu), 1))
+const BAR_MAX_PX = 64 // px height when at 100% of maxCpu
 </script>
 
 <template>
   <div class="flex flex-col gap-5 p-6">
 
     <!-- ── Mode badge ──────────────────────────────────────────────── -->
-    <div class="flex items-center gap-2">
+    <div class="flex items-center justify-between gap-2">
       <div class="flex items-center gap-1.5 rounded-full border border-border bg-muted/50 px-3 py-1 text-xs font-medium text-muted-foreground">
         <component :is="modeIcon" class="size-3" />
         {{ t('settings.dashboard.viewLabel', { mode: modeLabel }) }}
         <span v-if="store.wsLoading" class="ml-1 size-1.5 rounded-full bg-amber-400 animate-pulse" />
       </div>
+      <button
+        class="flex items-center gap-1.5 rounded-full border border-border bg-muted/50 px-3 py-1 text-xs font-medium text-muted-foreground hover:bg-muted transition-colors"
+        :disabled="store.loading || store.wsLoading"
+        @click="store.fetch(); store.fetchWorkspace()"
+      >
+        <RefreshCw class="size-3" :class="(store.loading || store.wsLoading) && 'animate-spin'" />
+        Refresh
+      </button>
     </div>
 
     <!-- ── Stat Cards ──────────────────────────────────────────────── -->
@@ -178,35 +207,46 @@ const throughputUnit = computed(() => store.isWorkspaceMode ? 'Mbps' : 'Gbps')
 
       <div class="border-border bg-card text-card-foreground rounded-xl border p-5">
         <div class="mb-4">
-          <h3 class="font-semibold">{{ t('settings.dashboard.nodeLoadTitle') }}</h3>
-          <p class="text-muted-foreground text-sm">{{ t('settings.dashboard.nodeLoadSub') }}</p>
+          <h3 class="font-semibold">Node CPU Load</h3>
+          <p class="text-muted-foreground text-sm">CPU usage per node (%)</p>
         </div>
-        <div class="flex h-40 items-end gap-2">
-          <template v-if="store.nodeLoadBar.length > 0">
+        <div class="flex items-end justify-around gap-3 px-2" style="height: 80px">
+          <template v-if="cpuBars.length > 0">
             <div
-              v-for="node in store.nodeLoadBar"
+              v-for="node in cpuBars"
               :key="node.name"
-              class="flex flex-1 flex-col items-center gap-1"
+              class="flex w-7 flex-col items-center gap-0.5"
             >
-              <span class="text-muted-foreground text-[10px] font-medium">{{ node.load }}%</span>
+              <span class="text-muted-foreground text-[10px] tabular-nums">{{ node.cpu }}%</span>
               <div
-                class="w-full rounded-t transition-all duration-700"
-                :class="node.load > 80 ? 'bg-red-500/80' : node.load > 60 ? 'bg-amber-400/80' : 'bg-primary/80'"
-                :style="{ height: `${Math.max(node.load, 4)}%` }"
+                class="w-full rounded-t transition-all duration-700 bg-primary/60"
+                :style="{ height: `${Math.max(Math.round(node.cpu / maxCpu * BAR_MAX_PX), 3)}px` }"
               />
             </div>
           </template>
           <template v-else>
-            <div v-for="i in 5" :key="i" class="flex flex-1 flex-col items-center gap-1">
-              <div class="bg-muted rounded h-4 w-full animate-pulse" />
+            <div v-for="i in 5" :key="i" class="flex w-7 items-end">
+              <div class="bg-muted rounded-t w-full animate-pulse" style="height: 40px" />
             </div>
           </template>
         </div>
-        <div class="mt-4 border-t border-border pt-4 flex items-center justify-between">
-          <div class="flex items-center gap-2 text-primary font-semibold text-sm">
-            <Zap class="size-4" /> {{ t('settings.dashboard.accelerating') }}
+        <!-- node name + memory row -->
+        <div v-if="cpuBars.length > 0" class="flex gap-2 mt-1">
+          <div
+            v-for="node in cpuBars"
+            :key="node.name"
+            class="flex-1 flex flex-col items-center gap-0.5"
+          >
+            <span class="text-[9px] text-muted-foreground truncate w-full text-center leading-none">
+              {{ node.name.length > 8 ? node.name.slice(0, 8) + '…' : node.name }}
+            </span>
+            <span v-if="node.memMB > 0" class="text-[9px] text-muted-foreground/60 leading-none">
+              {{ node.memMB >= 1024 ? (node.memMB / 1024).toFixed(1) + 'G' : node.memMB + 'M' }}
+            </span>
           </div>
-          <span class="text-xs text-muted-foreground italic">Optimal</span>
+        </div>
+        <div class="mt-2 border-t border-border pt-3 text-xs text-muted-foreground">
+          {{ cpuBars.length > 0 ? `${cpuBars.length} nodes monitored` : t('settings.dashboard.noNodeData') }}
         </div>
       </div>
     </div>
@@ -267,25 +307,25 @@ const throughputUnit = computed(() => store.isWorkspaceMode ? 'Mbps' : 'Gbps')
         </div>
       </div>
 
-      <div class="border-border bg-card text-card-foreground rounded-xl border p-5 overflow-hidden flex flex-col">
-        <h3 class="font-semibold mb-4">Audit Logs</h3>
-        <div class="space-y-4 flex-1">
-          <div v-for="(log, i) in store.auditLogs" :key="i" class="flex items-center gap-3">
-            <div :class="[toneMap[log.tone] ?? 'bg-blue-500', 'size-2 rounded-full shadow-sm shrink-0']" />
-            <div class="flex-1 min-w-0">
-              <p class="text-xs font-medium truncate">{{ log.action }}</p>
-              <p class="text-[10px] text-muted-foreground">{{ log.time }} · {{ log.user }}</p>
-            </div>
-            <div class="text-[10px] text-muted-foreground italic truncate max-w-[80px]">{{ log.target }}</div>
+      <div class="border-border bg-card text-card-foreground rounded-xl border p-5 flex flex-col gap-3">
+        <h3 class="font-semibold">Connection Quality</h3>
+
+        <div
+          v-for="m in qualityMetrics"
+          :key="m.label"
+          class="flex items-center justify-between rounded-lg bg-muted/40 px-4 py-3"
+        >
+          <div>
+            <p class="text-[11px] text-muted-foreground uppercase tracking-wide font-medium">{{ m.label }}</p>
+            <p class="text-xl font-bold mt-0.5 leading-none">
+              <template v-if="store.loading || store.wsLoading">—</template>
+              <template v-else>
+                {{ m.value }}<span class="text-xs font-normal text-muted-foreground ml-1">{{ m.unit }}</span>
+              </template>
+            </p>
           </div>
-          <p v-if="store.auditLogs.length === 0 && !store.loading"
-             class="text-xs text-muted-foreground text-center py-4">
-            {{ t('settings.dashboard.noLogs') }}
-          </p>
+          <component :is="m.icon" class="size-7 shrink-0" :class="m.cls" />
         </div>
-        <button class="mt-4 w-full py-2 border border-border rounded-md text-xs font-medium hover:bg-muted transition-colors">
-          View All Logs
-        </button>
       </div>
     </div>
 

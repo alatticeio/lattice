@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 	"wireflow/api/v1alpha1"
+	"wireflow/internal/infra"
 	"wireflow/internal/log"
 	"wireflow/internal/store"
 	"wireflow/management/dto"
@@ -115,6 +116,9 @@ func (s *relayService) Create(ctx context.Context, req *dto.RelayDto) (*vo.Relay
 		return nil, err
 	}
 
+	username, _ := ctx.Value(infra.UsernameKey).(string)
+	now := time.Now().UTC().Format(time.RFC3339)
+
 	obj := &v1alpha1.WireflowRelayServer{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "wireflowcontroller.wireflow.run/v1alpha1",
@@ -122,6 +126,14 @@ func (s *relayService) Create(ctx context.Context, req *dto.RelayDto) (*vo.Relay
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name: req.Name,
+			Labels: map[string]string{
+				"app.kubernetes.io/managed-by": "wireflow-controller",
+			},
+			Annotations: map[string]string{
+				"wireflow.run/created-by": username,
+				"wireflow.run/updated-by": username,
+				"wireflow.run/updated-at": now,
+			},
 		},
 		Spec: v1alpha1.WireflowRelayServerSpec{
 			DisplayName: req.DisplayName,
@@ -154,6 +166,8 @@ func (s *relayService) Update(ctx context.Context, id string, req *dto.RelayDto)
 		return nil, err
 	}
 
+	username, _ := ctx.Value(infra.UsernameKey).(string)
+
 	patch := existing.DeepCopy()
 	patch.Spec.DisplayName = req.DisplayName
 	patch.Spec.Description = req.Description
@@ -161,6 +175,11 @@ func (s *relayService) Update(ctx context.Context, id string, req *dto.RelayDto)
 	patch.Spec.QuicUrl = req.QuicUrl
 	patch.Spec.Enabled = req.Enabled
 	patch.Spec.Namespaces = ns
+	if patch.Annotations == nil {
+		patch.Annotations = make(map[string]string)
+	}
+	patch.Annotations["wireflow.run/updated-by"] = username
+	patch.Annotations["wireflow.run/updated-at"] = time.Now().UTC().Format(time.RFC3339)
 
 	if err = s.client.Patch(ctx, patch, client.MergeFrom(&existing),
 		client.FieldOwner("wireflow-management")); err != nil {
@@ -249,13 +268,16 @@ func relayToVo(r *v1alpha1.WireflowRelayServer) *vo.RelayVo {
 		Workspaces:     r.Spec.Namespaces,
 		CreatedAt:      r.CreationTimestamp.Time,
 	}
-	if !r.DeletionTimestamp.IsZero() {
-		t := r.DeletionTimestamp.Time
-		v.UpdatedAt = &t
-	} else if !r.CreationTimestamp.IsZero() {
-		// use generation change timestamp approximation
-		t := time.Now()
-		v.UpdatedAt = &t
+	ann := r.Annotations
+	if ann == nil {
+		ann = map[string]string{}
+	}
+	v.CreatedBy = ann["wireflow.run/created-by"]
+	v.UpdatedBy = ann["wireflow.run/updated-by"]
+	if ts := ann["wireflow.run/updated-at"]; ts != "" {
+		if t, err := time.Parse(time.RFC3339, ts); err == nil {
+			v.UpdatedAt = t
+		}
 	}
 	// normalise health to lower-case for frontend consistency
 	switch r.Status.Health {

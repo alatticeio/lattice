@@ -94,7 +94,7 @@ func (w *workspaceService) ListWorkspaces(ctx context.Context, request *dto.Page
 				Slug:        ws.Slug,
 				DisplayName: ws.DisplayName,
 				Namespace:   ws.Namespace,
-				Status:      "healthy",
+				Status:      "active",
 				CreatedAt:   ws.CreatedAt.Format("2006-01-02T15:04:05Z"),
 			}
 
@@ -104,7 +104,7 @@ func (w *workspaceService) ListWorkspaces(ctx context.Context, request *dto.Page
 
 			if err := w.client.GetAPIReader().Get(gCtx, nsKey, ns); err != nil {
 				// Namespace不存在，workspace未初始化
-				v.Status = "initializing"
+				v.Status = "inactive"
 				v.NodeCount = 0
 				v.QuotaUsage = 0
 			} else {
@@ -149,6 +149,18 @@ func (w *workspaceService) ListWorkspaces(ctx context.Context, request *dto.Page
 
 	if err := g.Wait(); err != nil {
 		return nil, fmt.Errorf("k8s data aggregation failed: %v", err)
+	}
+
+	// 按状态过滤（status 由 k8s 动态计算，只能在丰富化后过滤）
+	if request.Status != "" {
+		filtered := result[:0]
+		for _, v := range result {
+			if v.Status == request.Status {
+				filtered = append(filtered, v)
+			}
+		}
+		result = filtered
+		total = int64(len(result))
 	}
 
 	return &dto.PageResult[vo.WorkspaceVo]{

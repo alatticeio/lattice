@@ -222,9 +222,15 @@ func NewManager() (manager.Manager, error) {
 	mgr, err := manager.New(restConfig, manager.Options{
 		Scheme: scheme,
 		Cache: cache2.Options{
-			DefaultLabelSelector: labels.SelectorFromSet(map[string]string{
-				"app.kubernetes.io/managed-by": "wireflow-controller",
-			}),
+			// 只对 ConfigMap 限定 label，避免 informer 缓存所有 ConfigMap。
+			// 其他 CRD 类型不做过滤，走完整缓存，对 API server 压力最小。
+			ByObject: map[client.Object]cache2.ByObject{
+				&corev1.ConfigMap{}: {
+					Label: labels.SelectorFromSet(map[string]string{
+						"app.kubernetes.io/managed-by": "wireflow-controller",
+					}),
+				},
+			},
 		},
 
 		Metrics: metricsserver.Options{

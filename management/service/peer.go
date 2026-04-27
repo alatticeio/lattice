@@ -169,7 +169,11 @@ func (p *peerService) ListPeers(ctx context.Context, pageParam *dto.PageRequest)
 	}
 
 	total := len(filteredPeers)
-	start := (pageParam.Page - 1) * pageParam.PageSize
+	page := pageParam.Page
+	if page < 1 {
+		page = 1
+	}
+	start := (page - 1) * pageParam.PageSize
 	end := start + pageParam.PageSize
 	if start > total {
 		start = total

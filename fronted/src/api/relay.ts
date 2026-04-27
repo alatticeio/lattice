@@ -4,6 +4,7 @@ export interface RelayServer {
   id: string
   name: string
   description?: string
+  region?: string
   tcpUrl: string
   quicUrl?: string
   enabled: boolean
@@ -11,17 +12,23 @@ export interface RelayServer {
   latencyMs?: number
   connectedPeers?: number
   workspaces?: string[]   // workspace slugs that use this relay
+  peerLabels?: string[]   // labels applied to peers using this relay, e.g. ["relay=asia-hk"]
+  createdBy?: string
   createdAt: string
+  updatedBy?: string
   updatedAt?: string
 }
 
 export interface CreateRelayParams {
   name: string
+  displayName?: string
   description?: string
+  region?: string
   tcpUrl: string
   quicUrl?: string
   enabled?: boolean
   workspaces?: string[]
+  peerLabels?: string[]
 }
 
 export interface UpdateRelayParams extends Partial<CreateRelayParams> {}

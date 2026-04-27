@@ -24,9 +24,19 @@ rules:
   - create
   - patch
 - apiGroups:
+  - ""
+  resources:
+  - secrets
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
   - wireflowcontroller.wireflow.run
   resources:
+  - wireflowclusterpeerings
   - wireflowenrollmenttokens
+  - wireflownetworkpeerings
   - wireflownetworks
   - wireflowpeers
   - wireflowpolicies
@@ -42,7 +52,9 @@ rules:
 - apiGroups:
   - wireflowcontroller.wireflow.run
   resources:
+  - wireflowclusterpeerings/finalizers
   - wireflowenrollmenttokens/finalizers
+  - wireflownetworkpeerings/finalizers
   - wireflownetworks/finalizers
   - wireflowpeers/finalizers
   - wireflowpolicies/finalizers
@@ -52,7 +64,9 @@ rules:
 - apiGroups:
   - wireflowcontroller.wireflow.run
   resources:
+  - wireflowclusterpeerings/status
   - wireflowenrollmenttokens/status
+  - wireflownetworkpeerings/status
   - wireflownetworks/status
   - wireflowpeers/status
   - wireflowpolicies/status
@@ -61,3 +75,11 @@ rules:
   - get
   - patch
   - update
+- apiGroups:
+  - wireflowcontroller.wireflow.run
+  resources:
+  - wireflowclusters
+  verbs:
+  - get
+  - list
+  - watch

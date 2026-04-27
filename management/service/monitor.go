@@ -680,7 +680,7 @@ func (s *monitorService) GetGlobalDashboard(ctx context.Context) (*models.Dashbo
 
 	// 2. 全网在线节点数（按 node_id 去重）
 	eg.Go(func() error {
-		vec, err := s.QueryByTime(ctx, `count(count by (node_id) (wireflow_peer_status == 1))`, time.Now())
+		vec, err := s.QueryByTime(ctx, `count(count by (peer_id) (wireflow_peer_status == 1))`, time.Now())
 		if err == nil && len(vec) > 0 {
 			onlineNodes = int(vec[0].Value)
 		}

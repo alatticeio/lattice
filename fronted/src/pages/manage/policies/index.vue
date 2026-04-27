@@ -604,7 +604,7 @@ const table = useVueTable({
           <!-- Allow All -->
           <button
             class="w-full flex items-center gap-3 p-3 rounded-lg border-2 border-emerald-500/30 bg-emerald-500/5 hover:border-emerald-500/60 hover:bg-emerald-500/10 transition-all text-left group"
-            @click="store.actions.applyTemplate('allowAll')"
+            @click="store.actions.applyTemplate('allowAll'); store.actions.handleCreateOrUpdate(toast)"
           >
             <div class="size-8 rounded-lg bg-emerald-500/15 flex items-center justify-center shrink-0 group-hover:bg-emerald-500/25 transition-colors">
               <Zap class="size-4 text-emerald-500" />

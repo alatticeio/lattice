@@ -10,6 +10,7 @@ export interface Workspace {
     maxNodeCount: number;
     status: 'active' | 'inactive';
     createdAt: string;
+    createdBy?: string;
     // 网络信息
     networkName?: string;
     networkCIDR?: string;

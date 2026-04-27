@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { ZoomIn, ZoomOut, Maximize2, X } from 'lucide-vue-next'
+import { ZoomIn, ZoomOut, Maximize2, X, RefreshCw } from 'lucide-vue-next'
+import { listPeer } from '@/api/user'
+import request from '@/api/request'
 
 definePage({
   meta: { title: '网络拓扑', description: '可视化网络节点连接拓扑图。' },
@@ -37,35 +39,15 @@ interface TopoLink {
   verdict: Verdict
 }
 
-// ── Mock data ──────────────────────────────────────────────────────
-const nodes = ref<TopoNode[]>([
-  { id: 'gw',      name: 'gw-hk-01',     type: 'gateway', region: 'ap-east-1',      ip: '10.0.0.1',  load: 34, txKbps: 2840, rxKbps: 1920, x: 440, y: 250, status: 'online'  },
-  { id: 'relay1',  name: 'relay-sg-01',  type: 'relay',   region: 'ap-southeast-1', ip: '10.0.0.10', load: 71, txKbps: 4210, rxKbps: 3870, x: 440, y: 420, status: 'relay'   },
-  { id: 'alpha',   name: 'node-alpha',   type: 'peer',    region: 'us-west-2',      ip: '10.0.1.10', load: 52, txKbps: 1240, rxKbps:  880, x: 670, y: 140, status: 'online'  },
-  { id: 'beta',    name: 'node-beta',    type: 'peer',    region: 'eu-central-1',   ip: '10.0.1.11', load: 18, txKbps:  430, rxKbps:  620, x: 740, y: 330, status: 'online'  },
-  { id: 'gamma',   name: 'node-gamma',   type: 'peer',    region: 'us-east-1',      ip: '10.0.1.12', load:  0, txKbps:    0, rxKbps:    0, x: 195, y: 155, status: 'offline' },
-  { id: 'delta',   name: 'node-delta',   type: 'peer',    region: 'ap-southeast-1', ip: '10.0.1.13', load: 41, txKbps:  760, rxKbps:  540, x: 640, y: 480, status: 'online'  },
-  { id: 'epsilon', name: 'node-epsilon', type: 'peer',    region: 'eu-west-1',      ip: '10.0.1.14', load: 63, txKbps: 1560, rxKbps: 1090, x: 220, y: 420, status: 'online'  },
-  { id: 'zeta',    name: 'node-zeta',    type: 'peer',    region: 'ap-northeast-1', ip: '10.0.1.15', load: 29, txKbps:  320, rxKbps:  410, x: 205, y: 305, status: 'online'  },
-])
-
-const links = ref<TopoLink[]>([
-  { id: 'l1',  source: 'gw',     target: 'alpha',   quality: 96, latencyMs:  12, type: 'p2p',   txKbps: 1240, verdict: 'FORWARDED' },
-  { id: 'l2',  source: 'gw',     target: 'beta',    quality: 88, latencyMs:  28, type: 'p2p',   txKbps:  430, verdict: 'FORWARDED' },
-  { id: 'l3',  source: 'gw',     target: 'relay1',  quality: 99, latencyMs:   6, type: 'p2p',   txKbps: 4210, verdict: 'FORWARDED' },
-  { id: 'l4',  source: 'gw',     target: 'gamma',   quality:  0, latencyMs:   0, type: 'relay', txKbps:    0, verdict: 'DROPPED'   },
-  { id: 'l5',  source: 'gw',     target: 'zeta',    quality: 74, latencyMs:  41, type: 'p2p',   txKbps:  320, verdict: 'FORWARDED' },
-  { id: 'l6',  source: 'alpha',  target: 'beta',    quality: 92, latencyMs:  18, type: 'p2p',   txKbps:  810, verdict: 'FORWARDED' },
-  { id: 'l7',  source: 'beta',   target: 'delta',   quality: 77, latencyMs:  35, type: 'p2p',   txKbps:  560, verdict: 'FORWARDED' },
-  { id: 'l8',  source: 'relay1', target: 'epsilon', quality: 63, latencyMs:  62, type: 'relay', txKbps:  980, verdict: 'RELAY'     },
-  { id: 'l9',  source: 'relay1', target: 'delta',   quality: 55, latencyMs:  78, type: 'relay', txKbps:  640, verdict: 'RELAY'     },
-  { id: 'l10', source: 'zeta',   target: 'epsilon', quality: 81, latencyMs:  24, type: 'p2p',   txKbps:  420, verdict: 'FORWARDED' },
-  { id: 'l11', source: 'gamma',  target: 'epsilon', quality:  0, latencyMs:   0, type: 'relay', txKbps:    0, verdict: 'DROPPED'   },
-])
+// ── State ──────────────────────────────────────────────────────────
+const nodes  = ref<TopoNode[]>([])
+const links  = ref<TopoLink[]>([])
+const loading = ref(true)
 
 // ── Live flow counter ──────────────────────────────────────────────
-const flowsPerSec = ref(0)
-const flowTimer = ref<ReturnType<typeof setInterval> | null>(null)
+const flowsPerSec   = ref(0)
+const flowTimer     = ref<ReturnType<typeof setInterval> | null>(null)
+const refreshTimer  = ref<ReturnType<typeof setInterval> | null>(null)
 
 // ── Verdict counters ───────────────────────────────────────────────
 const verdictCounts = computed(() => ({
@@ -105,6 +87,110 @@ const stats = computed(() => {
   const health = nodes.value.length ? Math.round(((online + relay) / nodes.value.length) * 100) : 0
   return { total: nodes.value.length, online, offline, relay, avgLatency, health }
 })
+
+// ── Layout ─────────────────────────────────────────────────────────
+function circularLayout(count: number): Array<{ x: number; y: number }> {
+  if (count === 0) return []
+  if (count === 1) return [{ x: 440, y: 280 }]
+  const cx = 440, cy = 280
+  const r = count <= 4 ? 150 : count <= 8 ? 210 : count <= 12 ? 265 : 310
+  return Array.from({ length: count }, (_, i) => ({
+    x: Math.round(cx + r * Math.cos(2 * Math.PI * i / count - Math.PI / 2)),
+    y: Math.round(cy + r * Math.sin(2 * Math.PI * i / count - Math.PI / 2)),
+  }))
+}
+
+function buildLinks() {
+  const arr = nodes.value
+  const n   = arr.length
+  const out: TopoLink[] = []
+
+  if (n <= 8) {
+    // Full mesh
+    for (let i = 0; i < n; i++) {
+      for (let j = i + 1; j < n; j++) {
+        const s = arr[i], t = arr[j]
+        const up = s.status === 'online' && t.status === 'online'
+        out.push({
+          id: `l-${s.id}-${t.id}`,
+          source: s.id, target: t.id,
+          quality: up ? 85 : 0,
+          latencyMs: up ? Math.floor(Math.random() * 75 + 5) : 0,
+          type: 'p2p', txKbps: 0,
+          verdict: up ? 'FORWARDED' : 'DROPPED',
+        })
+      }
+    }
+  } else {
+    // Star: relay/gateway as hub, else first online node
+    const hub = arr.find(n => n.type !== 'peer')
+               ?? arr.find(n => n.status === 'online')
+               ?? arr[0]
+    if (!hub) return
+    for (const peer of arr) {
+      if (peer.id === hub.id) continue
+      const up = hub.status === 'online' && peer.status === 'online'
+      out.push({
+        id: `l-${hub.id}-${peer.id}`,
+        source: hub.id, target: peer.id,
+        quality: up ? 85 : 0,
+        latencyMs: up ? Math.floor(Math.random() * 75 + 5) : 0,
+        type: 'p2p', txKbps: 0,
+        verdict: up ? 'FORWARDED' : 'DROPPED',
+      })
+    }
+  }
+  links.value = out
+}
+
+async function fetchTopology() {
+  loading.value = true
+  try {
+    const res  = await listPeer({ page: 1, pageSize: 500 })
+    const peers: any[] = res?.data?.list ?? []
+
+    const positions = circularLayout(peers.length)
+    nodes.value = peers.map((p: any, i: number) => {
+      const label  = (p.displayName || p.name || p.appId || '').toLowerCase()
+      const type: NodeType =
+        label.includes('relay')   ? 'relay'
+        : label.includes('gw') || label.includes('gateway') ? 'gateway'
+        : 'peer'
+      const status: NodeStatus = p.status === 'online' ? 'online' : 'offline'
+      const addr = p.address ? String(p.address).split('/')[0] : '—'
+      return {
+        id:     p.appId || p.name || String(p.id),
+        name:   p.displayName || p.name || p.appId || `node-${i}`,
+        type,   region: p.namespace || 'default',
+        ip:     addr,
+        load:   0, txKbps: 0, rxKbps: 0,
+        x: positions[i].x,
+        y: positions[i].y,
+        status,
+      }
+    })
+
+    // Enrich with CPU metrics from topology endpoint (pro only — silently ignore on failure)
+    try {
+      const topo = await request.get<{ code: number; data: any[] }>('/monitor/topology')
+      for (const snap of (topo?.data ?? [])) {
+        const node = nodes.value.find(n =>
+          n.id === snap.id || n.name === snap.name || n.id === snap.name)
+        if (!node) continue
+        node.load = Math.round(parseFloat(snap.metrics?.cpu_usage_percent ?? '0') || 0)
+      }
+    } catch { /* pro-only */ }
+
+    buildLinks()
+
+    const online = nodes.value.filter(n => n.status === 'online').length
+    flowsPerSec.value = online * 120 + Math.floor(Math.random() * 200)
+  } catch (e) {
+    console.error('Topology fetch failed:', e)
+  } finally {
+    loading.value = false
+  }
+}
 
 // ── Canvas state ───────────────────────────────────────────────────
 const scale      = ref(1)
@@ -248,16 +334,17 @@ function onWheel(e: WheelEvent) {
 
 // ── Lifecycle ──────────────────────────────────────────────────────
 onMounted(() => {
-  // Simulate live flow counter
-  flowsPerSec.value = Math.floor(Math.random() * 800 + 200)
+  fetchTopology()
   flowTimer.value = setInterval(() => {
     const delta = Math.floor((Math.random() - 0.5) * 80)
     flowsPerSec.value = Math.max(50, flowsPerSec.value + delta)
   }, 1000)
+  refreshTimer.value = setInterval(fetchTopology, 30_000)
 })
 
 onUnmounted(() => {
-  if (flowTimer.value) clearInterval(flowTimer.value)
+  if (flowTimer.value)   clearInterval(flowTimer.value)
+  if (refreshTimer.value) clearInterval(refreshTimer.value)
 })
 </script>
 
@@ -299,8 +386,16 @@ onUnmounted(() => {
         </div>
       </div>
 
-      <!-- Right stats -->
+      <!-- Right: manual refresh + stats -->
       <div class="flex items-center gap-5 text-xs text-zinc-400">
+        <button
+          class="flex items-center gap-1.5 text-zinc-500 hover:text-zinc-200 transition-colors"
+          :class="loading ? 'pointer-events-none' : ''"
+          @click="fetchTopology"
+        >
+          <RefreshCw class="size-3.5" :class="loading ? 'animate-spin' : ''" />
+          <span>Refresh</span>
+        </button>
         <span>Nodes: <b class="text-zinc-100">{{ stats.total }}</b></span>
         <span class="text-emerald-400">Online <b>{{ stats.online }}</b></span>
         <span class="text-violet-400">Relay <b>{{ stats.relay }}</b></span>
@@ -312,6 +407,26 @@ onUnmounted(() => {
 
     <!-- ── Canvas ──────────────────────────────────────────────────── -->
     <div class="relative flex-1 overflow-hidden">
+
+      <!-- Loading overlay -->
+      <transition enter-active-class="transition-opacity duration-200" leave-active-class="transition-opacity duration-200" enter-from-class="opacity-0" leave-to-class="opacity-0">
+        <div v-if="loading && nodes.length === 0" class="absolute inset-0 z-20 flex items-center justify-center bg-zinc-950/80">
+          <div class="flex flex-col items-center gap-3 text-zinc-400">
+            <RefreshCw class="size-6 animate-spin" />
+            <span class="text-xs">Loading topology…</span>
+          </div>
+        </div>
+      </transition>
+
+      <!-- Empty state -->
+      <transition enter-active-class="transition-opacity duration-200" leave-active-class="transition-opacity duration-200" enter-from-class="opacity-0" leave-to-class="opacity-0">
+        <div v-if="!loading && nodes.length === 0" class="absolute inset-0 z-20 flex items-center justify-center">
+          <div class="text-center text-zinc-500">
+            <p class="text-sm">No nodes found in this workspace.</p>
+            <p class="mt-1 text-xs">Nodes will appear here once they connect.</p>
+          </div>
+        </div>
+      </transition>
 
       <!-- Dot grid background -->
       <svg class="absolute inset-0 w-full h-full pointer-events-none" xmlns="http://www.w3.org/2000/svg">

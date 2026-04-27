@@ -140,7 +140,7 @@ var _ = Describe("Wireflow 核心连通性 E2E", Ordered, func() {
 							Containers: []corev1.Container{{
 								Name:            "agent",
 								Image:           agentImage,
-								ImagePullPolicy: corev1.PullAlways,
+								ImagePullPolicy: corev1.PullIfNotPresent,
 								SecurityContext: &corev1.SecurityContext{
 									Privileged:               &privileged,
 									AllowPrivilegeEscalation: &privileged,

@@ -8,7 +8,7 @@ import {
 import {
   RefreshCw, Search, Shield, User as UserIcon,
   ChevronLeft, ChevronRight, Building2, MoreHorizontal, Users,
-  Globe, Mail, Github, UserPlus, Clock,
+  Globe, Mail, Github, UserPlus, Clock, ArrowUpRight,
 } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -77,9 +77,15 @@ const filteredRows = computed<UserVo[]>(() => {
   return all.filter(u => u.role !== 'platform_admin')
 })
 
-// ── Stat card counts ───────────────────────────────────────────────
-const statAdminCount = computed(() => (rows.value as UserVo[]).filter(u => u.role === 'platform_admin').length)
-const statUserCount  = computed(() => (rows.value as UserVo[]).filter(u => u.role !== 'platform_admin').length)
+// ── Stat cards ─────────────────────────────────────────────────────
+const stats = computed(() => {
+  const all        = rows.value as UserVo[]
+  const adminCount = all.filter(u => u.role === 'platform_admin').length
+  const userCount  = all.filter(u => u.role !== 'platform_admin').length
+  const totalCount = total.value || all.length
+  const adminRate  = totalCount ? Math.round((adminCount / totalCount) * 100) : 0
+  return { total: totalCount, adminCount, userCount, adminRate }
+})
 
 // ── System role change ─────────────────────────────────────────────
 const updating = ref<string | null>(null)
@@ -423,67 +429,89 @@ const table = useVueTable({
 
     <!-- ── Stat cards ─────────────────────────────────────────────── -->
     <div class="grid grid-cols-3 gap-4">
-      <!-- Total users -->
-      <div class="rounded-xl border bg-card p-4 flex items-center gap-4 shadow-sm">
-        <div class="size-11 rounded-full bg-blue-500/10 flex items-center justify-center shrink-0">
-          <Users class="size-5 text-blue-500" />
+
+      <!-- 全部用户 -->
+      <button
+        class="border-border bg-card text-card-foreground rounded-xl border p-5 shadow-sm text-left hover:shadow-md transition-shadow"
+        :class="roleFilter === 'all' ? 'ring-2 ring-primary/20 border-primary/30' : ''"
+        @click="roleFilter = 'all'"
+      >
+        <div class="flex items-start justify-between">
+          <div class="flex flex-col gap-1">
+            <span class="text-muted-foreground text-sm font-medium">{{ t('manage.users.totalUsers') }}</span>
+            <span class="text-2xl font-bold tracking-tight">{{ stats.total }}</span>
+          </div>
+          <div class="bg-muted rounded-lg p-2">
+            <Users class="text-muted-foreground size-4" />
+          </div>
         </div>
-        <div>
-          <p class="text-2xl font-bold leading-none">{{ total ?? 0 }}</p>
-          <p class="text-xs text-muted-foreground mt-1">{{ t('manage.users.totalUsers') }}</p>
+        <div class="mt-3 flex items-center gap-1 text-sm">
+          <Shield class="text-muted-foreground size-4 shrink-0" />
+          <span class="text-muted-foreground">{{ t('manage.users.platformAdmins') }} {{ stats.adminCount }}</span>
+          <span class="mx-1 text-muted-foreground/40">·</span>
+          <UserIcon class="text-muted-foreground size-4 shrink-0" />
+          <span class="text-muted-foreground">{{ t('manage.users.regularUsers') }} {{ stats.userCount }}</span>
         </div>
-      </div>
-      <!-- Platform admins -->
-      <div class="rounded-xl border bg-card p-4 flex items-center gap-4 shadow-sm">
-        <div class="size-11 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-          <Shield class="size-5 text-primary" />
+      </button>
+
+      <!-- 平台管理员 -->
+      <button
+        class="border-border bg-card text-card-foreground rounded-xl border p-5 shadow-sm text-left hover:shadow-md transition-shadow"
+        :class="roleFilter === 'platform_admin' ? 'ring-2 ring-primary/20 border-primary/30' : ''"
+        @click="roleFilter = 'platform_admin'"
+      >
+        <div class="flex items-start justify-between">
+          <div class="flex flex-col gap-1">
+            <span class="text-muted-foreground text-sm font-medium">{{ t('manage.users.platformAdmins') }}</span>
+            <span class="text-2xl font-bold tracking-tight">{{ stats.adminCount }}</span>
+          </div>
+          <div class="bg-muted rounded-lg p-2">
+            <Shield class="text-muted-foreground size-4" />
+          </div>
         </div>
-        <div>
-          <p class="text-2xl font-bold leading-none">{{ statAdminCount }}</p>
-          <p class="text-xs text-muted-foreground mt-1">{{ t('manage.users.platformAdmins') }}</p>
+        <div class="mt-3 flex items-center gap-1 text-sm">
+          <ArrowUpRight class="text-primary size-4 shrink-0" />
+          <span class="text-primary font-semibold">{{ stats.adminRate }}%</span>
+          <span class="text-muted-foreground">{{ t('manage.users.filterAll') }}</span>
         </div>
-      </div>
-      <!-- Regular users -->
-      <div class="rounded-xl border bg-card p-4 flex items-center gap-4 shadow-sm">
-        <div class="size-11 rounded-full bg-emerald-500/10 flex items-center justify-center shrink-0">
-          <UserIcon class="size-5 text-emerald-500" />
+      </button>
+
+      <!-- 普通用户 -->
+      <button
+        class="border-border bg-card text-card-foreground rounded-xl border p-5 shadow-sm text-left hover:shadow-md transition-shadow"
+        :class="roleFilter === 'user' ? 'ring-2 ring-emerald-500/20 border-emerald-500/30' : ''"
+        @click="roleFilter = 'user'"
+      >
+        <div class="flex items-start justify-between">
+          <div class="flex flex-col gap-1">
+            <span class="text-muted-foreground text-sm font-medium">{{ t('manage.users.regularUsers') }}</span>
+            <span class="text-2xl font-bold tracking-tight">{{ stats.userCount }}</span>
+          </div>
+          <div class="bg-muted rounded-lg p-2">
+            <UserIcon class="text-muted-foreground size-4" />
+          </div>
         </div>
-        <div>
-          <p class="text-2xl font-bold leading-none">{{ statUserCount }}</p>
-          <p class="text-xs text-muted-foreground mt-1">{{ t('manage.users.regularUsers') }}</p>
+        <div class="mt-3 flex items-center gap-1 text-sm">
+          <ArrowUpRight class="text-emerald-600 size-4 shrink-0" />
+          <span class="text-emerald-600 font-semibold">{{ 100 - stats.adminRate }}%</span>
+          <span class="text-muted-foreground">{{ t('manage.users.filterAll') }}</span>
         </div>
-      </div>
+      </button>
+
     </div>
 
-    <!-- ── Toolbar: filter tabs + search + refresh ───────────────── -->
-    <div class="flex items-center gap-3">
-      <div class="flex items-center gap-1.5 p-1 rounded-lg bg-muted">
-        <button
-          v-for="tab in ([
-            { value: 'all',            label: t('manage.users.filterAll') },
-            { value: 'platform_admin', label: t('manage.users.filterAdmin') },
-            { value: 'user',           label: t('manage.users.filterUser') },
-          ] as const)"
-          :key="tab.value"
-          class="px-3.5 py-1.5 rounded-md text-sm font-medium transition-all"
-          :class="roleFilter === tab.value
-            ? 'bg-background text-foreground shadow-sm'
-            : 'text-muted-foreground hover:text-foreground'"
-          @click="roleFilter = tab.value"
-        >
-          {{ tab.label }}
-        </button>
+    <!-- ── Toolbar: search + refresh ─────────────────────────────── -->
+    <div class="flex items-center gap-2">
+      <div class="relative w-56">
+        <Search class="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
+        <Input
+          v-model="keyword"
+          :placeholder="t('manage.users.searchPlaceholder')"
+          class="pl-8 h-9"
+          @keyup.enter="doRefresh()"
+        />
       </div>
       <div class="ml-auto flex items-center gap-2">
-        <div class="relative w-56">
-          <Search class="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
-          <Input
-            v-model="keyword"
-            :placeholder="t('manage.users.searchPlaceholder')"
-            class="pl-8 h-9"
-            @keyup.enter="doRefresh()"
-          />
-        </div>
         <Button variant="outline" size="sm" class="gap-1.5 h-9" :disabled="loading" @click="doRefresh()">
           <RefreshCw class="size-3.5" :class="loading ? 'animate-spin' : ''" />
           {{ t('common.action.refresh') }}
@@ -495,17 +523,19 @@ const table = useVueTable({
     <div class="rounded-xl border overflow-hidden shadow-sm">
       <Table>
         <TableHeader>
-          <TableRow class="bg-muted/30 hover:bg-muted/30" v-for="hg in table.getHeaderGroups()" :key="hg.id">
+          <TableRow v-for="hg in table.getHeaderGroups()" :key="hg.id">
             <TableHead
               v-for="header in hg.headers"
               :key="header.id"
-              class="text-xs font-semibold uppercase tracking-wide text-muted-foreground h-10"
+              class="text-left align-middle"
             >
-              <FlexRender
-                v-if="!header.isPlaceholder"
-                :render="header.column.columnDef.header"
-                :props="header.getContext()"
-              />
+              <div class="flex w-full items-center justify-start text-left">
+                <FlexRender
+                  v-if="!header.isPlaceholder"
+                  :render="header.column.columnDef.header"
+                  :props="header.getContext()"
+                />
+              </div>
             </TableHead>
           </TableRow>
         </TableHeader>

@@ -235,6 +235,7 @@
       "nodeUsage": "节点使用",
       "utilization": "空间利用率",
       "network": "网络信息",
+      "createdBy": "创建人",
       "createdAt": "创建时间",
       "actions": ""
     },

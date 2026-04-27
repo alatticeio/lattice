@@ -100,19 +100,20 @@ func Start(ctx context.Context, flags *config.Config) error {
 
 	logger.Debug("Interface name", "name", c.Name)
 
-	if flags.Telemetry.VMEndpoint != "" {
+	if flags.EnableMetric && flags.Telemetry.VMEndpoint != "" {
 		tc := telemetry.Config{
 			VMEndpoint: flags.Telemetry.VMEndpoint,
 			Interval:   time.Duration(flags.Telemetry.IntervalSeconds) * time.Second,
-		}
-		networkID := ""
-		if c.current != nil {
-			networkID = c.current.NetworkId
 		}
 		collector, err := telemetry.New(tc, c.GetPeerManager(), logger)
 		if err != nil {
 			logger.Warn("telemetry init failed, skipping", "err", err)
 		} else {
+			// Resolve NetworkID after workspace config is applied; fall back to AppId namespace.
+			networkID := ""
+			if c.current != nil {
+				networkID = c.current.NetworkId
+			}
 			collector.SetIdentity(telemetry.Identity{
 				PeerID:    flags.AppId,
 				NetworkID: networkID,

@@ -29,7 +29,7 @@ const { t, locale } = useI18n()
 const { rows: logs, total, loading, refresh } = useTable(listAuditLogs)
 const page     = ref(1)
 const pageSize = ref(10)
-onMounted(() => refresh({ page: page.value, pageSize: pageSize.value }))
+onMounted(() => doRefresh())
 
 // ── Filters ───────────────────────────────────────────────────────
 const searchValue    = ref('')

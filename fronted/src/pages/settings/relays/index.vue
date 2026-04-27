@@ -8,7 +8,7 @@ import {
   Search, RefreshCw, MoreHorizontal, Trash2, Pencil,
   ChevronLeft, ChevronRight, Plus, Wifi, WifiOff,
   Radio, Globe, Zap, Server, ActivitySquare, CheckCircle2,
-  AlertCircle,
+  AlertCircle, UserCircle, MapPin, Tag, X, Clock,
 } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -57,15 +57,33 @@ const statusFilter = ref<'all' | 'healthy' | 'degraded' | 'offline'>('all')
 // ── form ─────────────────────────────────────────────────────────────────────
 const form = ref<CreateRelayParams>({
   name: '',
+  displayName: '',
   description: '',
+  region: '',
   tcpUrl: '',
   quicUrl: '',
   enabled: true,
   workspaces: [],
+  peerLabels: [],
 })
 
+const labelInput = ref('')
+
+function addLabel() {
+  const v = labelInput.value.trim()
+  if (!v) return
+  if (!form.value.peerLabels) form.value.peerLabels = []
+  if (!form.value.peerLabels.includes(v)) form.value.peerLabels.push(v)
+  labelInput.value = ''
+}
+
+function removeLabel(index: number) {
+  form.value.peerLabels?.splice(index, 1)
+}
+
 function resetForm() {
-  form.value = { name: '', description: '', tcpUrl: '', quicUrl: '', enabled: true, workspaces: [] }
+  form.value = { name: '', displayName: '', description: '', region: '', tcpUrl: '', quicUrl: '', enabled: true, workspaces: [], peerLabels: [] }
+  labelInput.value = ''
 }
 
 function openCreate() {
@@ -77,13 +95,17 @@ function openCreate() {
 function openEdit(row: RelayServer) {
   editingItem.value = row
   form.value = {
-    name: row.name,
+    name: row.id,
+    displayName: row.name,
     description: row.description ?? '',
+    region: row.region ?? '',
     tcpUrl: row.tcpUrl,
     quicUrl: row.quicUrl ?? '',
     enabled: row.enabled,
     workspaces: row.workspaces ?? [],
+    peerLabels: row.peerLabels ? [...row.peerLabels] : [],
   }
+  labelInput.value = ''
   dialogOpen.value = true
 }
 
@@ -111,7 +133,8 @@ async function fetchList(params?: { page?: number }) {
 onMounted(() => fetchList())
 
 async function handleSave() {
-  if (!form.value.name.trim()) { toast.error(t('settings.relays.toast.nameRequired')); return }
+  if (!form.value.displayName?.trim()) { toast.error(t('settings.relays.toast.nameRequired')); return }
+  if (!editingItem.value && !form.value.name.trim()) { toast.error(t('settings.relays.toast.slugRequired')); return }
   if (!form.value.tcpUrl.trim()) { toast.error(t('settings.relays.toast.tcpRequired')); return }
   saving.value = true
   try {
@@ -246,7 +269,10 @@ const columns: ColumnDef<RelayServer>[] = [
           class: 'size-9 rounded-lg flex items-center justify-center shrink-0 bg-primary/10 ring-1 ring-primary/20',
         }, h(Server, { class: 'size-4 text-primary' })),
         h('div', { class: 'min-w-0' }, [
-          h('p', { class: 'font-semibold text-sm leading-none' }, relay.name),
+          h('p', { class: 'font-semibold text-sm leading-none' }, relay.name || relay.id),
+          relay.name
+            ? h('p', { class: 'font-mono text-[10px] text-muted-foreground/50 mt-0.5' }, relay.id)
+            : null,
           relay.description
             ? h('p', { class: 'text-[11px] text-muted-foreground mt-1 truncate max-w-[200px]' }, relay.description)
             : null,
@@ -314,6 +340,56 @@ const columns: ColumnDef<RelayServer>[] = [
         ? [h('span', { class: 'text-[10px] text-muted-foreground/50' }, `+${ws.length - 3}`)]
         : []
       ))
+    },
+  },
+  {
+    id: 'creator',
+    header: () => t('settings.relays.col.creator'),
+    cell: ({ row }) => {
+      const name = row.original.createdBy
+      if (!name) return h('span', { class: 'text-[11px] text-muted-foreground/40' }, '—')
+      return h('div', { class: 'flex items-center gap-1.5' }, [
+        h(UserCircle, { class: 'size-3.5 text-muted-foreground shrink-0' }),
+        h('span', { class: 'text-sm' }, name),
+      ])
+    },
+  },
+  {
+    id: 'createdAt',
+    header: () => t('settings.relays.col.createdAt'),
+    cell: ({ row }) => {
+      const ts = row.original.createdAt
+      if (!ts) return h('span', { class: 'text-[11px] text-muted-foreground/40' }, '—')
+      const d = new Date(ts)
+      return h('div', { class: 'flex items-center gap-1.5' }, [
+        h(Clock, { class: 'size-3.5 text-muted-foreground shrink-0' }),
+        h('span', { class: 'text-xs tabular-nums' }, d.toLocaleDateString()),
+      ])
+    },
+  },
+  {
+    id: 'updatedBy',
+    header: () => t('settings.relays.col.updatedBy'),
+    cell: ({ row }) => {
+      const name = row.original.updatedBy
+      if (!name) return h('span', { class: 'text-[11px] text-muted-foreground/40' }, '—')
+      return h('div', { class: 'flex items-center gap-1.5' }, [
+        h(UserCircle, { class: 'size-3.5 text-muted-foreground shrink-0' }),
+        h('span', { class: 'text-sm' }, name),
+      ])
+    },
+  },
+  {
+    id: 'updatedAt',
+    header: () => t('settings.relays.col.updatedAt'),
+    cell: ({ row }) => {
+      const ts = row.original.updatedAt
+      if (!ts) return h('span', { class: 'text-[11px] text-muted-foreground/40' }, '—')
+      const d = new Date(ts)
+      return h('div', { class: 'flex items-center gap-1.5' }, [
+        h(Clock, { class: 'size-3.5 text-muted-foreground shrink-0' }),
+        h('span', { class: 'text-xs tabular-nums' }, d.toLocaleDateString()),
+      ])
     },
   },
   {
@@ -545,16 +621,38 @@ function goToPage(p: number) {
         </DialogHeader>
 
         <div class="space-y-4 py-1">
-          <!-- name -->
+          <!-- display name -->
+          <div class="space-y-1.5">
+            <label class="text-sm font-medium">{{ t('settings.relays.dialog.displayNameLabel') }} <span class="text-destructive">*</span></label>
+            <Input v-model="form.displayName" :placeholder="t('settings.relays.dialog.displayNamePlaceholder')" />
+          </div>
+
+          <!-- resource name (slug) -->
           <div class="space-y-1.5">
             <label class="text-sm font-medium">{{ t('settings.relays.dialog.nameLabel') }} <span class="text-destructive">*</span></label>
-            <Input v-model="form.name" placeholder="Asia-HK-01" />
+            <Input
+              v-model="form.name"
+              :placeholder="t('settings.relays.dialog.namePlaceholder')"
+              :disabled="!!editingItem"
+              class="font-mono text-sm"
+              :class="editingItem ? 'opacity-60 cursor-not-allowed' : ''"
+            />
+            <p class="text-[11px] text-muted-foreground">{{ t('settings.relays.dialog.nameHint') }}</p>
           </div>
 
           <!-- description -->
           <div class="space-y-1.5">
             <label class="text-sm font-medium">{{ t('settings.relays.dialog.descLabel') }}</label>
             <Input v-model="form.description" :placeholder="t('settings.relays.dialog.descLabel')" />
+          </div>
+
+          <!-- region -->
+          <div class="space-y-1.5">
+            <label class="text-sm font-medium flex items-center gap-1.5">
+              <MapPin class="size-3.5 text-muted-foreground" />
+              {{ t('settings.relays.dialog.regionLabel') }}
+            </label>
+            <Input v-model="form.region" :placeholder="t('settings.relays.dialog.regionPlaceholder')" />
           </div>
 
           <!-- tcp url -->
@@ -584,6 +682,37 @@ function goToPage(p: number) {
               class="font-mono text-sm"
             />
             <p class="text-[11px] text-muted-foreground">{{ t('settings.relays.dialog.quicHint') }}</p>
+          </div>
+
+          <!-- peer labels -->
+          <div class="space-y-1.5">
+            <label class="text-sm font-medium flex items-center gap-1.5">
+              <Tag class="size-3.5 text-muted-foreground" />
+              {{ t('settings.relays.dialog.peerLabelsLabel') }}
+            </label>
+            <div class="flex gap-2">
+              <Input
+                v-model="labelInput"
+                :placeholder="t('settings.relays.dialog.peerLabelsPlaceholder')"
+                class="font-mono text-sm"
+                @keyup.enter="addLabel"
+              />
+              <Button type="button" variant="outline" size="sm" class="shrink-0 px-3" @click="addLabel">
+                {{ t('settings.relays.dialog.peerLabelsAdd') }}
+              </Button>
+            </div>
+            <div v-if="form.peerLabels && form.peerLabels.length" class="flex flex-wrap gap-1.5 pt-0.5">
+              <span
+                v-for="(lbl, i) in form.peerLabels" :key="i"
+                class="inline-flex items-center gap-1 text-[11px] font-mono font-medium px-2 py-0.5 rounded-md bg-primary/10 text-primary ring-1 ring-primary/20"
+              >
+                {{ lbl }}
+                <button type="button" class="ml-0.5 hover:text-destructive transition-colors" @click="removeLabel(i)">
+                  <X class="size-3" />
+                </button>
+              </span>
+            </div>
+            <p class="text-[11px] text-muted-foreground">{{ t('settings.relays.dialog.peerLabelsHint') }}</p>
           </div>
 
           <!-- enabled -->

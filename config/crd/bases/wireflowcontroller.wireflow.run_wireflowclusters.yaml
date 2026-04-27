@@ -4,30 +4,24 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.18.0
-  name: wireflownetworkpeerings.wireflowcontroller.wireflow.run
+  name: wireflowclusters.wireflowcontroller.wireflow.run
 spec:
   group: wireflowcontroller.wireflow.run
   names:
-    kind: WireflowNetworkPeering
-    listKind: WireflowNetworkPeeringList
-    plural: wireflownetworkpeerings
+    kind: WireflowCluster
+    listKind: WireflowClusterList
+    plural: wireflowclusters
     shortNames:
-    - wfpeering
-    singular: wireflownetworkpeering
+    - wfcluster
+    singular: wireflowcluster
   scope: Cluster
   versions:
   - additionalPrinterColumns:
     - jsonPath: .status.phase
       name: PHASE
       type: string
-    - jsonPath: .status.cidrA
-      name: CIDR-A
-      type: string
-    - jsonPath: .status.cidrB
-      name: CIDR-B
-      type: string
-    - jsonPath: .spec.peeringMode
-      name: MODE
+    - jsonPath: .spec.managementEndpoint
+      name: ENDPOINT
       type: string
     - jsonPath: .metadata.creationTimestamp
       name: AGE
@@ -36,8 +30,8 @@ spec:
     schema:
       openAPIV3Schema:
         description: |-
-          WireflowNetworkPeering connects two WireflowNetworks across different workspaces
-          so their peers can communicate directly over WireGuard.
+          WireflowCluster registers a remote Wireflow deployment so that
+          WireflowClusterPeering resources can reference it.
         properties:
           apiVersion:
             description: |-
@@ -58,49 +52,28 @@ spec:
             type: object
           spec:
             description: |-
-              WireflowNetworkPeeringSpec declares a peering relationship between two networks
-              that may reside in different namespaces (workspaces).
+              WireflowClusterSpec describes a remote Wireflow deployment that this cluster
+              can establish cross-cluster peerings with.
             properties:
-              namespaceA:
-                description: NamespaceA is the Kubernetes namespace of the first workspace.
-                type: string
-              namespaceB:
-                description: NamespaceB is the Kubernetes namespace of the second
-                  workspace.
-                type: string
-              networkA:
-                description: NetworkA is the WireflowNetwork name in NamespaceA.
-                type: string
-              networkB:
-                description: NetworkB is the WireflowNetwork name in NamespaceB.
-                type: string
-              peeringMode:
-                default: gateway
+              credentialRef:
                 description: |-
-                  PeeringMode controls the traffic forwarding strategy.
-                  Defaults to "gateway".
-                enum:
-                - gateway
-                - mesh
+                  CredentialRef is the name of a Secret in the controller namespace that
+                  holds the authentication token for the remote management API.
+                  The Secret must have key "token".
+                type: string
+              managementEndpoint:
+                description: |-
+                  ManagementEndpoint is the HTTPS base URL of the remote cluster's
+                  Wireflow management API (e.g. "https://wireflow.prod-eu.example.com").
                 type: string
             required:
-            - namespaceA
-            - namespaceB
-            - networkA
-            - networkB
+            - credentialRef
+            - managementEndpoint
             type: object
           status:
-            description: WireflowNetworkPeeringStatus reports the observed state of
-              the peering.
+            description: WireflowClusterStatus reports the observed connection state
+              of a remote cluster.
             properties:
-              cidrA:
-                description: CIDRA is the ActiveCIDR of NetworkA, populated once the
-                  peering is Ready.
-                type: string
-              cidrB:
-                description: CIDRB is the ActiveCIDR of NetworkB, populated once the
-                  peering is Ready.
-                type: string
               conditions:
                 description: Conditions contains fine-grained status conditions.
                 items:
@@ -158,9 +131,14 @@ spec:
                   - type
                   type: object
                 type: array
+              lastProbeTime:
+                description: LastProbeTime is when the controller last successfully
+                  contacted the remote cluster.
+                format: date-time
+                type: string
               phase:
-                description: 'Phase summarises the peering lifecycle: Pending | Ready
-                  | Error.'
+                description: 'Phase is the current connection state: Connected | Disconnected
+                  | Unknown.'
                 type: string
             type: object
         type: object
