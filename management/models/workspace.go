@@ -53,6 +53,10 @@ type Workspace struct {
 	// 状态
 	Status  string `gorm:"default:'active'" json:"status"` // active, terminating, frozen
 	Members []User `gorm:"many2many:t_workspace_member;" json:"members,omitempty"`
+
+	// 操作人
+	CreatedBy string `gorm:"type:varchar(100)" json:"createdBy,omitempty"`
+	UpdatedBy string `gorm:"type:varchar(100)" json:"updatedBy,omitempty"`
 }
 
 func (Workspace) TableName() string {

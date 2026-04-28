@@ -18,7 +18,7 @@ type WorkspaceVo struct {
 	ID string `json:"id"`
 
 	// slug对应前端输入的想要的空间
-	Slug string `json:"name"` // URL标识，如 "tencent-rd"
+	Slug string `json:"slug"` // URL标识，如 "tencent-rd"
 
 	//对应k8s的 namespace
 	Namespace string `json:"namespace"`
@@ -40,6 +40,10 @@ type WorkspaceVo struct {
 
 	// 创建人
 	CreatedBy string `json:"createdBy,omitempty"`
+
+	// 最后修改人和修改时间
+	UpdatedBy string `json:"updatedBy,omitempty"`
+	UpdatedAt string `json:"updatedAt,omitempty"`
 
 	// 网络信息
 	NetworkName   string `json:"networkName,omitempty"`

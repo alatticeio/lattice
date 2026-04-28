@@ -8,7 +8,7 @@ import {
 import {
   RefreshCw, Search, Shield, User as UserIcon,
   ChevronLeft, ChevronRight, Building2, MoreHorizontal, Users,
-  Globe, Mail, Github, UserPlus, Clock, ArrowUpRight,
+  Globe, Mail, Github, UserPlus, Clock,
 } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -425,15 +425,15 @@ const table = useVueTable({
 </script>
 
 <template>
-  <div class="flex flex-col gap-6 p-6 animate-in fade-in duration-300">
+  <div class="flex flex-col gap-5 p-6 animate-in fade-in duration-300">
 
     <!-- ── Stat cards ─────────────────────────────────────────────── -->
     <div class="grid grid-cols-3 gap-4">
 
       <!-- 全部用户 -->
       <button
-        class="border-border bg-card text-card-foreground rounded-xl border p-5 shadow-sm text-left hover:shadow-md transition-shadow"
-        :class="roleFilter === 'all' ? 'ring-2 ring-primary/20 border-primary/30' : ''"
+        class="border-border bg-card text-card-foreground rounded-xl border p-5 shadow-sm text-left hover:shadow-md transition-all"
+        :class="roleFilter === 'all' ? 'ring-2 ring-blue-500/20 border-blue-500/30' : ''"
         @click="roleFilter = 'all'"
       >
         <div class="flex items-start justify-between">
@@ -441,60 +441,57 @@ const table = useVueTable({
             <span class="text-muted-foreground text-sm font-medium">{{ t('manage.users.totalUsers') }}</span>
             <span class="text-2xl font-bold tracking-tight">{{ stats.total }}</span>
           </div>
-          <div class="bg-muted rounded-lg p-2">
-            <Users class="text-muted-foreground size-4" />
+          <div class="bg-blue-500/10 rounded-lg p-2">
+            <Users class="text-blue-500 size-4" />
           </div>
         </div>
-        <div class="mt-3 flex items-center gap-1 text-sm">
-          <Shield class="text-muted-foreground size-4 shrink-0" />
-          <span class="text-muted-foreground">{{ t('manage.users.platformAdmins') }} {{ stats.adminCount }}</span>
-          <span class="mx-1 text-muted-foreground/40">·</span>
-          <UserIcon class="text-muted-foreground size-4 shrink-0" />
-          <span class="text-muted-foreground">{{ t('manage.users.regularUsers') }} {{ stats.userCount }}</span>
+        <div class="mt-3 flex items-center gap-1 text-xs text-muted-foreground">
+          <Users class="size-3.5 shrink-0 text-blue-500" />
+          <span>{{ stats.adminCount }} {{ t('manage.users.platformAdmins') }} · {{ stats.userCount }} {{ t('manage.users.regularUsers') }}</span>
         </div>
       </button>
 
       <!-- 平台管理员 -->
       <button
-        class="border-border bg-card text-card-foreground rounded-xl border p-5 shadow-sm text-left hover:shadow-md transition-shadow"
+        class="border-border bg-card text-card-foreground rounded-xl border p-5 shadow-sm text-left hover:shadow-md transition-all"
         :class="roleFilter === 'platform_admin' ? 'ring-2 ring-primary/20 border-primary/30' : ''"
         @click="roleFilter = 'platform_admin'"
       >
         <div class="flex items-start justify-between">
           <div class="flex flex-col gap-1">
             <span class="text-muted-foreground text-sm font-medium">{{ t('manage.users.platformAdmins') }}</span>
-            <span class="text-2xl font-bold tracking-tight">{{ stats.adminCount }}</span>
+            <span class="text-2xl font-bold tracking-tight text-primary">{{ stats.adminCount }}</span>
           </div>
-          <div class="bg-muted rounded-lg p-2">
-            <Shield class="text-muted-foreground size-4" />
+          <div class="bg-primary/10 rounded-lg p-2">
+            <Shield class="text-primary size-4" />
           </div>
         </div>
-        <div class="mt-3 flex items-center gap-1 text-sm">
-          <ArrowUpRight class="text-primary size-4 shrink-0" />
+        <div class="mt-3 flex items-center gap-1 text-xs text-muted-foreground">
+          <Shield class="text-primary size-3.5 shrink-0" />
           <span class="text-primary font-semibold">{{ stats.adminRate }}%</span>
-          <span class="text-muted-foreground">{{ t('manage.users.filterAll') }}</span>
+          <span>{{ t('manage.users.filterAll') }}</span>
         </div>
       </button>
 
       <!-- 普通用户 -->
       <button
-        class="border-border bg-card text-card-foreground rounded-xl border p-5 shadow-sm text-left hover:shadow-md transition-shadow"
+        class="border-border bg-card text-card-foreground rounded-xl border p-5 shadow-sm text-left hover:shadow-md transition-all"
         :class="roleFilter === 'user' ? 'ring-2 ring-emerald-500/20 border-emerald-500/30' : ''"
         @click="roleFilter = 'user'"
       >
         <div class="flex items-start justify-between">
           <div class="flex flex-col gap-1">
             <span class="text-muted-foreground text-sm font-medium">{{ t('manage.users.regularUsers') }}</span>
-            <span class="text-2xl font-bold tracking-tight">{{ stats.userCount }}</span>
+            <span class="text-2xl font-bold tracking-tight text-emerald-600 dark:text-emerald-400">{{ stats.userCount }}</span>
           </div>
-          <div class="bg-muted rounded-lg p-2">
-            <UserIcon class="text-muted-foreground size-4" />
+          <div class="bg-emerald-500/10 rounded-lg p-2">
+            <UserIcon class="text-emerald-500 size-4" />
           </div>
         </div>
-        <div class="mt-3 flex items-center gap-1 text-sm">
-          <ArrowUpRight class="text-emerald-600 size-4 shrink-0" />
-          <span class="text-emerald-600 font-semibold">{{ 100 - stats.adminRate }}%</span>
-          <span class="text-muted-foreground">{{ t('manage.users.filterAll') }}</span>
+        <div class="mt-3 flex items-center gap-1 text-xs text-muted-foreground">
+          <UserIcon class="text-emerald-500 size-3.5 shrink-0" />
+          <span class="text-emerald-600 dark:text-emerald-400 font-semibold">{{ 100 - stats.adminRate }}%</span>
+          <span>{{ t('manage.users.filterAll') }}</span>
         </div>
       </button>
 

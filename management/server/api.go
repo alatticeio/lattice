@@ -2,6 +2,7 @@ package server
 
 import (
 	"strings"
+	"wireflow/internal/infra"
 	"wireflow/internal/web"
 	"wireflow/management/dex"
 	"wireflow/management/dto"
@@ -60,6 +61,9 @@ func (s *Server) apiRouter() error {
 	{
 		peerApi.GET("/list", s.tenantMiddleware.Handle(), s.listPeers)
 		peerApi.PUT("/update", s.updatePeer)
+		peerApi.PUT("/:name/disable", s.tenantMiddleware.Handle(), s.disablePeer)
+		peerApi.PUT("/:name/enable", s.tenantMiddleware.Handle(), s.enablePeer)
+		peerApi.DELETE("/:name", s.tenantMiddleware.Handle(), s.deletePeerHandler)
 	}
 
 	policyApi := s.Group("/api/v1/policies")
@@ -204,4 +208,56 @@ func (s *Server) updatePeer(c *gin.Context) {
 	}
 
 	resp.OK(c, vo)
+}
+
+func (s *Server) peerNamespace(c *gin.Context) (string, error) {
+	ctx := c.Request.Context()
+	wsID, _ := ctx.Value(infra.WorkspaceKey).(string)
+	ws, err := s.store.Workspaces().GetByID(ctx, wsID)
+	if err != nil {
+		return "", err
+	}
+	return ws.Namespace, nil
+}
+
+func (s *Server) disablePeer(c *gin.Context) {
+	name := c.Param("name")
+	ns, err := s.peerNamespace(c)
+	if err != nil {
+		resp.Error(c, err.Error())
+		return
+	}
+	if err := s.peerController.DisablePeer(c.Request.Context(), ns, name); err != nil {
+		resp.Error(c, err.Error())
+		return
+	}
+	resp.OK(c, nil)
+}
+
+func (s *Server) enablePeer(c *gin.Context) {
+	name := c.Param("name")
+	ns, err := s.peerNamespace(c)
+	if err != nil {
+		resp.Error(c, err.Error())
+		return
+	}
+	if err := s.peerController.EnablePeer(c.Request.Context(), ns, name); err != nil {
+		resp.Error(c, err.Error())
+		return
+	}
+	resp.OK(c, nil)
+}
+
+func (s *Server) deletePeerHandler(c *gin.Context) {
+	name := c.Param("name")
+	ns, err := s.peerNamespace(c)
+	if err != nil {
+		resp.Error(c, err.Error())
+		return
+	}
+	if err := s.peerController.DeletePeer(c.Request.Context(), ns, name); err != nil {
+		resp.Error(c, err.Error())
+		return
+	}
+	resp.OK(c, nil)
 }

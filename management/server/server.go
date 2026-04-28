@@ -65,7 +65,8 @@ type Server struct {
 	auditController    controller.AuditController
 	workflowController controller.WorkflowController
 
-	aiService service.AIService
+	aiService      service.AIService
+	peeringService service.PeeringService
 
 	tenantMiddleware *middleware.TenantMiddleware
 	auditService     service.AuditService
@@ -190,8 +191,9 @@ func NewServer(ctx context.Context, serverConfig *ServerConfig) (*Server, error)
 		tenantMiddleware:     middleware.NewTenantMiddleware(st),
 		auditService:         auditSvc,
 		workflowService:      workflowSvc,
-		store:                st,
-		aiService:            aiSvc,
+		store:          st,
+		aiService:      aiSvc,
+		peeringService: service.NewPeeringService(client, st),
 	}
 
 	// initAdmins：DB 已就绪后执行；失败只告警，不阻断启动。

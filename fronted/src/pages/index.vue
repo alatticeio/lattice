@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import {
   ArrowRight, Network, Shield, Cpu, Layers, Zap, Globe,
   CheckCircle, ChevronRight, Terminal, Lock, LogOut, LayoutDashboard,
+  Crown, X,
 } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
@@ -92,6 +93,7 @@ const advantages = [
         <nav class="hidden md:flex items-center gap-6 text-sm text-muted-foreground">
           <a href="#features"      class="hover:text-foreground transition-colors">功能特性</a>
           <a href="#architecture"  class="hover:text-foreground transition-colors">架构说明</a>
+          <a href="#pricing"       class="hover:text-foreground transition-colors">定价</a>
           <a href="#quickstart"    class="hover:text-foreground transition-colors">快速接入</a>
         </nav>
 
@@ -327,6 +329,115 @@ const advantages = [
       </div>
     </section>
 
+    <!-- ── Pricing ───────────────────────────────────────────────── -->
+    <section id="pricing" class="py-20 px-6">
+      <div class="max-w-4xl mx-auto">
+        <div class="text-center mb-12">
+          <p class="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-2">Pricing</p>
+          <h2 class="text-2xl font-black tracking-tighter text-foreground">简单透明的定价</h2>
+          <p class="text-muted-foreground text-sm mt-2.5 max-w-md mx-auto leading-relaxed">
+            Community 版永久免费，Pro 版解锁企业级监控、SSO 与高级网络功能。
+          </p>
+        </div>
+
+        <div class="grid md:grid-cols-2 gap-5">
+          <!-- Community -->
+          <div class="bg-card border border-border rounded-2xl p-8 flex flex-col">
+            <div class="mb-6">
+              <p class="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-3">Community</p>
+              <div class="flex items-end gap-1.5 mb-2">
+                <span class="text-4xl font-black tracking-tighter text-foreground">免费</span>
+              </div>
+              <p class="text-xs text-muted-foreground">永久免费 · 开源自托管</p>
+            </div>
+
+            <ul class="space-y-3 mb-8 flex-1">
+              <li v-for="item in [
+                '节点数无限制',
+                'WireGuard 自动配置',
+                'ACL 策略管理',
+                'Network Peering',
+                'K8s Operator / CRD',
+                'REST API',
+                'GitHub 社区支持',
+              ]" :key="item" class="flex items-center gap-2.5 text-sm text-foreground">
+                <CheckCircle class="size-4 text-emerald-500 shrink-0" />
+                {{ item }}
+              </li>
+              <li v-for="item in [
+                '监控仪表盘',
+                'Dex OIDC / SSO',
+                'TURN 中继服务器',
+              ]" :key="item" class="flex items-center gap-2.5 text-sm text-muted-foreground/50 line-through">
+                <X class="size-4 text-muted-foreground/30 shrink-0" />
+                {{ item }}
+              </li>
+            </ul>
+
+            <a href="https://github.com/francisxys" target="_blank" rel="noopener noreferrer">
+              <Button variant="outline" class="w-full border-border" size="lg">
+                查看源码
+              </Button>
+            </a>
+          </div>
+
+          <!-- Pro -->
+          <div class="relative bg-card border-2 border-primary rounded-2xl p-8 flex flex-col shadow-lg shadow-primary/10">
+            <!-- Badge -->
+            <div class="absolute -top-3.5 left-1/2 -translate-x-1/2">
+              <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary text-primary-foreground text-[11px] font-bold shadow-sm">
+                <Crown class="size-3" /> 30 天免费试用
+              </span>
+            </div>
+
+            <div class="mb-6">
+              <p class="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-3">Pro</p>
+              <div class="flex items-end gap-1.5 mb-2">
+                <span class="text-4xl font-black tracking-tighter text-foreground">$499</span>
+                <span class="text-sm text-muted-foreground mb-1.5">/ 年起</span>
+              </div>
+              <p class="text-xs text-muted-foreground">25 节点起 · 私有部署 · License 授权</p>
+            </div>
+
+            <ul class="space-y-3 mb-8 flex-1">
+              <li class="flex items-center gap-2.5 text-sm font-medium text-primary">
+                <CheckCircle class="size-4 shrink-0" />
+                包含所有 Community 功能
+              </li>
+              <li v-for="item in [
+                '实时监控仪表盘',
+                '网络拓扑可视化',
+                '节点流量 / 延迟图表',
+                '审计日志',
+                'Dex OIDC / SSO 登录',
+                'TURN 中继服务器',
+                '遥测采集（VictoriaMetrics）',
+                '邮件 / 工单技术支持',
+              ]" :key="item" class="flex items-center gap-2.5 text-sm text-foreground">
+                <CheckCircle class="size-4 text-emerald-500 shrink-0" />
+                {{ item }}
+              </li>
+            </ul>
+
+            <Button
+              class="w-full gap-2 bg-primary hover:bg-primary/90 text-primary-foreground border-0 shadow-md shadow-primary/20"
+              size="lg"
+              @click="router.push('/auth/login')"
+            >
+              <Crown class="size-4" /> 申请试用
+            </Button>
+            <p class="text-center text-[11px] text-muted-foreground mt-3">无需信用卡 · 试用期结束后自动降级为 Community</p>
+          </div>
+        </div>
+
+        <!-- Enterprise hint -->
+        <div class="mt-5 flex items-center justify-center gap-2 text-sm text-muted-foreground">
+          <span>节点数超过 500 或有特殊合规需求？</span>
+          <a href="mailto:hello@wireflow.io" class="text-foreground font-medium hover:underline underline-offset-4 transition-colors">联系我们获取 Enterprise 报价 →</a>
+        </div>
+      </div>
+    </section>
+
     <!-- ── CTA ────────────────────────────────────────────────────── -->
     <section id="quickstart" class="py-20 px-6">
       <div class="max-w-xl mx-auto text-center">
@@ -377,6 +488,7 @@ const advantages = [
         </p>
         <div class="flex items-center gap-5 text-xs text-muted-foreground">
           <a href="#" class="hover:text-foreground transition-colors">文档</a>
+          <a href="#pricing" class="hover:text-foreground transition-colors">定价</a>
           <a href="#" class="hover:text-foreground transition-colors">GitHub</a>
           <a href="#" class="hover:text-foreground transition-colors">社区</a>
         </div>

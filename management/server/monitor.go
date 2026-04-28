@@ -4,21 +4,19 @@ package server
 
 import (
 	"wireflow/internal/infra"
+	"wireflow/management/server/middleware"
 	"wireflow/pkg/utils/resp"
 
 	"github.com/gin-gonic/gin"
 )
 
 func (s *Server) monitorRouter() {
-
 	monitorRouter := s.Group("/api/v1/monitor")
-	//monitorRouter.Use(dex.AuthMiddleware())
+	monitorRouter.Use(middleware.AuthMiddleware())
 	{
 		monitorRouter.GET("/topology", s.topology())
 		monitorRouter.GET("/ws-snapshot", s.tenantMiddleware.Handle(), s.workspaceSnapshot())
-
 	}
-
 }
 
 func (s *Server) topology() gin.HandlerFunc {

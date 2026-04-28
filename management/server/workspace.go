@@ -14,6 +14,7 @@ func (s *Server) workspaceRouter() {
 	{
 		workspaceGroup.POST("/add", s.handleAddWs())
 		workspaceGroup.GET("/list", s.handleListWs())
+		workspaceGroup.PUT("/:id", s.handleUpdateWs())
 		workspaceGroup.DELETE("/:id", s.handleDeleteWs())
 	}
 }
@@ -52,6 +53,27 @@ func (s *Server) handleListWs() gin.HandlerFunc {
 		}
 
 		resp.OK(c, res)
+	}
+}
+
+func (s *Server) handleUpdateWs() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		id := c.Param("id")
+		if id == "" {
+			resp.BadRequest(c, "id is required")
+			return
+		}
+		var workspaceDto dto.WorkspaceDto
+		if err := c.ShouldBindJSON(&workspaceDto); err != nil {
+			resp.BadRequest(c, err.Error())
+			return
+		}
+		vo, err := s.workspaceController.UpdateWorkspace(c.Request.Context(), id, &workspaceDto)
+		if err != nil {
+			resp.Error(c, err.Error())
+			return
+		}
+		resp.OK(c, vo)
 	}
 }
 

@@ -237,6 +237,8 @@
       "network": "Network Info",
       "createdBy": "Created By",
       "createdAt": "Created At",
+      "updatedBy": "Updated By",
+      "updatedAt": "Last Updated",
       "actions": ""
     },
     "statusLabel": {
@@ -374,7 +376,8 @@
     "status": {
       "online": "Online",
       "offline": "Offline",
-      "pending": "Pending"
+      "pending": "Pending",
+      "disabled": "Disabled"
     },
     "searchPlaceholder": "Search name, AppID, address, region...",
     "col": {
@@ -390,12 +393,18 @@
     "actions": {
       "view": "View Details",
       "editLabels": "Edit Labels",
+      "disable": "Disable Node",
+      "enable": "Enable Node",
       "delete": "Delete Node"
     },
     "empty": "No nodes",
     "deleteDialog": {
       "title": "Delete Node",
       "desc": "Delete node \"{name}\"? This cannot be undone."
+    },
+    "disableDialog": {
+      "title": "Disable Node",
+      "desc": "Disable node \"{name}\"? It will be blocked from network access. You can re-enable it later."
     },
     "detail": {
       "assignedIp": "Assigned IP",
@@ -412,6 +421,84 @@
       "statusOnline": "Online",
       "editLabels": "Edit Labels",
       "save": "Save Changes"
+    }
+  },
+  "networkPeering": {
+    "title": "Network Peering",
+    "desc": "Manage cross-workspace peering tunnels.",
+    "stats": {
+      "all": "All Connections",
+      "allDesc": "All peering tunnels",
+      "active": "Connected",
+      "activeDesc": "Tunnels running normally",
+      "pending": "Establishing",
+      "pendingDesc": "Waiting for Controller to configure routes",
+      "failed": "Failed",
+      "failedOk": "All good",
+      "failedDesc": "Needs investigation"
+    },
+    "status": {
+      "active": "Connected",
+      "pending": "Establishing",
+      "failed": "Failed"
+    },
+    "mode": {
+      "gatewayTip": "Routed via gateway node, recommended",
+      "meshTip": "Full mesh, suitable for small deployments"
+    },
+    "searchPlaceholder": "Search by name, workspace, namespace...",
+    "createBtn": "New Connection",
+    "empty": "No peering connections",
+    "emptyDesc": "Create a connection to link networks across workspaces",
+    "localWorkspace": "Local Workspace",
+    "remoteWorkspace": "Remote Workspace",
+    "nodes": "{n} nodes",
+    "allocating": "Allocating",
+    "actions": {
+      "viewDetail": "View Details",
+      "delete": "Delete"
+    },
+    "pagination": "Total {total} · Page {page} / {totalPages}",
+    "deleteDialog": {
+      "title": "Delete Peering Connection",
+      "desc": "Delete \"{name}\"? Routes on both ends will be cleared and communication will stop immediately."
+    },
+    "detailDialog": {
+      "namespace": "Namespace",
+      "cidr": "CIDR",
+      "nodeCount": "Nodes",
+      "createdAt": "Created At",
+      "pendingTip": "Controller is establishing the tunnel: finding gateway nodes → configuring route annotations → creating Shadow Peer → applying access policies. Status will become Connected when ready.",
+      "failedTip1": "Connection failed. Common causes: networks not ready on both ends, no Gateway node found (requires label ",
+      "failedTip2": ").",
+      "deleteBtn": "Delete Connection"
+    },
+    "createDialog": {
+      "title": "New Peering Connection",
+      "desc": "Connect the current workspace to another via an encrypted tunnel",
+      "localLabel": "Local Workspace (current)",
+      "remoteNsLabel": "Remote Namespace",
+      "remoteNsRequired": "Required",
+      "remoteNsPlaceholder": "e.g. wf-workspace-b",
+      "remoteNsHint": "K8s namespace of the remote workspace",
+      "remoteNetLabel": "Remote Network Name",
+      "remoteNetOptional": "(optional)",
+      "remoteNetPlaceholder": "Leave empty to use wireflow-default-net",
+      "nameLabel": "Connection Name",
+      "nameOptional": "(optional)",
+      "namePlaceholder": "Auto-generated if empty",
+      "modeLabel": "Routing Mode",
+      "zapTip1": "After submitting, the Controller will automatically configure route annotations, Shadow Peer, and access policies. Both sides need a Gateway node labeled ",
+      "zapTip2": ".",
+      "submit": "Create Connection"
+    },
+    "toast": {
+      "loadFailed": "Failed to load",
+      "created": "Connection initiated, waiting for Controller to establish tunnel",
+      "createFailed": "Creation failed",
+      "deleted": "Peering connection deleted",
+      "deleteFailed": "Delete failed",
+      "nsRequired": "Please fill in the remote namespace"
     }
   },
   "stepper": {

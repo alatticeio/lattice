@@ -41,6 +41,9 @@ type PeerController interface {
 
 	ListPeers(ctx context.Context, pageParam *dto.PageRequest) (*dto.PageResult[vo.PeerVo], error)
 	UpdatePeer(ctx context.Context, peerDto *dto.PeerDto) (*vo.PeerVo, error)
+	DisablePeer(ctx context.Context, namespace, name string) error
+	EnablePeer(ctx context.Context, namespace, name string) error
+	DeletePeer(ctx context.Context, namespace, name string) error
 }
 
 func NewPeerController(client *resource.Client, st store.Store, presence *managementnats.NodePresenceStore) PeerController {
@@ -88,9 +91,18 @@ func (p *peerController) CreateToken(ctx context.Context, request []byte) ([]byt
 	return res, nil
 }
 
-func (p *peerController) UpdateStatus(ctx context.Context, status int) error {
-	//TODO implement me
-	panic("implement me")
+func (p *peerController) UpdateStatus(_ context.Context, _ int) error { return nil }
+
+func (p *peerController) DisablePeer(ctx context.Context, namespace, name string) error {
+	return p.peerService.DisablePeer(ctx, namespace, name)
+}
+
+func (p *peerController) EnablePeer(ctx context.Context, namespace, name string) error {
+	return p.peerService.EnablePeer(ctx, namespace, name)
+}
+
+func (p *peerController) DeletePeer(ctx context.Context, namespace, name string) error {
+	return p.peerService.DeletePeer(ctx, namespace, name)
 }
 
 func (p *peerController) Register(ctx context.Context, request []byte) ([]byte, error) {

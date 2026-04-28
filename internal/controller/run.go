@@ -218,7 +218,7 @@ func Start(flags *config.Config) error {
 		setupLog.Error(err, "unable to create controller", "controller", "WireflowClusterPeering")
 		return err
 	}
-	// +kubebuilder:scaffold:builder
+	//+kubebuilder:scaffold:builder
 
 	if metricsCertWatcher != nil {
 		setupLog.Info("Adding metrics certificate watcher to manager")

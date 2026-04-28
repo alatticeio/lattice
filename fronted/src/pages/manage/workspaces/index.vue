@@ -12,6 +12,7 @@ import {
   Layers, Key, ArrowRight, Pencil, Trash2,
   ChevronLeft, ChevronRight, Server,
   Wifi, WifiOff, Network, ArrowUpRight, ArrowDownRight,
+  UserRound,
 } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -50,7 +51,6 @@ function promptDelete(ws: Workspace) {
 async function confirmDelete() {
   if (deleteTarget.value) await store.deleteWorkspace(deleteTarget.value.id)
   deleteTarget.value = null
-  await store.fetchList({ page: 1, ...currentFilter.value })
 }
 
 // ── Edit / Create dialog ─────────────────────────────────────────
@@ -133,6 +133,10 @@ const columns = computed<ColumnDef<Workspace>[]>(() => [
         h('div', { class: 'min-w-0' }, [
           h('p', { class: 'font-semibold text-sm leading-none' }, ws.displayName),
           h('p', { class: 'font-mono text-[11px] text-muted-foreground mt-1' }, ws.slug),
+          ws.namespace && h('p', { class: 'font-mono text-[10px] text-muted-foreground/50 mt-0.5 flex items-center gap-1' }, [
+            h('span', { class: 'inline-block size-1 rounded-full bg-muted-foreground/30 shrink-0' }),
+            ws.namespace,
+          ]),
         ]),
       ])
     },
@@ -246,29 +250,43 @@ const columns = computed<ColumnDef<Workspace>[]>(() => [
     },
   },
   {
-    accessorKey: 'createdBy',
-    header: t('manage.workspaces.col.createdBy'),
+    accessorKey: 'createdAt',
+    header: t('manage.workspaces.col.createdAt'),
     cell: ({ row }) => {
-      const name = row.original.createdBy
-      if (!name) return h('span', { class: 'text-xs text-muted-foreground/40' }, '—')
-      return h('div', { class: 'flex items-center gap-1.5' }, [
-        h('div', {
-          class: 'size-5 rounded-full bg-muted flex items-center justify-center text-[10px] font-bold shrink-0',
-        }, name.slice(0, 1).toUpperCase()),
-        h('span', { class: 'text-xs text-muted-foreground' }, name),
+      const ws = row.original
+      const timeStr = formatCreatedAt(ws.createdAt)
+      const name = ws.createdBy
+      return h('div', { class: 'flex flex-col gap-0.5' }, [
+        name
+          ? h('div', { class: 'flex items-center gap-1' }, [
+              h(UserRound, { class: 'size-3 shrink-0 text-muted-foreground/60' }),
+              h('span', { class: 'text-xs text-muted-foreground' }, name),
+            ])
+          : h('span', { class: 'text-xs text-muted-foreground/40' }, '—'),
+        timeStr !== '—'
+          ? h('span', { class: 'text-[11px] text-muted-foreground/50 tabular-nums', title: ws.createdAt }, timeStr)
+          : null,
       ])
     },
   },
   {
-    accessorKey: 'createdAt',
-    header: t('manage.workspaces.col.createdAt'),
+    id: 'updatedAt',
+    header: t('manage.workspaces.col.updatedAt'),
     cell: ({ row }) => {
-      const timeStr = formatCreatedAt(row.original.createdAt)
-      if (timeStr === '—') return h('span', { class: 'text-xs text-muted-foreground/40' }, '—')
-      return h('span', {
-        class: 'text-xs text-muted-foreground tabular-nums',
-        title: row.original.createdAt,
-      }, timeStr)
+      const ws = row.original
+      const timeStr = formatCreatedAt(ws.updatedAt)
+      const name = ws.updatedBy
+      return h('div', { class: 'flex flex-col gap-0.5' }, [
+        name
+          ? h('div', { class: 'flex items-center gap-1' }, [
+              h(UserRound, { class: 'size-3 shrink-0 text-muted-foreground/60' }),
+              h('span', { class: 'text-xs text-muted-foreground' }, name),
+            ])
+          : h('span', { class: 'text-xs text-muted-foreground/40' }, '—'),
+        timeStr !== '—'
+          ? h('span', { class: 'text-[11px] text-muted-foreground/50 tabular-nums', title: ws.updatedAt }, timeStr)
+          : null,
+      ])
     },
   },
   {
@@ -389,7 +407,7 @@ function handleRefresh() {
 
       <!-- 全部空间 -->
       <button
-        class="border-border bg-card text-card-foreground rounded-xl border p-5 shadow-sm text-left hover:shadow-md transition-shadow"
+        class="border-border bg-card text-card-foreground rounded-xl border p-5 shadow-sm text-left hover:shadow-md transition-all"
         :class="statusFilter === 'all' ? 'ring-2 ring-primary/20 border-primary/30' : ''"
         @click="setStatusFilter('all')"
       >
@@ -403,103 +421,85 @@ function handleRefresh() {
           </div>
         </div>
 
-        <!-- Workspace initials stack -->
-        <div class="flex items-center gap-2 mt-3">
-          <div class="flex -space-x-2">
-            <div
-              v-for="(ws, i) in stats.initials" :key="i"
-              class="size-6 rounded-lg ring-2 ring-card flex items-center justify-center text-[9px] font-black shrink-0"
-              :class="ws.color"
-            >{{ ws.label }}</div>
-          </div>
-          <span v-if="stats.total > 3" class="text-[10px] text-muted-foreground/60">+{{ stats.total - 3 }}</span>
-        </div>
-
-        <!-- Active / inactive bar -->
-        <div class="mt-3 space-y-1.5">
-          <div class="flex h-1.5 rounded-full overflow-hidden bg-muted/50 gap-px">
-            <div class="bg-emerald-500 transition-all" :style="{ width: `${stats.activeRate}%` }" />
-            <div class="bg-zinc-300 dark:bg-zinc-600 transition-all" :style="{ width: `${100 - stats.activeRate}%` }" />
-          </div>
-          <div class="flex items-center justify-between text-[10px] text-muted-foreground/60">
-            <span class="flex items-center gap-1">
-              <span class="size-1.5 rounded-full bg-emerald-500 inline-block" />
-              {{ stats.active }} {{ t('manage.workspaces.stats.active') }}
-            </span>
-            <span class="flex items-center gap-1">
-              <span class="size-1.5 rounded-full bg-zinc-400 inline-block" />
-              {{ stats.inactive }} {{ t('manage.workspaces.stats.inactive') }}
-            </span>
-          </div>
+        <div class="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
+          <span class="flex items-center gap-1">
+            <span class="size-1.5 rounded-full bg-emerald-500 inline-block shrink-0" />
+            {{ stats.active }} {{ t('manage.workspaces.stats.active') }}
+          </span>
+          <span class="text-muted-foreground/30">·</span>
+          <span class="flex items-center gap-1">
+            <span class="size-1.5 rounded-full bg-zinc-400 inline-block shrink-0" />
+            {{ stats.inactive }} {{ t('manage.workspaces.stats.inactive') }}
+          </span>
         </div>
       </button>
 
       <!-- 运行中 -->
       <button
-        class="border-border bg-card text-card-foreground rounded-xl border p-5 shadow-sm text-left hover:shadow-md transition-shadow"
+        class="border-border bg-card text-card-foreground rounded-xl border p-5 shadow-sm text-left hover:shadow-md transition-all"
         :class="statusFilter === 'active' ? 'ring-2 ring-emerald-500/20 border-emerald-500/30' : ''"
         @click="setStatusFilter('active')"
       >
         <div class="flex items-start justify-between">
           <div class="flex flex-col gap-1">
             <span class="text-muted-foreground text-sm font-medium">{{ t('manage.workspaces.stats.active') }}</span>
-            <span class="text-2xl font-bold tracking-tight tabular-nums">{{ stats.active }}</span>
+            <span class="text-2xl font-bold tracking-tight tabular-nums text-emerald-600 dark:text-emerald-400">{{ stats.active }}</span>
           </div>
-          <div class="bg-muted rounded-lg p-2">
-            <Wifi class="size-4 text-muted-foreground" />
+          <div class="bg-emerald-500/10 rounded-lg p-2">
+            <Wifi class="size-4 text-emerald-500" />
           </div>
         </div>
-        <div class="mt-3 flex items-center gap-1 text-sm">
-          <ArrowUpRight class="text-emerald-600 size-4 shrink-0" />
-          <span class="text-emerald-600 font-semibold">{{ stats.activeRate }}%</span>
-          <span class="text-muted-foreground">{{ t('manage.workspaces.stats.healthRate') }}</span>
+        <div class="mt-3 flex items-center gap-1 text-xs text-muted-foreground">
+          <ArrowUpRight class="text-emerald-500 size-3.5 shrink-0" />
+          <span class="text-emerald-600 dark:text-emerald-400 font-semibold">{{ stats.activeRate }}%</span>
+          <span>{{ t('manage.workspaces.stats.healthRate') }}</span>
         </div>
       </button>
 
       <!-- 已停用 -->
       <button
-        class="border-border bg-card text-card-foreground rounded-xl border p-5 shadow-sm text-left hover:shadow-md transition-shadow"
+        class="border-border bg-card text-card-foreground rounded-xl border p-5 shadow-sm text-left hover:shadow-md transition-all"
         :class="statusFilter === 'inactive' ? 'ring-2 ring-zinc-400/20 border-zinc-400/30' : ''"
         @click="setStatusFilter('inactive')"
       >
         <div class="flex items-start justify-between">
           <div class="flex flex-col gap-1">
             <span class="text-muted-foreground text-sm font-medium">{{ t('manage.workspaces.stats.inactive') }}</span>
-            <span class="text-2xl font-bold tracking-tight tabular-nums">{{ stats.inactive }}</span>
+            <span class="text-2xl font-bold tracking-tight tabular-nums"
+              :class="stats.inactive === 0 ? '' : 'text-rose-600 dark:text-rose-400'"
+            >{{ stats.inactive }}</span>
           </div>
-          <div class="bg-muted rounded-lg p-2">
-            <WifiOff class="size-4 text-muted-foreground" />
+          <div class="rounded-lg p-2" :class="stats.inactive === 0 ? 'bg-muted' : 'bg-rose-500/10'">
+            <WifiOff class="size-4" :class="stats.inactive === 0 ? 'text-muted-foreground' : 'text-rose-500'" />
           </div>
         </div>
-        <div class="mt-3 flex items-center gap-1 text-sm">
+        <div class="mt-3 flex items-center gap-1 text-xs text-muted-foreground">
           <component
             :is="stats.inactive === 0 ? ArrowUpRight : ArrowDownRight"
-            :class="stats.inactive === 0 ? 'text-emerald-600' : 'text-rose-500'"
-            class="size-4 shrink-0"
+            :class="stats.inactive === 0 ? 'text-emerald-500' : 'text-rose-500'"
+            class="size-3.5 shrink-0"
           />
-          <span :class="stats.inactive === 0 ? 'text-emerald-600 font-semibold' : 'text-rose-500 font-semibold'">
+          <span :class="stats.inactive === 0 ? 'text-emerald-600 dark:text-emerald-400 font-semibold' : 'text-rose-600 dark:text-rose-400 font-semibold'">
             {{ stats.inactive === 0 ? t('manage.workspaces.stats.allRunning') : t('manage.workspaces.stats.someInactive', { n: stats.inactive }) }}
           </span>
-          <span class="text-muted-foreground">
-            {{ stats.inactive === 0 ? t('manage.workspaces.stats.healthy') : t('manage.workspaces.stats.needsCheck') }}
-          </span>
+          <span>{{ stats.inactive === 0 ? t('manage.workspaces.stats.healthy') : t('manage.workspaces.stats.needsCheck') }}</span>
         </div>
       </button>
 
       <!-- 在线节点 -->
-      <div class="border-border bg-card text-card-foreground rounded-xl border p-5 shadow-sm text-left">
+      <div class="border-border bg-card text-card-foreground rounded-xl border p-5 shadow-sm text-left hover:shadow-md transition-all">
         <div class="flex items-start justify-between">
           <div class="flex flex-col gap-1">
             <span class="text-muted-foreground text-sm font-medium">{{ t('manage.workspaces.stats.onlineNodes') }}</span>
-            <span class="text-2xl font-bold tracking-tight tabular-nums">{{ stats.totalNodes }}</span>
+            <span class="text-2xl font-bold tracking-tight tabular-nums text-blue-600 dark:text-blue-400">{{ stats.totalNodes }}</span>
           </div>
-          <div class="bg-muted rounded-lg p-2">
-            <Server class="size-4 text-muted-foreground" />
+          <div class="bg-blue-500/10 rounded-lg p-2">
+            <Server class="size-4 text-blue-500" />
           </div>
         </div>
-        <div class="mt-3 flex items-center gap-1 text-sm">
-          <Network class="text-muted-foreground size-4 shrink-0" />
-          <span class="text-muted-foreground">{{ t('manage.workspaces.stats.avgNodes', { n: stats.avgNodes }) }}</span>
+        <div class="mt-3 flex items-center gap-1 text-xs text-muted-foreground">
+          <Network class="size-3.5 shrink-0" />
+          <span>{{ t('manage.workspaces.stats.avgNodes', { n: stats.avgNodes }) }}</span>
         </div>
       </div>
 

@@ -237,6 +237,8 @@
       "network": "网络信息",
       "createdBy": "创建人",
       "createdAt": "创建时间",
+      "updatedBy": "修改人",
+      "updatedAt": "修改时间",
       "actions": ""
     },
     "statusLabel": {
@@ -374,7 +376,8 @@
     "status": {
       "online": "在线",
       "offline": "离线",
-      "pending": "待接入"
+      "pending": "待接入",
+      "disabled": "已禁用"
     },
     "searchPlaceholder": "搜索名称、AppID、地址、区域...",
     "col": {
@@ -390,12 +393,18 @@
     "actions": {
       "view": "查看详情",
       "editLabels": "编辑标签",
+      "disable": "禁用节点",
+      "enable": "启用节点",
       "delete": "删除节点"
     },
     "empty": "暂无节点数据",
     "deleteDialog": {
       "title": "删除节点",
       "desc": "确认删除节点「{name}」？该操作不可撤销。"
+    },
+    "disableDialog": {
+      "title": "禁用节点",
+      "desc": "确认禁用节点「{name}」？节点将被踢出网络，无法通信。您可以随时重新启用。"
     },
     "detail": {
       "assignedIp": "分配 IP",
@@ -412,6 +421,84 @@
       "statusOnline": "在线中",
       "editLabels": "编辑标签",
       "save": "保存更改"
+    }
+  },
+  "networkPeering": {
+    "title": "网络互联",
+    "desc": "管理跨空间网段互通的对等连接通道。",
+    "stats": {
+      "all": "全部连接",
+      "allDesc": "全部对等连接通道",
+      "active": "已连接",
+      "activeDesc": "通道正常运行中",
+      "pending": "建立中",
+      "pendingDesc": "等待 Controller 配置路由",
+      "failed": "连接失败",
+      "failedOk": "一切正常",
+      "failedDesc": "需检查排查原因"
+    },
+    "status": {
+      "active": "已连接",
+      "pending": "建立中",
+      "failed": "连接失败"
+    },
+    "mode": {
+      "gatewayTip": "通过网关节点中转，推荐方式",
+      "meshTip": "全互联，适合小规模部署"
+    },
+    "searchPlaceholder": "搜索连接名称、空间、命名空间...",
+    "createBtn": "新建连接",
+    "empty": "暂无对等连接",
+    "emptyDesc": "创建连接以打通不同工作空间之间的网络",
+    "localWorkspace": "本端空间",
+    "remoteWorkspace": "对端空间",
+    "nodes": "{n} 节点",
+    "allocating": "分配中",
+    "actions": {
+      "viewDetail": "查看详情",
+      "delete": "删除"
+    },
+    "pagination": "共 {total} 条 · 第 {page} / {totalPages} 页",
+    "deleteDialog": {
+      "title": "删除对等连接",
+      "desc": "确认删除「{name}」？双端路由规则将被清除，通信立即中断。"
+    },
+    "detailDialog": {
+      "namespace": "Namespace",
+      "cidr": "CIDR",
+      "nodeCount": "节点数",
+      "createdAt": "创建时间",
+      "pendingTip": "Controller 正在建立通道：查找两端 Gateway 节点 → 配置路由 annotation → 创建 Shadow Peer → 应用访问策略。就绪后状态变为「已连接」。",
+      "failedTip1": "连接建立失败，常见原因：两端网络尚未 Ready、未找到 Gateway 节点（需打标签 ",
+      "failedTip2": "）。",
+      "deleteBtn": "删除连接"
+    },
+    "createDialog": {
+      "title": "新建对等连接",
+      "desc": "将当前工作空间与另一个空间通过加密隧道互通",
+      "localLabel": "本端空间（当前）",
+      "remoteNsLabel": "对端命名空间",
+      "remoteNsRequired": "必填",
+      "remoteNsPlaceholder": "例如：wf-workspace-b",
+      "remoteNsHint": "对端工作空间的 K8s namespace",
+      "remoteNetLabel": "对端网络名称",
+      "remoteNetOptional": "(可选)",
+      "remoteNetPlaceholder": "留空则使用 wireflow-default-net",
+      "nameLabel": "连接名称",
+      "nameOptional": "(可选)",
+      "namePlaceholder": "留空则自动生成",
+      "modeLabel": "路由模式",
+      "zapTip1": "提交后 Controller 自动配置路由 annotation、Shadow Peer 和访问策略。需要两端各有一个打了 ",
+      "zapTip2": " 标签的 Gateway 节点。",
+      "submit": "发起连接"
+    },
+    "toast": {
+      "loadFailed": "加载失败",
+      "created": "连接已发起，等待 Controller 建立通道",
+      "createFailed": "创建失败",
+      "deleted": "对等连接已删除",
+      "deleteFailed": "删除失败",
+      "nsRequired": "请填写对端命名空间"
     }
   },
   "stepper": {

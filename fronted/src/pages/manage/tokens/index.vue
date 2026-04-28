@@ -7,7 +7,7 @@ import {
 import {
   Search, RefreshCw, MoreHorizontal, Trash2, KeyRound,
   ChevronLeft, ChevronRight, Plus, Copy, Check, Terminal,
-  ShieldCheck, ShieldX, Infinity, Clock,
+  ShieldCheck, ShieldX, Infinity,
 } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -394,8 +394,8 @@ function goToPage(p: number) {
   <div class="flex flex-col gap-5 p-6 animate-in fade-in duration-300">
     <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
       <button
-        class="border-border bg-card text-card-foreground rounded-xl border p-5 shadow-sm text-left hover:shadow-md transition-shadow"
-        :class="statusFilter === 'all' ? 'ring-2 ring-primary/20 border-primary/30' : ''"
+        class="border-border bg-card text-card-foreground rounded-xl border p-5 shadow-sm text-left hover:shadow-md transition-all"
+        :class="statusFilter === 'all' ? 'ring-2 ring-blue-500/20 border-blue-500/30' : ''"
         @click="setStatusFilter('all')"
       >
         <div class="flex items-start justify-between">
@@ -403,73 +403,73 @@ function goToPage(p: number) {
             <span class="text-muted-foreground text-sm font-medium">{{ t('manage.tokens.stats.all') }}</span>
             <span class="text-2xl font-bold tracking-tight">{{ stats.total }}</span>
           </div>
-          <div class="bg-muted rounded-lg p-2">
-            <KeyRound class="text-muted-foreground size-4" />
+          <div class="bg-blue-500/10 rounded-lg p-2">
+            <KeyRound class="text-blue-500 size-4" />
           </div>
         </div>
-        <div class="mt-3 flex items-center gap-1 text-sm">
-          <Terminal class="text-muted-foreground size-4 shrink-0" />
-          <span class="text-muted-foreground">{{ t('manage.tokens.stats.allSub', { n: stats.totalUsageLimit }) }}</span>
+        <div class="mt-3 flex items-center gap-1 text-xs text-muted-foreground">
+          <KeyRound class="size-3.5 shrink-0 text-blue-500" />
+          <span>{{ t('manage.tokens.stats.allSub', { n: stats.totalUsageLimit }) }}</span>
         </div>
       </button>
 
       <button
-        class="border-border bg-card text-card-foreground rounded-xl border p-5 shadow-sm text-left hover:shadow-md transition-shadow"
+        class="border-border bg-card text-card-foreground rounded-xl border p-5 shadow-sm text-left hover:shadow-md transition-all"
         :class="statusFilter === 'valid' ? 'ring-2 ring-emerald-500/20 border-emerald-500/30' : ''"
         @click="setStatusFilter('valid')"
       >
         <div class="flex items-start justify-between">
           <div class="flex flex-col gap-1">
             <span class="text-muted-foreground text-sm font-medium">{{ t('manage.tokens.stats.valid') }}</span>
-            <span class="text-2xl font-bold tracking-tight">{{ stats.valid }}</span>
+            <span class="text-2xl font-bold tracking-tight text-emerald-600 dark:text-emerald-400">{{ stats.valid }}</span>
           </div>
-          <div class="bg-muted rounded-lg p-2">
-            <ShieldCheck class="text-muted-foreground size-4" />
+          <div class="bg-emerald-500/10 rounded-lg p-2">
+            <ShieldCheck class="text-emerald-500 size-4" />
           </div>
         </div>
-        <div class="mt-3 flex items-center gap-1 text-sm">
-          <Check class="text-emerald-600 size-4 shrink-0" />
-          <span class="text-muted-foreground">{{ t('manage.tokens.stats.validSub') }}</span>
+        <div class="mt-3 flex items-center gap-1 text-xs text-muted-foreground">
+          <ShieldCheck class="size-3.5 shrink-0 text-emerald-500" />
+          <span>{{ t('manage.tokens.stats.validSub') }}</span>
         </div>
       </button>
 
       <button
-        class="border-border bg-card text-card-foreground rounded-xl border p-5 shadow-sm text-left hover:shadow-md transition-shadow"
+        class="border-border bg-card text-card-foreground rounded-xl border p-5 shadow-sm text-left hover:shadow-md transition-all"
         :class="statusFilter === 'expired' ? 'ring-2 ring-rose-500/20 border-rose-500/30' : ''"
         @click="setStatusFilter('expired')"
       >
         <div class="flex items-start justify-between">
           <div class="flex flex-col gap-1">
             <span class="text-muted-foreground text-sm font-medium">{{ t('manage.tokens.stats.expired') }}</span>
-            <span class="text-2xl font-bold tracking-tight">{{ stats.expired }}</span>
+            <span class="text-2xl font-bold tracking-tight text-rose-600 dark:text-rose-400">{{ stats.expired }}</span>
           </div>
-          <div class="bg-muted rounded-lg p-2">
-            <ShieldX class="text-muted-foreground size-4" />
+          <div class="bg-rose-500/10 rounded-lg p-2">
+            <ShieldX class="text-rose-500 size-4" />
           </div>
         </div>
-        <div class="mt-3 flex items-center gap-1 text-sm">
-          <Clock class="text-rose-500 size-4 shrink-0" />
-          <span class="text-muted-foreground">{{ t('manage.tokens.stats.expiredSub') }}</span>
+        <div class="mt-3 flex items-center gap-1 text-xs text-muted-foreground">
+          <ShieldX class="size-3.5 shrink-0 text-rose-500" />
+          <span>{{ t('manage.tokens.stats.expiredSub') }}</span>
         </div>
       </button>
 
       <button
-        class="border-border bg-card text-card-foreground rounded-xl border p-5 shadow-sm text-left hover:shadow-md transition-shadow"
-        :class="statusFilter === 'permanent' ? 'ring-2 ring-blue-500/20 border-blue-500/30' : ''"
+        class="border-border bg-card text-card-foreground rounded-xl border p-5 shadow-sm text-left hover:shadow-md transition-all"
+        :class="statusFilter === 'permanent' ? 'ring-2 ring-violet-500/20 border-violet-500/30' : ''"
         @click="setStatusFilter('permanent')"
       >
         <div class="flex items-start justify-between">
           <div class="flex flex-col gap-1">
             <span class="text-muted-foreground text-sm font-medium">{{ t('manage.tokens.stats.permanent') }}</span>
-            <span class="text-2xl font-bold tracking-tight">{{ stats.permanent }}</span>
+            <span class="text-2xl font-bold tracking-tight text-violet-600 dark:text-violet-400">{{ stats.permanent }}</span>
           </div>
-          <div class="bg-muted rounded-lg p-2">
-            <Infinity class="text-muted-foreground size-4" />
+          <div class="bg-violet-500/10 rounded-lg p-2">
+            <Infinity class="text-violet-500 size-4" />
           </div>
         </div>
-        <div class="mt-3 flex items-center gap-1 text-sm">
-          <Copy class="text-blue-600 size-4 shrink-0" />
-          <span class="text-muted-foreground">{{ t('manage.tokens.stats.permanentSub') }}</span>
+        <div class="mt-3 flex items-center gap-1 text-xs text-muted-foreground">
+          <Infinity class="size-3.5 shrink-0 text-violet-500" />
+          <span>{{ t('manage.tokens.stats.permanentSub') }}</span>
         </div>
       </button>
     </div>

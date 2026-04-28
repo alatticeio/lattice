@@ -56,6 +56,8 @@ type WorkspaceRepository interface {
 	ListByUser(ctx context.Context, userID string) ([]*models.Workspace, error)
 	// List 按关键字分页列举工作空间，返回结果列表和总数。
 	List(ctx context.Context, keyword string, page, pageSize int) ([]*models.Workspace, int64, error)
+	// ExistsByUserAndSlug 检查指定用户是否已拥有同名（slug）工作空间。
+	ExistsByUserAndSlug(ctx context.Context, userID, slug string) (bool, error)
 }
 
 // WorkspaceMemberRepository 定义工作空间成员关系数据操作。

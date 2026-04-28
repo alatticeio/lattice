@@ -23,10 +23,16 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/event"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
 // RelayReconciler reconciles WireflowRelayServer objects.
@@ -77,90 +83,80 @@ func (r *RelayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 		if err := r.Update(ctx, &relay); err != nil {
 			return ctrl.Result{}, err
 		}
+		return ctrl.Result{Requeue: true}, nil
 	}
 
-	// ── propagate to peers ───────────────────────────────────────────────────
-	connected, err := r.syncPeers(ctx, &relay)
+	// ── count peers associated via label ─────────────────────────────────────
+	connected, err := r.countConnectedPeers(ctx, &relay)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
 
-	// ── update status ────────────────────────────────────────────────────────
-	now := metav1.Now()
-	patch := relay.DeepCopy()
-	patch.Status.ConnectedPeers = connected
-	if patch.Status.Health == "" {
-		patch.Status.Health = v1alpha1.RelayHealthUnknown
+	// ── update status only when something actually changed ────────────────────
+	desiredPhase := v1alpha1.RelayPhaseActive
+	if !relay.Spec.Enabled {
+		desiredPhase = v1alpha1.RelayPhaseDisabled
 	}
-	if relay.Spec.Enabled {
-		patch.Status.Phase = v1alpha1.RelayPhaseActive
-	} else {
-		patch.Status.Phase = v1alpha1.RelayPhaseDisabled
-	}
-	patch.Status.LastProbeTime = &now
-
-	if err = r.Status().Patch(ctx, patch, client.MergeFrom(&relay)); err != nil {
-		log.Error(err, "failed to patch relay status")
+	desiredHealth := relay.Status.Health
+	if desiredHealth == "" {
+		desiredHealth = v1alpha1.RelayHealthUnknown
 	}
 
-	// Re-sync every 5 minutes to keep connectedPeers count accurate.
+	if relay.Status.ConnectedPeers != connected ||
+		relay.Status.Phase != desiredPhase ||
+		relay.Status.Health != desiredHealth {
+
+		patch := relay.DeepCopy()
+		patch.Status.ConnectedPeers = connected
+		patch.Status.Phase = desiredPhase
+		patch.Status.Health = desiredHealth
+		now := metav1.Now()
+		patch.Status.LastProbeTime = &now
+
+		if err = r.Status().Patch(ctx, patch, client.MergeFrom(&relay)); err != nil {
+			log.Error(err, "failed to patch relay status")
+		}
+	}
+
+	// Re-sync periodically to keep connectedPeers count accurate.
 	return ctrl.Result{RequeueAfter: 5 * time.Minute}, nil
 }
 
-// syncPeers iterates all WireflowPeers in matching namespaces and patches their
-// WrrpUrl / WrrpQuicUrl to reflect the relay's current spec.
-// Returns the number of peers that were (or remain) configured to use this relay.
-func (r *RelayReconciler) syncPeers(ctx context.Context, relay *v1alpha1.WireflowRelayServer) (int, error) {
-	log := logf.FromContext(ctx).WithValues("relay", relay.Name)
+// countConnectedPeers counts the WireflowPeers that are associated with this
+// relay via the RelayPeerLabel. Scope is limited to relay.Spec.Namespaces when
+// set, or all namespaces when empty.
+func (r *RelayReconciler) countConnectedPeers(ctx context.Context, relay *v1alpha1.WireflowRelayServer) (int, error) {
+	selector := labels.SelectorFromSet(labels.Set{v1alpha1.RelayPeerLabel: relay.Name})
+	listOpts := []client.ListOption{client.MatchingLabelsSelector{Selector: selector}}
+
+	if len(relay.Spec.Namespaces) == 1 {
+		listOpts = append(listOpts, client.InNamespace(relay.Spec.Namespaces[0]))
+	}
 
 	var peerList v1alpha1.WireflowPeerList
-	if err := r.List(ctx, &peerList); err != nil {
+	if err := r.List(ctx, &peerList, listOpts...); err != nil {
 		return 0, err
 	}
 
-	wrrpUrl, wrrpQuicUrl := "", ""
-	if relay.Spec.Enabled {
-		wrrpUrl = relay.Spec.TcpUrl
-		wrrpQuicUrl = relay.Spec.QuicUrl
+	if len(relay.Spec.Namespaces) > 1 {
+		nsSet := make(map[string]struct{}, len(relay.Spec.Namespaces))
+		for _, ns := range relay.Spec.Namespaces {
+			nsSet[ns] = struct{}{}
+		}
+		count := 0
+		for _, p := range peerList.Items {
+			if _, ok := nsSet[p.Namespace]; ok {
+				count++
+			}
+		}
+		return count, nil
 	}
 
-	connected := 0
-	for i := range peerList.Items {
-		peer := &peerList.Items[i]
-		if !r.peerInScope(peer.Namespace, relay.Spec.Namespaces) {
-			continue
-		}
-
-		needsPatch := peer.Spec.WrrpUrl != wrrpUrl || peer.Spec.WrrpQuicUrl != wrrpQuicUrl
-		labelVal, hasLabel := peer.Labels[v1alpha1.RelayPeerLabel]
-		needsLabel := !hasLabel || labelVal != relay.Name
-
-		if !needsPatch && !needsLabel {
-			connected++
-			continue
-		}
-
-		peerCopy := peer.DeepCopy()
-		peerCopy.Spec.WrrpUrl = wrrpUrl
-		peerCopy.Spec.WrrpQuicUrl = wrrpQuicUrl
-
-		if peerCopy.Labels == nil {
-			peerCopy.Labels = make(map[string]string)
-		}
-		peerCopy.Labels[v1alpha1.RelayPeerLabel] = relay.Name
-
-		if err := r.Patch(ctx, peerCopy, client.MergeFrom(peer),
-			client.FieldOwner("relay-reconciler")); err != nil {
-			log.Error(err, "failed to patch peer", "peer", peer.Name, "namespace", peer.Namespace)
-			continue
-		}
-		connected++
-	}
-	return connected, nil
+	return len(peerList.Items), nil
 }
 
-// clearPeers removes relay-related fields from all peers that carry this
-// relay's label, then removes the label itself.
+// clearPeers removes the RelayPeerLabel from all peers that reference this
+// relay, so stale associations are cleaned up when the relay is deleted.
 func (r *RelayReconciler) clearPeers(ctx context.Context, relayName string) error {
 	log := logf.FromContext(ctx).WithValues("relay", relayName)
 
@@ -173,36 +169,56 @@ func (r *RelayReconciler) clearPeers(ctx context.Context, relayName string) erro
 	for i := range peerList.Items {
 		peer := &peerList.Items[i]
 		peerCopy := peer.DeepCopy()
-		peerCopy.Spec.WrrpUrl = ""
-		peerCopy.Spec.WrrpQuicUrl = ""
 		delete(peerCopy.Labels, v1alpha1.RelayPeerLabel)
-
 		if err := r.Patch(ctx, peerCopy, client.MergeFrom(peer),
 			client.FieldOwner("relay-reconciler")); err != nil {
-			log.Error(err, "failed to clear peer relay config", "peer", peer.Name)
+			log.Error(err, "failed to remove relay label from peer", "peer", peer.Name)
 		}
 	}
 	return nil
 }
 
-// peerInScope returns true when peer.Namespace is in targetNs,
-// or when targetNs is empty (meaning "all namespaces").
-func (r *RelayReconciler) peerInScope(ns string, targetNs []string) bool {
-	if len(targetNs) == 0 {
-		return true
-	}
-	for _, n := range targetNs {
-		if n == ns {
-			return true
-		}
-	}
-	return false
-}
-
 // SetupWithManager registers the reconciler with the controller-runtime manager.
 func (r *RelayReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	// Only react to WireflowRelayServer spec changes (GenerationChangedPredicate),
+	// not to status updates — status patches must not re-trigger reconcile.
+	relayLabelChangedPredicate := predicate.Funcs{
+		CreateFunc: func(e event.CreateEvent) bool {
+			_, has := e.Object.GetLabels()[v1alpha1.RelayPeerLabel]
+			return has
+		},
+		UpdateFunc: func(e event.UpdateEvent) bool {
+			return e.ObjectOld.GetLabels()[v1alpha1.RelayPeerLabel] !=
+				e.ObjectNew.GetLabels()[v1alpha1.RelayPeerLabel]
+		},
+		DeleteFunc: func(e event.DeleteEvent) bool {
+			_, has := e.Object.GetLabels()[v1alpha1.RelayPeerLabel]
+			return has
+		},
+		GenericFunc: func(e event.GenericEvent) bool { return false },
+	}
+
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&v1alpha1.WireflowRelayServer{}).
+		For(&v1alpha1.WireflowRelayServer{}, builder.WithPredicates(predicate.GenerationChangedPredicate{})).
+		// Re-count when a peer gains or loses the relay label.
+		Watches(&v1alpha1.WireflowPeer{},
+			handler.EnqueueRequestsFromMapFunc(r.mapPeerToRelay),
+			builder.WithPredicates(relayLabelChangedPredicate)).
 		Named("wireflow-relay").
 		Complete(r)
+}
+
+// mapPeerToRelay returns a reconcile request for the relay referenced by a
+// peer's RelayPeerLabel. Called when the label changes on a WireflowPeer.
+func (r *RelayReconciler) mapPeerToRelay(ctx context.Context, obj client.Object) []reconcile.Request {
+	// Check both old and new label values via the object passed by the watch.
+	// EnqueueRequestsFromMapFunc only receives the new object; for delete/update
+	// events where the label was just removed we fall back to RequeueAfter.
+	relayName := obj.GetLabels()[v1alpha1.RelayPeerLabel]
+	if relayName == "" {
+		return nil
+	}
+	return []reconcile.Request{
+		{NamespacedName: types.NamespacedName{Name: relayName}},
+	}
 }

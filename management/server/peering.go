@@ -18,6 +18,7 @@ import (
 	"fmt"
 
 	"wireflow/api/v1alpha1"
+	"wireflow/management/dto"
 	"wireflow/management/server/middleware"
 	"wireflow/pkg/utils/resp"
 
@@ -31,8 +32,47 @@ func (s *Server) peeringRouter() {
 	g := s.Group("/api/v1/peering")
 	g.Use(middleware.AuthMiddleware())
 	{
+		g.GET("/list", s.tenantMiddleware.Handle(), s.listPeerings)
+		g.POST("", s.tenantMiddleware.Handle(), s.createPeering)
+		g.DELETE("/:name", s.tenantMiddleware.Handle(), s.deletePeering)
 		g.GET("/gateway-info", s.gatewayInfo())
 	}
+}
+
+func (s *Server) listPeerings(c *gin.Context) {
+	vos, err := s.peeringService.List(c.Request.Context())
+	if err != nil {
+		resp.Error(c, err.Error())
+		return
+	}
+	resp.OK(c, vos)
+}
+
+func (s *Server) createPeering(c *gin.Context) {
+	var d dto.PeeringDto
+	if err := c.ShouldBindJSON(&d); err != nil {
+		resp.BadRequest(c, "invalid params")
+		return
+	}
+	if d.NamespaceB == "" {
+		resp.BadRequest(c, "namespaceB is required")
+		return
+	}
+	result, err := s.peeringService.Create(c.Request.Context(), &d)
+	if err != nil {
+		resp.Error(c, err.Error())
+		return
+	}
+	resp.OK(c, result)
+}
+
+func (s *Server) deletePeering(c *gin.Context) {
+	name := c.Param("name")
+	if err := s.peeringService.Delete(c.Request.Context(), name); err != nil {
+		resp.Error(c, err.Error())
+		return
+	}
+	resp.OK(c, nil)
 }
 
 // gatewayInfo returns the gateway peer's public key, IP, and network CIDR for a
@@ -52,7 +92,6 @@ func (s *Server) gatewayInfo() gin.HandlerFunc {
 
 		ctx := c.Request.Context()
 
-		// 1. Fetch the network to get the active CIDR.
 		var network v1alpha1.WireflowNetwork
 		if err := s.client.Get(ctx, types.NamespacedName{Namespace: ns, Name: networkName}, &network); err != nil {
 			if k8serrors.IsNotFound(err) {
@@ -67,10 +106,9 @@ func (s *Server) gatewayInfo() gin.HandlerFunc {
 			return
 		}
 
-		// 2. Find the gateway peer in this namespace/network.
 		var peerList v1alpha1.WireflowPeerList
 		if err := s.client.List(ctx, &peerList, client.InNamespace(ns), client.MatchingLabels{
-			"wireflow.run/gateway":                          "true",
+			"wireflow.run/gateway":                              "true",
 			fmt.Sprintf("wireflow.run/network-%s", networkName): "true",
 		}); err != nil {
 			resp.Error(c, err.Error())
@@ -81,7 +119,6 @@ func (s *Server) gatewayInfo() gin.HandlerFunc {
 			return
 		}
 		gw := &peerList.Items[0]
-
 		if gw.Status.AllocatedAddress == nil {
 			resp.Error(c, "gateway peer has no allocated address yet")
 			return

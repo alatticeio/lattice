@@ -103,7 +103,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
         saving.value = true
         try {
             if (editingId) {
-                const { code } = await updateWs(editingId, form)
+                const { code, msg } = await updateWs(editingId, form)
                 if (code === 200) {
                     // Sync paginated list
                     const idx = rows.value.findIndex(w => w.id === editingId)
@@ -119,16 +119,15 @@ export const useWorkspaceStore = defineStore('workspace', () => {
                     toast.success('工作空间已更新')
                     return true
                 }
+                toast.error(msg || '更新失败')
             } else {
-                const { data, code } = await add(form)
+                const { code, msg } = await add(form)
                 if (code === 200) {
-                    if (data) {
-                        rows.value.push(data)
-                        allRows.value.push(data)
-                    }
+                    await fetchList()
                     toast.success('工作空间已创建')
                     return true
                 }
+                toast.error(msg || '创建失败')
             }
             return false
         } catch {
@@ -144,9 +143,8 @@ export const useWorkspaceStore = defineStore('workspace', () => {
         try {
             const { code } = await deleteWs(id)
             if (code === 200) {
-                rows.value    = rows.value.filter(w => w.id !== id)
-                allRows.value = allRows.value.filter(w => w.id !== id)
                 if (currentWorkspace.value?.id === id) clear()
+                await fetchList()
                 toast.success('工作空间已删除')
                 return true
             }

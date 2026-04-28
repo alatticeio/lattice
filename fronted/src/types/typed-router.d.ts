@@ -112,13 +112,6 @@ declare module 'vue-router/auto-routes' {
       Record<never, never>,
       | never
     >,
-    '/manage/peers/': RouteRecordInfo<
-      '/manage/peers/',
-      '/manage/peers',
-      Record<never, never>,
-      Record<never, never>,
-      | never
-    >,
     '/manage/policies/': RouteRecordInfo<
       '/manage/policies/',
       '/manage/policies',
@@ -157,6 +150,13 @@ declare module 'vue-router/auto-routes' {
     '/manage/workspaces/': RouteRecordInfo<
       '/manage/workspaces/',
       '/manage/workspaces',
+      Record<never, never>,
+      Record<never, never>,
+      | never
+    >,
+    '/platform/network-peering/': RouteRecordInfo<
+      '/platform/network-peering/',
+      '/platform/network-peering',
       Record<never, never>,
       Record<never, never>,
       | never
@@ -297,12 +297,6 @@ declare module 'vue-router/auto-routes' {
       views:
         | never
     }
-    'src/pages/manage/peers/index.vue': {
-      routes:
-        | '/manage/peers/'
-      views:
-        | never
-    }
     'src/pages/manage/policies/index.vue': {
       routes:
         | '/manage/policies/'
@@ -336,6 +330,12 @@ declare module 'vue-router/auto-routes' {
     'src/pages/manage/workspaces/index.vue': {
       routes:
         | '/manage/workspaces/'
+      views:
+        | never
+    }
+    'src/pages/platform/network-peering/index.vue': {
+      routes:
+        | '/platform/network-peering/'
       views:
         | never
     }

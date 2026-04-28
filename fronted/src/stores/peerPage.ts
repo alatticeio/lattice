@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, watch } from 'vue'
-import { listPeer, updatePeer } from '@/api/user'
+import { listPeer, updatePeer, disablePeer, enablePeer, deletePeer } from '@/api/user'
 import { useAction, useTable } from '@/composables/useApi'
 import { useWorkspaceStore } from '@/stores/workspace'
 import { toast } from 'vue-sonner'
@@ -124,14 +124,44 @@ export const usePeerPageStore = defineStore('peerPage', () => {
             }
         },
 
-        async handleDelete(_node: any, confirmFn: () => Promise<boolean>) {
+        async handleDelete(node: any, confirmFn: () => Promise<boolean>) {
             const ok = await confirmFn()
             if (!ok) return
             loading.value = true
             try {
-                // TODO: deletePeer API not yet implemented
+                await deletePeer(node.name)
                 toast('删除成功')
                 refresh()
+            } catch (e: any) {
+                toast(e?.message ?? '删除失败', { description: String(e) })
+            } finally {
+                loading.value = false
+            }
+        },
+
+        async handleDisable(node: any, confirmFn: () => Promise<boolean>) {
+            const ok = await confirmFn()
+            if (!ok) return
+            loading.value = true
+            try {
+                await disablePeer(node.name)
+                toast('节点已禁用')
+                refresh()
+            } catch (e: any) {
+                toast(e?.message ?? '禁用失败', { description: String(e) })
+            } finally {
+                loading.value = false
+            }
+        },
+
+        async handleEnable(node: any) {
+            loading.value = true
+            try {
+                await enablePeer(node.name)
+                toast('节点已启用')
+                refresh()
+            } catch (e: any) {
+                toast(e?.message ?? '启用失败', { description: String(e) })
             } finally {
                 loading.value = false
             }

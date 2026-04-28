@@ -50,6 +50,17 @@ func (r *workspaceRepo) List(ctx context.Context, keyword string, page, pageSize
 	return items, total, err
 }
 
+func (r *workspaceRepo) ExistsByUserAndSlug(ctx context.Context, userID, slug string) (bool, error) {
+	var count int64
+	err := r.DB().WithContext(ctx).
+		Model(&models.Workspace{}).
+		Joins("JOIN t_workspaces_member ON t_workspaces_member.workspace_id = t_workspace.id").
+		Where("t_workspaces_member.user_id = ? AND t_workspace.slug = ?"+
+			" AND t_workspaces_member.deleted_at IS NULL", userID, slug).
+		Count(&count).Error
+	return count > 0, err
+}
+
 // ── WorkspaceMemberRepository ──────────────────────────────────────────────
 
 type workspaceMemberRepo struct {

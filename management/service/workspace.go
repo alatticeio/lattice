@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"time"
 	"wireflow/internal/infra"
 	"wireflow/internal/log"
 	"wireflow/internal/store"
@@ -25,6 +26,7 @@ import (
 
 type WorkspaceService interface {
 	AddWorkspace(ctx context.Context, dto *dto.WorkspaceDto) (*vo.WorkspaceVo, error)
+	UpdateWorkspace(ctx context.Context, id string, dto *dto.WorkspaceDto) (*vo.WorkspaceVo, error)
 	DeleteWorkspace(ctx context.Context, id string) error
 	ListWorkspaces(ctx context.Context, search *dto.PageRequest) (*dto.PageResult[vo.WorkspaceVo], error)
 }
@@ -47,6 +49,21 @@ type workspaceService struct {
 }
 
 func (w *workspaceService) DeleteWorkspace(ctx context.Context, id string) error {
+	// 先查出 namespace，再删 K8s 资源，最后删 DB 记录
+	ws, err := w.store.Workspaces().GetByID(ctx, id)
+	if err != nil {
+		return err
+	}
+
+	// 删除 K8s Namespace（级联删除其中所有资源：Peer、Network、Policy 等）
+	if ws.Namespace != "" {
+		ns := &corev1.Namespace{}
+		ns.Name = ws.Namespace
+		if err := w.client.Delete(ctx, ns); err != nil && !k8serrors.IsNotFound(err) {
+			return fmt.Errorf("failed to delete namespace %s: %w", ws.Namespace, err)
+		}
+	}
+
 	return w.store.Tx(ctx, func(s store.Store) error {
 		if err := s.WorkspaceMembers().DeleteByWorkspace(ctx, id); err != nil {
 			return err
@@ -96,6 +113,9 @@ func (w *workspaceService) ListWorkspaces(ctx context.Context, request *dto.Page
 				Namespace:   ws.Namespace,
 				Status:      "active",
 				CreatedAt:   ws.CreatedAt.Format("2006-01-02T15:04:05Z"),
+				CreatedBy:   ws.CreatedBy,
+				UpdatedBy:   ws.UpdatedBy,
+				UpdatedAt:   ws.UpdatedAt.Format("2006-01-02T15:04:05Z"),
 			}
 
 			// 首先检查Namespace是否存在
@@ -139,6 +159,12 @@ func (w *workspaceService) ListWorkspaces(ctx context.Context, request *dto.Page
 						v.NetworkCIDR = network.Spec.CIDR
 					}
 					v.NetworkStatus = string(network.Status.Phase)
+				}
+
+				// 统计 EnrollmentToken 数量
+				var tokenList v1alpha1.WireflowEnrollmentTokenList
+				if err := w.client.GetAPIReader().List(gCtx, &tokenList, client.InNamespace(ws.Namespace)); err == nil {
+					v.TokenCount = int64(len(tokenList.Items))
 				}
 			}
 
@@ -232,11 +258,28 @@ func NewWorkspaceMemberService(st store.Store) WorkspaceMemberService {
 }
 
 func (w *workspaceService) AddWorkspace(ctx context.Context, dto *dto.WorkspaceDto) (*vo.WorkspaceVo, error) {
+	userID, _ := ctx.Value(infra.UserIDKey).(string)
+	slug := utils.GenerateSlug(dto.Slug)
+
+	// 同一用户下不允许重名（跨用户允许）
+	if userID != "" {
+		exists, err := w.store.Workspaces().ExistsByUserAndSlug(ctx, userID, slug)
+		if err != nil {
+			return nil, err
+		}
+		if exists {
+			return nil, fmt.Errorf("workspace with name %q already exists", dto.Slug)
+		}
+	}
+
+	username, _ := ctx.Value(infra.UsernameKey).(string)
+
 	var res vo.WorkspaceVo
 	err := w.store.Tx(ctx, func(s store.Store) error {
 		newWs := &models.Workspace{
-			Slug:        utils.GenerateSlug(dto.Slug),
+			Slug:        slug,
 			DisplayName: dto.DisplayName,
+			CreatedBy:   username,
 			// 先不设置 Namespace，等创建后再更新
 		}
 		if err := s.Workspaces().Create(ctx, newWs); err != nil {
@@ -257,6 +300,20 @@ func (w *workspaceService) AddWorkspace(ctx context.Context, dto *dto.WorkspaceD
 			return err
 		}
 
+		// 将创建者加为 admin 成员，使后续重名校验（join t_workspaces_member）能正确生效
+		if userID != "" {
+			now := time.Now()
+			if err := s.WorkspaceMembers().AddMember(ctx, &models.WorkspaceMember{
+				WorkspaceID: newWs.ID,
+				UserID:      userID,
+				Role:        "admin",
+				Status:      "active",
+				JoinedAt:    &now,
+			}); err != nil {
+				return err
+			}
+		}
+
 		res = vo.WorkspaceVo{ID: newWs.ID, Slug: newWs.Slug, Namespace: newWs.Namespace, DisplayName: newWs.DisplayName, Status: "active"}
 		return nil
 	})
@@ -264,6 +321,35 @@ func (w *workspaceService) AddWorkspace(ctx context.Context, dto *dto.WorkspaceD
 		return nil, err
 	}
 	return &res, nil
+}
+
+func (w *workspaceService) UpdateWorkspace(ctx context.Context, id string, dto *dto.WorkspaceDto) (*vo.WorkspaceVo, error) {
+	username, _ := ctx.Value(infra.UsernameKey).(string)
+
+	ws, err := w.store.Workspaces().GetByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	if dto.DisplayName != "" {
+		ws.DisplayName = dto.DisplayName
+	}
+	ws.UpdatedBy = username
+
+	if err := w.store.Workspaces().Update(ctx, ws); err != nil {
+		return nil, err
+	}
+
+	return &vo.WorkspaceVo{
+		ID:          ws.ID,
+		Slug:        ws.Slug,
+		Namespace:   ws.Namespace,
+		DisplayName: ws.DisplayName,
+		Status:      ws.Status,
+		CreatedBy:   ws.CreatedBy,
+		UpdatedBy:   ws.UpdatedBy,
+		UpdatedAt:   ws.UpdatedAt.Format("2006-01-02T15:04:05Z"),
+	}, nil
 }
 
 func (w *workspaceService) InitNewNamespace(ctx context.Context, workspaceId string) error {

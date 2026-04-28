@@ -116,7 +116,12 @@ func (d *DeviceConf) String() string {
 			printf(&sb, "public_key", peer.PublicKey, keyf)
 			printf(&sb, "preshared_key", peer.PresharedKey, keyf)
 			printf(&sb, "replace_allowed_ips", strconv.FormatBool(true), nil)
-			printf(&sb, "allowed_ip", peer.AllowedIPs, nil)
+			for _, cidr := range strings.Split(peer.AllowedIPs, ",") {
+				cidr = strings.TrimSpace(cidr)
+				if cidr != "" {
+					printf(&sb, "allowed_ip", cidr, nil)
+				}
+			}
 			printf(&sb, "endpoint", peer.Endpoint, nil)
 			//sb.WriteString(fmt.Sprintf("public_key=%s\n", keyf(peer.RemoteKey)))
 			//sb.WriteString(fmt.Sprintf("preshared_key=%s\n", keyf(peer.PresharedKey)))

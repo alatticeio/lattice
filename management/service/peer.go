@@ -51,6 +51,9 @@ type PeerService interface {
 	//Peer tenant
 	ListPeers(ctx context.Context, pageParam *dto.PageRequest) (*dto.PageResult[vo.PeerVo], error)
 	UpdatePeer(ctx context.Context, peerDto *dto.PeerDto) (*vo.PeerVo, error)
+	DisablePeer(ctx context.Context, namespace, name string) error
+	EnablePeer(ctx context.Context, namespace, name string) error
+	DeletePeer(ctx context.Context, namespace, name string) error
 }
 
 type peerService struct {
@@ -60,7 +63,10 @@ type peerService struct {
 	presence *managementnats.NodePresenceStore
 }
 
-const displayNameAnnotation = "wireflow.io/display-name"
+const (
+	displayNameAnnotation = "wireflow.io/display-name"
+	disabledAnnotation    = "wireflow.io/disabled"
+)
 
 func (p *peerService) UpdatePeer(ctx context.Context, peerDto *dto.PeerDto) (*vo.PeerVo, error) {
 	var peer v1alpha1.WireflowPeer
@@ -141,6 +147,7 @@ func (p *peerService) ListPeers(ctx context.Context, pageParam *dto.PageRequest)
 		namespace   string
 		address     *string
 		labels      map[string]string
+		disabled    bool
 	}
 
 	allPeers := make([]peerItem, 0, len(peerList.Items))
@@ -153,6 +160,7 @@ func (p *peerService) ListPeers(ctx context.Context, pageParam *dto.PageRequest)
 			namespace:   n.Namespace,
 			address:     n.Status.AllocatedAddress,
 			labels:      n.GetLabels(),
+			disabled:    n.GetAnnotations()[disabledAnnotation] == "true",
 		})
 	}
 
@@ -193,6 +201,7 @@ func (p *peerService) ListPeers(ctx context.Context, pageParam *dto.PageRequest)
 			Address:              n.address,
 			Labels:               n.labels,
 			WorkspaceDisplayName: workspace.DisplayName,
+			Disabled:             n.disabled,
 		}
 		if p.presence != nil {
 			status, lastSeen := p.presence.GetStatus(n.appId)
@@ -266,9 +275,47 @@ func (p *peerService) GetNetmap(ctx context.Context, token string, appId string)
 	return p.client.GetNetworkMap(ctx, token, appId)
 }
 
-func (p *peerService) UpdateStatus(ctx context.Context, status int) error {
-	//TODO implement me
-	panic("implement me")
+func (p *peerService) UpdateStatus(_ context.Context, _ int) error { return nil }
+
+func (p *peerService) DisablePeer(ctx context.Context, namespace, name string) error {
+	var peer v1alpha1.WireflowPeer
+	if err := p.client.GetAPIReader().Get(ctx, types.NamespacedName{Namespace: namespace, Name: name}, &peer); err != nil {
+		return err
+	}
+	annotations := peer.GetAnnotations()
+	if annotations == nil {
+		annotations = make(map[string]string)
+	}
+	annotations[disabledAnnotation] = "true"
+	peer.SetAnnotations(annotations)
+	return p.client.Update(ctx, &peer)
+}
+
+func (p *peerService) EnablePeer(ctx context.Context, namespace, name string) error {
+	var peer v1alpha1.WireflowPeer
+	if err := p.client.GetAPIReader().Get(ctx, types.NamespacedName{Namespace: namespace, Name: name}, &peer); err != nil {
+		return err
+	}
+	annotations := peer.GetAnnotations()
+	delete(annotations, disabledAnnotation)
+	peer.SetAnnotations(annotations)
+	return p.client.Update(ctx, &peer)
+}
+
+func (p *peerService) DeletePeer(ctx context.Context, namespace, name string) error {
+	var peer v1alpha1.WireflowPeer
+	if err := p.client.GetAPIReader().Get(ctx, types.NamespacedName{Namespace: namespace, Name: name}, &peer); err != nil {
+		return err
+	}
+	if err := p.client.Delete(ctx, &peer); err != nil {
+		return err
+	}
+	// Best-effort cleanup of the associated ConfigMap created by the controller
+	var cm corev1.ConfigMap
+	if err := p.client.Get(ctx, types.NamespacedName{Namespace: namespace, Name: fmt.Sprintf("%s-config", name)}, &cm); err == nil {
+		_ = p.client.Delete(ctx, &cm)
+	}
+	return nil
 }
 
 func (p *peerService) Register(ctx context.Context, dto *dto.PeerDto) (*infra.Peer, error) {

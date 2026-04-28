@@ -7,7 +7,7 @@ import {
 import {
   Shield, Plus, RefreshCw, MoreHorizontal, Search,
   Pencil, Trash2, ArrowDown, ArrowUp, ChevronLeft, ChevronRight,
-  Info, CheckCircle2, XCircle, X, Zap,
+  Info, CheckCircle2, XCircle, X, Zap, Layers,
 } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -279,105 +279,85 @@ const table = useVueTable({
   <div class="flex flex-col gap-5 p-6 animate-in fade-in duration-300">
 
     <!-- ── Stat cards ─────────────────────────────────────────────── -->
-    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
 
-      <!-- All Policies -->
+      <!-- 全部策略 -->
       <button
-        class="bg-card border border-border rounded-xl p-4 text-left hover:border-primary/30 hover:shadow-sm transition-all"
-        :class="actionFilter === 'all' ? 'border-primary/40 ring-1 ring-primary/10' : ''"
+        class="border-border bg-card text-card-foreground rounded-xl border p-5 shadow-sm text-left hover:shadow-md transition-all"
+        :class="actionFilter === 'all' ? 'ring-2 ring-blue-500/20 border-blue-500/30' : ''"
         @click="setActionFilter('all')"
       >
-        <div>
-          <div class="flex items-center justify-between mb-3">
-            <span class="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{{ t('manage.policies.stats.total') }}</span>
-            <div class="bg-muted rounded-lg p-2">
-              <Shield class="size-4 text-muted-foreground" />
-            </div>
+        <div class="flex items-start justify-between">
+          <div class="flex flex-col gap-1">
+            <span class="text-muted-foreground text-sm font-medium">{{ t('manage.policies.stats.total') }}</span>
+            <span class="text-2xl font-bold tracking-tight">{{ stats.total }}</span>
           </div>
-          <p class="text-3xl font-black tracking-tighter tabular-nums">{{ stats.total }}</p>
-          <p class="text-[11px] text-muted-foreground/60 mt-1">{{ t('manage.policies.totalRulesLabel') }} <span class="font-bold text-foreground">{{ stats.totalRules }}</span></p>
-          <div class="mt-3 space-y-1.5">
-            <div class="flex h-1.5 rounded-full overflow-hidden bg-muted/50 gap-px">
-              <div class="bg-emerald-500 transition-all" :style="{ width: `${stats.allowRate}%` }" />
-              <div class="bg-rose-500 transition-all"    :style="{ width: `${stats.denyRate}%` }" />
-            </div>
-            <div class="flex items-center gap-3 text-[10px] text-muted-foreground/60">
-              <span class="flex items-center gap-1"><span class="size-1.5 rounded-full bg-emerald-500 inline-block" />Allow {{ stats.allow }}</span>
-              <span class="flex items-center gap-1"><span class="size-1.5 rounded-full bg-rose-500 inline-block" />Deny {{ stats.deny }}</span>
-            </div>
+          <div class="bg-blue-500/10 rounded-lg p-2">
+            <Shield class="size-4 text-blue-500" />
           </div>
+        </div>
+        <div class="mt-3 flex items-center gap-1 text-xs text-muted-foreground">
+          <Shield class="size-3.5 shrink-0 text-blue-500" />
+          <span>{{ t('manage.policies.totalRulesLabel') }} {{ stats.totalRules }}</span>
         </div>
       </button>
 
       <!-- Allow -->
       <button
-        class="bg-card border border-border rounded-xl p-4 text-left hover:border-emerald-500/30 hover:shadow-sm transition-all"
-        :class="actionFilter === 'Allow' ? 'border-emerald-500/40 ring-1 ring-emerald-500/10' : ''"
+        class="border-border bg-card text-card-foreground rounded-xl border p-5 shadow-sm text-left hover:shadow-md transition-all"
+        :class="actionFilter === 'Allow' ? 'ring-2 ring-emerald-500/20 border-emerald-500/30' : ''"
         @click="setActionFilter('Allow')"
       >
-        <div>
-          <div class="flex items-center justify-between mb-3">
-            <span class="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Allow</span>
-            <div class="bg-muted rounded-lg p-2">
-              <CheckCircle2 class="size-4 text-muted-foreground" />
-            </div>
+        <div class="flex items-start justify-between">
+          <div class="flex flex-col gap-1">
+            <span class="text-muted-foreground text-sm font-medium">{{ t('manage.policies.stats.allow') }}</span>
+            <span class="text-2xl font-bold tracking-tight text-emerald-600 dark:text-emerald-400">{{ stats.allow }}</span>
           </div>
-          <p class="text-3xl font-black tracking-tighter tabular-nums text-emerald-500">{{ stats.allow }}</p>
-          <p class="text-[11px] text-muted-foreground/60 mt-1">
-            {{ stats.allowRate }}%
-          </p>
-          <div class="mt-3 space-y-1.5">
-            <div class="flex h-1.5 rounded-full overflow-hidden bg-muted/50">
-              <div class="bg-emerald-500 rounded-full transition-all duration-700" :style="{ width: `${stats.allowRate}%` }" />
-            </div>
-            <p class="text-[10px] text-muted-foreground/50">{{ t('manage.policies.allowTrafficDesc') }}</p>
+          <div class="bg-emerald-500/10 rounded-lg p-2">
+            <CheckCircle2 class="size-4 text-emerald-500" />
           </div>
+        </div>
+        <div class="mt-3 flex items-center gap-1 text-xs text-muted-foreground">
+          <CheckCircle2 class="size-3.5 shrink-0 text-emerald-500" />
+          <span>{{ stats.allowRate }}% · {{ t('manage.policies.allowTrafficDesc') }}</span>
         </div>
       </button>
 
       <!-- Deny -->
       <button
-        class="bg-card border border-border rounded-xl p-4 text-left hover:border-rose-500/30 hover:shadow-sm transition-all"
-        :class="actionFilter === 'Deny' ? 'border-rose-500/40 ring-1 ring-rose-500/10' : ''"
+        class="border-border bg-card text-card-foreground rounded-xl border p-5 shadow-sm text-left hover:shadow-md transition-all"
+        :class="actionFilter === 'Deny' ? 'ring-2 ring-rose-500/20 border-rose-500/30' : ''"
         @click="setActionFilter('Deny')"
       >
-        <div>
-          <div class="flex items-center justify-between mb-3">
-            <span class="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Deny</span>
-            <div class="bg-muted rounded-lg p-2">
-              <XCircle class="size-4 text-muted-foreground" />
-            </div>
+        <div class="flex items-start justify-between">
+          <div class="flex flex-col gap-1">
+            <span class="text-muted-foreground text-sm font-medium">{{ t('manage.policies.stats.deny') }}</span>
+            <span class="text-2xl font-bold tracking-tight text-rose-600 dark:text-rose-400">{{ stats.deny }}</span>
           </div>
-          <p class="text-3xl font-black tracking-tighter tabular-nums text-rose-500">{{ stats.deny }}</p>
-          <p class="text-[11px] text-muted-foreground/60 mt-1">
-            {{ stats.denyRate }}%
-          </p>
-          <div class="mt-3 space-y-1.5">
-            <div class="flex h-1.5 rounded-full overflow-hidden bg-muted/50">
-              <div class="bg-rose-500 rounded-full transition-all duration-700" :style="{ width: `${stats.denyRate}%` }" />
-            </div>
-            <p class="text-[10px] text-muted-foreground/50">{{ t('manage.policies.denyTrafficDesc') }}</p>
+          <div class="bg-rose-500/10 rounded-lg p-2">
+            <XCircle class="size-4 text-rose-500" />
           </div>
+        </div>
+        <div class="mt-3 flex items-center gap-1 text-xs text-muted-foreground">
+          <XCircle class="size-3.5 shrink-0 text-rose-500" />
+          <span>{{ stats.denyRate }}% · {{ t('manage.policies.denyTrafficDesc') }}</span>
         </div>
       </button>
 
-      <!-- Total Rules -->
-      <div class="bg-card border border-border rounded-xl p-4 text-left">
-        <div>
-          <div class="flex items-center justify-between mb-3">
-            <span class="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{{ t('manage.policies.totalRulesLabel') }}</span>
-            <div class="bg-muted rounded-lg p-2">
-              <ArrowDown class="size-4 text-muted-foreground" />
-            </div>
+      <!-- 总规则数 -->
+      <div class="border-border bg-card text-card-foreground rounded-xl border p-5 shadow-sm text-left">
+        <div class="flex items-start justify-between">
+          <div class="flex flex-col gap-1">
+            <span class="text-muted-foreground text-sm font-medium">{{ t('manage.policies.totalRulesLabel') }}</span>
+            <span class="text-2xl font-bold tracking-tight text-primary">{{ stats.totalRules }}</span>
           </div>
-          <p class="text-3xl font-black tracking-tighter tabular-nums text-primary">{{ stats.totalRules }}</p>
-          <p class="text-[11px] text-muted-foreground/60 mt-1">
-            {{ t('manage.policies.avgRulesLabel', { n: stats.avgRules }) }}
-          </p>
-          <div class="mt-3 pt-3 border-t border-border/60 flex items-center gap-3 text-[10px] text-muted-foreground/60">
-            <span class="flex items-center gap-1"><ArrowDown class="size-3 text-blue-500" />Ingress {{ stats.ingressRules }}</span>
-            <span class="flex items-center gap-1"><ArrowUp class="size-3 text-violet-500" />Egress {{ stats.egressRules }}</span>
+          <div class="bg-primary/10 rounded-lg p-2">
+            <Layers class="size-4 text-primary" />
           </div>
+        </div>
+        <div class="mt-3 flex items-center gap-1 text-xs text-muted-foreground">
+          <Layers class="size-3.5 shrink-0 text-primary" />
+          <span>{{ t('manage.policies.avgRulesLabel', { n: stats.avgRules }) }}</span>
         </div>
       </div>
 

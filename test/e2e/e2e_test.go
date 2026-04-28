@@ -63,10 +63,12 @@ var _ = Describe("Wireflow 核心连通性 E2E", Ordered, func() {
 		accessToken, ok = dataMap["token"].(string)
 		Expect(ok && accessToken != "").To(BeTrue(), "登录响应中未找到 token")
 
-		By("步骤 2: 创建 Workspace (Namespace: " + ns + ")")
+		wsName := fmt.Sprintf("e2e-%d", time.Now().UnixMilli())
+		By("步骤 2: 创建 Workspace (Namespace: " + ns + ", Name: " + wsName + ")")
 		wsBody, _ := json.Marshal(dto.WorkspaceDto{
 			Namespace:   ns,
-			DisplayName: "E2E-Workspace",
+			DisplayName: wsName,
+			Slug:        wsName,
 		})
 		reqWs, _ := http.NewRequestWithContext(ctx, http.MethodPost, manageUrl+"/api/v1/workspaces/add", bytes.NewBuffer(wsBody))
 		reqWs.Header.Set("Authorization", "Bearer "+accessToken)

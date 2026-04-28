@@ -3,7 +3,7 @@ import { computed, watch, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
   Activity, Server, ShieldCheck, AlertTriangle,
-  ArrowUpRight, ArrowDownRight, MoreHorizontal, Globe, Building2, RefreshCw,
+  MoreHorizontal, Globe, Building2, RefreshCw,
 } from 'lucide-vue-next'
 import { useDashboardStore } from '@/stores/useDashboard'
 import { useWorkspaceStore } from '@/stores/workspace'
@@ -31,6 +31,18 @@ watch(() => workspaceStore.currentWorkspace?.id, (newId, oldId) => {
 
 // ── icon lookup for stat cards ────────────────────────────────────────
 const iconByIndex = [Server, Activity, ShieldCheck, AlertTriangle]
+const titleKeyByIndex = [
+  'settings.dashboard.statNodes',
+  'settings.dashboard.statTunnels',
+  'settings.dashboard.statPolicies',
+  'settings.dashboard.statAlerts',
+]
+const colorByIndex = [
+  { badge: 'bg-blue-500/10',    icon: 'text-blue-500',    num: 'text-blue-600 dark:text-blue-400' },
+  { badge: 'bg-emerald-500/10', icon: 'text-emerald-500', num: 'text-emerald-600 dark:text-emerald-400' },
+  { badge: 'bg-primary/10',     icon: 'text-primary',     num: 'text-primary' },
+  { badge: 'bg-amber-500/10',   icon: 'text-amber-500',   num: 'text-amber-600 dark:text-amber-400' },
+]
 
 // ── stat cards: workspace when active, global otherwise ──────────────
 const stats = computed(() =>
@@ -69,9 +81,9 @@ const throughputUnit = computed(() => store.isWorkspaceMode ? 'Mbps' : 'Gbps')
 const qualityMetrics = computed(() => {
   const c = store.wsData?.stat_cards
   return [
-    { label: 'Online Nodes', value: c?.[0]?.value ?? '—', unit: c?.[0]?.unit ?? '',  icon: Server,      cls: 'text-primary/50' },
-    { label: 'Avg Latency',  value: c?.[2]?.value ?? '—', unit: c?.[2]?.unit ?? '',  icon: Activity,    cls: 'text-amber-500/50' },
-    { label: 'Packet Loss',  value: c?.[3]?.value ?? '—', unit: c?.[3]?.unit ?? '',  icon: ShieldCheck, cls: 'text-emerald-500/50' },
+    { label: t('settings.dashboard.onlineNodes'), value: c?.[0]?.value ?? '—', unit: c?.[0]?.unit ?? '',  icon: Server,      cls: 'text-primary/50' },
+    { label: t('settings.dashboard.avgLatency'),  value: c?.[2]?.value ?? '—', unit: c?.[2]?.unit ?? '',  icon: Activity,    cls: 'text-amber-500/50' },
+    { label: t('settings.dashboard.packetLoss'),  value: c?.[3]?.value ?? '—', unit: c?.[3]?.unit ?? '',  icon: ShieldCheck, cls: 'text-emerald-500/50' },
   ]
 })
 
@@ -112,7 +124,7 @@ const BAR_MAX_PX = 64 // px height when at 100% of maxCpu
         @click="store.fetch(); store.fetchWorkspace()"
       >
         <RefreshCw class="size-3" :class="(store.loading || store.wsLoading) && 'animate-spin'" />
-        Refresh
+        {{ t('settings.dashboard.refresh') }}
       </button>
     </div>
 
@@ -121,26 +133,22 @@ const BAR_MAX_PX = 64 // px height when at 100% of maxCpu
       <div
         v-for="(stat, i) in stats"
         :key="i"
-        class="border-border bg-card text-card-foreground rounded-xl border p-5 shadow-sm"
+        class="border-border bg-card text-card-foreground rounded-xl border p-5 shadow-sm hover:shadow-md transition-all"
       >
         <div class="flex items-start justify-between">
           <div class="flex flex-col gap-1">
-            <span class="text-muted-foreground text-sm font-medium">{{ stat.title }}</span>
-            <span class="text-2xl font-bold tracking-tight">
+            <span class="text-muted-foreground text-sm font-medium">{{ t(titleKeyByIndex[i]) }}</span>
+            <span class="text-2xl font-bold tracking-tight" :class="colorByIndex[i]?.num">
               <template v-if="store.loading || store.wsLoading">—</template>
               <template v-else>{{ stat.value }}</template>
             </span>
           </div>
-          <div class="bg-muted rounded-lg p-2">
-            <component :is="stat.icon" class="text-muted-foreground size-4" />
+          <div class="rounded-lg p-2" :class="colorByIndex[i]?.badge">
+            <component :is="stat.icon" class="size-4" :class="colorByIndex[i]?.icon" />
           </div>
         </div>
-        <div class="mt-3 flex items-center gap-1 text-sm">
-          <component
-            :is="stat.trend === 'up' ? ArrowUpRight : ArrowDownRight"
-            :class="stat.trend === 'up' ? 'text-emerald-600' : 'text-red-500'"
-            class="size-4"
-          />
+        <div class="mt-3 flex items-center gap-1 text-xs text-muted-foreground">
+          <component :is="stat.icon" class="size-3.5 shrink-0" :class="colorByIndex[i]?.icon" />
           <span :class="stat.trend === 'up' ? 'text-emerald-600' : 'text-red-500'" class="font-semibold">
             {{ stat.change }}
           </span>
@@ -175,15 +183,15 @@ const BAR_MAX_PX = 64 // px height when at 100% of maxCpu
       <div class="border-border bg-card text-card-foreground rounded-xl border p-5 lg:col-span-2">
         <div class="mb-4 flex items-start justify-between">
           <div>
-            <h3 class="font-semibold">Network Throughput</h3>
+            <h3 class="font-semibold">{{ t('settings.dashboard.networkThroughput') }}</h3>
             <p class="text-muted-foreground text-sm">{{ t('settings.dashboard.throughputSub', { mode: modeLabel, unit: throughputUnit }) }}</p>
           </div>
           <div class="flex items-center gap-4 text-xs font-medium">
             <div class="flex items-center gap-1.5">
-              <span class="size-2.5 rounded-full bg-primary" /> Outbound TX
+              <span class="size-2.5 rounded-full bg-primary" /> {{ t('settings.dashboard.outboundTX') }}
             </div>
             <div class="flex items-center gap-1.5">
-              <span class="size-2.5 rounded-full bg-blue-400" /> Inbound RX
+              <span class="size-2.5 rounded-full bg-blue-400" /> {{ t('settings.dashboard.inboundRX') }}
             </div>
           </div>
         </div>
@@ -207,8 +215,8 @@ const BAR_MAX_PX = 64 // px height when at 100% of maxCpu
 
       <div class="border-border bg-card text-card-foreground rounded-xl border p-5">
         <div class="mb-4">
-          <h3 class="font-semibold">Node CPU Load</h3>
-          <p class="text-muted-foreground text-sm">CPU usage per node (%)</p>
+          <h3 class="font-semibold">{{ t('settings.dashboard.nodeCpuLoad') }}</h3>
+          <p class="text-muted-foreground text-sm">{{ t('settings.dashboard.cpuUsagePerNode') }}</p>
         </div>
         <div class="flex items-end justify-around gap-3 px-2" style="height: 80px">
           <template v-if="cpuBars.length > 0">
@@ -246,7 +254,7 @@ const BAR_MAX_PX = 64 // px height when at 100% of maxCpu
           </div>
         </div>
         <div class="mt-2 border-t border-border pt-3 text-xs text-muted-foreground">
-          {{ cpuBars.length > 0 ? `${cpuBars.length} nodes monitored` : t('settings.dashboard.noNodeData') }}
+          {{ cpuBars.length > 0 ? t('settings.dashboard.nodesMonitored', { n: cpuBars.length }) : t('settings.dashboard.noNodeData') }}
         </div>
       </div>
     </div>
@@ -255,7 +263,7 @@ const BAR_MAX_PX = 64 // px height when at 100% of maxCpu
     <div class="grid gap-4 lg:grid-cols-3">
       <div class="border-border bg-card text-card-foreground rounded-xl border lg:col-span-2 overflow-hidden">
         <div class="border-b border-border p-5 flex justify-between items-center">
-          <h3 class="font-semibold text-sm">High-Traffic Nodes</h3>
+          <h3 class="font-semibold text-sm">{{ t('settings.dashboard.highTrafficNodes') }}</h3>
           <button class="text-muted-foreground hover:text-foreground">
             <MoreHorizontal class="size-4" />
           </button>
@@ -264,10 +272,10 @@ const BAR_MAX_PX = 64 // px height when at 100% of maxCpu
           <table class="w-full text-sm">
             <thead>
               <tr class="border-b border-border bg-muted/30">
-                <th class="px-5 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Node</th>
-                <th class="px-5 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Endpoint</th>
-                <th class="px-5 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Traffic (24h)</th>
-                <th class="px-5 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">Status</th>
+                <th class="px-5 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">{{ t('settings.dashboard.colNode') }}</th>
+                <th class="px-5 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">{{ t('settings.dashboard.colEndpoint') }}</th>
+                <th class="px-5 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">{{ t('settings.dashboard.colTraffic') }}</th>
+                <th class="px-5 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">{{ t('settings.dashboard.colStatus') }}</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-border">
@@ -308,7 +316,7 @@ const BAR_MAX_PX = 64 // px height when at 100% of maxCpu
       </div>
 
       <div class="border-border bg-card text-card-foreground rounded-xl border p-5 flex flex-col gap-3">
-        <h3 class="font-semibold">Connection Quality</h3>
+        <h3 class="font-semibold">{{ t('settings.dashboard.connectionQuality') }}</h3>
 
         <div
           v-for="m in qualityMetrics"

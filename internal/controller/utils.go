@@ -15,6 +15,8 @@
 package controller
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"strconv"
 	"strings"
@@ -118,6 +120,50 @@ func stringSliceEqual(a, b []string) bool {
 		}
 	}
 	return true
+}
+
+// safeKeyName returns a label/annotation name-segment of at most 63 characters.
+// If prefix+name fits, it is returned as-is. Otherwise the name is truncated and
+// a deterministic 8-char SHA-256 suffix is appended so the key stays unique.
+func safeKeyName(prefix, name string) string {
+	full := prefix + name
+	if len(full) <= 63 {
+		return full
+	}
+	h := sha256.Sum256([]byte(name))
+	hash := hex.EncodeToString(h[:4]) // 8 hex chars
+	keep := 63 - len(prefix) - 9     // room for "-" + 8 hash chars
+	if keep < 0 {
+		keep = 0
+	}
+	if keep > len(name) {
+		keep = len(name)
+	}
+	return prefix + name[:keep] + "-" + hash
+}
+
+// networkLabelKey returns the label key used to tag a peer as belonging to a
+// WireflowNetwork. The name segment is guaranteed to be ≤63 characters.
+func networkLabelKey(networkName string) string {
+	return "wireflow.run/" + safeKeyName("network-", networkName)
+}
+
+// peeringRouteAnnotationKey returns the annotation key used to store a
+// per-peering CIDR route on gateway peers. The name segment is ≤63 characters.
+func peeringRouteAnnotationKey(peeringName string) string {
+	return "wireflow.run/" + safeKeyName("peering-route-", peeringName)
+}
+
+// safeLabelValue returns a label value of at most 63 characters.
+// If name fits, it is returned as-is. Otherwise a truncated-name + short hash.
+func safeLabelValue(name string) string {
+	const maxLen = 63
+	if len(name) <= maxLen {
+		return name
+	}
+	h := sha256.Sum256([]byte(name))
+	hash := hex.EncodeToString(h[:4]) // 8 hex chars
+	return name[:maxLen-9] + "-" + hash
 }
 
 func transferToPeer(peer *wireflowv1alpha1.WireflowPeer) *infra.Peer {

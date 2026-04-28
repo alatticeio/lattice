@@ -38,4 +38,7 @@ type PeerVo struct {
 
 	// DisplayName is the user-defined alias for this node, stored as a K8s annotation.
 	DisplayName string `json:"displayName,omitempty"`
+
+	// Disabled indicates the node has been administratively disabled by a workspace manager.
+	Disabled bool `json:"disabled,omitempty"`
 }

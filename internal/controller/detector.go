@@ -373,10 +373,8 @@ func (d *Generator) buildPolicy(ctx context.Context, src *v1alpha1.WireflowPolic
 	}
 
 	var ingresses, egresses []*infra.Rule
-	srcIngresses := src.Spec.Ingress
-	srcEgresses := src.Spec.Egress
-	for _, ingress := range srcIngresses {
-		peers, err := d.getPeerFromLabels(ctx, src.Namespace, src.Spec.Network, ingress.From)
+	for _, ingress := range src.Spec.Ingress {
+		names, err := d.getPeerNamesByLabels(ctx, src.Namespace, src.Spec.Network, ingress.From)
 		if err != nil {
 			log.Error(err, "failed to get peers from labels", "labels", ingress.From)
 			continue
@@ -384,32 +382,32 @@ func (d *Generator) buildPolicy(ctx context.Context, src *v1alpha1.WireflowPolic
 		// 每个 port 生成一条独立的 Rule，支持同一 from 下多端口
 		// 若未指定 ports，生成一条 Protocol/Port 为零值的 Rule（允许所有流量）
 		if len(ingress.Ports) == 0 {
-			ingresses = append(ingresses, &infra.Rule{Peers: peers})
+			ingresses = append(ingresses, &infra.Rule{PeerNames: names})
 		} else {
 			for _, port := range ingress.Ports {
 				ingresses = append(ingresses, &infra.Rule{
-					Peers:    peers,
-					Protocol: port.Protocol,
-					Port:     int(port.Port),
+					PeerNames: names,
+					Protocol:  port.Protocol,
+					Port:      int(port.Port),
 				})
 			}
 		}
 	}
 
-	for _, egress := range srcEgresses {
-		peers, err := d.getPeerFromLabels(ctx, src.Namespace, src.Spec.Network, egress.To)
+	for _, egress := range src.Spec.Egress {
+		names, err := d.getPeerNamesByLabels(ctx, src.Namespace, src.Spec.Network, egress.To)
 		if err != nil {
 			log.Error(err, "failed to get peers from labels", "labels", egress.To)
 			continue
 		}
 		if len(egress.Ports) == 0 {
-			egresses = append(egresses, &infra.Rule{Peers: peers})
+			egresses = append(egresses, &infra.Rule{PeerNames: names})
 		} else {
 			for _, port := range egress.Ports {
 				egresses = append(egresses, &infra.Rule{
-					Peers:    peers,
-					Protocol: port.Protocol,
-					Port:     int(port.Port),
+					PeerNames: names,
+					Protocol:  port.Protocol,
+					Port:      int(port.Port),
 				})
 			}
 		}
@@ -421,54 +419,41 @@ func (d *Generator) buildPolicy(ctx context.Context, src *v1alpha1.WireflowPolic
 	return policy
 }
 
-func (d *Generator) getPeerFromLabels(ctx context.Context, namespace, networkName string, rules []v1alpha1.PeerSelection) ([]*infra.Peer, error) {
-	// 使用 map 来存储已找到的节点，以确保结果不重复
-	// key: 节点的 UID，value: 节点对象本身
-	foundNodes := make(map[types.UID]v1alpha1.WireflowPeer)
+// getPeerNamesByLabels 按 label 选择器查找 peer，只返回 name 列表。
+// 使用 UID 去重，避免多个选择器命中同一 peer 时重复；按 Name 排序保证 hash 稳定。
+func (d *Generator) getPeerNamesByLabels(ctx context.Context, namespace, networkName string, rules []v1alpha1.PeerSelection) ([]string, error) {
+	found := make(map[types.UID]string) // UID → Name
 
 	for _, rule := range rules {
-		// 1. 将 metav1.LabelSelector 转换为 labels.Selector 接口
 		selector, err := metav1.LabelSelectorAsSelector(rule.PeerSelector)
 		if err != nil {
-			// 记录错误，无法解析选择器
 			return nil, fmt.Errorf("failed to parse label selector %v: %w", rule.PeerSelector, err)
 		}
 
-		var nodeList v1alpha1.WireflowPeerList
-
-		// 2. 针对每一个选择器执行一次独立的 List API 调用，限定命名空间和网络，
-		// 避免跨 namespace 重名 peer 导致排序非确定性，以及跨网络 peer 混入 policy 规则
-		// 这实现了 OR 逻辑（匹配选择器 A 的节点集合 + 匹配选择器 B 的节点集合）
 		listOpts := []client.ListOption{
 			client.InNamespace(namespace),
 			client.MatchingLabelsSelector{Selector: selector},
 		}
-		// 只选取属于同一网络的 peer，同一 namespace 不同网络的 peer 不应混入
 		if networkName != "" {
 			listOpts = append(listOpts, client.MatchingLabels{
-				fmt.Sprintf("wireflow.run/network-%s", networkName): "true",
+				networkLabelKey(networkName): "true",
 			})
 		}
+
+		var nodeList v1alpha1.WireflowPeerList
 		if err := d.client.List(ctx, &nodeList, listOpts...); err != nil {
-			// 记录 API 调用错误
 			return nil, fmt.Errorf("failed to list nodes with selector %s: %w", selector.String(), err)
 		}
 
-		// 3. 将本次查询到的节点添加到 map 中，通过 UID 避免重复
 		for _, node := range nodeList.Items {
-			// 复制节点对象，避免在后续操作中意外修改
-			foundNodes[node.UID] = node
+			found[node.UID] = node.Name
 		}
 	}
 
-	// 4. 将 map 中的节点转换为切片作为最终结果返回，按 Name 排序保证 hash 稳定
-	result := make([]*infra.Peer, 0, len(foundNodes))
-	for _, node := range foundNodes {
-		result = append(result, transferToPeer(&node))
+	names := make([]string, 0, len(found))
+	for _, name := range found {
+		names = append(names, name)
 	}
-	sort.Slice(result, func(i, j int) bool {
-		return result[i].Name < result[j].Name
-	})
-
-	return result, nil
+	sort.Strings(names)
+	return names, nil
 }

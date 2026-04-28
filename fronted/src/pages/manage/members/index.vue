@@ -10,7 +10,6 @@ import {
   Trash2, Search,
   Shield, UserCheck, User, Eye, Clock, Mail,
   XCircle,
-  ArrowUpRight, ArrowDownRight,
   ChevronLeft, ChevronRight,
 } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
@@ -443,21 +442,13 @@ const invPages      = computed(() => visiblePages(invPage.value, invTotalPages.v
             <span class="text-muted-foreground text-sm font-medium">{{ t('manage.members.stats.total') }}</span>
             <span class="text-2xl font-bold tracking-tight">{{ stats.total }}</span>
           </div>
-          <div class="bg-muted rounded-lg p-2">
-            <Users class="text-muted-foreground size-4" />
+          <div class="bg-blue-500/10 rounded-lg p-2">
+            <Users class="text-blue-500 size-4" />
           </div>
         </div>
-        <div class="mt-3 flex items-center gap-1 text-sm">
-          <div class="flex -space-x-1.5">
-            <div
-              v-for="(name, i) in stats.recentNames" :key="i"
-              class="size-5 rounded-full ring-2 ring-card flex items-center justify-center text-[8px] font-black text-white shrink-0"
-              :class="avatarColor(name)"
-            >{{ firstChar(name) }}</div>
-          </div>
-          <span v-if="stats.total > 4" class="text-muted-foreground text-xs ml-1">
-            {{ t('manage.members.stats.morePeople', { n: stats.total - 4 }) }}
-          </span>
+        <div class="mt-3 flex items-center gap-1 text-xs text-muted-foreground">
+          <Users class="size-3.5 shrink-0 text-blue-500" />
+          <span>{{ t('manage.members.stats.adminAccess', { n: stats.admins }) }}</span>
         </div>
       </div>
 
@@ -466,15 +457,15 @@ const invPages      = computed(() => visiblePages(invPage.value, invTotalPages.v
         <div class="flex items-start justify-between">
           <div class="flex flex-col gap-1">
             <span class="text-muted-foreground text-sm font-medium">{{ t('manage.members.stats.admins') }}</span>
-            <span class="text-2xl font-bold tracking-tight">{{ stats.admins }}</span>
+            <span class="text-2xl font-bold tracking-tight text-primary">{{ stats.admins }}</span>
           </div>
-          <div class="bg-muted rounded-lg p-2">
-            <Shield class="text-muted-foreground size-4" />
+          <div class="bg-primary/10 rounded-lg p-2">
+            <Shield class="text-primary size-4" />
           </div>
         </div>
-        <div class="mt-3 flex items-center gap-1 text-sm">
-          <ArrowUpRight class="text-muted-foreground size-4 shrink-0" />
-          <span class="text-muted-foreground">{{ t('manage.members.stats.adminAccess', { n: stats.admins }) }}</span>
+        <div class="mt-3 flex items-center gap-1 text-xs text-muted-foreground">
+          <Shield class="size-3.5 shrink-0 text-primary" />
+          <span>{{ t('manage.members.stats.adminAccess', { n: stats.admins }) }}</span>
         </div>
       </div>
 
@@ -483,46 +474,36 @@ const invPages      = computed(() => visiblePages(invPage.value, invTotalPages.v
         <div class="flex items-start justify-between">
           <div class="flex flex-col gap-1">
             <span class="text-muted-foreground text-sm font-medium">{{ t('manage.members.stats.active') }}</span>
-            <span class="text-2xl font-bold tracking-tight">{{ stats.active }}</span>
+            <span class="text-2xl font-bold tracking-tight text-emerald-600 dark:text-emerald-400">{{ stats.active }}</span>
           </div>
-          <div class="bg-muted rounded-lg p-2">
-            <UserCheck class="text-muted-foreground size-4" />
+          <div class="bg-emerald-500/10 rounded-lg p-2">
+            <UserCheck class="text-emerald-500 size-4" />
           </div>
         </div>
-        <div class="mt-3 flex items-center gap-1 text-sm">
-          <ArrowUpRight class="text-emerald-600 size-4 shrink-0" />
-          <span class="text-emerald-600 font-semibold">
-            {{ stats.total ? Math.round((stats.active / stats.total) * 100) : 0 }}%
-          </span>
-          <span class="text-muted-foreground">{{ t('manage.members.stats.activeRate') }}</span>
+        <div class="mt-3 flex items-center gap-1 text-xs text-muted-foreground">
+          <UserCheck class="size-3.5 shrink-0 text-emerald-500" />
+          <span>{{ stats.total ? Math.round((stats.active / stats.total) * 100) : 0 }}% {{ t('manage.members.stats.activeRate') }}</span>
         </div>
       </div>
 
       <!-- 待接受邀请 -->
       <button
-        class="border-border bg-card text-card-foreground rounded-xl border p-5 shadow-sm text-left hover:shadow-md transition-shadow"
-        :class="activeTab === 'invitations' ? 'ring-2 ring-amber-400/20 border-amber-400/30' : ''"
+        class="border-border bg-card text-card-foreground rounded-xl border p-5 shadow-sm text-left hover:shadow-md transition-all"
+        :class="activeTab === 'invitations' ? 'ring-2 ring-amber-500/20 border-amber-500/30' : ''"
         @click="activeTab = 'invitations'"
       >
         <div class="flex items-start justify-between">
           <div class="flex flex-col gap-1">
             <span class="text-muted-foreground text-sm font-medium">{{ t('manage.members.stats.pendingInv') }}</span>
-            <span class="text-2xl font-bold tracking-tight">{{ stats.pendingInvitations }}</span>
+            <span class="text-2xl font-bold tracking-tight text-amber-600 dark:text-amber-400">{{ stats.pendingInvitations }}</span>
           </div>
-          <div class="bg-muted rounded-lg p-2">
-            <Clock class="text-muted-foreground size-4" />
+          <div class="bg-amber-500/10 rounded-lg p-2">
+            <Clock class="text-amber-500 size-4" />
           </div>
         </div>
-        <div class="mt-3 flex items-center gap-1 text-sm">
-          <component
-            :is="stats.pendingInvitations === 0 ? ArrowUpRight : ArrowDownRight"
-            :class="stats.pendingInvitations === 0 ? 'text-emerald-600' : 'text-amber-500'"
-            class="size-4 shrink-0"
-          />
-          <span :class="stats.pendingInvitations === 0 ? 'text-emerald-600 font-semibold' : 'text-amber-500 font-semibold'">
-            {{ stats.pendingInvitations === 0 ? t('manage.members.stats.allAccepted') : t('manage.members.stats.pendingCount', { n: stats.pendingInvitations }) }}
-          </span>
-          <span class="text-muted-foreground">{{ stats.pendingInvitations === 0 ? t('manage.members.stats.noAction') : t('manage.members.stats.needsAction') }}</span>
+        <div class="mt-3 flex items-center gap-1 text-xs text-muted-foreground">
+          <Clock class="size-3.5 shrink-0 text-amber-500" />
+          <span>{{ stats.pendingInvitations === 0 ? t('manage.members.stats.noAction') : t('manage.members.stats.needsAction') }}</span>
         </div>
       </button>
 

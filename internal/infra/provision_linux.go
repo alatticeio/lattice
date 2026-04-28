@@ -185,23 +185,39 @@ func (p *ruleProvisioner) Cleanup() error {
 	return nil
 }
 
-// isRunningInDocker reports whether the process is running inside a Docker
-// container. Docker always creates /.dockerenv in the container root FS.
-func isRunningInDocker() bool {
-	_, err := os.Stat("/.dockerenv")
-	return err == nil
+// isRunningInContainer reports whether the process is running inside a container.
+// It checks multiple indicators to cover Docker, OrbStack, Podman, containerd,
+// and CRI-O runtimes:
+//  1. /.dockerenv       — Docker
+//  2. /run/.containerenv — Podman / OrbStack
+//  3. /proc/1/cgroup    — kubepods / docker / containerd / crio entries
+func isRunningInContainer() bool {
+	for _, marker := range []string{"/.dockerenv", "/run/.containerenv"} {
+		if _, err := os.Stat(marker); err == nil {
+			return true
+		}
+	}
+	data, err := os.ReadFile("/proc/1/cgroup")
+	if err == nil {
+		content := string(data)
+		for _, kw := range []string{"docker", "kubepods", "containerd", "crio"} {
+			if strings.Contains(content, kw) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // SetupNAT configures iptables NAT rules required when wireflow runs inside a
-// Docker container acting as a VPN gateway. It is a no-op on bare-metal or VM
+// container acting as a VPN gateway. It is a no-op on bare-metal or VM
 // deployments because ApplyRoute already installs the correct MASQUERADE rule
 // on the default outbound interface.
 // iptablesMu serializes SetupNAT iptables operations across concurrent callers.
-// ruleProvisioner is a separate type from routeProvisioner so it has its own lock.
 var iptablesMu sync.Mutex
 
 func (r *ruleProvisioner) SetupNAT(interfaceName string) error {
-	if !isRunningInDocker() {
+	if !isRunningInContainer() {
 		return nil
 	}
 

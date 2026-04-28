@@ -56,7 +56,6 @@ const navMain = computed(() => {
         { title: t('common.nav.nodes'),    url: "/manage/nodes" },
         { title: t('common.nav.tokens'),   url: "/manage/tokens" },
         { title: t('common.nav.policies'), url: "/manage/policies" },
-        { title: t('common.nav.peers'),    url: "/manage/peers" },
       ],
     },
 
@@ -66,9 +65,10 @@ const navMain = computed(() => {
       url: "#",
       icon: ShieldCheck,
       items: [
-        { title: t('common.nav.users'),      url: "/manage/users" },
-        { title: t('common.nav.workspaces'), url: "/manage/workspaces" },
-        { title: t('common.nav.approvals'),  url: "/settings/approvals" },
+        { title: t('common.nav.users'),          url: "/manage/users" },
+        { title: t('common.nav.workspaces'),     url: "/manage/workspaces" },
+        { title: t('common.nav.networkPeering'), url: "/platform/network-peering" },
+        { title: t('common.nav.approvals'),      url: "/settings/approvals" },
       ],
     }] : []),
 

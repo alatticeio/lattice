@@ -67,186 +67,369 @@ type PeerReconciler struct {
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
-// TODO(user): Modify the Reconcile function to compare the state specified by
-// the WireflowPeer object against the actual cluster state, and then
-// perform operations to make the cluster state reflect the state specified by
-// the user.
 func (r *PeerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := logf.FromContext(ctx)
-	log.Info("Reconciling WireflowPeer", "namespace", req.NamespacedName, "node", req.Name)
+	log.Info("Reconciling WireflowPeer", "namespace", req.NamespacedName, "name", req.Name)
 
-	var (
-		err  error
-		node v1alpha1.WireflowPeer
-	)
+	var peer v1alpha1.WireflowPeer
+	if err := r.Get(ctx, req.NamespacedName, &peer); err != nil {
+		return ctrl.Result{}, client.IgnoreNotFound(err)
+	}
 
-	if err = r.Get(ctx, req.NamespacedName, &node); err != nil {
-		if errors.IsNotFound(err) {
-			log.Info("WireflowPeer resource not found. Ignoring since object must be deleted.")
-			return ctrl.Result{}, nil
+	// Finalizer / deletion handling.
+	const finalizerName = "wireflow.run/node"
+	if !peer.ObjectMeta.DeletionTimestamp.IsZero() {
+		if controllerutil.ContainsFinalizer(&peer, finalizerName) {
+			return r.handleDelete(ctx, &peer)
 		}
-
-		log.Error(err, "Failed to get WireflowPeer")
-		return ctrl.Result{}, err
+		return ctrl.Result{}, nil
+	}
+	if !controllerutil.ContainsFinalizer(&peer, finalizerName) {
+		controllerutil.AddFinalizer(&peer, finalizerName)
+		if err := r.Update(ctx, &peer); err != nil {
+			return ctrl.Result{}, err
+		}
+		return ctrl.Result{RequeueAfter: 100 * time.Nanosecond}, nil
 	}
 
 	// Shadow peers are managed exclusively by NetworkPeeringReconciler /
 	// ClusterPeeringReconciler; skip them here to avoid conflicting updates.
-	if node.GetLabels()[LabelShadow] == "true" {
+	if peer.GetLabels()[LabelShadow] == "true" {
 		log.Info("Skipping shadow peer", "namespace", req.Namespace, "name", req.Name)
 		return ctrl.Result{}, nil
 	}
 
-	action, err := r.determineAction(ctx, &node)
+	// Phase-based state machine.
+	switch peer.Status.Phase {
+	case "":
+		return r.handleInitialization(ctx, &peer, req)
+	case v1alpha1.NodePhasePending:
+		return r.handlePending(ctx, &peer, req)
+	case v1alpha1.NodePhaseReady:
+		return r.handleReady(ctx, &peer, req)
+	case v1alpha1.NodePhaseFailed:
+		return r.handleFailed(ctx, &peer, req)
+	default:
+		return r.handleInitialization(ctx, &peer, req)
+	}
+}
+
+// handleInitialization runs when Phase is empty (newly created peer).
+// It generates WireGuard keys and advances to Pending.
+func (r *PeerReconciler) handleInitialization(ctx context.Context, peer *v1alpha1.WireflowPeer, req ctrl.Request) (ctrl.Result, error) {
+	log := logf.FromContext(ctx)
+	log.Info("Initializing peer", "name", req.Name)
+
+	// Generate WireGuard keys if absent. Returns true when a spec patch was written,
+	// requiring a requeue so the next reconcile sees the updated ResourceVersion.
+	changed, err := r.ensureKeys(ctx, peer)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
-	switch action {
-	case NodeJoinNetwork:
-		log.Info("Handing join network", "namespace", req.Namespace, "name", req.Name)
-		return r.reconcileJoinNetwork(ctx, &node, req)
-	case NodeLeaveNetwork:
-		log.Info("Handing leave network", "namespace", req.Namespace, "name", req.Name)
-		return r.reconcileLeaveNetwork(ctx, &node, req)
-	default:
-		log.Info("No action to handle", "namespace", req.Namespace, "name", req.Name)
-		return r.lastReconcile(ctx, &node, req)
+	if changed {
+		return ctrl.Result{}, nil
 	}
 
+	// Advance to Pending so the next reconcile evaluates network intent.
+	if _, err := r.updateStatus(ctx, peer, func(p *v1alpha1.WireflowPeer) {
+		p.Status.Phase = v1alpha1.NodePhasePending
+		p.Status.Conditions = setCondition(p.Status.Conditions, metav1.Condition{
+			Type:               v1alpha1.NodeConditionInitialized,
+			Status:             metav1.ConditionTrue,
+			Reason:             v1alpha1.ReasonReady,
+			LastTransitionTime: metav1.Now(),
+		})
+	}); err != nil {
+		return ctrl.Result{}, err
+	}
+	return ctrl.Result{RequeueAfter: 100 * time.Millisecond}, nil
 }
 
-type Action string
-
-const (
-	NodeJoinNetwork  Action = "joinNetwork"
-	NodeLeaveNetwork Action = "leaveNetwork"
-	ActionNone       Action = "none"
-)
-
-// reconcileJoinNetwork handle join network
-func (r *PeerReconciler) reconcileJoinNetwork(ctx context.Context, peer *v1alpha1.WireflowPeer, request ctrl.Request) (ctrl.Result, error) {
-	var (
-		err error
-		ok  bool
-	)
+// handlePending dispatches to joinNetwork, leaveNetwork, or idle based on
+// the delta between Spec.Network and Status.ActiveNetwork.
+func (r *PeerReconciler) handlePending(ctx context.Context, peer *v1alpha1.WireflowPeer, req ctrl.Request) (ctrl.Result, error) {
 	log := logf.FromContext(ctx)
-	log.Info("Join network", "namespace", request.Namespace, "name", request.Name)
+	specNet := peer.Spec.Network
+	activeNet := peer.Status.ActiveNetwork
 
-	//1. 更新Phase为Pending
-	if peer.Status.Phase != v1alpha1.NodePhasePending {
-		ok, err = r.updateStatus(ctx, peer, func(node *v1alpha1.WireflowPeer) {
-			node.Status.Phase = v1alpha1.NodePhasePending
-		})
-
-		if err != nil {
+	switch {
+	case specNet == nil && activeNet == nil:
+		// Idle: no network intent; move directly to Ready.
+		log.Info("Peer is idle (no network intent)", "name", req.Name)
+		if _, err := r.updateStatus(ctx, peer, func(p *v1alpha1.WireflowPeer) {
+			p.Status.Phase = v1alpha1.NodePhaseReady
+		}); err != nil {
 			return ctrl.Result{}, err
 		}
+		return r.lastReconcile(ctx, peer, req)
 
-		if ok {
-			// status patch 不改变 generation，GenerationChangedPredicate 不会触发重新入队，
-			// 必须显式 Requeue 才能继续后续步骤
-			return ctrl.Result{RequeueAfter: time.Millisecond * 100}, nil
+	case specNet == nil && activeNet != nil:
+		log.Info("Leaving network", "name", req.Name, "network", *activeNet)
+		return r.leaveNetwork(ctx, peer, req)
+
+	default:
+		// specNet != nil: join or switch networks.
+		log.Info("Joining network", "name", req.Name, "network", *specNet)
+		return r.joinNetwork(ctx, peer, req)
+	}
+}
+
+// handleReady detects spec changes that require a network transition and
+// delegates to lastReconcile to refresh the ConfigMap when there is nothing to change.
+func (r *PeerReconciler) handleReady(ctx context.Context, peer *v1alpha1.WireflowPeer, req ctrl.Request) (ctrl.Result, error) {
+	log := logf.FromContext(ctx)
+	specNet := peer.Spec.Network
+	activeNet := peer.Status.ActiveNetwork
+
+	needTransition := (specNet == nil && activeNet != nil) ||
+		(specNet != nil && (activeNet == nil || *specNet != *activeNet))
+
+	if needTransition {
+		log.Info("Network change detected, transitioning to Pending", "name", req.Name)
+		if _, err := r.updateStatus(ctx, peer, func(p *v1alpha1.WireflowPeer) {
+			p.Status.Phase = v1alpha1.NodePhasePending
+		}); err != nil {
+			return ctrl.Result{}, err
 		}
+		return ctrl.Result{RequeueAfter: 100 * time.Millisecond}, nil
 	}
 
-	// 2.修改Spec
-	ok, err = r.updateSpec(ctx, peer, func(node *v1alpha1.WireflowPeer) error {
-		var network *v1alpha1.WireflowNetwork
-		network, err = r.getNetwork(ctx, node)
+	return r.lastReconcile(ctx, peer, req)
+}
+
+// handleFailed resets the phase to Pending for a retry after a back-off period.
+func (r *PeerReconciler) handleFailed(ctx context.Context, peer *v1alpha1.WireflowPeer, req ctrl.Request) (ctrl.Result, error) {
+	log := logf.FromContext(ctx)
+	log.Info("Peer is in Failed state, scheduling retry", "name", req.Name)
+	if _, err := r.updateStatus(ctx, peer, func(p *v1alpha1.WireflowPeer) {
+		p.Status.Phase = v1alpha1.NodePhasePending
+	}); err != nil {
+		return ctrl.Result{}, err
+	}
+	return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+}
+
+func (r *PeerReconciler) handleDelete(ctx context.Context, node *v1alpha1.WireflowPeer) (ctrl.Result, error) {
+	// 1. 定义 Finalizer 名称
+	const finalizerName = "wireflow.run/node"
+
+	// 2. 检查 Finalizer 是否存在
+	if !controllerutil.ContainsFinalizer(node, finalizerName) {
+		return ctrl.Result{}, nil // 已经处理过了，直接返回
+	}
+
+	// 3. 执行清理逻辑
+	// 关键点：这里必须是幂等的！即便执行多次，结果也一样
+	if err := r.performCleanup(ctx, node); err != nil {
+		// 如果清理失败，不要立即移除 Finalizer，返回 error 触发重试
+		return ctrl.Result{}, err
+	}
+
+	// 4. 清理成功后，移除 Finalizer
+	controllerutil.RemoveFinalizer(node, finalizerName)
+	if err := r.Update(ctx, node); err != nil {
+		return ctrl.Result{}, err
+	}
+
+	return ctrl.Result{}, nil
+}
+
+func (r *PeerReconciler) performCleanup(ctx context.Context, node *v1alpha1.WireflowPeer) error {
+	// 目前没有外部资源需要清理
+	// 预留位置：如果未来需要清理 Relay 缓存或数据库记录，加在这里
+	return nil
+}
+
+// ensureKeys generates a WireGuard key pair and PeerId when they are absent.
+// Does not depend on Spec.Network; safe to call during initialization.
+// Returns (true, nil) when a spec patch was written.
+func (r *PeerReconciler) ensureKeys(ctx context.Context, peer *v1alpha1.WireflowPeer) (bool, error) {
+	if peer.Spec.PrivateKey != "" {
+		return false, nil
+	}
+	return r.updateSpec(ctx, peer, func(node *v1alpha1.WireflowPeer) error {
+		key, err := wgtypes.GeneratePrivateKey()
 		if err != nil {
 			return err
 		}
-		labels := node.GetLabels()
-		if labels == nil {
-			labels = make(map[string]string)
-		}
-		// 切换网络时，先删除所有旧的 network label，再添加新的，避免 peer 同时出现在多个网络
-		for label := range labels {
-			if strings.HasPrefix(label, "wireflow.run/network-") {
-				delete(labels, label)
-			}
-		}
-		labels[fmt.Sprintf("wireflow.run/network-%s", network.Name)] = "true"
-		node.SetLabels(labels)
-
-		if node.Spec.PrivateKey == "" {
-			var key wgtypes.Key
-			key, err = wgtypes.GeneratePrivateKey()
-			if err != nil {
-				return err
-			}
-
-			node.Spec.PrivateKey = key.String()
-			node.Spec.PublicKey = key.PublicKey().String()
-			// generate peerId
-			node.Spec.PeerId = fmt.Sprintf("%d", infra.FromKey(key.PublicKey()).ToUint64())
-		}
-
+		node.Spec.PrivateKey = key.String()
+		node.Spec.PublicKey = key.PublicKey().String()
+		node.Spec.PeerId = fmt.Sprintf("%d", infra.FromKey(key.PublicKey()).ToUint64())
 		return nil
 	})
+}
 
-	if err != nil {
-		return ctrl.Result{}, err
-	}
-
-	if ok {
-		// 注意：当 Spec.PrivateKey 已经由 Register API 预填充时，updateSpec 只会修改 Labels（元数据），
-		// Labels 变化不会增加 generation，GenerationChangedPredicate 不会触发重入队。
-		// 因此无论 spec 还是 labels 发生变化，都必须显式 RequeueAfter 驱动后续流程。
-		return ctrl.Result{RequeueAfter: time.Millisecond * 100}, nil
-	}
-
-	if err = r.Get(ctx, request.NamespacedName, peer); err != nil {
-		if errors.IsNotFound(err) {
-			log.Info("WireflowPeer resource not found. Ignoring since object must be deleted.")
-			return ctrl.Result{}, nil
+// ensurePeerSpec sets the network label for the current Spec.Network, clearing
+// stale labels from any previously joined network so the peer never appears in
+// more than one network at a time. Requires Spec.Network != nil.
+// Returns (true, nil) when a patch was written.
+func (r *PeerReconciler) ensurePeerSpec(ctx context.Context, peer *v1alpha1.WireflowPeer) (bool, error) {
+	return r.updateSpec(ctx, peer, func(node *v1alpha1.WireflowPeer) error {
+		network, err := r.getNetwork(ctx, node)
+		if err != nil {
+			return err
 		}
 
-		log.Error(err, "Failed to get WireflowPeer")
-		return ctrl.Result{}, err
-	}
+		lbls := node.GetLabels()
+		if lbls == nil {
+			lbls = make(map[string]string)
+		}
+		// 切换网络时，先删除所有旧的 network label，再添加新的，避免 peer 同时出现在多个网络
+		for label := range lbls {
+			if strings.HasPrefix(label, "wireflow.run/network-") {
+				delete(lbls, label)
+			}
+		}
+		lbls[networkLabelKey(network.Name)] = "true"
+		node.SetLabels(lbls)
+		return nil
+	})
+}
 
-	if peer.Spec.Network == nil {
-		return ctrl.Result{}, fmt.Errorf("spec.network is empty")
-
-	}
+// joinNetwork allocates an IP for the peer in Spec.Network and marks it Ready.
+func (r *PeerReconciler) joinNetwork(ctx context.Context, peer *v1alpha1.WireflowPeer, req ctrl.Request) (ctrl.Result, error) {
+	log := logf.FromContext(ctx)
 
 	var network v1alpha1.WireflowNetwork
-	if err = r.Get(ctx, types.NamespacedName{Namespace: peer.Namespace, Name: *peer.Spec.Network}, &network); err != nil {
+	if err := r.Get(ctx, types.NamespacedName{Namespace: peer.Namespace, Name: *peer.Spec.Network}, &network); err != nil {
+		if _, sErr := r.updateStatus(ctx, peer, func(p *v1alpha1.WireflowPeer) {
+			p.Status.Phase = v1alpha1.NodePhaseFailed
+			p.Status.Conditions = setCondition(p.Status.Conditions, metav1.Condition{
+				Type:               v1alpha1.NodeConditionJoiningNetwork,
+				Status:             metav1.ConditionFalse,
+				Reason:             v1alpha1.ReasonNotReady,
+				Message:            fmt.Sprintf("Network %q not found: %v", *peer.Spec.Network, err),
+				LastTransitionTime: metav1.Now(),
+			})
+		}); sErr != nil {
+			log.Error(sErr, "failed to record JoiningNetwork condition")
+		}
 		return ctrl.Result{}, err
 	}
 
-	// 等待 Network 就绪（ActiveCIDR 已分配）
+	// Wait for NetworkReconciler to assign a CIDR before allocating an IP.
+	// networkReadyPredicate in SetupWithManager re-enqueues peers when ActiveCIDR transitions.
 	if network.Status.ActiveCIDR == "" {
 		log.Info("Network not ready yet, waiting for ActiveCIDR", "network", network.Name)
-		// NetworkReconciler 通过 status patch 设置 ActiveCIDR（不改变 generation），
-		// WireflowNetwork watch 的 GenerationChangedPredicate 不会触发，
-		// 必须显式 RequeueAfter 避免 peer 永久卡在 Pending 状态
+		if _, sErr := r.updateStatus(ctx, peer, func(p *v1alpha1.WireflowPeer) {
+			p.Status.Conditions = setCondition(p.Status.Conditions, metav1.Condition{
+				Type:               v1alpha1.NodeConditionJoiningNetwork,
+				Status:             metav1.ConditionFalse,
+				Reason:             v1alpha1.ReasonConfiguring,
+				Message:            fmt.Sprintf("Waiting for network %q to assign an ActiveCIDR", network.Name),
+				LastTransitionTime: metav1.Now(),
+			})
+		}); sErr != nil {
+			log.Error(sErr, "failed to record JoiningNetwork condition")
+		}
 		return ctrl.Result{RequeueAfter: 3 * time.Second}, nil
 	}
 
-	// allocate ip
-	address, err := r.IPAM.AllocateIP(ctx, &network, peer)
+	// Apply network label. Labels don't change Generation, so we requeue explicitly.
+	changed, err := r.ensurePeerSpec(ctx, peer)
 	if err != nil {
+		if _, sErr := r.updateStatus(ctx, peer, func(p *v1alpha1.WireflowPeer) {
+			p.Status.Phase = v1alpha1.NodePhaseFailed
+			p.Status.Conditions = setCondition(p.Status.Conditions, metav1.Condition{
+				Type:               v1alpha1.NodeConditionJoiningNetwork,
+				Status:             metav1.ConditionFalse,
+				Reason:             v1alpha1.ReasonNotReady,
+				Message:            "Failed to apply network labels: " + err.Error(),
+				LastTransitionTime: metav1.Now(),
+			})
+		}); sErr != nil {
+			log.Error(sErr, "failed to record JoiningNetwork condition")
+		}
 		return ctrl.Result{}, err
 	}
+	if changed {
+		return ctrl.Result{RequeueAfter: 100 * time.Millisecond}, nil
+	}
 
-	log.Info("get allocated address", "address", address, "err", err)
+	address, err := r.IPAM.AllocateIP(ctx, &network, peer)
+	if err != nil {
+		if _, sErr := r.updateStatus(ctx, peer, func(p *v1alpha1.WireflowPeer) {
+			p.Status.Phase = v1alpha1.NodePhaseFailed
+			p.Status.Conditions = setCondition(p.Status.Conditions, metav1.Condition{
+				Type:               v1alpha1.NodeConditionIPAllocated,
+				Status:             metav1.ConditionFalse,
+				Reason:             v1alpha1.ReasonAllocationFailed,
+				Message:            err.Error(),
+				LastTransitionTime: metav1.Now(),
+			})
+		}); sErr != nil {
+			log.Error(sErr, "failed to record IPAllocated condition")
+		}
+		return ctrl.Result{}, err
+	}
+	log.Info("IP allocated", "address", address)
 
-	if ok, err = r.updateStatus(ctx, peer, func(node *v1alpha1.WireflowPeer) {
-		node.Status.Phase = v1alpha1.NodePhaseReady
-		node.Status.AllocatedAddress = &address
-		node.Status.ActiveNetwork = node.Spec.Network
+	if _, err = r.updateStatus(ctx, peer, func(p *v1alpha1.WireflowPeer) {
+		p.Status.Phase = v1alpha1.NodePhaseReady
+		p.Status.AllocatedAddress = &address
+		p.Status.ActiveNetwork = p.Spec.Network
+		p.Status.Conditions = setCondition(p.Status.Conditions, metav1.Condition{
+			Type:               v1alpha1.NodeConditionJoiningNetwork,
+			Status:             metav1.ConditionTrue,
+			Reason:             v1alpha1.ReasonReady,
+			LastTransitionTime: metav1.Now(),
+		})
+		p.Status.Conditions = setCondition(p.Status.Conditions, metav1.Condition{
+			Type:               v1alpha1.NodeConditionIPAllocated,
+			Status:             metav1.ConditionTrue,
+			Reason:             v1alpha1.ReasonReady,
+			LastTransitionTime: metav1.Now(),
+		})
 	}); err != nil {
 		return ctrl.Result{}, err
 	}
 
-	if ok {
-		// 同理：status patch 不改变 generation，需要显式 Requeue
-		return ctrl.Result{RequeueAfter: time.Millisecond * 100}, nil
+	return r.lastReconcile(ctx, peer, req)
+}
+
+// leaveNetwork clears the network label and status fields, then marks the peer Ready (idle).
+func (r *PeerReconciler) leaveNetwork(ctx context.Context, peer *v1alpha1.WireflowPeer, req ctrl.Request) (ctrl.Result, error) {
+	if _, err := r.updateSpec(ctx, peer, func(p *v1alpha1.WireflowPeer) error {
+		lbls := p.GetLabels()
+		for label := range lbls {
+			if strings.HasPrefix(label, "wireflow.run/network-") {
+				delete(lbls, label)
+			}
+		}
+		p.SetLabels(lbls)
+		return nil
+	}); err != nil {
+		log := logf.FromContext(ctx)
+		if _, sErr := r.updateStatus(ctx, peer, func(p *v1alpha1.WireflowPeer) {
+			p.Status.Phase = v1alpha1.NodePhaseFailed
+			p.Status.Conditions = setCondition(p.Status.Conditions, metav1.Condition{
+				Type:               v1alpha1.NodeConditionProvisioned,
+				Status:             metav1.ConditionFalse,
+				Reason:             v1alpha1.ReasonNotReady,
+				Message:            "Failed to remove network labels: " + err.Error(),
+				LastTransitionTime: metav1.Now(),
+			})
+		}); sErr != nil {
+			log.Error(sErr, "failed to record Provisioned condition")
+		}
+		return ctrl.Result{}, err
 	}
 
-	return r.lastReconcile(ctx, peer, request)
+	if _, err := r.updateStatus(ctx, peer, func(p *v1alpha1.WireflowPeer) {
+		p.Status.ActiveNetwork = nil
+		p.Status.AllocatedAddress = nil
+		p.Status.Phase = v1alpha1.NodePhaseReady
+		p.Status.Conditions = setCondition(p.Status.Conditions, metav1.Condition{
+			Type:               v1alpha1.NodeConditionJoiningNetwork,
+			Status:             metav1.ConditionFalse,
+			Reason:             v1alpha1.ReasonLeaving,
+			LastTransitionTime: metav1.Now(),
+		})
+	}); err != nil {
+		return ctrl.Result{}, err
+	}
+
+	return r.lastReconcile(ctx, peer, req)
 }
 
 // lastReconcile create or update the configmap
@@ -289,6 +472,17 @@ func (r *PeerReconciler) lastReconcile(ctx context.Context, peer *v1alpha1.Wiref
 		manager := client.FieldOwner("wireflow-controller-manager")
 		if err := r.Patch(ctx, desiredConfigMap, client.Apply, manager); err != nil {
 			logger.Error(err, "Failed to create configmap")
+			if _, sErr := r.updateStatus(ctx, peer, func(p *v1alpha1.WireflowPeer) {
+				p.Status.Conditions = setCondition(p.Status.Conditions, metav1.Condition{
+					Type:               v1alpha1.NodeConditionNetworkConfigured,
+					Status:             metav1.ConditionFalse,
+					Reason:             v1alpha1.ReasonConfigFailed,
+					Message:            "Failed to create config: " + err.Error(),
+					LastTransitionTime: metav1.Now(),
+				})
+			}); sErr != nil {
+				logger.Error(sErr, "failed to record NetworkConfigured condition")
+			}
 			return ctrl.Result{}, err
 		}
 
@@ -296,6 +490,12 @@ func (r *PeerReconciler) lastReconcile(ctx context.Context, peer *v1alpha1.Wiref
 		// ConfigMap Create event) sees CurrentHash == newHash and skips cleanly.
 		if _, err := r.updateStatus(ctx, peer, func(node *v1alpha1.WireflowPeer) {
 			node.Status.CurrentHash = newHash
+			node.Status.Conditions = setCondition(node.Status.Conditions, metav1.Condition{
+				Type:               v1alpha1.NodeConditionNetworkConfigured,
+				Status:             metav1.ConditionTrue,
+				Reason:             v1alpha1.ReasonReady,
+				LastTransitionTime: metav1.Now(),
+			})
 		}); err != nil {
 			return ctrl.Result{}, err
 		}
@@ -319,11 +519,28 @@ func (r *PeerReconciler) lastReconcile(ctx context.Context, peer *v1alpha1.Wiref
 	manager := client.FieldOwner("wireflow-controller-manager")
 	if err := r.Patch(ctx, desiredConfigMap, client.Apply, manager); err != nil {
 		logger.Error(err, "Failed to update configmap")
+		if _, sErr := r.updateStatus(ctx, peer, func(p *v1alpha1.WireflowPeer) {
+			p.Status.Conditions = setCondition(p.Status.Conditions, metav1.Condition{
+				Type:               v1alpha1.NodeConditionNetworkConfigured,
+				Status:             metav1.ConditionFalse,
+				Reason:             v1alpha1.ReasonConfigFailed,
+				Message:            "Failed to update config: " + err.Error(),
+				LastTransitionTime: metav1.Now(),
+			})
+		}); sErr != nil {
+			logger.Error(sErr, "failed to record NetworkConfigured condition")
+		}
 		return ctrl.Result{}, err
 	}
 
 	ok, err := r.updateStatus(ctx, peer, func(node *v1alpha1.WireflowPeer) {
 		node.Status.CurrentHash = newHash
+		node.Status.Conditions = setCondition(node.Status.Conditions, metav1.Condition{
+			Type:               v1alpha1.NodeConditionNetworkConfigured,
+			Status:             metav1.ConditionTrue,
+			Reason:             v1alpha1.ReasonReady,
+			LastTransitionTime: metav1.Now(),
+		})
 	})
 
 	if err != nil {
@@ -340,6 +557,17 @@ func (r *PeerReconciler) lastReconcile(ctx context.Context, peer *v1alpha1.Wiref
 	}
 	return ctrl.Result{}, nil
 }
+
+// 如果你想看具体哪里变了
+//func diffConfig(oldData, newData string) {
+//	// 假设是 JSON 格式字符串，先反序列化
+//	var oldMap, newMap map[string]interface{}
+//	json.Unmarshal([]byte(oldData), &oldMap)
+//	json.Unmarshal([]byte(newData), &newMap)
+//
+//	// 使用 go-cmp 打印详细差异
+//	fmt.Println(cmp.Diff(oldMap, newMap))
+//}
 
 func (r *PeerReconciler) newConfigmap(namespace, configMapName, message, hash string) *corev1.ConfigMap {
 	return &corev1.ConfigMap{
@@ -382,186 +610,76 @@ func computeMessageHash(msg *infra.Message) (string, error) {
 	return fmt.Sprintf("%x", sha256.Sum256(b)), nil
 }
 
-// reconcileLeaveNetwork handle leave network
-func (r *PeerReconciler) reconcileLeaveNetwork(ctx context.Context, peer *v1alpha1.WireflowPeer, req ctrl.Request) (ctrl.Result, error) {
-	log := logf.FromContext(ctx)
-	log.Info("Leaving network", "namespace", req.Namespace, "name", req.Name)
-	var (
-		err error
-		ok  bool
-	)
-
-	//1. 更新Phase为Pending
-	if peer.Status.Phase != v1alpha1.NodePhasePending {
-		ok, err = r.updateStatus(ctx, peer, func(node *v1alpha1.WireflowPeer) {
-			node.Status.Phase = v1alpha1.NodePhasePending
-		})
-		if err != nil {
-			return ctrl.Result{}, err
-		}
-
-		if ok {
-			return ctrl.Result{RequeueAfter: time.Millisecond * 100}, nil
-		}
-	}
-
-	// 2.修改Spec
-	ok, err = r.updateSpec(ctx, peer, func(node *v1alpha1.WireflowPeer) error {
-
-		labels := node.GetLabels()
-		for label := range labels {
-			if strings.HasPrefix(label, "wireflow.run/network-") {
-				delete(labels, label)
-			}
-			// 删除network in spec
-		}
-		node.SetLabels(labels)
-
-		// update spec networks
-		node.Spec.Network = nil
-		return nil
-	})
-
-	if err != nil {
-		return ctrl.Result{}, err
-	}
-
-	if ok {
-		// spec patch (Network=nil) 会增加 generation，GenerationChangedPredicate 会触发重入队
-		return ctrl.Result{}, nil
-	}
-
-	//重新获取node用来更新status, 避免冲突
-	if err = r.Get(ctx, req.NamespacedName, peer); err != nil {
-		if errors.IsNotFound(err) {
-			log.Info("WireflowPeer resource not found. Ignoring since object must be deleted.")
-			return ctrl.Result{}, nil
-		}
-
-		log.Error(err, "Failed to get WireflowPeer")
-		return ctrl.Result{}, err
-	}
-
-	// 清空 ActiveNetwork 和 AllocatedAddress，防止下次 reconcile 重复走 LeaveNetwork 路径
-	if peer.Status.ActiveNetwork != nil || peer.Status.AllocatedAddress != nil {
-		ok, err = r.updateStatus(ctx, peer, func(node *v1alpha1.WireflowPeer) {
-			node.Status.ActiveNetwork = nil
-			node.Status.AllocatedAddress = nil
-			node.Status.Phase = v1alpha1.NodePhaseReady
-		})
-		if err != nil {
-			return ctrl.Result{}, err
-		}
-		if ok {
-			return ctrl.Result{RequeueAfter: time.Millisecond * 100}, nil
-		}
-	}
-
-	return r.lastReconcile(ctx, peer, req)
-}
-
-// reconcileSpec 检查并修正 WireflowPeer.Spec 字段。
-// 如果 Spec 被修改并成功写入，返回 (true, nil)，调用者应立即退出 Reconcile。
-// 否则返回 (false, nil) 或 (false, error)。
+// updateSpec applies updateFunc to a deep copy of node and patches only when
+// something actually changed. Returns (true, nil) when a patch was written so
+// the caller can exit early and let the next reconcile continue the flow.
 func (r *PeerReconciler) updateSpec(ctx context.Context, node *v1alpha1.WireflowPeer, updateFunc func(node *v1alpha1.WireflowPeer) error) (bool, error) {
 	log := logf.FromContext(ctx)
 
-	// 深拷贝原始资源，用于 Patch 的对比基准。
 	nodeCopy := node.DeepCopy()
-
-	// 添加network spec
 	if err := updateFunc(nodeCopy); err != nil {
 		log.Error(err, "Failed to build WireflowPeer Spec update")
 		return false, err
 	}
 
-	// 使用 Patch 发送差异。client.MergeFrom 会自动检查 nodeCopy 和 node 之间的差异。
+	// Check before patching — skip empty API calls that could spuriously
+	// update ResourceVersion and trigger further watch events.
+	if reflect.DeepEqual(nodeCopy.Spec, node.Spec) &&
+		reflect.DeepEqual(nodeCopy.Labels, node.Labels) &&
+		reflect.DeepEqual(nodeCopy.Annotations, node.Annotations) {
+		return false, nil
+	}
+
 	if err := r.Patch(ctx, nodeCopy, client.MergeFrom(node)); err != nil {
 		if errors.IsConflict(err) {
-			// 遇到并发冲突 (409)，不返回错误，让 Manager 自动通过新的事件重试。
 			log.Info("Conflict detected during WireflowPeer Spec patch, will retry on next reconcile.")
 			return false, nil
 		}
-		// 其他写入错误（例如权限不足）
 		log.Error(err, "Failed to patch WireflowPeer Spec")
 		return false, err
 	}
 
-	// 如果原始资源和当前资源在 Metadata/Spec/Annotation 上没有差异，说明 Patch 只是空操作。
-	// 注意：判断 Patch 是否执行写入，最简单的方法是比较原始和当前的 Labels/Annotations/Spec 字段。
-	if !reflect.DeepEqual(nodeCopy.Spec, node.Spec) ||
-		!reflect.DeepEqual(nodeCopy.Labels, node.Labels) ||
-		!reflect.DeepEqual(nodeCopy.Annotations, node.Annotations) {
+	// Sync patched state back into the caller's pointer so subsequent patches
+	// in the same reconcile use the updated ResourceVersion (avoids conflicts).
+	node.Spec = nodeCopy.Spec
+	node.Labels = nodeCopy.Labels
+	node.Annotations = nodeCopy.Annotations
+	node.ResourceVersion = nodeCopy.ResourceVersion
 
-		log.Info("WireflowPeer Metadata/Spec successfully patched. Returning to trigger next reconcile.")
-		// Spec 或 Metadata 被修改并成功写入 API Server
-		return true, nil
-	}
-
-	// Spec 未发生修改
-	return false, nil
+	log.Info("WireflowPeer Spec/Metadata patched")
+	return true, nil
 }
 
-// reconcileSpec 检查并修正 WireflowPeer.Spec 字段。
-// 如果 Spec 被修改并成功写入，返回 (true, nil)，调用者应立即退出 Reconcile。
-// 否则返回 (false, nil) 或 (false, error)。
+// updateStatus applies updateFunc to a deep copy of node and patches the status
+// subresource only when something actually changed.
 func (r *PeerReconciler) updateStatus(ctx context.Context, node *v1alpha1.WireflowPeer, updateFunc func(node *v1alpha1.WireflowPeer)) (bool, error) {
 	log := logf.FromContext(ctx)
 
-	// 1. 深拷贝原始资源，用于 Patch 的对比基准。
 	nodeCopy := node.DeepCopy()
-
-	// 添加network spec
 	updateFunc(nodeCopy)
 
-	// 使用 Patch 发送差异。client.MergeFrom 会自动检查 nodeCopy 和 node 之间的差异。
+	// Check before patching — status patches that produce no diff still
+	// update ResourceVersion on some API server versions.
+	if reflect.DeepEqual(nodeCopy.Status, node.Status) {
+		return false, nil
+	}
+
 	if err := r.Status().Patch(ctx, nodeCopy, client.MergeFrom(node)); err != nil {
 		if errors.IsConflict(err) {
-			// 遇到并发冲突 (409)，不返回错误，让 Manager 自动通过新的事件重试。
-			log.Info("Conflict detected during WireflowPeer Spec patch, will retry on next reconcile.")
+			log.Info("Conflict detected during WireflowPeer Status patch, will retry on next reconcile.")
 			return false, nil
 		}
-		// 其他写入错误（例如权限不足）
-		log.Error(err, "Failed to patch WireflowPeer Spec")
+		log.Error(err, "Failed to patch WireflowPeer Status")
 		return false, err
 	}
 
-	// 如果原始资源和当前资源在 Metadata/Spec/Annotation 上没有差异，说明 Patch 只是空操作。
-	// 注意：判断 Patch 是否执行写入，最简单的方法是比较原始和当前的 Labels/Annotations/Spec 字段。
-	if !reflect.DeepEqual(nodeCopy.Status, node.Status) {
+	// Sync patched state back so the next patch in the same reconcile sees the
+	// updated ResourceVersion without an extra r.Get().
+	node.Status = nodeCopy.Status
+	node.ResourceVersion = nodeCopy.ResourceVersion
 
-		log.Info("WireflowPeer Metadata/Spec successfully patched. Returning to trigger next reconcile.")
-		// Spec 或 Metadata 被修改并成功写入 API Server
-		return true, nil
-	}
-
-	// Spec 未发生修改
-	return false, nil
-}
-
-func (r *PeerReconciler) determineAction(ctx context.Context, node *v1alpha1.WireflowPeer) (Action, error) {
-	log := logf.FromContext(ctx)
-	log.Info("Determine action for node", "namespace", node.Namespace, "name", node.Name)
-	specNet, activeNet := node.Spec.Network, node.Status.ActiveNetwork
-
-	if specNet == nil {
-		if activeNet == nil {
-			return ActionNone, nil
-		} else {
-			return NodeLeaveNetwork, nil
-		}
-	} else {
-		if activeNet == nil {
-			return NodeJoinNetwork, nil
-		}
-
-		if *specNet == *activeNet {
-			return ActionNone, nil
-		}
-
-		return NodeJoinNetwork, nil
-	}
-
+	log.Info("WireflowPeer Status patched")
+	return true, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
@@ -643,7 +761,7 @@ func (r *PeerReconciler) mapNetworkForNodes(ctx context.Context, obj client.Obje
 	var requests []reconcile.Request
 
 	// 只获取真正加入了该网络的 WireflowPeer（通过网络标签），避免空 PeerSelector 匹配所有 peer
-	networkLabel := fmt.Sprintf("wireflow.run/network-%s", network.Name)
+	networkLabel := networkLabelKey(network.Name)
 	nodeList := &v1alpha1.WireflowPeerList{}
 	if err := r.List(ctx, nodeList, client.InNamespace(network.Namespace), client.MatchingLabels(map[string]string{networkLabel: "true"})); err != nil {
 		return nil
@@ -711,24 +829,35 @@ func (r *PeerReconciler) mapEndpointForNodes(ctx context.Context, obj client.Obj
 	return requests
 }
 
-// mapPolicyForNodes returns a list of Reconcile Requests for Peers that should be updated based on the given WireflowPolicy.
+// mapPolicyForNodes returns reconcile requests for peers affected by a policy change.
+// Peers are scoped to the policy's network to avoid triggering peers from other
+// networks in the same namespace (an empty PeerSelector would otherwise match all).
 func (r *PeerReconciler) mapPolicyForNodes(ctx context.Context, obj client.Object) []reconcile.Request {
 	policy := obj.(*v1alpha1.WireflowPolicy)
-	var requests []reconcile.Request
-	//获取对应的节点
-	var nodeList v1alpha1.WireflowPeerList
+
 	selector, err := metav1.LabelSelectorAsSelector(&policy.Spec.PeerSelector)
 	if err != nil {
-		// 记录错误，无法解析选择器
-		return nil
-	}
-	if err = r.List(ctx, &nodeList, client.InNamespace(policy.Namespace), client.MatchingLabelsSelector{
-		Selector: selector,
-	}); err != nil {
 		return nil
 	}
 
-	// 2. 将所有匹配的 WireflowPeer 加入请求队列
+	listOpts := []client.ListOption{
+		client.InNamespace(policy.Namespace),
+		client.MatchingLabelsSelector{Selector: selector},
+	}
+	// Scope to the policy's network so that an empty PeerSelector only reaches
+	// peers that are actually part of this network, not all peers in the namespace.
+	if policy.Spec.Network != "" {
+		listOpts = append(listOpts, client.MatchingLabels{
+			networkLabelKey(policy.Spec.Network): "true",
+		})
+	}
+
+	var nodeList v1alpha1.WireflowPeerList
+	if err = r.List(ctx, &nodeList, listOpts...); err != nil {
+		return nil
+	}
+
+	requests := make([]reconcile.Request, 0, len(nodeList.Items))
 	for _, node := range nodeList.Items {
 		requests = append(requests, reconcile.Request{
 			NamespacedName: types.NamespacedName{
@@ -795,7 +924,7 @@ func (r *PeerReconciler) getPeerStateSnapshot(ctx context.Context, current *v1al
 
 func (r *PeerReconciler) findPeersByNetwork(ctx context.Context, network *v1alpha1.WireflowNetwork) (*v1alpha1.WireflowPeerList, error) {
 	labels := map[string]string{
-		fmt.Sprintf("wireflow.run/network-%s", network.Name): "true",
+		networkLabelKey(network.Name): "true",
 	}
 
 	var peers v1alpha1.WireflowPeerList

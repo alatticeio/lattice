@@ -11,6 +11,8 @@ export interface Workspace {
     status: 'active' | 'inactive';
     createdAt: string;
     createdBy?: string;
+    updatedAt?: string;
+    updatedBy?: string;
     // 网络信息
     networkName?: string;
     networkCIDR?: string;

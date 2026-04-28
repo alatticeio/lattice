@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, h } from 'vue'
+import { ref, computed, onMounted, onUnmounted, h } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
   useVueTable, getCoreRowModel, FlexRender, type ColumnDef,
@@ -8,7 +8,8 @@ import {
   Search, RefreshCw, MoreHorizontal, X, Tag,
   Server, Wifi, WifiOff, Clock, Network,
   KeyRound, ChevronRight, ChevronLeft, Trash2, Pencil,
-  Globe, ArrowUpRight, ArrowDownRight, Copy, Check, Layers,
+  Globe, Copy, Check, Layers,
+  Ban, CircleCheck,
 } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -37,6 +38,11 @@ const { t } = useI18n()
 const store = usePeerPageStore()
 onMounted(() => store.actions.refresh())
 
+// Auto-refresh every 30 s so online/offline status stays current.
+let refreshTimer: ReturnType<typeof setInterval>
+onMounted(() => { refreshTimer = setInterval(() => store.actions.refresh(), 30_000) })
+onUnmounted(() => clearInterval(refreshTimer))
+
 // ── Types ─────────────────────────────────────────────────────────
 type PeerRow = (typeof store.rows)[number]
 type NodeStatus = 'online' | 'offline' | 'pending'
@@ -44,16 +50,19 @@ type NodeStatus = 'online' | 'offline' | 'pending'
 // ── Style maps ────────────────────────────────────────────────────
 const statusDot: Record<string, string> = {
   online: 'bg-emerald-500', offline: 'bg-rose-500', pending: 'bg-amber-400',
+  disabled: 'bg-slate-400',
 }
 const statusBadge: Record<string, string> = {
-  online:  'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 ring-1 ring-emerald-500/20',
-  offline: 'bg-rose-500/10 text-rose-600 dark:text-rose-400 ring-1 ring-rose-500/20',
-  pending: 'bg-amber-400/10 text-amber-600 dark:text-amber-400 ring-1 ring-amber-400/20',
+  online:   'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 ring-1 ring-emerald-500/20',
+  offline:  'bg-rose-500/10 text-rose-600 dark:text-rose-400 ring-1 ring-rose-500/20',
+  pending:  'bg-amber-400/10 text-amber-600 dark:text-amber-400 ring-1 ring-amber-400/20',
+  disabled: 'bg-slate-400/10 text-slate-500 dark:text-slate-400 ring-1 ring-slate-400/20',
 }
 const statusLabel = computed((): Record<string, string> => ({
-  online:  t('manage.nodes.status.online'),
-  offline: t('manage.nodes.status.offline'),
-  pending: t('manage.nodes.status.pending'),
+  online:   t('manage.nodes.status.online'),
+  offline:  t('manage.nodes.status.offline'),
+  pending:  t('manage.nodes.status.pending'),
+  disabled: t('manage.nodes.status.disabled'),
 }))
 
 const labelColors = [
@@ -151,9 +160,11 @@ function goToPage(p: number) {
   store.actions.refresh()
 }
 
-// ── Delete confirm ─────────────────────────────────────────────────
+// ── Delete / Disable confirm ───────────────────────────────────────
 const deleteTarget     = ref<PeerRow | null>(null)
 const deleteDialogOpen = ref(false)
+const disableTarget     = ref<PeerRow | null>(null)
+const disableDialogOpen = ref(false)
 
 function promptDelete(node: PeerRow) {
   deleteTarget.value = node
@@ -166,13 +177,25 @@ async function confirmDelete() {
   deleteTarget.value = null
 }
 
+function promptDisable(node: PeerRow) {
+  disableTarget.value = node
+  disableDialogOpen.value = true
+}
+async function confirmDisable() {
+  if (disableTarget.value) {
+    await store.actions.handleDisable(disableTarget.value, () => Promise.resolve(true))
+  }
+  disableTarget.value = null
+}
+
 // ── Column definitions ─────────────────────────────────────────────
 const columns = computed<ColumnDef<PeerRow>[]>(() => [
   {
     id: 'status',
     header: t('manage.nodes.col.status'),
     cell: ({ row }) => {
-      const s: string = (row.original as any).status ?? 'pending'
+      const n = row.original as any
+      const s: string = n.disabled ? 'disabled' : (n.status ?? 'pending')
       return h('div', { class: 'flex items-center gap-2' }, [
         h('span', { class: 'relative flex size-2 shrink-0' }, [
           s === 'online' && h('span', { class: `absolute inline-flex h-full w-full animate-ping rounded-full opacity-60 ${statusDot[s]}` }),
@@ -272,7 +295,7 @@ const columns = computed<ColumnDef<PeerRow>[]>(() => [
               h(MoreHorizontal, { class: 'size-4' })
             )
           ),
-          h(DropdownMenuContent, { align: 'end', class: 'w-36' }, () => [
+          h(DropdownMenuContent, { align: 'end', class: 'w-40' }, () => [
             h(DropdownMenuItem, { onClick: () => store.actions.openDrawer('view', node) }, () => [
               h(ChevronRight, { class: 'mr-2 size-3.5' }), t('manage.nodes.actions.view'),
             ]),
@@ -280,6 +303,14 @@ const columns = computed<ColumnDef<PeerRow>[]>(() => [
               h(Pencil, { class: 'mr-2 size-3.5' }), t('manage.nodes.actions.editLabels'),
             ]),
             h(DropdownMenuSeparator),
+            (node as any).disabled
+              ? h(DropdownMenuItem, { onClick: () => store.actions.handleEnable(node) }, () => [
+                  h(CircleCheck, { class: 'mr-2 size-3.5 text-emerald-500' }), t('manage.nodes.actions.enable'),
+                ])
+              : h(DropdownMenuItem, {
+                  class: 'text-amber-600 focus:text-amber-600',
+                  onClick: () => promptDisable(node),
+                }, () => [h(Ban, { class: 'mr-2 size-3.5' }), t('manage.nodes.actions.disable')]),
             h(DropdownMenuItem, {
               class: 'text-destructive focus:text-destructive',
               onClick: () => promptDelete(node),
@@ -317,8 +348,8 @@ const table = useVueTable({
 
       <!-- 全部节点 -->
       <button
-        class="border-border bg-card text-card-foreground rounded-xl border p-5 shadow-sm text-left hover:shadow-md transition-shadow"
-        :class="statusFilter === 'all' ? 'ring-2 ring-primary/20 border-primary/30' : ''"
+        class="border-border bg-card text-card-foreground rounded-xl border p-5 shadow-sm text-left hover:shadow-md transition-all"
+        :class="statusFilter === 'all' ? 'ring-2 ring-blue-500/20 border-blue-500/30' : ''"
         @click="setStatusFilter('all')"
       >
         <div class="flex items-start justify-between">
@@ -326,91 +357,76 @@ const table = useVueTable({
             <span class="text-muted-foreground text-sm font-medium">{{ t('manage.nodes.stats.total') }}</span>
             <span class="text-2xl font-bold tracking-tight">{{ stats.total }}</span>
           </div>
-          <div class="bg-muted rounded-lg p-2">
-            <Server class="text-muted-foreground size-4" />
+          <div class="bg-blue-500/10 rounded-lg p-2">
+            <Server class="text-blue-500 size-4" />
           </div>
         </div>
-        <div class="mt-3 flex items-center gap-1 text-sm">
-          <Globe class="text-muted-foreground size-4 shrink-0" />
-          <span class="text-muted-foreground">{{ t('manage.nodes.stats.regions', { n: stats.regions }) }}</span>
+        <div class="mt-3 flex items-center gap-1 text-xs text-muted-foreground">
+          <Globe class="size-3.5 shrink-0 text-blue-500" />
+          <span>{{ t('manage.nodes.stats.regions', { n: stats.regions }) }}</span>
         </div>
       </button>
 
       <!-- 在线 -->
       <button
-        class="border-border bg-card text-card-foreground rounded-xl border p-5 shadow-sm text-left hover:shadow-md transition-shadow"
+        class="border-border bg-card text-card-foreground rounded-xl border p-5 shadow-sm text-left hover:shadow-md transition-all"
         :class="statusFilter === 'online' ? 'ring-2 ring-emerald-500/20 border-emerald-500/30' : ''"
         @click="setStatusFilter('online')"
       >
         <div class="flex items-start justify-between">
           <div class="flex flex-col gap-1">
             <span class="text-muted-foreground text-sm font-medium">{{ t('manage.nodes.stats.online') }}</span>
-            <span class="text-2xl font-bold tracking-tight">{{ stats.online }}</span>
+            <span class="text-2xl font-bold tracking-tight text-emerald-600 dark:text-emerald-400">{{ stats.online }}</span>
           </div>
-          <div class="bg-muted rounded-lg p-2">
-            <Wifi class="text-muted-foreground size-4" />
+          <div class="bg-emerald-500/10 rounded-lg p-2">
+            <Wifi class="text-emerald-500 size-4" />
           </div>
         </div>
-        <div class="mt-3 flex items-center gap-1 text-sm">
-          <ArrowUpRight class="text-emerald-600 size-4 shrink-0" />
-          <span class="text-emerald-600 font-semibold">{{ stats.onlineRate }}%</span>
-          <span class="text-muted-foreground">{{ t('manage.nodes.stats.onlineRateLabel') }}</span>
+        <div class="mt-3 flex items-center gap-1 text-xs text-muted-foreground">
+          <Wifi class="size-3.5 shrink-0 text-emerald-500" />
+          <span>{{ stats.onlineRate }}% {{ t('manage.nodes.stats.onlineRateLabel') }}</span>
         </div>
       </button>
 
       <!-- 离线 -->
       <button
-        class="border-border bg-card text-card-foreground rounded-xl border p-5 shadow-sm text-left hover:shadow-md transition-shadow"
-        :class="statusFilter === 'offline' ? 'ring-2 ring-red-500/20 border-red-500/30' : ''"
+        class="border-border bg-card text-card-foreground rounded-xl border p-5 shadow-sm text-left hover:shadow-md transition-all"
+        :class="statusFilter === 'offline' ? 'ring-2 ring-rose-500/20 border-rose-500/30' : ''"
         @click="setStatusFilter('offline')"
       >
         <div class="flex items-start justify-between">
           <div class="flex flex-col gap-1">
             <span class="text-muted-foreground text-sm font-medium">{{ t('manage.nodes.stats.offline') }}</span>
-            <span class="text-2xl font-bold tracking-tight">{{ stats.offline }}</span>
+            <span class="text-2xl font-bold tracking-tight text-rose-600 dark:text-rose-400">{{ stats.offline }}</span>
           </div>
-          <div class="bg-muted rounded-lg p-2">
-            <WifiOff class="text-muted-foreground size-4" />
+          <div class="bg-rose-500/10 rounded-lg p-2">
+            <WifiOff class="text-rose-500 size-4" />
           </div>
         </div>
-        <div class="mt-3 flex items-center gap-1 text-sm">
-          <component
-            :is="stats.offline === 0 ? ArrowUpRight : ArrowDownRight"
-            :class="stats.offline === 0 ? 'text-emerald-600' : 'text-red-500'"
-            class="size-4 shrink-0"
-          />
-          <span :class="stats.offline === 0 ? 'text-emerald-600 font-semibold' : 'text-red-500 font-semibold'">
-            {{ stats.offline === 0 ? t('manage.nodes.stats.allOnline') : t('manage.nodes.stats.anomalies', { n: stats.offline }) }}
-          </span>
-          <span class="text-muted-foreground">{{ stats.offline === 0 ? t('manage.nodes.stats.healthy') : t('manage.nodes.stats.needsCheck') }}</span>
+        <div class="mt-3 flex items-center gap-1 text-xs text-muted-foreground">
+          <WifiOff class="size-3.5 shrink-0 text-rose-500" />
+          <span>{{ stats.offline === 0 ? t('manage.nodes.stats.healthy') : t('manage.nodes.stats.needsCheck') }}</span>
         </div>
       </button>
 
       <!-- 待接入 -->
       <button
-        class="border-border bg-card text-card-foreground rounded-xl border p-5 shadow-sm text-left hover:shadow-md transition-shadow"
-        :class="statusFilter === 'pending' ? 'ring-2 ring-amber-400/20 border-amber-400/30' : ''"
+        class="border-border bg-card text-card-foreground rounded-xl border p-5 shadow-sm text-left hover:shadow-md transition-all"
+        :class="statusFilter === 'pending' ? 'ring-2 ring-amber-500/20 border-amber-500/30' : ''"
         @click="setStatusFilter('pending')"
       >
         <div class="flex items-start justify-between">
           <div class="flex flex-col gap-1">
             <span class="text-muted-foreground text-sm font-medium">{{ t('manage.nodes.stats.pending') }}</span>
-            <span class="text-2xl font-bold tracking-tight">{{ stats.pending }}</span>
+            <span class="text-2xl font-bold tracking-tight text-amber-600 dark:text-amber-400">{{ stats.pending }}</span>
           </div>
-          <div class="bg-muted rounded-lg p-2">
-            <Clock class="text-muted-foreground size-4" />
+          <div class="bg-amber-500/10 rounded-lg p-2">
+            <Clock class="text-amber-500 size-4" />
           </div>
         </div>
-        <div class="mt-3 flex items-center gap-1 text-sm">
-          <component
-            :is="stats.pending === 0 ? ArrowUpRight : ArrowDownRight"
-            :class="stats.pending === 0 ? 'text-emerald-600' : 'text-amber-500'"
-            class="size-4 shrink-0"
-          />
-          <span :class="stats.pending === 0 ? 'text-emerald-600 font-semibold' : 'text-amber-500 font-semibold'">
-            {{ stats.pending === 0 ? t('manage.nodes.stats.allJoined') : t('manage.nodes.stats.pendingCount', { n: stats.pending }) }}
-          </span>
-          <span class="text-muted-foreground">{{ stats.pending === 0 ? t('manage.nodes.stats.allJoined') : t('manage.nodes.stats.waitConfig') }}</span>
+        <div class="mt-3 flex items-center gap-1 text-xs text-muted-foreground">
+          <Clock class="size-3.5 shrink-0 text-amber-500" />
+          <span>{{ stats.pending === 0 ? t('manage.nodes.stats.allJoined') : t('manage.nodes.stats.waitConfig') }}</span>
         </div>
       </button>
 
@@ -505,6 +521,16 @@ const table = useVueTable({
       variant="destructive"
       @confirm="confirmDelete"
       @cancel="deleteTarget = null"
+    />
+
+    <!-- ── Disable confirm ────────────────────────────────────────── -->
+    <AppAlertDialog
+      v-model:open="disableDialogOpen"
+      :title="t('manage.nodes.disableDialog.title')"
+      :description="t('manage.nodes.disableDialog.desc', { name: (disableTarget as any)?.displayName ?? (disableTarget as any)?.name ?? (disableTarget as any)?.appId })"
+      :confirm-text="t('manage.nodes.actions.disable')"
+      @confirm="confirmDisable"
+      @cancel="disableTarget = null"
     />
 
   </div>

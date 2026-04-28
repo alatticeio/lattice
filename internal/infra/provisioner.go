@@ -112,7 +112,12 @@ func (p *SetPeer) String() string {
 	printf(&sb, "preshared_key", p.PresharedKey, keyf)
 	printf(&sb, "replace_allowed_ips", strconv.FormatBool(true), nil)
 	printf(&sb, "persistent_keepalive_interval", strconv.Itoa(p.PersistentKeepalived), nil)
-	printf(&sb, "allowed_ip", p.AllowedIPs, nil)
+	for _, cidr := range strings.Split(p.AllowedIPs, ",") {
+		cidr = strings.TrimSpace(cidr)
+		if cidr != "" {
+			printf(&sb, "allowed_ip", cidr, nil)
+		}
+	}
 	printf(&sb, "endpoint", p.Endpoint, nil)
 	if p.Remove {
 		printf(&sb, "remove", strconv.FormatBool(p.Remove), nil)

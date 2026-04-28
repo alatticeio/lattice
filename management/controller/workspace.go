@@ -13,6 +13,7 @@ import (
 
 type WorkspaceController interface {
 	AddWorkspace(ctx context.Context, workspaceDto *dto.WorkspaceDto) (*vo.WorkspaceVo, error)
+	UpdateWorkspace(ctx context.Context, id string, workspaceDto *dto.WorkspaceDto) (*vo.WorkspaceVo, error)
 	DeleteWorkspace(ctx context.Context, id string) error
 	ListWorkspaces(ctx context.Context, request *dto.PageRequest) (*dto.PageResult[vo.WorkspaceVo], error)
 }
@@ -38,6 +39,10 @@ func (c *workspaceController) ListWorkspaces(ctx context.Context, request *dto.P
 
 func (c *workspaceController) AddWorkspace(ctx context.Context, workspaceDto *dto.WorkspaceDto) (*vo.WorkspaceVo, error) {
 	return c.workspaceService.AddWorkspace(ctx, workspaceDto)
+}
+
+func (c *workspaceController) UpdateWorkspace(ctx context.Context, id string, workspaceDto *dto.WorkspaceDto) (*vo.WorkspaceVo, error) {
+	return c.workspaceService.UpdateWorkspace(ctx, id, workspaceDto)
 }
 
 type workspaceMemberController struct {

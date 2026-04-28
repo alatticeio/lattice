@@ -170,9 +170,9 @@ type FirewallRule struct {
 }
 
 type Rule struct {
-	Peers    []*Peer `json:"peers"`
-	Protocol string  `json:"protocol"`
-	Port     int     `json:"port"`
+	PeerNames []string `json:"peerNames"`
+	Protocol  string   `json:"protocol"`
+	Port      int      `json:"port"`
 }
 
 type TrafficRule struct {

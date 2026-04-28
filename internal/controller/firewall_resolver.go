@@ -49,13 +49,13 @@ func (r *firewallRuleResolver) ResolveRules(ctx context.Context, currentPeer *in
 		Egress:   make([]infra.TrafficRule, 0),
 	}
 
-	// [Step 1] 构建当前网络内所有 Peer 的 IP 集合。
-	// getPeerFromLabels 会跨全集群查询，这里用网络内的 IP 做二次过滤，
-	// 确保只有同一网络内的 Peer IP 才会写入防火墙规则。
-	networkPeerIPs := make(map[string]struct{}, len(network.Peers))
+	// [Step 1] 用 network.Peers 构建 name→IP 查找表。
+	// Rule 现在只存 peer name，需要在这里解析出实际 IP。
+	// 同时起到网络隔离作用：不在 network.Peers 里的 name 查不到 IP，自然过滤。
+	peerIPByName := make(map[string]string, len(network.Peers))
 	for _, p := range network.Peers {
 		if p.Address != nil {
-			networkPeerIPs[cleanIP(p.Address)] = struct{}{}
+			peerIPByName[p.Name] = cleanIP(p.Address)
 		}
 	}
 
@@ -63,27 +63,22 @@ func (r *firewallRuleResolver) ResolveRules(ctx context.Context, currentPeer *in
 	for _, policy := range allPolicies {
 		result.PolicyName = policy.PolicyName // 最后一条策略名；多策略时作日志用途
 		for _, rule := range policy.Ingress {
-			for _, sourcePeer := range rule.Peers {
-				if sourcePeer.Address == nil || sourcePeer.Name == currentPeer.Name {
+			for _, peerName := range rule.PeerNames {
+				if peerName == currentPeer.Name {
 					continue
 				}
-				srcIP := cleanIP(sourcePeer.Address)
+				srcIP := peerIPByName[peerName]
 				if srcIP == "" {
+					log.Info("Skipping peer not in current network or no IP yet", "peer", peerName)
 					continue
 				}
-				// 只允许同一网络内的 Peer，过滤掉来自其他网络的 IP
-				if _, inNetwork := networkPeerIPs[srcIP]; !inNetwork {
-					log.Info("Skipping peer not in current network", "peer", sourcePeer.Name, "ip", srcIP)
-					continue
-				}
-				trafficRule := infra.TrafficRule{
+				result.Ingress = append(result.Ingress, infra.TrafficRule{
 					ChainName: "WIREFLOW-INGRESS",
 					Peers:     []string{srcIP},
 					Port:      rule.Port,
 					Protocol:  rule.Protocol,
 					Action:    "ACCEPT",
-				}
-				result.Ingress = append(result.Ingress, trafficRule)
+				})
 			}
 		}
 	}
@@ -91,26 +86,22 @@ func (r *firewallRuleResolver) ResolveRules(ctx context.Context, currentPeer *in
 	// [Step 3] 处理 Egress 规则 (OUTPUT 链：我 -> 别人)
 	for _, policy := range allPolicies {
 		for _, rule := range policy.Egress {
-			for _, destPeer := range rule.Peers {
-				if destPeer.Address == nil || destPeer.Name == currentPeer.Name {
+			for _, peerName := range rule.PeerNames {
+				if peerName == currentPeer.Name {
 					continue
 				}
-				destIP := cleanIP(destPeer.Address)
+				destIP := peerIPByName[peerName]
 				if destIP == "" {
+					log.Info("Skipping peer not in current network or no IP yet", "peer", peerName)
 					continue
 				}
-				if _, inNetwork := networkPeerIPs[destIP]; !inNetwork {
-					log.Info("Skipping peer not in current network", "peer", destPeer.Name, "ip", destIP)
-					continue
-				}
-				trafficRule := infra.TrafficRule{
+				result.Egress = append(result.Egress, infra.TrafficRule{
 					ChainName: "WIREFLOW-EGRESS",
 					Peers:     []string{destIP},
 					Port:      rule.Port,
 					Protocol:  rule.Protocol,
 					Action:    "ACCEPT",
-				}
-				result.Egress = append(result.Egress, trafficRule)
+				})
 			}
 		}
 	}
