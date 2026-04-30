@@ -3,7 +3,8 @@ package utils
 import (
 	"fmt"
 	"testing"
-	"wireflow/management/models"
+
+	"github.com/alatticeio/lattice/internal/server/models"
 )
 
 func TestGetJWTSecret(t *testing.T) {

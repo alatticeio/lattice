@@ -214,7 +214,7 @@
     "dialog": {
       "createTitle": "添加中继服务器",
       "editTitle": "编辑中继服务器",
-      "desc": "中继服务器地址保存后将同步到对应工作空间下的 WireflowPeer，节点启动时自动配置。",
+      "desc": "中继服务器地址保存后将同步到对应工作空间下的 LatticePeer，节点启动时自动配置。",
       "displayNameLabel": "显示名称",
       "displayNamePlaceholder": "如：香港中继 01",
       "nameLabel": "资源标识符",

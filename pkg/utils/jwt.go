@@ -5,7 +5,8 @@ import (
 	"fmt"
 	"os"
 	"time"
-	"wireflow/management/models"
+
+	"github.com/alatticeio/lattice/internal/server/models"
 
 	"github.com/golang-jwt/jwt/v5"
 )
@@ -32,9 +33,9 @@ func GenerateToken(userID uint) (string, error) {
 }
 
 // ParseToken 解析并校验 JWT
-func ParseToken(tokenString string) (*models.WireFlowClaims, error) {
+func ParseToken(tokenString string) (*models.LatticeClaims, error) {
 	// 1. 准备载体：直接声明目标结构体指针
-	claims := &models.WireFlowClaims{}
+	claims := &models.LatticeClaims{}
 
 	// 2. 解析 Token
 	// 注意：第二个参数传入声明好的 claims，库会自动填充数据
@@ -76,7 +77,7 @@ func ParseToken(tokenString string) (*models.WireFlowClaims, error) {
 
 func GetJWTSecret() []byte {
 	// 从环境变量获取，比如在 docker-compose 里配置的
-	secret := os.Getenv("WF_JWT_SECRET")
+	secret := os.Getenv("LATTICE_JWT_SECRET")
 	if secret == "" {
 		// 生产环境建议在这里直接 panic，强制要求配置 secret
 		return []byte("your-256-bit-secret-key-here")
@@ -86,14 +87,14 @@ func GetJWTSecret() []byte {
 
 func GenerateBusinessJWT(userID, email, username, systemRole string) (string, error) {
 	// 1. 设置有效期（例如 12 小时）
-	claims := models.WireFlowClaims{
+	claims := models.LatticeClaims{
 		Email:      email,
 		Username:   username,
 		SystemRole: systemRole,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(12 * time.Hour)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
-			Issuer:    "wireflow-bff",
+			Issuer:    "lattice-bff",
 			Subject:   userID,
 		},
 	}

@@ -63,7 +63,7 @@ const pageDescription = computed(() => {
   <SidebarProvider>
     <AppSidebar />
 
-    <SidebarInset class="bg-muted/90 flex flex-col">
+    <SidebarInset class="bg-muted/90 flex flex-col min-w-0">
       <!-- ── Top Navbar ─────────────────────────────────────────────── -->
       <header class="border-border bg-card sticky top-0 z-30 flex h-14 shrink-0 items-center gap-3 border-b px-4">
         <SidebarTrigger class="-ml-1 shrink-0" />

@@ -1,4 +1,4 @@
-// Copyright 2025 The Wireflow Authors, Inc.
+// Copyright 2026 The Lattice Authors, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,9 +15,9 @@
 package cmd
 
 import (
-	"wireflow/internal/config"
-	"wireflow/internal/log"
-	"wireflow/wrrper"
+	"github.com/alatticeio/lattice/internal/agent/config"
+	"github.com/alatticeio/lattice/internal/agent/log"
+	"github.com/alatticeio/lattice/internal/relay"
 
 	"github.com/spf13/cobra"
 )
@@ -26,8 +26,8 @@ func newWrrpCmd() *cobra.Command {
 	var cmd = &cobra.Command{
 		Use:          "wrrper",
 		SilenceUsage: true,
-		Short:        "wrrp using as relay server for wireflow",
-		Long:         `wrrp using as relay server for wireflow`,
+		Short:        "wrrp using as relay server for lattice",
+		Long:         `wrrp using as relay server for lattice`,
 
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			return nil
@@ -48,14 +48,14 @@ func newWrrpCmd() *cobra.Command {
 // run signaling server
 func runWrrp(flags *config.Config) error {
 	log.SetLevel(flags.Level)
-	server := wrrper.NewServer(flags)
+	server := relay.NewServer(flags)
 
 	if flags.WrrpQuicURL != "" {
-		tlsCfg, err := wrrper.GenerateSelfSignedTLS()
+		tlsCfg, err := relay.GenerateSelfSignedTLS()
 		if err != nil {
 			log.GetLogger("wrrp").Warn("failed to generate self-signed TLS, skipping QUIC", "err", err)
 		} else {
-			qs := wrrper.NewQUICServer(server.Manager())
+			qs := relay.NewQUICServer(server.Manager())
 			go func() {
 				if err := qs.Start(flags.WrrpQuicURL, tlsCfg); err != nil {
 					log.GetLogger("wrrp").Error("QUIC server error", err)

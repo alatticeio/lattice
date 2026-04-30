@@ -103,6 +103,7 @@
     "topology": "Topology",
     "peers": "Peers",
     "networkPeering": "Network Peering",
+    "clusterPeering": "Cluster Peering",
     "monitor": "Monitor",
     "users": "Users",
     "workspaces": "Workspaces",

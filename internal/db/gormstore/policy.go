@@ -3,8 +3,8 @@ package gormstore
 import (
 	"context"
 
-	"wireflow/internal/store"
-	"wireflow/management/models"
+	"github.com/alatticeio/lattice/internal/agent/store"
+	"github.com/alatticeio/lattice/internal/server/models"
 
 	"gorm.io/gorm"
 )
@@ -85,4 +85,3 @@ func (r *policyRepo) Delete(ctx context.Context, workspaceID, name string) error
 		Where("workspace_id = ? AND name = ?", workspaceID, name).
 		Delete(&models.Policy{}).Error
 }
-

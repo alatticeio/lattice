@@ -57,7 +57,7 @@ import { nextTick } from 'vue'
           v-model="input"
           :disabled="disabled || loading"
           rows="1"
-          placeholder="给 Wireflow AI 发消息… (Enter 发送，Shift+Enter 换行)"
+          placeholder="给 Lattice AI 发消息… (Enter 发送，Shift+Enter 换行)"
           class="chat-textarea w-full resize-none bg-transparent px-4 py-3.5 pr-14 text-sm placeholder:text-muted-foreground/60 focus:outline-none disabled:opacity-50 max-h-[200px] leading-relaxed"
           @keydown="handleKeydown"
           @input="autoResize"

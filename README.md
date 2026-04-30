@@ -1,18 +1,18 @@
 <div align="center">
 
-# Wireflow
+# Lattice
 
 **Cloud-Native WireGuard Network Orchestration**
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
-[![Go Report Card](https://goreportcard.com/badge/github.com/wireflowio/wireflow)](https://goreportcard.com/report/github.com/wireflowio/wireflow)
-[![Release](https://img.shields.io/github/v/release/wireflowio/wireflow)](https://github.com/wireflowio/wireflow/releases/latest)
-[![Docker](https://img.shields.io/docker/pulls/wireflowio/wireflow)](https://hub.docker.com/r/wireflowio/wireflow)
+[![Go Report Card](https://goreportcard.com/badge/github.com/alatticeio/lattice)](https://goreportcard.com/report/github.com/alatticeio/lattice)
+[![Release](https://img.shields.io/github/v/release/alatticeio/lattice)](https://github.com/alatticeio/lattice/releases/latest)
+[![Container](https://img.shields.io/badge/ghcr.io-alatticeio%2Flattice-blue)](https://github.com/alatticeio/lattice/pkgs/container/lattice)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
-Wireflow simplifies the construction of encrypted overlay networks across multi-cloud, cross-datacenter, and edge environments — without touching firewalls or exposing public IPs.
+Lattice simplifies the construction of encrypted overlay networks across multi-cloud, cross-datacenter, and edge environments — without touching firewalls or exposing public IPs.
 
-[**Website**](https://wireflow.run) · [**Documentation**](https://wireflow.run/docs) · [**Issues**](https://github.com/wireflowio/wireflow/issues)
+[**Website**](https://lattice.run) · [**Documentation**](https://lattice.run/docs) · [**Issues**](https://github.com/alatticeio/lattice/issues)
 
 </div>
 
@@ -20,7 +20,7 @@ Wireflow simplifies the construction of encrypted overlay networks across multi-
 
 ## Overview
 
-Wireflow is a WireGuard management platform built for Kubernetes. It automates the full lifecycle of secure peer-to-peer tunnels:
+Lattice is a WireGuard management platform built for Kubernetes. It automates the full lifecycle of secure peer-to-peer tunnels:
 
 - **Control Plane** — Kubernetes Operator that declaratively manages network topology via CRDs. Acts as the single source of truth for keys, IP allocation, and peer relationships.
 - **Data Plane** — Lightweight agent deployed on each device. Establishes encrypted WireGuard tunnels with automatic NAT traversal (ICE/STUN/TURN), even across symmetric NATs.
@@ -50,10 +50,10 @@ Wireflow is a WireGuard management platform built for Kubernetes. It automates t
 
 ## Quick Start
 
-Wireflow's control plane runs on Kubernetes. The quickstart script handles cluster creation and deployment automatically.
+Lattice's control plane runs on Kubernetes. The quickstart script handles cluster creation and deployment automatically.
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/wireflowio/wireflow/master/hack/quickstart.sh | bash
+curl -sSL https://raw.githubusercontent.com/alatticeio/lattice/master/hack/quickstart.sh | bash
 ```
 
 The script will:
@@ -61,12 +61,12 @@ The script will:
 2. Check that ports **8080** (Dashboard / API) and **4222** (NATS signaling) are free.
 3. Create a local k3d cluster and apply CRDs, RBAC, and Deployments.
 4. Wait for the pod to become healthy.
-5. Print a ready-to-use `wireflow up` command with the NATS address and initial token.
+5. Print a ready-to-use `lattice up` command with the NATS address and initial token.
 
 **Existing cluster (kustomize):**
 
 ```bash
-kubectl apply -k https://github.com/wireflowio/wireflow/config/wireflow/overlays/all-in-one
+kubectl apply -k https://github.com/alatticeio/lattice/config/lattice/overlays/all-in-one
 ```
 
 ---
@@ -78,20 +78,20 @@ All management commands below use `--signaling-url` to reach the embedded NATS s
 ### 1. Create a workspace
 
 ```bash
-wireflow workspace add dev \
+lattice workspace add dev \
   --display-name "Development" \
   --signaling-url nats://localhost:4222
 ```
 
 ```bash
 # List all workspaces (shows namespace values used in subsequent commands)
-wireflow workspace list --signaling-url nats://localhost:4222
+lattice workspace list --signaling-url nats://localhost:4222
 ```
 
 ### 2. Create an enrollment token
 
 ```bash
-wireflow token create dev-team \
+lattice token create dev-team \
   -n <namespace> \
   --limit 10 \
   --expiry 168h \
@@ -107,7 +107,7 @@ wireflow token create dev-team \
 ### 3. Start an agent
 
 ```bash
-wireflow up --signaling-url nats://localhost:4222 --token <token>
+lattice up --signaling-url nats://localhost:4222 --token <token>
 ```
 
 Run as a container:
@@ -118,18 +118,18 @@ docker run -d \
   --restart unless-stopped \
   --privileged \
   --network host \
-  ghcr.io/wireflowio/wireflow:latest \
+  ghcr.io/alatticeio/lattice:latest \
   up --signaling-url nats://localhost:4222 --token <token>
 ```
 
 ### 4. Allow traffic between peers
 
-Wireflow enforces a **default-deny** policy — agents can establish tunnels but cannot exchange traffic until a policy explicitly permits it. This prevents accidental exposure in multi-tenant environments.
+Lattice enforces a **default-deny** policy — agents can establish tunnels but cannot exchange traffic until a policy explicitly permits it. This prevents accidental exposure in multi-tenant environments.
 
 **CLI — allow all traffic in a workspace (development / single-tenant):**
 
 ```bash
-wireflow policy allow-all \
+lattice policy allow-all \
   -n <namespace> \
   --signaling-url nats://localhost:4222
 ```
@@ -137,7 +137,7 @@ wireflow policy allow-all \
 **CLI — fine-grained policy:**
 
 ```bash
-wireflow policy add my-policy \
+lattice policy add my-policy \
   -n <namespace> \
   --action ALLOW \
   --desc "allow all peer traffic" \
@@ -153,8 +153,8 @@ You can define rules scoped to specific peers (by label), ports, and direction (
 **kubectl — apply a policy CRD directly:**
 
 ```yaml
-apiVersion: wireflowcontroller.wireflow.run/v1alpha1
-kind: WireflowPolicy
+apiVersion: alattice.io/v1alpha1
+kind: LatticePolicy
 metadata:
   name: allow-all
   namespace: default
@@ -179,7 +179,7 @@ kubectl apply -f policy-allow-all.yaml
 Check the local agent status and peer list:
 
 ```bash
-wireflow status
+lattice status
 ```
 
 Example output:
@@ -224,9 +224,9 @@ PING 10.100.0.2 (10.100.0.2): 56 data bytes
 ```
 
 If ping times out, the tunnel has not been established. Common causes:
-- The policy is still default-deny — run `wireflow policy allow-all -n <namespace>` to permit traffic.
-- The peer has not yet completed a WireGuard handshake — check `wireflow status` on both nodes and wait a few seconds.
-- A firewall is blocking UDP on port 51820 — Wireflow will attempt TURN relay fallback automatically.
+- The policy is still default-deny — run `lattice policy allow-all -n <namespace>` to permit traffic.
+- The peer has not yet completed a WireGuard handshake — check `lattice status` on both nodes and wait a few seconds.
+- A firewall is blocking UDP on port 51820 — Lattice will attempt TURN relay fallback automatically.
 
 ---
 
@@ -235,25 +235,25 @@ If ping times out, the tunnel has not been established. Common causes:
 Remove a specific agent from the workspace:
 
 ```bash
-wireflow token delete <token>
+lattice token remove <token>
 ```
 
 Delete a workspace and all its peers:
 
 ```bash
-wireflow workspace remove <namespace> --signaling-url nats://localhost:4222
+lattice workspace remove <namespace> --signaling-url nats://localhost:4222
 ```
 
 Remove a policy:
 
 ```bash
-wireflow policy remove <name> -n <namespace> --signaling-url nats://localhost:4222
+lattice policy remove <name> -n <namespace> --signaling-url nats://localhost:4222
 ```
 
 Uninstall the control plane from Kubernetes:
 
 ```bash
-kubectl delete -k https://github.com/wireflowio/wireflow/config/wireflow/overlays/all-in-one
+kubectl delete -k https://github.com/alatticeio/lattice/config/lattice/overlays/all-in-one
 ```
 
 ---
@@ -265,45 +265,45 @@ All commands accept `--signaling-url nats://<host>:4222` to target the control p
 ### Agent
 
 ```bash
-wireflow up     --token <token> --signaling-url <url>
-wireflow status
+lattice up     --token <token> --signaling-url <url>
+lattice status
 ```
 
 ### Workspace
 
 ```bash
-wireflow workspace add <slug> [--display-name <name>] [-n <namespace>]
-wireflow workspace list
-wireflow workspace remove <namespace>
+lattice workspace add <slug> [--display-name <name>] [-n <namespace>]
+lattice workspace list
+lattice workspace remove <namespace>
 ```
 
 ### Token
 
 ```bash
-wireflow token create <name> [-n <namespace>] [--limit <n>] [--expiry <duration>]
-wireflow token list  [-n <namespace>]
-wireflow token delete <token>
+lattice token create <name> [-n <namespace>] [--limit <n>] [--expiry <duration>]
+lattice token list  [-n <namespace>]
+lattice token remove <token>
 ```
 
 ### Policy
 
 ```bash
-wireflow policy allow-all -n <namespace>
-wireflow policy add <name>  -n <namespace> [--action ALLOW|DENY] [--desc <text>]
-wireflow policy list  -n <namespace>
-wireflow policy remove <name> -n <namespace>
+lattice policy allow-all -n <namespace>
+lattice policy add <name>  -n <namespace> [--action ALLOW|DENY] [--desc <text>]
+lattice policy list  -n <namespace>
+lattice policy remove <name> -n <namespace>
 ```
 
 ---
 
 ## Configuration Reference
 
-The control plane is configured via a YAML file (default: `/etc/wireflow/wireflow.yaml`):
+The control plane is configured via a YAML file (default: `/etc/lattice/lattice.yaml`):
 
 ```yaml
 app:
   listen: :8080
-  name: "WireFlow"
+  name: "Lattice"
   env: "production"
   init_admins:
     - username: "admin"
@@ -316,8 +316,8 @@ jwt:
 signaling-url: "nats://localhost:4222"   # Embedded NATS in all-in-one mode
 
 database:
-  dsn: "data/wireflow.db"                # SQLite (all-in-one)
-  # dsn: "root:pass@tcp(mariadb:3306)/wireflow?charset=utf8mb4&parseTime=True"  # MariaDB
+  dsn: "data/lattice.db"                # SQLite (all-in-one)
+  # dsn: "root:pass@tcp(mariadb:3306)/lattice?charset=utf8mb4&parseTime=True"  # MariaDB
 ```
 
 ---
@@ -334,8 +334,8 @@ database:
 ### Build from source
 
 ```bash
-git clone https://github.com/wireflowio/wireflow.git
-cd wireflow
+git clone https://github.com/alatticeio/lattice.git
+cd lattice
 make build-all
 ```
 
@@ -345,8 +345,8 @@ make build-all
 
 Contributions are welcome. Please read [CONTRIBUTING.md](CONTRIBUTING.md) before submitting a pull request.
 
-<a href="https://github.com/wireflowio/wireflow/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=wireflowio/wireflow" />
+<a href="https://github.com/alatticeio/lattice/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=alatticeio/lattice" />
 </a>
 
 ---

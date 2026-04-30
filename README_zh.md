@@ -1,19 +1,19 @@
-# Wireflow - 云原生 WireGuard 网络管理平台
+# Lattice - 云原生 WireGuard 网络管理平台
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
-[![Go Report Card](https://goreportcard.com/badge/github.com/wireflowio/wireflow)](https://goreportcard.com/report/github.com/wireflowio/wireflow)
+[![Go Report Card](https://goreportcard.com/badge/github.com/alatticeio/lattice)](https://goreportcard.com/report/github.com/alatticeio/lattice)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
 ## 项目简介
 
-**Wireflow：基于 Kubernetes CRDS 设计的云原生网络编排方案。**
+**Lattice：基于 Kubernetes CRDS 设计的云原生网络编排方案。**
 
-Wireflow 旨在简化跨云、跨数据中心以及边缘设备的 覆盖网络 (Overlay Network) 构建。它通过 Kubernetes 原生方式，自动化管理 WireGuard 隧道的建立与配置。
+Lattice 旨在简化跨云、跨数据中心以及边缘设备的 覆盖网络 (Overlay Network) 构建。它通过 Kubernetes 原生方式，自动化管理 WireGuard 隧道的建立与配置。
 
 * **控制面 (Control Plane)**：基于 Kubernetes Operator 模式，通过自定义资源 (CRD) 声明式地定义网络拓扑，是集群状态的“大脑”。
 * **数据面 (Data Plane)**：轻量级 Agent 部署，实现设备间的高性能 P2P 隧道连接。它具备强大的 NAT 穿透能力，确保护网状态的最终一致性。
 
-了解更多信息，请访问官方网站：[wireflow.run](https://wireflow.run)
+了解更多信息，请访问官方网站：[lattice.run](https://lattice.run)
 
 ---
 
@@ -37,16 +37,16 @@ Wireflow 旨在简化跨云、跨数据中心以及边缘设备的 覆盖网络 
 
 ### 一键本地部署（推荐）
 
-最快速地在本地运行完整 Wireflow 控制面，只需安装 **Docker** — 脚本会自动安装 k3d 和 kubectl。
+最快速地在本地运行完整 Lattice 控制面，只需安装 **Docker** — 脚本会自动安装 k3d 和 kubectl。
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/wireflowio/wireflow/master/hack/quickstart.sh | bash
+curl -sSL https://raw.githubusercontent.com/alatticeio/lattice/master/hack/quickstart.sh | bash
 ```
 
 脚本执行流程：
 1. **前置检查**：验证 Docker、k3d、kubectl 是否就绪（缺失工具自动安装）。
 2. **端口检查**：确认 **8080**（Dashboard/API）和 **4222**（NATS 信令）端口空闲。
-3. **创建集群**：建立名为 `wireflow` 的 k3d 集群，并自动完成宿主机端口映射。
+3. **创建集群**：建立名为 `lattice` 的 k3d 集群，并自动完成宿主机端口映射。
 4. **顺序加载**：按 CRDs → RBAC → Service → Deployment 的顺序部署资源。
 5. **健康探测**：等待 Pod 就绪并探测 API 健康接口。
 6. **打印连接串**：输出包含 NATS 地址和初始 Token 的 **Agent 一键接入命令**。
@@ -62,27 +62,27 @@ http://localhost:8080
 如果你已有配置好 `kubectl` 的 Kubernetes 集群：
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/wireflowio/wireflow/master/hack/install-k3d.sh | bash
+curl -sSL https://raw.githubusercontent.com/alatticeio/lattice/master/hack/install-k3d.sh | bash
 ```
 
 ### 安装数据面 (Agent)
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/wireflowio/wireflow/master/hack/install.sh | bash
+curl -sSL https://raw.githubusercontent.com/alatticeio/lattice/master/hack/install.sh | bash
 ```
 
 #### 使用 Docker 运行 Agent
 
 ```bash
-docker run -d --name wireflow --restart=always ghcr.io/wireflowio/wireflow:latest up
+docker run -d --name lattice --restart=always ghcr.io/alatticeio/lattice:latest up
 ```
 
 ## 令牌 (Token) 管理
 
-Wireflow 使用基于 Token 的认证系统安全管理节点入网授权。如果还没有 Token，可以创建一个：
+Lattice 使用基于 Token 的认证系统安全管理节点入网授权。如果还没有 Token，可以创建一个：
 
 ```bash
-wireflow token create dev-team \
+lattice token create dev-team \
   --signaling-url nats://localhost:4222 \
   -n test --limit 5 --expiry 168h
 ```
@@ -96,14 +96,14 @@ wireflow token create dev-team \
 ### 使用令牌接入网络
 
 ```bash
-wireflow up --signaling-url nats://localhost:4222 --token <token>
+lattice up --signaling-url nats://localhost:4222 --token <token>
 ```
 
 在 Docker 中运行：
 
 ```bash
-docker run -d --name wireflow --restart=always \
-  ghcr.io/wireflowio/wireflow:latest up \
+docker run -d --name lattice --restart=always \
+  ghcr.io/alatticeio/lattice:latest up \
   --signaling-url nats://localhost:4222 --token <token>
 ```
 
@@ -120,7 +120,7 @@ kubectl get wfpeer -n test
 移除控制面并清理本地 k3d 集群：
 
 ```bash
-k3d cluster delete wireflow
+k3d cluster delete lattice
 ```
 
 ## 开发指南
@@ -131,8 +131,8 @@ k3d cluster delete wireflow
 ### 从源码构建
 
 ```bash
-git clone [https://github.com/wireflowio/wireflow.git](https://github.com/wireflowio/wireflow.git)
-cd wireflow
+git clone [https://github.com/alatticeio/lattice.git](https://github.com/alatticeio/lattice.git)
+cd lattice
 make build-all
 ```
 
@@ -140,9 +140,9 @@ make build-all
 
 ### 贡献者
 
-## Wireflow特性与愿景
+## Lattice 特性与愿景
 
-Wireflow 的架构专注于 自动化 (Automation) 与 零信任安全 (Zero-Trust Security)。
+Lattice 的架构专注于 自动化 (Automation) 与 零信任安全 (Zero-Trust Security)。
 
 ### 核心特性 (已实现)
 - 零接触组网 (Zero-Touch Networking)：自动设备注册与配置，无需手动维护 WireGuard 隧道。

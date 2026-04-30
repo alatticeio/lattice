@@ -1,4 +1,4 @@
-// Copyright 2025 The Wireflow Authors, Inc.
+// Copyright 2026 The Lattice Authors, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,11 +19,11 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"github.com/alatticeio/lattice/internal/agent/infra"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
-	"wireflow/internal/infra"
 
 	"github.com/google/uuid"
 	"github.com/mozillazg/go-pinyin" // 处理中文转拼音，对国内企业很友好
@@ -87,7 +87,7 @@ func GenerateAppId() string {
 
 	randomPart := hex.EncodeToString(b)
 
-	return fmt.Sprintf("wireflow-%s-%s", date, randomPart)
+	return fmt.Sprintf("lattice-%s-%s", date, randomPart)
 }
 
 func GenerateSlug(input string) string {

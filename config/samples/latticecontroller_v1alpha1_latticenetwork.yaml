@@ -1,0 +1,10 @@
+apiVersion: alattice.io/v1alpha1
+kind: LatticeNetwork
+metadata:
+  labels:
+    app.kubernetes.io/name: lattice-controller
+    app.kubernetes.io/managed-by: kustomize
+  name: network-sample
+  namespace: wf-tenant-01
+spec:
+  name: network-sample

@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"wireflow/api/v1alpha1"
-	"wireflow/management/dto"
-	"wireflow/pkg/utils/resp"
+	"github.com/alatticeio/lattice/api/v1alpha1"
+	"github.com/alatticeio/lattice/internal/server/dto"
+	"github.com/alatticeio/lattice/pkg/utils/resp"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -30,7 +30,7 @@ const (
 	podB = "pod-b"
 )
 
-var _ = Describe("Wireflow 核心连通性 E2E", Ordered, func() {
+var _ = Describe("Lattice 核心连通性 E2E", Ordered, func() {
 	var (
 		accessToken string
 		workspaceId string
@@ -106,12 +106,12 @@ var _ = Describe("Wireflow 核心连通性 E2E", Ordered, func() {
 		Expect(ok && joinToken != "").To(BeTrue(), "Token 响应中未找到 token")
 
 		By("步骤 4: 查找 NATS Service ClusterIP 并创建具备特权和内核模块挂载的测试 Deployment")
-		svc, err := clientset.CoreV1().Services("wireflow-system").Get(ctx, "wireflow-nats-service", metav1.GetOptions{})
-		Expect(err).NotTo(HaveOccurred(), "未找到 wireflow-nats-service")
+		svc, err := clientset.CoreV1().Services("lattice-system").Get(ctx, "lattice-nats-service", metav1.GetOptions{})
+		Expect(err).NotTo(HaveOccurred(), "未找到 lattice-nats-service")
 
 		hostAliases := []corev1.HostAlias{{
 			IP:        svc.Spec.ClusterIP,
-			Hostnames: []string{"signaling.wireflow.run"},
+			Hostnames: []string{"signaling.alattice.io"},
 		}}
 
 		privileged := true
@@ -162,11 +162,11 @@ var _ = Describe("Wireflow 核心连通性 E2E", Ordered, func() {
 									},
 								},
 								Command: []string{
-									"/app/wireflow", "up",
+									"/app/lattice", "up",
 									"--token", joinToken,
 									"--level", "debug",
-									"--server-url", "wireflow-api-service.wireflow-system.svc.cluster.local:8080",
-									"--signaling-url", "nats://signaling.wireflow.run:4222",
+									"--server-url", "lattice-api-service.lattice-system.svc.cluster.local:8080",
+									"--signaling-url", "nats://signaling.alattice.io:4222",
 								},
 							}},
 							Volumes: []corev1.Volume{
@@ -237,17 +237,17 @@ var _ = Describe("Wireflow 核心连通性 E2E", Ordered, func() {
 		podAName := getPodName(podA)
 		podBName := getPodName(podB)
 
-		By("步骤 6: 等待控制面为 " + podA + " 和 " + podB + " 分配 WireGuard 虚拟 IP (WireflowPeer CRD)")
+		By("步骤 6: 等待控制面为 " + podA + " 和 " + podB + " 分配 WireGuard 虚拟 IP (LatticePeer CRD)")
 		var podBWGIP string
 		for _, peerName := range []string{podA, podB} {
 			name := peerName
 			Eventually(func() error {
-				peer := &v1alpha1.WireflowPeer{}
-				if err := wireflowClient.Get(ctx, sigclient.ObjectKey{Namespace: ns, Name: name}, peer); err != nil {
-					return fmt.Errorf("WireflowPeer %s 尚未创建: %w", name, err)
+				peer := &v1alpha1.LatticePeer{}
+				if err := latticeClient.Get(ctx, sigclient.ObjectKey{Namespace: ns, Name: name}, peer); err != nil {
+					return fmt.Errorf("LatticePeer %s 尚未创建: %w", name, err)
 				}
 				if peer.Status.AllocatedAddress == nil || *peer.Status.AllocatedAddress == "" {
-					return fmt.Errorf("WireflowPeer %s 已创建，控制面尚未分配地址", name)
+					return fmt.Errorf("LatticePeer %s 已创建，控制面尚未分配地址", name)
 				}
 				if name == podB {
 					podBWGIP = *peer.Status.AllocatedAddress
@@ -260,9 +260,9 @@ var _ = Describe("Wireflow 核心连通性 E2E", Ordered, func() {
 			}, "90s", "3s").Should(Succeed(), "超时未能获取 %s 的 WireGuard IP", name)
 		}
 
-		By("步骤 7: 创建 WireflowPolicy 允许 pod-a ↔ pod-b 互通")
-		peerB := &v1alpha1.WireflowPeer{}
-		Expect(wireflowClient.Get(ctx, sigclient.ObjectKey{Namespace: ns, Name: podB}, peerB)).To(Succeed())
+		By("步骤 7: 创建 LatticePolicy 允许 pod-a ↔ pod-b 互通")
+		peerB := &v1alpha1.LatticePeer{}
+		Expect(latticeClient.Get(ctx, sigclient.ObjectKey{Namespace: ns, Name: podB}, peerB)).To(Succeed())
 
 		var networkName string
 		if peerB.Spec.Network != nil && *peerB.Spec.Network != "" {
@@ -270,18 +270,18 @@ var _ = Describe("Wireflow 核心连通性 E2E", Ordered, func() {
 		} else if peerB.Status.ActiveNetwork != nil {
 			networkName = *peerB.Status.ActiveNetwork
 		}
-		Expect(networkName).NotTo(BeEmpty(), "无法从 WireflowPeer 获取网络名称")
+		Expect(networkName).NotTo(BeEmpty(), "无法从 LatticePeer 获取网络名称")
 
-		networkLabel := fmt.Sprintf("wireflow.run/network-%s", networkName)
+		networkLabel := fmt.Sprintf("alattice.io/network-%s", networkName)
 		peerNetSelector := metav1.LabelSelector{
 			MatchLabels: map[string]string{networkLabel: "true"},
 		}
-		allowPolicy := &v1alpha1.WireflowPolicy{
+		allowPolicy := &v1alpha1.LatticePolicy{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "e2e-allow-all",
 				Namespace: ns,
 			},
-			Spec: v1alpha1.WireflowPolicySpec{
+			Spec: v1alpha1.LatticePolicySpec{
 				Network:      networkName,
 				PeerSelector: peerNetSelector,
 				Action:       "ALLOW",
@@ -293,7 +293,7 @@ var _ = Describe("Wireflow 核心连通性 E2E", Ordered, func() {
 				},
 			},
 		}
-		Expect(wireflowClient.Create(ctx, allowPolicy)).To(Succeed(), "创建 WireflowPolicy 失败")
+		Expect(latticeClient.Create(ctx, allowPolicy)).To(Succeed(), "创建 LatticePolicy 失败")
 
 		By(fmt.Sprintf("步骤 8: 验证隧道连通性 (%s → %s @ %s)", podAName, podBName, podBWGIP))
 		Eventually(func() error {
@@ -316,11 +316,11 @@ func collectDiagnostics(ctx context.Context, namespace string) {
 
 	fprintf("\n========== E2E 诊断日志 [ns=%s] ==========\n", namespace)
 
-	// ── 1. WireflowPeer CRD 状态 ──────────────────────────────────────────
-	fprintf("\n[WireflowPeer 状态]\n")
-	var peerList v1alpha1.WireflowPeerList
-	if err := wireflowClient.List(ctx, &peerList, sigclient.InNamespace(namespace)); err != nil {
-		fprintf("  [WARN] 无法列出 WireflowPeer: %v\n", err)
+	// ── 1. LatticePeer CRD 状态 ──────────────────────────────────────────
+	fprintf("\n[LatticePeer 状态]\n")
+	var peerList v1alpha1.LatticePeerList
+	if err := latticeClient.List(ctx, &peerList, sigclient.InNamespace(namespace)); err != nil {
+		fprintf("  [WARN] 无法列出 LatticePeer: %v\n", err)
 	} else {
 		for _, p := range peerList.Items {
 			addr := "<nil>"
@@ -340,11 +340,11 @@ func collectDiagnostics(ctx context.Context, namespace string) {
 		}
 	}
 
-	// ── 2. WireflowNetwork 状态 ───────────────────────────────────────────
-	fprintf("\n[WireflowNetwork 状态]\n")
-	var netList v1alpha1.WireflowNetworkList
-	if err := wireflowClient.List(ctx, &netList, sigclient.InNamespace(namespace)); err != nil {
-		fprintf("  [WARN] 无法列出 WireflowNetwork: %v\n", err)
+	// ── 2. LatticeNetwork 状态 ───────────────────────────────────────────
+	fprintf("\n[LatticeNetwork 状态]\n")
+	var netList v1alpha1.LatticeNetworkList
+	if err := latticeClient.List(ctx, &netList, sigclient.InNamespace(namespace)); err != nil {
+		fprintf("  [WARN] 无法列出 LatticeNetwork: %v\n", err)
 	} else {
 		for _, n := range netList.Items {
 			fprintf("  %-30s  phase=%-10s  activeCIDR=%-20s  allocatedCount=%d\n",
@@ -355,7 +355,7 @@ func collectDiagnostics(ctx context.Context, namespace string) {
 	// ── 3. ConfigMap 内容（agent 配置） ───────────────────────────────────
 	fprintf("\n[ConfigMap 内容]\n")
 	cms, err := clientset.CoreV1().ConfigMaps(namespace).List(ctx, metav1.ListOptions{
-		LabelSelector: "app.kubernetes.io/managed-by=wireflow-controller",
+		LabelSelector: "app.kubernetes.io/managed-by=lattice-controller",
 	})
 	if err != nil {
 		fprintf("  [WARN] 无法列出 ConfigMap: %v\n", err)
@@ -381,12 +381,12 @@ func collectDiagnostics(ctx context.Context, namespace string) {
 			}
 
 			if pod.Status.Phase == corev1.PodRunning {
-				// wireflow status：WireGuard 隧道连接状态（对端握手、流量）
+				// lattice status：WireGuard 隧道连接状态（对端握手、流量）
 				if out, err := execInPod(clientset, restConfig, namespace, pod.Name,
-					[]string{"/app/wireflow", "status"}); err != nil {
-					fprintf("  [wireflow status] 执行失败: %v\n", err)
+					[]string{"/app/lattice", "status"}); err != nil {
+					fprintf("  [lattice status] 执行失败: %v\n", err)
 				} else {
-					fprintf("  [wireflow status]\n%s\n", out)
+					fprintf("  [lattice status]\n%s\n", out)
 				}
 
 				// ip addr：确认 wf0 接口是否存在及 IP

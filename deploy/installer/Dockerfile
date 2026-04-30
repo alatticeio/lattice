@@ -1,22 +1,22 @@
-# wireflow/installer — zero-dependency bootstrapper image
+# lattice/installer — zero-dependency bootstrapper image
 # Bundles k3d + kubectl so the user only needs Docker.
 #
 # Build (multi-arch):
 #   docker buildx build --platform linux/amd64,linux/arm64 \
-#     -t wireflow/installer:latest \
+#     -t lattice/installer:latest \
 #     --push deploy/installer/
 #
 # Run:
 #   docker run --rm -it \
 #     -v /var/run/docker.sock:/var/run/docker.sock \
 #     -v ~/.kube:/root/.kube \
-#     wireflow/installer:latest
+#     lattice/installer:latest
 #
 # Cleanup:
 #   docker run --rm \
 #     -v /var/run/docker.sock:/var/run/docker.sock \
 #     -e CLEANUP=true \
-#     wireflow/installer:latest
+#     lattice/installer:latest
 
 FROM alpine:3.20
 

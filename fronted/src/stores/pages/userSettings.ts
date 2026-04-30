@@ -13,9 +13,9 @@ export const useUserSettingsStore = defineStore('userSettings', () => {
     // 原始表单数据
     const form = reactive({
         name: 'Admin',
-        email: 'admin@wireflow.local',
+        email: 'admin@lattice.local',
         title: 'Platform Architect', // 体现你架构师的角色
-        company: 'Wireflow Cluster',
+        company: 'Lattice Cluster',
         bio: 'Infrastructure as Code. Networking as a Service. 🚀', // 更有格调的简介
         timezone: 'Asia/Shanghai',
         language: 'zh-CN',

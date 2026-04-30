@@ -1,4 +1,4 @@
-name: Wireflow E2E Test
+name: Lattice E2E Test
 
 on:
   push:
@@ -12,8 +12,8 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  CLUSTER_NAME: wf-e2e
-  E2E_KUBECONFIG: /tmp/wf-e2e.kubeconfig
+  CLUSTER_NAME: lattice-e2e
+  E2E_KUBECONFIG: /tmp/lattice-e2e.kubeconfig
 
 permissions:
   contents: read
@@ -65,6 +65,9 @@ jobs:
           fi
           echo "is_pro=${IS_PRO}" >> $GITHUB_OUTPUT
 
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
       - name: Log in to GHCR
         uses: docker/login-action@v3
         with:
@@ -72,22 +75,24 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # 构建 wireflowd（all-in-one 控制面）和 wireflow（边缘 agent，供 E2E 测试部署）
+      # 构建 latticed（all-in-one 控制面）和 lattice（边缘 agent，供 E2E 测试部署）
       - name: Build Docker images
         run: |
           REGISTRY="${{ env.REGISTRY }}/${{ steps.meta.outputs.owner }}"
           TAG="${{ steps.meta.outputs.tag }}"
-          make docker-build SERVICE=wireflowd TAG="$TAG" REGISTRY="$REGISTRY"
-          make docker-build SERVICE=wireflow  TAG="$TAG" REGISTRY="$REGISTRY"
+          CACHE="--cache-from type=gha --cache-to type=gha,mode=max"
+          make docker-build SERVICE=latticed TAG="$TAG" REGISTRY="$REGISTRY" BUILD_CACHE_ARGS="$CACHE"
+          make docker-build SERVICE=lattice  TAG="$TAG" REGISTRY="$REGISTRY" BUILD_CACHE_ARGS="$CACHE"
 
-      # run-pro 标签：额外构建带 -tags pro 的 wireflowd 控制面 + edge agent 镜像
+      # run-pro 标签：额外构建带 -tags pro 的 latticed 控制面 + edge agent 镜像
       - name: Build pro images
         if: steps.meta.outputs.is_pro == 'true'
         run: |
           REGISTRY="${{ env.REGISTRY }}/${{ steps.meta.outputs.owner }}"
           TAG="${{ steps.meta.outputs.tag }}"
-          make docker-build SERVICE=wireflowd TAG="${TAG}-pro" REGISTRY="$REGISTRY" EDITION=pro
-          make docker-build SERVICE=wireflow  TAG="${TAG}-pro" REGISTRY="$REGISTRY" EDITION=pro
+          CACHE="--cache-from type=gha --cache-to type=gha,mode=max"
+          make docker-build SERVICE=latticed TAG="${TAG}-pro" REGISTRY="$REGISTRY" EDITION=pro BUILD_CACHE_ARGS="$CACHE"
+          make docker-build SERVICE=lattice  TAG="${TAG}-pro" REGISTRY="$REGISTRY" EDITION=pro BUILD_CACHE_ARGS="$CACHE"
 
       # 推送到 GHCR —— 仅 push 事件（非 PR）。
       # PR（含 fork PR）中此步骤被跳过：fork 的 GITHUB_TOKEN 无 packages:write 权限。
@@ -97,11 +102,11 @@ jobs:
           REGISTRY="${{ env.REGISTRY }}/${{ steps.meta.outputs.owner }}"
           TAG="${{ steps.meta.outputs.tag }}"
           if [ "${{ steps.meta.outputs.is_pro }}" == "true" ]; then
-            make docker-push SERVICE=wireflowd TAG="${TAG}-pro" REGISTRY="$REGISTRY"
-            make docker-push SERVICE=wireflow  TAG="${TAG}-pro" REGISTRY="$REGISTRY"
+            make docker-push SERVICE=latticed TAG="${TAG}-pro" REGISTRY="$REGISTRY"
+            make docker-push SERVICE=lattice  TAG="${TAG}-pro" REGISTRY="$REGISTRY"
           else
-            make docker-push SERVICE=wireflowd TAG="$TAG" REGISTRY="$REGISTRY"
-            make docker-push SERVICE=wireflow  TAG="$TAG" REGISTRY="$REGISTRY"
+            make docker-push SERVICE=latticed TAG="$TAG" REGISTRY="$REGISTRY"
+            make docker-push SERVICE=lattice  TAG="$TAG" REGISTRY="$REGISTRY"
           fi
 
       # 单 server 节点（--agents 0），避免 port-forward 跨节点 EOF 问题
@@ -123,11 +128,11 @@ jobs:
         run: |
           REGISTRY="${{ env.REGISTRY }}/${{ steps.meta.outputs.owner }}"
           TAG="${{ steps.meta.outputs.tag }}"
-          k3d image import "${REGISTRY}/wireflowd:${TAG}" -c ${{ env.CLUSTER_NAME }}
-          k3d image import "${REGISTRY}/wireflow:${TAG}"  -c ${{ env.CLUSTER_NAME }}
+          k3d image import "${REGISTRY}/latticed:${TAG}" -c ${{ env.CLUSTER_NAME }}
+          k3d image import "${REGISTRY}/lattice:${TAG}"  -c ${{ env.CLUSTER_NAME }}
           if [ "${{ steps.meta.outputs.is_pro }}" == "true" ]; then
-            k3d image import "${REGISTRY}/wireflowd:${TAG}-pro" -c ${{ env.CLUSTER_NAME }}
-            k3d image import "${REGISTRY}/wireflow:${TAG}-pro"  -c ${{ env.CLUSTER_NAME }}
+            k3d image import "${REGISTRY}/latticed:${TAG}-pro" -c ${{ env.CLUSTER_NAME }}
+            k3d image import "${REGISTRY}/lattice:${TAG}-pro"  -c ${{ env.CLUSTER_NAME }}
           fi
 
       - name: Install kustomize
@@ -135,19 +140,19 @@ jobs:
 
       # 部署 all-in-one（内嵌 NATS + SQLite，无外部依赖）
       # deploy-aio 内部含 rollout status 等待（180s），readiness probe 就绪后才返回
-      - name: Deploy Wireflow All-in-One
+      - name: Deploy Lattice All-in-One
         run: |
           export PATH=$PATH:$(go env GOPATH)/bin
           REGISTRY="${{ env.REGISTRY }}/${{ steps.meta.outputs.owner }}"
           TAG="${{ steps.meta.outputs.tag }}"
           if [ "${{ steps.meta.outputs.is_pro }}" == "true" ]; then
-            WIREFLOWD_IMG="${REGISTRY}/wireflowd:${TAG}-pro"
-            echo "🔬 Using pro wireflowd image: ${WIREFLOWD_IMG}"
+            LATTICED_IMG="${REGISTRY}/latticed:${TAG}-pro"
+            echo "Using pro latticed image: ${LATTICED_IMG}"
           else
-            WIREFLOWD_IMG="${REGISTRY}/wireflowd:${TAG}"
+            LATTICED_IMG="${REGISTRY}/latticed:${TAG}"
           fi
           make deploy-aio \
-            IMG="${WIREFLOWD_IMG}" \
+            IMG="${LATTICED_IMG}" \
             KUBECTL="kubectl --kubeconfig=${{ env.E2E_KUBECONFIG }}"
 
       - name: Run E2E tests
@@ -156,10 +161,10 @@ jobs:
           TAG="${{ steps.meta.outputs.tag }}"
           # run-pro 标签时使用 pro 构建的 agent 镜像（含 telemetry 等 pro 功能）
           if [ "${{ steps.meta.outputs.is_pro }}" == "true" ]; then
-            AGENT_IMAGE="${REGISTRY}/wireflow:${TAG}-pro"
+            AGENT_IMAGE="${REGISTRY}/lattice:${TAG}-pro"
             echo "🔬 Using pro agent image: ${AGENT_IMAGE}"
           else
-            AGENT_IMAGE="${REGISTRY}/wireflow:${TAG}"
+            AGENT_IMAGE="${REGISTRY}/lattice:${TAG}"
           fi
           make test-e2e \
             LOCAL_AGENT_IMAGE="${AGENT_IMAGE}" \
@@ -171,12 +176,12 @@ jobs:
           KC="kubectl --kubeconfig=${{ env.E2E_KUBECONFIG }}"
 
           echo ""
-          echo "===== wireflow-system: 控制面 Pod 状态 ====="
-          $KC get all -n wireflow-system -o wide || true
+          echo "===== lattice-system: 控制面 Pod 状态 ====="
+          $KC get all -n lattice-system -o wide || true
 
           echo ""
-          echo "===== wireflowd (all-in-one) 日志 (最近 300 行) ====="
-          $KC logs -n wireflow-system -l app.kubernetes.io/name=wireflowd --tail=300 || true
+          echo "===== latticed (all-in-one) 日志 (最近 300 行) ====="
+          $KC logs -n lattice-system -l app.kubernetes.io/name=latticed --tail=300 || true
 
           echo ""
           echo "===== E2E 测试 Namespace 列表 ====="
@@ -190,19 +195,19 @@ jobs:
             echo "####################################################"
 
             echo ""
-            echo "--- WireflowNetwork ---"
+            echo "--- LatticeNetwork ---"
             $KC get wfnetwork -n "$ns" -o wide || true
             $KC describe wfnetwork -n "$ns" || true
 
             echo ""
-            echo "--- WireflowPeer ---"
+            echo "--- LatticePeer ---"
             $KC get wfpeer -n "$ns" -o wide || true
             $KC describe wfpeer -n "$ns" || true
 
             echo ""
             echo "--- ConfigMap (agent 配置) ---"
-            $KC get configmap -n "$ns" -l app.kubernetes.io/managed-by=wireflow-controller || true
-            for cm in $($KC get configmap -n "$ns" -l app.kubernetes.io/managed-by=wireflow-controller -o jsonpath='{.items[*].metadata.name}' || true); do
+            $KC get configmap -n "$ns" -l app.kubernetes.io/managed-by=lattice-controller || true
+            for cm in $($KC get configmap -n "$ns" -l app.kubernetes.io/managed-by=lattice-controller -o jsonpath='{.items[*].metadata.name}' || true); do
               echo "  [ConfigMap: $cm]"
               $KC get configmap -n "$ns" "$cm" -o jsonpath='{.data.config\.json}' | python3 -m json.tool 2>/dev/null || \
               $KC get configmap -n "$ns" "$cm" -o jsonpath='{.data.config\.json}' || true
@@ -220,8 +225,8 @@ jobs:
               echo "  === Pod: $pod (phase=$POD_PHASE) ==="
 
               if [ "$POD_PHASE" = "Running" ]; then
-                echo "  [wireflow status] WireGuard 隧道状态"
-                $KC exec -n "$ns" "$pod" -- /app/wireflow status 2>&1 || echo "  wireflow status 失败"
+                echo "  [lattice status] WireGuard 隧道状态"
+                $KC exec -n "$ns" "$pod" -- /app/lattice status 2>&1 || echo "  lattice status 失败"
 
                 echo ""
                 echo "  [ip addr] 网络接口"
@@ -239,7 +244,7 @@ jobs:
           done
 
           echo ""
-          echo "===== WireflowPeer 汇总 (所有 ns) ====="
+          echo "===== LatticePeer 汇总 (所有 ns) ====="
           $KC get wfpeer --all-namespaces -o wide || true
 
       - name: Cleanup test namespaces on failure

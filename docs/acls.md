@@ -2,11 +2,11 @@
 
 ## Default Deny
 
-**Wireflow's zero trust policy is default deny all. a policy will be created automatically when you create a namespace.**
+**Lattice's zero trust policy is default deny all. a policy will be created automatically when you create a namespace.**
 
 * **ingress deny**
 ```yaml
-apiVersion: wireflowcontroller.wireflow.run/v1alpha1
+apiVersion: alattice.io/v1alpha1
 kind: NetworkPolicy
 metadata:
   name: default-deny-ingress
@@ -20,7 +20,7 @@ spec:
 
 * **deny all**
 ```yaml
-apiVersion: wireflowcontroller.wireflow.run/v1alpha1
+apiVersion: alattice.io/v1alpha1
 kind: NetworkPolicy
 metadata:
   name: default-deny-all

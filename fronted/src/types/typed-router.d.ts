@@ -154,6 +154,13 @@ declare module 'vue-router/auto-routes' {
       Record<never, never>,
       | never
     >,
+    '/platform/cluster-peering/': RouteRecordInfo<
+      '/platform/cluster-peering/',
+      '/platform/cluster-peering',
+      Record<never, never>,
+      Record<never, never>,
+      | never
+    >,
     '/platform/network-peering/': RouteRecordInfo<
       '/platform/network-peering/',
       '/platform/network-peering',
@@ -330,6 +337,12 @@ declare module 'vue-router/auto-routes' {
     'src/pages/manage/workspaces/index.vue': {
       routes:
         | '/manage/workspaces/'
+      views:
+        | never
+    }
+    'src/pages/platform/cluster-peering/index.vue': {
+      routes:
+        | '/platform/cluster-peering/'
       views:
         | never
     }

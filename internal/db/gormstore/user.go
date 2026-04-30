@@ -3,10 +3,10 @@ package gormstore
 import (
 	"context"
 
-	"wireflow/management/dto"
-	"wireflow/management/models"
-	"wireflow/management/repository"
-	"wireflow/management/vo"
+	"github.com/alatticeio/lattice/internal/server/dto"
+	"github.com/alatticeio/lattice/internal/server/models"
+	"github.com/alatticeio/lattice/internal/server/repository"
+	"github.com/alatticeio/lattice/internal/server/vo"
 
 	"gorm.io/gorm"
 )
@@ -59,7 +59,7 @@ func (r *userRepo) ListRaw(ctx context.Context, req *dto.PageRequest) ([]*models
 	err := query.
 		Preload("Identities").
 		Limit(req.PageSize).
-		Offset((req.Page-1)*req.PageSize).
+		Offset((req.Page - 1) * req.PageSize).
 		Order("created_at DESC").
 		Find(&users).Error
 	return users, total, err

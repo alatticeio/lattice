@@ -108,15 +108,15 @@ jobs:
           OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
           if [ "${{ github.event_name }}" = "push" ]; then
             # tag push: 用 git tag 作为版本号，同时打 latest
-            echo "tags=ghcr.io/${OWNER}/wireflowd:${{ github.ref_name }},ghcr.io/${OWNER}/wireflowd:latest" >> $GITHUB_OUTPUT
+            echo "tags=ghcr.io/${OWNER}/latticed:${{ github.ref_name }},ghcr.io/${OWNER}/latticed:latest" >> $GITHUB_OUTPUT
             echo "version=${{ github.ref_name }}" >> $GITHUB_OUTPUT
           else
             # PR: 用 pr-{number} 作为 tag，不覆盖 latest
-            echo "tags=ghcr.io/${OWNER}/wireflowd:pr-${{ github.event.number }}" >> $GITHUB_OUTPUT
+            echo "tags=ghcr.io/${OWNER}/latticed:pr-${{ github.event.number }}" >> $GITHUB_OUTPUT
             echo "version=pr-${{ github.event.number }}" >> $GITHUB_OUTPUT
           fi
 
-      - name: Build and push wireflowd image
+      - name: Build and push latticed image
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -124,11 +124,11 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
           build-args: |
-            TARGETSERVICE=wireflowd
+            TARGETSERVICE=latticed
             VERSION=${{ steps.meta.outputs.version }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: |
-            org.opencontainers.image.title=wireflowd
+            org.opencontainers.image.title=latticed
             org.opencontainers.image.version=${{ steps.meta.outputs.version }}
             org.opencontainers.image.revision=${{ github.sha }}
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}

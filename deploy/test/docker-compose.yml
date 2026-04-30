@@ -1,14 +1,14 @@
 version: "3.8"
 
-# Wireflow 10-node integration test
+# Lattice 10-node integration test
 #
-# 用真实的 wireflow pro 镜像跑 10 个节点，接入同一个 workspace，
+# 用真实的 lattice pro 镜像跑 10 个节点，接入同一个 workspace，
 # 指标直接 push 到 VictoriaMetrics（无需 vmagent）。
 #
 # 前置条件:
 #   - WF_IMAGE      pro 构建的镜像，需包含 telemetry（--enable-metric 才有效）
 #   - WF_TOKEN      workspace enrollment token（在管理界面创建）
-#   - WF_SERVER_URL wireflow management server 地址，如 http://192.168.1.10:8080
+#   - WF_SERVER_URL lattice management server 地址，如 http://192.168.1.10:8080
 #   - WF_SIGNALING_URL nats/signaling 地址，如 nats://192.168.1.10:4222
 #   - VM_ENDPOINT   VictoriaMetrics 地址，如 http://192.168.1.10:8428
 #
@@ -24,7 +24,7 @@ version: "3.8"
 #   docker compose down
 
 x-node: &node
-  image: ${WF_IMAGE:-ghcr.io/wireflowio/wireflowd:latest}
+  image: ${WF_IMAGE:-ghcr.io/latticeio/latticed:latest}
   cap_add:
     - NET_ADMIN
     - SYS_MODULE
@@ -33,7 +33,7 @@ x-node: &node
   volumes:
     - /lib/modules:/lib/modules:ro
   restart: unless-stopped
-  # 每个节点 hostname 即为它在 wireflow 里注册的 AppId
+  # 每个节点 hostname 即为它在 lattice 里注册的 AppId
   command: >
     up
     --token=${WF_TOKEN}
@@ -47,40 +47,40 @@ x-node: &node
 services:
   node-01:
     <<: *node
-    hostname: wf-test-node-01
+    hostname: lat-test-node-01
 
   node-02:
     <<: *node
-    hostname: wf-test-node-02
+    hostname: lat-test-node-02
 
   node-03:
     <<: *node
-    hostname: wf-test-node-03
+    hostname: lat-test-node-03
 
   node-04:
     <<: *node
-    hostname: wf-test-node-04
+    hostname: lat-test-node-04
 
   node-05:
     <<: *node
-    hostname: wf-test-node-05
+    hostname: lat-test-node-05
 
   node-06:
     <<: *node
-    hostname: wf-test-node-06
+    hostname: lat-test-node-06
 
   node-07:
     <<: *node
-    hostname: wf-test-node-07
+    hostname: lat-test-node-07
 
   node-08:
     <<: *node
-    hostname: wf-test-node-08
+    hostname: lat-test-node-08
 
   node-09:
     <<: *node
-    hostname: wf-test-node-09
+    hostname: lat-test-node-09
 
   node-10:
     <<: *node
-    hostname: wf-test-node-10
+    hostname: lat-test-node-10

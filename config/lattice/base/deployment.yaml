@@ -1,0 +1,154 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: control
+  labels:
+    k8s-app: lattice-control
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      k8s-app: lattice-control
+  template:
+    metadata:
+      labels:
+        k8s-app: lattice-control
+    spec:
+      serviceAccountName: lattice-controller-admin
+      initContainers:
+        - name: wait-for-nats
+          image: curlimages/curl:latest
+          imagePullPolicy: IfNotPresent
+          command:
+            - '/bin/sh'
+            - '-c'
+            - |
+              until curl -f http://lattice-nats-service:8222/varz; do
+                echo "Waiting for nats server..."
+                sleep 2
+              done
+      containers:
+        - name: lattice-control
+          image: manager:latest
+          imagePullPolicy: IfNotPresent
+          args:
+            - "start"
+            - "manager"
+            - "--level=DEBUG"
+            - "--env=prod"
+          volumeMounts:
+            - mountPath: /etc/lattice/lattice.yaml
+              name: conf
+              subPath: lattice.yaml
+          env:
+            # 对应结构体 Database.DSN
+            - name: APP_DATABASE_DSN
+              value: "root:root@tcp(lattice-mariadb.lattice-system.svc.cluster.local:3306)/lattice?charset=utf8mb4&parseTime=True&loc=Local"
+
+            # 对应结构体 Dex.Issuer
+            - name: APP_DEX_ISSUR
+              value: "http://lattice-dex.lattice-system.svc.cluster.local:5556/dex/auth"
+            # 对应结构体 Dex.Issuer
+            - name: APP_DEX_PROVIDERURL
+              value: "http://lattice-dex.lattice-system.svc.cluster.local:5556/dex"
+      volumes:
+        - name: conf
+          configMap:
+            name: lattice-control-config
+            items:
+              - key: lattice.yaml
+                path: lattice.yaml
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: turn
+  labels:
+    k8s-app: turn
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      k8s-app: lattice-turn
+  template:
+    metadata:
+      labels:
+        k8s-app: lattice-turn
+    spec:
+      initContainers:
+        - name: wait-for-nats
+          image: curlimages/curl:latest
+          imagePullPolicy: IfNotPresent
+          command:
+            - '/bin/sh'
+            - '-c'
+            - |
+              until curl -f http://lattice-nats-service:8222/varz; do
+                echo "Waiting for nats server..."
+                sleep 2
+              done
+      containers:
+        - name: lattice-turn
+          image: manager:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 3478
+              protocol: UDP
+              hostPort: 3478
+          args:
+            - "start"
+            - "turn"
+            - "--level=debug"
+            - "--public-ip=81.68.109.143"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: wrrper
+  labels:
+    k8s-app: lattice-wrrper
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      k8s-app: lattice-wrrper
+  template:
+    metadata:
+      labels:
+        k8s-app: lattice-wrrper
+    spec:
+      serviceAccountName: lattice-controller-admin
+      initContainers:
+        - name: wait-for-nats
+          image: curlimages/curl:latest
+          command:
+            - '/bin/sh'
+            - '-c'
+            - |
+              until curl -f http://lattice-nats-service:8222/varz; do
+                echo "Waiting for nats server..."
+                sleep 2
+              done
+      containers:
+        - name: lattice-wrrper
+          image: manager:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 6266
+              hostPort: 6266
+          args:
+            - "start"
+            - "wrrper"
+            - "--listen=:6266"
+            - "--level=INFO"
+          volumeMounts:
+            - mountPath: /app/deploy/conf.yaml
+              name: conf
+              subPath: conf.yaml
+      volumes:
+        - name: conf
+          configMap:
+            name: lattice-control-config
+            items:
+              - key: conf.yaml
+                path: conf.yaml

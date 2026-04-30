@@ -12,7 +12,7 @@ import enSettings from './en/settings.json'
 
 export type Locale = 'zh-CN' | 'en'
 
-const STORAGE_KEY = 'wireflow_lang'
+const STORAGE_KEY = 'lattice_lang'
 
 function detectLocale(): Locale {
   const saved = localStorage.getItem(STORAGE_KEY) as Locale | null

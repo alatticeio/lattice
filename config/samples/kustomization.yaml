@@ -1,6 +1,6 @@
 ## Append samples of your project ##
 resources:
-- wireflowcontroller_v1alpha1_node.yaml
-- wireflowcontroller_v1alpha1_wireflownetwork.yaml
+- latticecontroller_v1alpha1_node.yaml
+- latticecontroller_v1alpha1_latticenetwork.yaml
 - label1-policy.yaml
 # +kubebuilder:scaffold:manifestskustomizesamples

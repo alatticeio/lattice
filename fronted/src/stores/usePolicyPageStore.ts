@@ -54,7 +54,7 @@ export const usePolicyPageStore = defineStore('policyPage', () => {
     // --- 3. Getters (YAML Preview) ---
     const yamlPreview = computed(() => {
         const target = parseLabel(form.value._targetLabel);
-        let yaml = `apiVersion: wireflowcontroller.wireflow.run/v1alpha1\nkind: WireflowPolicy\nmetadata:\n  name: ${form.value.name || 'new-policy'}\nspec:\n  peerSelector:\n    matchLabels:\n      ${target.key}: ${target.value}`
+        let yaml = `apiVersion: alattice.io/v1alpha1\nkind: LatticePolicy\nmetadata:\n  name: ${form.value.name || 'new-policy'}\nspec:\n  peerSelector:\n    matchLabels:\n      ${target.key}: ${target.value}`
 
         const renderRules = (rules: any[], direction: 'ingress' | 'egress') => {
             if (!form.value.policyTypes.includes(direction === 'ingress' ? 'Ingress' : 'Egress')) return ''
@@ -163,9 +163,12 @@ export const usePolicyPageStore = defineStore('policyPage', () => {
             form.value = { ...base, ...templates[key] }
         },
 
-        async handleCreateOrUpdate(toast:any) {
+        async handleCreateOrUpdate(toast: any) {
             // 1. 校验逻辑
-            if (!validateLabel(form.value._targetLabel)) return toast("主标签格式错误", "error")
+            if (!validateLabel(form.value._targetLabel)) {
+                toast.error('主标签格式错误')
+                return
+            }
 
             loading.value = true
             try {
@@ -197,14 +200,24 @@ export const usePolicyPageStore = defineStore('policyPage', () => {
                 process(payload.egress, 'egress')
                 delete payload._targetLabel
 
-                if (drawerType.value === 'create') await createPolicy(payload)
-                else await updatePolicy(payload)
+                const res: any = drawerType.value === 'create'
+                    ? await createPolicy(payload)
+                    : await updatePolicy(payload)
 
-                toast("操作成功")
-                isDrawerOpen.value = false
-                refresh()
-            } catch (e) {
-                toast("请求失败", "error")
+                // code 200 = admin direct apply, code 0 = submitted for approval
+                if (res?.code === 200 || res?.code === 0) {
+                    isDrawerOpen.value = false
+                    refresh()
+                    if (res.code === 0) {
+                        toast.success('策略已提交审批，等待管理员确认')
+                    } else {
+                        toast.success('操作成功')
+                    }
+                } else {
+                    toast.error(res?.msg || '操作失败')
+                }
+            } catch (e: any) {
+                toast.error(e?.response?.data?.message ?? '请求失败')
             } finally {
                 loading.value = false
             }

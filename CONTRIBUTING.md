@@ -1,8 +1,8 @@
-# Contributing to Wireflow
+# Contributing to Lattice
 
 ## 🎉 Welcome!
 
-Thank you for considering contributing to Wireflow!
+Thank you for considering contributing to Lattice!
 
 ## Developer Certificate of Origin (DCO)
 To track ownership of contributions, we use the DCO. All commits must be signed off.
@@ -25,8 +25,8 @@ This will append a line to your commit message: Signed-off-by: Your Name <your.e
 
 ```bash
 # Clone the repo
-git clone https://github.com/wireflowio/wireflow.git
-cd wireflow
+git clone https://github.com/alatticeio/lattice.git
+cd lattice
 
 # Install dependencies
 make manifests && make build-all

@@ -1,7 +1,7 @@
 package gormstore
 
 import (
-	"wireflow/management/models"
+	"github.com/alatticeio/lattice/internal/server/models"
 
 	"gorm.io/gorm"
 )

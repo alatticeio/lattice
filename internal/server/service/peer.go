@@ -1,0 +1,439 @@
+// Copyright 2026 The Lattice Authors, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package service
+
+import (
+	"context"
+	"fmt"
+	"github.com/alatticeio/lattice/internal/agent/infra"
+	"github.com/alatticeio/lattice/internal/agent/log"
+	"github.com/alatticeio/lattice/internal/agent/store"
+	"github.com/alatticeio/lattice/internal/server/dto"
+	managementnats "github.com/alatticeio/lattice/internal/server/nats"
+	"github.com/alatticeio/lattice/internal/server/resource"
+	"github.com/alatticeio/lattice/internal/server/vo"
+	"strings"
+	"time"
+
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/util/retry"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/alatticeio/lattice/api/v1alpha1"
+)
+
+var (
+	_ PeerService = (*peerService)(nil)
+)
+
+type PeerService interface {
+	Register(ctx context.Context, dto *dto.PeerDto) (*infra.Peer, error)
+	UpdateStatus(ctx context.Context, status int) error
+	GetNetmap(ctx context.Context, namespace string, appId string) (*infra.Message, error)
+	CreateToken(ctx context.Context, tokenDto *dto.TokenDto) ([]byte, error)
+	bootstrap(ctx context.Context, provideToken string) error
+
+	//Peer tenant
+	ListPeers(ctx context.Context, pageParam *dto.PageRequest) (*dto.PageResult[vo.PeerVo], error)
+	UpdatePeer(ctx context.Context, peerDto *dto.PeerDto) (*vo.PeerVo, error)
+	DisablePeer(ctx context.Context, namespace, name string) error
+	EnablePeer(ctx context.Context, namespace, name string) error
+	DeletePeer(ctx context.Context, namespace, name string) error
+}
+
+type peerService struct {
+	logger   *log.Logger
+	client   *resource.Client
+	store    store.Store
+	presence *managementnats.NodePresenceStore
+}
+
+const (
+	displayNameAnnotation = "lattice.io/display-name"
+	disabledAnnotation    = "lattice.io/disabled"
+)
+
+func (p *peerService) UpdatePeer(ctx context.Context, peerDto *dto.PeerDto) (*vo.PeerVo, error) {
+	var peer v1alpha1.LatticePeer
+	if err := p.client.GetAPIReader().Get(ctx, types.NamespacedName{Namespace: peerDto.Namespace, Name: peerDto.Name}, &peer); err != nil {
+		return nil, err
+	}
+
+	// Update labels
+	peerLabels := peer.GetLabels()
+	if peerLabels == nil {
+		peerLabels = make(map[string]string)
+	}
+	if peerDto.Labels != nil {
+		for k, v := range peerDto.Labels {
+			if v == "" {
+				delete(peerLabels, k)
+			} else {
+				peerLabels[k] = v
+			}
+		}
+	}
+	peer.SetLabels(peerLabels)
+
+	// Update display name annotation
+	annotations := peer.GetAnnotations()
+	if annotations == nil {
+		annotations = make(map[string]string)
+	}
+	if peerDto.DisplayName != "" {
+		annotations[displayNameAnnotation] = peerDto.DisplayName
+	} else {
+		delete(annotations, displayNameAnnotation)
+	}
+	peer.SetAnnotations(annotations)
+
+	if err := p.client.Update(ctx, &peer); err != nil {
+		return nil, err
+	}
+
+	return &vo.PeerVo{
+		Name:        peer.Name,
+		DisplayName: annotations[displayNameAnnotation],
+		AppID:       peer.Spec.AppId,
+		Labels:      peerLabels,
+		PublicKey:   peer.Spec.PublicKey,
+		Platform:    peer.Spec.Platform,
+		Address:     peer.Status.AllocatedAddress,
+	}, nil
+}
+
+func (p *peerService) ListPeers(ctx context.Context, pageParam *dto.PageRequest) (*dto.PageResult[vo.PeerVo], error) {
+	var (
+		peerList v1alpha1.LatticePeerList
+		err      error
+	)
+
+	workspaceV := ctx.Value(infra.WorkspaceKey)
+	var workspaceId string
+	if workspaceV != nil {
+		workspaceId = workspaceV.(string)
+	}
+
+	workspace, err := p.store.Workspaces().GetByID(ctx, workspaceId)
+	if err != nil {
+		return nil, err
+	}
+
+	err = p.client.GetAPIReader().List(ctx, &peerList, client.InNamespace(workspace.Namespace))
+	if err != nil {
+		return nil, err
+	}
+
+	type peerItem struct {
+		name        string
+		displayName string
+		appId       string
+		publicKey   string
+		namespace   string
+		address     *string
+		labels      map[string]string
+		disabled    bool
+	}
+
+	allPeers := make([]peerItem, 0, len(peerList.Items))
+	for _, n := range peerList.Items {
+		allPeers = append(allPeers, peerItem{
+			name:        n.Name,
+			displayName: n.GetAnnotations()[displayNameAnnotation],
+			appId:       n.Spec.AppId,
+			publicKey:   n.Spec.PublicKey,
+			namespace:   n.Namespace,
+			address:     n.Status.AllocatedAddress,
+			labels:      n.GetLabels(),
+			disabled:    n.GetAnnotations()[disabledAnnotation] == "true",
+		})
+	}
+
+	filteredPeers := allPeers
+	if pageParam.Keyword != "" {
+		filteredPeers = filteredPeers[:0]
+		kw := pageParam.Keyword
+		for _, n := range allPeers {
+			addrMatch := n.address != nil && strings.Contains(*n.address, kw)
+			if strings.Contains(n.name, kw) || strings.Contains(n.displayName, kw) || addrMatch {
+				filteredPeers = append(filteredPeers, n)
+			}
+		}
+	}
+
+	total := len(filteredPeers)
+	page := pageParam.Page
+	if page < 1 {
+		page = 1
+	}
+	start := (page - 1) * pageParam.PageSize
+	end := start + pageParam.PageSize
+	if start > total {
+		start = total
+	}
+	if end > total {
+		end = total
+	}
+
+	var vos []vo.PeerVo
+	for _, n := range filteredPeers[start:end] {
+		pv := vo.PeerVo{
+			Namespace:            n.namespace,
+			Name:                 n.name,
+			DisplayName:          n.displayName,
+			AppID:                n.appId,
+			PublicKey:            n.publicKey,
+			Address:              n.address,
+			Labels:               n.labels,
+			WorkspaceDisplayName: workspace.DisplayName,
+			Disabled:             n.disabled,
+		}
+		if p.presence != nil {
+			status, lastSeen := p.presence.GetStatus(n.appId)
+			pv.Status = status
+			if lastSeen != nil {
+				t := lastSeen.Format(time.RFC3339)
+				pv.LastSeen = &t
+			}
+		}
+		vos = append(vos, pv)
+	}
+
+	return &dto.PageResult[vo.PeerVo]{
+		Page:     pageParam.Page,
+		PageSize: pageParam.PageSize,
+		Total:    int64(len(allPeers)),
+		List:     vos,
+	}, nil
+}
+
+func (p *peerService) CreateToken(ctx context.Context, tokenDto *dto.TokenDto) ([]byte, error) {
+	var token v1alpha1.LatticeEnrollmentToken
+	if err := p.client.Get(ctx, client.ObjectKey{Namespace: tokenDto.Namespace, Name: tokenDto.Name}, &token); err != nil {
+		if errors.IsNotFound(err) {
+			duration, err := time.ParseDuration(tokenDto.Expiry)
+			if err != nil {
+				return nil, err
+			}
+
+			expiryTimestamp := time.Now().Add(duration).Unix()
+
+			token = v1alpha1.LatticeEnrollmentToken{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      strings.ToLower(tokenDto.Name),
+					Namespace: tokenDto.Namespace,
+					Labels: map[string]string{
+						"app.kubernetes.io/managed-by": "lattice-controller",
+					},
+				},
+				Spec: v1alpha1.LatticeEnrollmentTokenSpec{
+					Token:      tokenDto.Name,
+					Namespace:  tokenDto.Namespace,
+					Expiry:     metav1.NewTime(time.Unix(expiryTimestamp, 0)),
+					UsageLimit: tokenDto.Limit,
+				},
+			}
+
+			if err = p.client.Create(ctx, &token); err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	actualToken := token.Status.Token
+	if actualToken == "" {
+		actualToken = token.Spec.Token
+	}
+	return []byte(actualToken), nil
+}
+
+func NewPeerService(client *resource.Client, st store.Store, presence *managementnats.NodePresenceStore) PeerService {
+	return &peerService{
+		client:   client,
+		logger:   log.GetLogger("peer-service"),
+		store:    st,
+		presence: presence,
+	}
+}
+
+func (p *peerService) GetNetmap(ctx context.Context, token string, appId string) (*infra.Message, error) {
+	return p.client.GetNetworkMap(ctx, token, appId)
+}
+
+func (p *peerService) UpdateStatus(_ context.Context, _ int) error { return nil }
+
+func (p *peerService) DisablePeer(ctx context.Context, namespace, name string) error {
+	var peer v1alpha1.LatticePeer
+	if err := p.client.GetAPIReader().Get(ctx, types.NamespacedName{Namespace: namespace, Name: name}, &peer); err != nil {
+		return err
+	}
+	annotations := peer.GetAnnotations()
+	if annotations == nil {
+		annotations = make(map[string]string)
+	}
+	annotations[disabledAnnotation] = "true"
+	peer.SetAnnotations(annotations)
+	return p.client.Update(ctx, &peer)
+}
+
+func (p *peerService) EnablePeer(ctx context.Context, namespace, name string) error {
+	var peer v1alpha1.LatticePeer
+	if err := p.client.GetAPIReader().Get(ctx, types.NamespacedName{Namespace: namespace, Name: name}, &peer); err != nil {
+		return err
+	}
+	annotations := peer.GetAnnotations()
+	delete(annotations, disabledAnnotation)
+	peer.SetAnnotations(annotations)
+	return p.client.Update(ctx, &peer)
+}
+
+func (p *peerService) DeletePeer(ctx context.Context, namespace, name string) error {
+	var peer v1alpha1.LatticePeer
+	if err := p.client.GetAPIReader().Get(ctx, types.NamespacedName{Namespace: namespace, Name: name}, &peer); err != nil {
+		return err
+	}
+	if err := p.client.Delete(ctx, &peer); err != nil {
+		return err
+	}
+	// Best-effort cleanup of the associated ConfigMap created by the controller
+	var cm corev1.ConfigMap
+	if err := p.client.Get(ctx, types.NamespacedName{Namespace: namespace, Name: fmt.Sprintf("%s-config", name)}, &cm); err == nil {
+		_ = p.client.Delete(ctx, &cm)
+	}
+	return nil
+}
+
+func (p *peerService) Register(ctx context.Context, dto *dto.PeerDto) (*infra.Peer, error) {
+	p.logger.Info("Received peer", "info", dto)
+
+	tokenValid, token, err := p.checkToken(ctx, dto.Token)
+	if err != nil {
+		return nil, err
+	}
+
+	if !tokenValid {
+		return nil, fmt.Errorf("token is invalid")
+	}
+
+	node, err := p.client.Register(ctx, token.Namespace, dto)
+	if err != nil {
+		return nil, err
+	}
+
+	actualToken := token.Status.Token
+	if actualToken == "" {
+		actualToken = token.Spec.Token
+	}
+	node.Token = actualToken
+	return node, nil
+}
+
+func (p *peerService) checkToken(ctx context.Context, tokenStr string) (bool, *v1alpha1.LatticeEnrollmentToken, error) {
+	if tokenStr == "" {
+		return false, nil, fmt.Errorf("token is empty")
+	}
+
+	var list v1alpha1.LatticeEnrollmentTokenList
+	err := p.client.List(ctx, &list, client.MatchingFields{"status.token": tokenStr})
+	if err != nil {
+		return false, nil, fmt.Errorf("get token failed: %v", err)
+	}
+	if len(list.Items) == 0 {
+		// 兼容旧数据：回退到 spec.token
+		err = p.client.List(ctx, &list, client.MatchingFields{"spec.token": tokenStr})
+		if err != nil {
+			return false, nil, fmt.Errorf("get token failed: %v", err)
+		}
+	}
+
+	if len(list.Items) == 0 {
+		return false, nil, fmt.Errorf("token not exists")
+	}
+
+	var token *v1alpha1.LatticeEnrollmentToken
+	for _, t := range list.Items {
+		if t.Status.Token == tokenStr || t.Spec.Token == tokenStr {
+			token = &t
+		}
+	}
+
+	if token == nil {
+		return false, nil, fmt.Errorf("token not exists")
+	}
+
+	if err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		latestToken := &v1alpha1.LatticeEnrollmentToken{}
+		if err = p.client.GetCache().Get(ctx, client.ObjectKeyFromObject(token), latestToken); err != nil {
+			return err
+		}
+		latestToken.Status.UsedCount++
+		return p.client.Status().Update(ctx, latestToken)
+	}); err != nil {
+		return false, nil, err
+	}
+
+	return true, token, nil
+}
+
+func (p *peerService) bootstrap(ctx context.Context, nsName string) error {
+	if err := p.ensureNamespace(ctx, nsName); err != nil {
+		return err
+	}
+	return p.ensureDefaultNetwork(ctx, nsName)
+}
+
+func (p *peerService) ensureNamespace(ctx context.Context, nsName string) error {
+	var ns corev1.Namespace
+	if err := p.client.Get(ctx, client.ObjectKey{Name: nsName}, &ns); err != nil {
+		if errors.IsNotFound(err) {
+			p.logger.Info("Creating namespace", "name", nsName)
+			if err = p.client.Create(ctx, &corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:   nsName,
+					Labels: map[string]string{"app.kubernetes.io/managed-by": "lattice-controller"},
+				},
+			}); err != nil {
+				p.logger.Error("create namespace failed", err)
+			}
+		}
+	}
+	return nil
+}
+
+func (p *peerService) ensureDefaultNetwork(ctx context.Context, nsName string) error {
+	var defaultNet v1alpha1.LatticeNetwork
+	if err := p.client.Get(ctx, client.ObjectKey{Namespace: nsName, Name: "lattice-default-net"}, &defaultNet); err != nil {
+		if errors.IsNotFound(err) {
+			defaultNet = v1alpha1.LatticeNetwork{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "lattice-default-net",
+					Namespace: nsName,
+					Labels:    map[string]string{"app.kubernetes.io/managed-by": "lattice-controller"},
+				},
+				Spec: v1alpha1.LatticeNetworkSpec{
+					Name: fmt.Sprintf("%s-net", nsName),
+				},
+			}
+
+			if err := p.client.Create(ctx, &defaultNet); err != nil {
+				return fmt.Errorf("failed to create default network: %v", err)
+			}
+		}
+	}
+	return nil
+}

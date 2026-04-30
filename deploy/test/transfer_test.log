@@ -47,7 +47,7 @@
 [2026-04-25 08:15:51]   #20  pod-b(10.0.0.4)  ← k8s_agent_pod-b-58ffd6cdcb-sp7lr_wf-a1ac5a3a-97ff-4220-967a-09ac46e2189f_ed1cd99d-a57e-474b-a0cf-9c081d988dd3_57
 [2026-04-25 08:15:52] 共发现 20 个节点
 [2026-04-25 08:15:52] 开始传输测试  节点数=20  每轮=2对  间隔=30s  数据量=1-2MB
-[2026-04-25 08:15:52] CSV: /Users/francis/workspc/wireflow/deploy/test/transfer_records.csv
+[2026-04-25 08:15:52] CSV: /Users/francis/workspc/lattice/deploy/test/transfer_records.csv
 [2026-04-25 08:15:52] ━━━ 第 1 轮  2026-04-25 08:15:52 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 [2026-04-25 08:16:07] 发现带有 wf0 接口的容器...
 [2026-04-25 08:16:07]   #1  pod-a(10.0.7.2)  ← k8s_agent_pod-a-94776f46f-phmhv_wf-7acda537-fb95-4fb4-82c9-abf738306cdd_eb6387fc-a409-42b8-886e-f334f359aba7_16
@@ -72,7 +72,7 @@
 [2026-04-25 08:16:08]   #20  pod-b(10.0.0.4)  ← k8s_agent_pod-b-58ffd6cdcb-sp7lr_wf-a1ac5a3a-97ff-4220-967a-09ac46e2189f_ed1cd99d-a57e-474b-a0cf-9c081d988dd3_57
 [2026-04-25 08:16:09] 共发现 20 个节点
 [2026-04-25 08:16:09] 开始传输测试  节点数=20  每轮=2对  间隔=30s  数据量=1-2MB
-[2026-04-25 08:16:09] CSV: /Users/francis/workspc/wireflow/deploy/test/transfer_records.csv
+[2026-04-25 08:16:09] CSV: /Users/francis/workspc/lattice/deploy/test/transfer_records.csv
 [2026-04-25 08:16:09] ━━━ 第 1 轮  2026-04-25 08:16:09 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 [2026-04-25 08:16:16]   ✗  pod-b(10.0.7.3)        → pod-a(10.0.8.3)         1MB  recv=0B  5.146s  0.00MB/s  [MISMATCH(diff=1048576)]
 [2026-04-25 08:16:22]   ✗  pod-a(10.0.9.3)        → pod-a(10.0.0.2)         2MB  recv=0B  5.166s  0.00MB/s  [MISMATCH(diff=2097152)]
@@ -81,6 +81,6 @@
 [2026-04-25 08:19:20]   #2  pod-b(10.0.7.3)  ← k8s_agent_pod-b-765f9d49b9-qvgsr_wf-7acda537-fb95-4fb4-82c9-abf738306cdd_7617c45a-7d3b-442c-862e-7f4a2e81dfc4_13
 [2026-04-25 08:19:20] 共发现 2 个节点
 [2026-04-25 08:19:20] 开始传输测试  节点数=2  每轮=1对  间隔=30s  数据量=1-1MB
-[2026-04-25 08:19:20] CSV: /Users/francis/workspc/wireflow/deploy/test/transfer_records.csv
+[2026-04-25 08:19:20] CSV: /Users/francis/workspc/lattice/deploy/test/transfer_records.csv
 [2026-04-25 08:19:20] ━━━ 第 1 轮  2026-04-25 08:19:20 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 [2026-04-25 08:19:21]   ✓  pod-a(10.0.7.2)        → pod-b(10.0.7.3)         1MB  recv=1048576B  0.149s  6.71MB/s  [OK]

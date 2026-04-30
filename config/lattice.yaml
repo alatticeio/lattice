@@ -1,0 +1,398 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/part-of: lattice
+  name: lattice-controller-admin
+  namespace: lattice-system
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: lattice-controller
+    app.kubernetes.io/part-of: lattice
+  name: lattice-controller-manager
+  namespace: lattice-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: lattice-controller
+    app.kubernetes.io/part-of: lattice
+  name: lattice-leader-election-role
+  namespace: lattice-system
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - patch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/part-of: lattice
+  name: lattice-manager-extra-role
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - namespaces
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - alattice.io
+  resources:
+  - latticeendpoints
+  - latticeglobalippools
+  - latticesubnetallocations
+  - latticeenrollmenttokens
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - alattice.io
+  resources:
+  - latticeendpoints/finalizers
+  - latticeglobalippools/finalizers
+  - latticesubnetallocations/finalizers
+  - latticeenrollmenttokens/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - alattice.io
+  resources:
+  - latticeglobalippools/status
+  - latticeenrollmenttokens/status
+  verbs:
+  - get
+  - patch
+  - update
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/part-of: lattice
+  name: lattice-manager-role
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - alattice.io
+  resources:
+  - latticeenrollmenttokens
+  - latticenetworks
+  - latticepeers
+  - latticepolicies
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - alattice.io
+  resources:
+  - latticeenrollmenttokens/finalizers
+  - latticenetworks/finalizers
+  - latticepeers/finalizers
+  - latticepolicies/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - alattice.io
+  resources:
+  - latticeenrollmenttokens/status
+  - latticenetworks/status
+  - latticepeers/status
+  - latticepolicies/status
+  verbs:
+  - get
+  - patch
+  - update
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: lattice-controller
+    app.kubernetes.io/part-of: lattice
+  name: lattice-leader-election-rolebinding
+  namespace: lattice-system
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: lattice-leader-election-role
+subjects:
+- kind: ServiceAccount
+  name: lattice-controller-manager
+  namespace: lattice-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/part-of: lattice
+  name: lattice-controller-admin
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-admin
+subjects:
+- kind: ServiceAccount
+  name: lattice-controller-admin
+  namespace: lattice-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: lattice-controller
+    app.kubernetes.io/part-of: lattice
+  name: lattice-manager-extra-rolebinding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: lattice-manager-extra-role
+subjects:
+- kind: ServiceAccount
+  name: lattice-controller-manager
+  namespace: lattice-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: lattice-controller
+    app.kubernetes.io/part-of: lattice
+  name: lattice-manager-rolebinding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: lattice-manager-role
+subjects:
+- kind: ServiceAccount
+  name: lattice-controller-manager
+  namespace: lattice-system
+---
+apiVersion: v1
+data:
+  lattice.yaml: |
+    app:
+      listen: :8080
+      name: "Lattice"
+      env: "production"
+      init_admins:
+        - username: "admin"
+          password: "changeme"   # ⚠️ 请修改默认密码
+
+    jwt:
+      secret: "replace-with-random-secret"  # ⚠️ 请替换为随机密钥
+      expire_hours: 24
+
+    # all-in-one 模式：NATS 内嵌于 latticed 进程，进程内直连
+    signaling-url: "nats://localhost:4222"
+
+    database:
+      # SQLite 路径相对于进程工作目录（Dockerfile WORKDIR=/app）
+      # 实际文件：/app/data/lattice.db（对应 PVC 挂载点 /app/data）
+      # 如需接入外部 MariaDB（企业级），替换为：
+      # dsn: "root:pass@tcp(mariadb.lattice-system.svc:3306)/lattice?charset=utf8mb4&parseTime=True"
+      dsn: "data/lattice.db"
+kind: ConfigMap
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/part-of: lattice
+  name: lattice-aio-config
+  namespace: lattice-system
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: latticed
+    app.kubernetes.io/part-of: lattice
+  name: lattice-api-service
+  namespace: lattice-system
+spec:
+  ports:
+  - name: http
+    port: 8080
+    targetPort: 8080
+  selector:
+    app.kubernetes.io/name: latticed
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: latticed
+    app.kubernetes.io/part-of: lattice
+  name: lattice-nats-service
+  namespace: lattice-system
+spec:
+  ports:
+  - name: client
+    port: 4222
+    targetPort: 4222
+  selector:
+    app.kubernetes.io/name: latticed
+  type: ClusterIP
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/part-of: lattice
+  name: lattice-aio-data
+  namespace: lattice-system
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: latticed
+    app.kubernetes.io/part-of: lattice
+  name: lattice-aio
+  namespace: lattice-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: latticed
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/managed-by: kustomize
+        app.kubernetes.io/name: latticed
+        app.kubernetes.io/part-of: lattice
+    spec:
+      containers:
+      - image: ghcr.io/latticeio/latticed:latest
+        imagePullPolicy: Always
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 15
+          periodSeconds: 20
+        name: latticed
+        ports:
+        - containerPort: 8080
+          name: http
+        - containerPort: 4222
+          name: nats
+        readinessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        resources:
+          limits:
+            cpu: 1000m
+            memory: 512Mi
+          requests:
+            cpu: 100m
+            memory: 128Mi
+        volumeMounts:
+        - mountPath: /app/data
+          name: data
+        - mountPath: /etc/lattice/lattice.yaml
+          name: conf
+          subPath: lattice.yaml
+      serviceAccountName: lattice-controller-admin
+      volumes:
+      - name: data
+        persistentVolumeClaim:
+          claimName: lattice-aio-data
+      - configMap:
+          name: lattice-aio-config
+        name: conf
+---
+apiVersion: alattice.io/v1alpha1
+kind: LatticeGlobalIPPool
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/part-of: lattice
+  name: lattice-ip-pool
+  namespace: lattice-system
+spec:
+  cidr: 10.0.0.0/8
+  subnetMask: 24

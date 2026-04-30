@@ -1,4 +1,4 @@
-// Copyright 2025 The Wireflow Authors, Inc.
+// Copyright 2026 The Lattice Authors, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -29,10 +29,10 @@ import (
 //
 // Emitted metrics:
 //
-//	wireflow_node_cpu_usage_percent  {peer_id, network_id}
-//	wireflow_node_memory_bytes       {peer_id, network_id}
-//	wireflow_node_goroutines         {peer_id, network_id}
-//	wireflow_node_uptime_seconds     {peer_id, network_id}
+//	lattice_node_cpu_usage_percent  {peer_id, network_id}
+//	lattice_node_memory_bytes       {peer_id, network_id}
+//	lattice_node_goroutines         {peer_id, network_id}
+//	lattice_node_uptime_seconds     {peer_id, network_id}
 type SystemScraper struct {
 	startTime time.Time
 }
@@ -48,19 +48,19 @@ func (s *SystemScraper) Scrape(_ context.Context, id Identity, nowMs int64) ([]S
 	out := make([]Sample, 0, 4)
 
 	if pcts, err := cpu.Percent(0, false); err == nil && len(pcts) > 0 {
-		out = append(out, NewSample("wireflow_node_cpu_usage_percent", base, pcts[0], nowMs))
+		out = append(out, NewSample("lattice_node_cpu_usage_percent", base, pcts[0], nowMs))
 	}
 
 	if vm, err := gopsutilmem.VirtualMemory(); err == nil {
-		out = append(out, NewSample("wireflow_node_memory_bytes", base, float64(vm.Used), nowMs))
+		out = append(out, NewSample("lattice_node_memory_bytes", base, float64(vm.Used), nowMs))
 	}
 
-	out = append(out, NewSample("wireflow_node_goroutines", base, float64(runtime.NumGoroutine()), nowMs))
+	out = append(out, NewSample("lattice_node_goroutines", base, float64(runtime.NumGoroutine()), nowMs))
 
-	// wireflow_node_uptime_seconds: seconds since this agent process started.
+	// lattice_node_uptime_seconds: seconds since this agent process started.
 	// Used by the management server to count online nodes per workspace:
-	//   count(last_over_time(wireflow_node_uptime_seconds{network_id="$ns"}[5m]))
-	out = append(out, NewSample("wireflow_node_uptime_seconds", base, time.Since(s.startTime).Seconds(), nowMs))
+	//   count(last_over_time(lattice_node_uptime_seconds{network_id="$ns"}[5m]))
+	out = append(out, NewSample("lattice_node_uptime_seconds", base, time.Since(s.startTime).Seconds(), nowMs))
 
 	return out, nil
 }

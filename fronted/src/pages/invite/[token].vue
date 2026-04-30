@@ -95,7 +95,7 @@ const roleLabel: Record<string, string> = {
         <div class="bg-primary text-primary-foreground flex size-6 items-center justify-center rounded-md">
           <GalleryVerticalEnd class="size-4" />
         </div>
-        Wireflow
+        Lattice
       </div>
 
       <!-- Card -->

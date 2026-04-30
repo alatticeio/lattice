@@ -103,6 +103,7 @@
     "topology": "网络拓扑",
     "peers": "Peers",
     "networkPeering": "网络互联",
+    "clusterPeering": "集群互联",
     "monitor": "监控",
     "users": "用户管理",
     "workspaces": "空间管理",

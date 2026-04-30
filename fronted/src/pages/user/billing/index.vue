@@ -62,7 +62,7 @@ const invoices = [
             <div>
               <h2 class="text-sm font-semibold">Current Plan</h2>
               <p class="text-xs text-muted-foreground">
-                Next billing: <span class="text-foreground font-medium">Jan 1, 2025</span>
+                Next billing: <span class="text-foreground font-medium">Jan 1, 2026</span>
               </p>
             </div>
           </div>

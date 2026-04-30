@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package wireflow.signal;
+package lattice.signal;
 option go_package = "internal/grpc";
 
 // 定义信令包类型

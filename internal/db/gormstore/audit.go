@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"wireflow/internal/store"
-	"wireflow/management/models"
+	"github.com/alatticeio/lattice/internal/agent/store"
+	"github.com/alatticeio/lattice/internal/server/models"
 
 	"gorm.io/gorm"
 )

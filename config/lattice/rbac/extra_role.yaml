@@ -1,0 +1,91 @@
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: manager-extra-role
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - namespaces
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - alattice.io
+  resources:
+  - latticeendpoints
+  - latticeglobalippools
+  - latticesubnetallocations
+  - latticeenrollmenttokens
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - alattice.io
+  resources:
+  - latticeendpoints/finalizers
+  - latticeglobalippools/finalizers
+  - latticesubnetallocations/finalizers
+  - latticeenrollmenttokens/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - alattice.io
+  resources:
+  - latticeglobalippools/status
+  - latticeenrollmenttokens/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - alattice.io
+  resources:
+  - latticenetworkpeerings
+  - latticerelayservers
+  - latticeclusterpeerings
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - alattice.io
+  resources:
+  - latticeclusters
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - alattice.io
+  resources:
+  - latticenetworkpeerings/finalizers
+  - latticerelayservers/finalizers
+  - latticeclusterpeerings/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - alattice.io
+  resources:
+  - latticenetworkpeerings/status
+  - latticerelayservers/status
+  - latticeclusterpeerings/status
+  verbs:
+  - get
+  - patch
+  - update

@@ -1,0 +1,14 @@
+app:
+  listen: :8081
+  name: "Lattice"
+  env: "development"
+#  initAdmins:
+#    - username: "admin"
+#      password: "123456"
+
+jwt:
+  secret: "your-super-secret-key"
+  expire_hours: 24
+
+metrics:
+  port: 9685

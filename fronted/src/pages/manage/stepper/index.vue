@@ -92,7 +92,7 @@ async function fetchToken() {
 }
 
 const joinCommand = computed(() =>
-  `wireflow join --token ${generatedToken.value || '<token>'}`)
+  `lattice join --token ${generatedToken.value || '<token>'}`)
 
 // ── Copy helper ───────────────────────────────────────────────────
 async function copyText(text: string, key: string) {
@@ -127,11 +127,16 @@ async function handleCreatePolicy() {
     if (Object.keys(labelMap.value).length) {
       payload.peerSelector = { matchLabels: labelMap.value }
     }
-    const { code } = await createPolicy(payload) as any
+    const { code, msg } = await createPolicy(payload) as any
     if (code === 200) {
+      // platform_admin: applied directly
+      isDone.value = true
+    } else if (code === 0) {
+      // normal user: submitted for approval (HTTP 202)
+      toast.success(t('manage.stepper.step5.submitted'))
       isDone.value = true
     } else {
-      toast.error(t('manage.stepper.step5.createFailed'))
+      toast.error(msg || t('manage.stepper.step5.createFailed'))
     }
   } catch {
     toast.error(t('manage.stepper.step5.createFailed'))
@@ -200,7 +205,7 @@ const canProceed = computed(() => {
           <!-- Rail header -->
           <div class="px-5 py-4 xl:px-6 xl:py-5 border-b border-border">
             <div class="flex items-center gap-2.5">
-              <img src="@/assets/logo.svg" class="size-7 xl:size-8 shrink-0" alt="Wireflow" />
+              <img src="@/assets/logo.svg" class="size-7 xl:size-8 shrink-0" alt="Lattice" />
               <div>
                 <p class="text-xs font-black uppercase tracking-wider">{{ t('manage.stepper.title') }}</p>
                 <p class="text-[10px] text-muted-foreground/60">Node Onboarding</p>

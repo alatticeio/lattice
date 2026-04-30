@@ -1,9 +1,9 @@
 
-Wireflow
-Copyright 2025 The Wireflow Authors
+Lattice
+Copyright 2026 The Lattice Authors
 
 This product includes software developed at
-https://github.com/wireflowio/wireflow
+https://github.com/alatticeio/lattice
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -21,15 +21,15 @@ limitations under the License.
 
 TRADEMARK NOTICE
 
-"Wireflow" and the Wireflow logo are trademarks of [winstonfly].
+"Lattice" and the Lattice logo are trademarks of [winstonfly].
 
 While the source code is licensed under Apache 2.0, the use of the
-"Wireflow" name and logo in derivative works or commercial offerings
+"Lattice" name and logo in derivative works or commercial offerings
 may require permission.
 
 For trademark usage inquiries, please contact:
   - Email: lauxinchi@gmail.com
-  - GitHub: https://github.com/wireflowio/wireflow/discussions
+  - GitHub: https://github.com/alatticeio/lattice/discussions
 
 ================================================================================
 
@@ -63,7 +63,7 @@ This project includes or depends on the following open source software:
    - Copyright: Pion authors
 
 For a complete list of dependencies and their licenses, see:
-https://github.com/wireflowio/wireflow/blob/main/go.mod
+https://github.com/alatticeio/lattice/blob/main/go.mod
 
 Full license texts for all third-party components can be found in the
 vendor/ directory or by running: go mod vendor
@@ -72,18 +72,18 @@ vendor/ directory or by running: go mod vendor
 
 ATTRIBUTION
 
-Wireflow is built by a community of contributors. See the AUTHORS file
+Lattice is built by a community of contributors. See the AUTHORS file
 for a list of individuals who have contributed to this project.
 
 To see the full list of contributors, visit:
-https://github.com/wireflowio/wireflow/graphs/contributors
+https://github.com/alatticeio/lattice/graphs/contributors
 
 ================================================================================
 
 CONTACT
 
-- Website: https://wireflow.run (if available)
-- GitHub: https://github.com/wireflowio/wireflow
-- Issues: https://github.com/wireflowio/wireflow/issues
-- Discussions: https://github.com/wireflowio/wireflow/discussions
-- Email: info@wireflow.run
+- Website: https://lattice.run
+- GitHub: https://github.com/alatticeio/lattice
+- Issues: https://github.com/alatticeio/lattice/issues
+- Discussions: https://github.com/alatticeio/lattice/discussions
+- Email: info@lattice.run

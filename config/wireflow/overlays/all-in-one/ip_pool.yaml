@@ -1,7 +1,0 @@
-apiVersion: wireflowcontroller.wireflow.run/v1alpha1
-kind: WireflowGlobalIPPool
-metadata:
-  name: ip-pool
-spec:
-  cidr: 10.0.0.0/8
-  subnetMask: 24

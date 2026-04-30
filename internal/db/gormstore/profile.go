@@ -3,8 +3,8 @@ package gormstore
 import (
 	"context"
 
-	"wireflow/management/models"
-	"wireflow/management/repository"
+	"github.com/alatticeio/lattice/internal/server/models"
+	"github.com/alatticeio/lattice/internal/server/repository"
 
 	"gorm.io/gorm"
 )

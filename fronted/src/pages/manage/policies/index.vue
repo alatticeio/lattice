@@ -214,9 +214,28 @@ const columns: ColumnDef<Policy>[] = [
     id: 'creator',
     header: () => t('manage.policies.col.creator'),
     cell: ({ row }) => {
-      const name = (row.original as any).createdByName as string
-      if (!name) return h('span', { class: 'text-[11px] text-muted-foreground/40' }, '—')
-      return h('span', { class: 'text-xs text-muted-foreground' }, name)
+      const p = row.original as any
+      const name = p.createdByName as string
+      const at = p.createdAt as string
+      if (!name && !at) return h('span', { class: 'text-[11px] text-muted-foreground/40' }, '—')
+      return h('div', { class: 'flex flex-col gap-0.5' }, [
+        name ? h('span', { class: 'text-xs font-medium' }, name) : null,
+        at ? h('span', { class: 'text-[11px] text-muted-foreground/50' }, at) : null,
+      ])
+    },
+  },
+  {
+    id: 'updater',
+    header: () => t('manage.policies.col.updatedBy'),
+    cell: ({ row }) => {
+      const p = row.original as any
+      const name = p.updatedByName as string
+      const at = p.updatedAt as string
+      if (!name && !at) return h('span', { class: 'text-[11px] text-muted-foreground/40' }, '—')
+      return h('div', { class: 'flex flex-col gap-0.5' }, [
+        name ? h('span', { class: 'text-xs font-medium' }, name) : null,
+        at ? h('span', { class: 'text-[11px] text-muted-foreground/50' }, at) : null,
+      ])
     },
   },
   {
@@ -696,7 +715,7 @@ const table = useVueTable({
             </div>
             <div class="space-y-1">
               <p class="text-[10px] text-muted-foreground/50 uppercase font-semibold">{{ t('manage.policies.createDialog.portLabel') }}</p>
-              <Input v-model="rule.ports[0].port" placeholder="80" class="h-7 text-xs font-mono" />
+              <Input v-model="rule.ports[0].port" v-if="rule.ports && rule.ports.length > 0" placeholder="80" class="h-7 text-xs font-mono" />
             </div>
           </div>
           <p v-if="!store.form.ingress.length" class="text-xs text-muted-foreground/40 italic">{{ t('manage.policies.createDialog.noIngressRules') }}</p>
@@ -728,7 +747,7 @@ const table = useVueTable({
             </div>
             <div class="space-y-1">
               <p class="text-[10px] text-muted-foreground/50 uppercase font-semibold">{{ t('manage.policies.createDialog.portLabel') }}</p>
-              <Input v-model="rule.ports[0].port" placeholder="5432" class="h-7 text-xs font-mono" />
+              <Input v-model="rule.ports[0].port" v-if="rule.ports && rule.ports.length > 0" placeholder="5432" class="h-7 text-xs font-mono" />
             </div>
           </div>
           <p v-if="!store.form.egress.length" class="text-xs text-muted-foreground/40 italic">{{ t('manage.policies.createDialog.noEgressRules') }}</p>

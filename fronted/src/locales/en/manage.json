@@ -154,6 +154,7 @@
       "selector": "Target Selector",
       "rules": "Rules",
       "creator": "Creator",
+      "updatedBy": "Last Modified",
       "status": "Status",
       "actions": ""
     },
@@ -207,7 +208,7 @@
       "portLabel": "Port",
       "noIngressRules": "No rules — deny all inbound",
       "noEgressRules": "No rules — deny all outbound",
-      "crdHint": "The policy will be synced to the cluster as a WireflowPolicy CRD. It may take a few seconds.",
+      "crdHint": "The policy will be synced to the cluster as a LatticePolicy CRD. It may take a few seconds.",
       "publish": "Publish Policy",
       "save": "Save Changes"
     },
@@ -471,7 +472,8 @@
       "pendingTip": "Controller is establishing the tunnel: finding gateway nodes → configuring route annotations → creating Shadow Peer → applying access policies. Status will become Connected when ready.",
       "failedTip1": "Connection failed. Common causes: networks not ready on both ends, no Gateway node found (requires label ",
       "failedTip2": ").",
-      "deleteBtn": "Delete Connection"
+      "deleteBtn": "Delete Connection",
+      "errorTitle": "Peering Error"
     },
     "createDialog": {
       "title": "New Peering Connection",
@@ -483,11 +485,12 @@
       "remoteNsHint": "K8s namespace of the remote workspace",
       "remoteNetLabel": "Remote Network Name",
       "remoteNetOptional": "(optional)",
-      "remoteNetPlaceholder": "Leave empty to use wireflow-default-net",
+      "remoteNetPlaceholder": "Leave empty to use lattice-default-net",
       "nameLabel": "Connection Name",
       "nameOptional": "(optional)",
       "namePlaceholder": "Auto-generated if empty",
       "modeLabel": "Routing Mode",
+      "meshWarning": "Mesh mode creates a WireGuard tunnel between every pair of peers. Only use for small deployments.",
       "zapTip1": "After submitting, the Controller will automatically configure route annotations, Shadow Peer, and access policies. Both sides need a Gateway node labeled ",
       "zapTip2": ".",
       "submit": "Create Connection"
@@ -499,6 +502,55 @@
       "deleted": "Peering connection deleted",
       "deleteFailed": "Delete failed",
       "nsRequired": "Please fill in the remote namespace"
+    }
+  },
+  "clusterPeering": {
+    "title": "Cluster Peering",
+    "desc": "Manage cross-cluster network peering connections.",
+    "stats": {
+      "all": "All Connections",
+      "allDesc": "All cross-cluster tunnels",
+      "active": "Ready",
+      "activeDesc": "Peering established",
+      "pending": "Pending",
+      "pendingDesc": "Waiting for Controller to configure",
+      "failed": "Failed",
+      "failedOk": "All good",
+      "failedDesc": "Needs investigation"
+    },
+    "searchPlaceholder": "Search by name, cluster, namespace...",
+    "createBtn": "New Cluster Connection",
+    "empty": "No cluster peering connections",
+    "emptyDesc": "Create a connection to link networks across clusters",
+    "local": "Local",
+    "remote": "Remote",
+    "actions": {
+      "delete": "Delete"
+    },
+    "deleteDialog": {
+      "title": "Delete Cluster Peering",
+      "desc": "Delete \"{name}\"? The cross-cluster tunnel will be torn down immediately."
+    },
+    "createDialog": {
+      "title": "New Cluster Peering",
+      "desc": "Connect a local workspace to a remote cluster via an encrypted tunnel",
+      "remoteClusterLabel": "Remote Cluster",
+      "remoteClusterPlaceholder": "e.g. cluster-prod-us",
+      "remoteClusterHint": "Name of the LatticeCluster CR",
+      "localNamespaceLabel": "Local Namespace",
+      "localNamespacePlaceholder": "e.g. wf-workspace-a",
+      "remoteNamespaceLabel": "Remote Namespace",
+      "remoteNamespacePlaceholder": "e.g. wf-workspace-x",
+      "localNetLabel": "Local Network",
+      "remoteNetLabel": "Remote Network",
+      "submit": "Create Cluster Connection"
+    },
+    "toast": {
+      "loadFailed": "Failed to load",
+      "created": "Cluster connection initiated",
+      "createFailed": "Creation failed",
+      "deleted": "Cluster peering deleted",
+      "deleteFailed": "Delete failed"
     }
   },
   "stepper": {
@@ -558,7 +610,7 @@
     "step3": {
       "title": "Run Join Command",
       "desc": "Run this command on the target machine to register the node.",
-      "hint": "Make sure the target machine has the wireflow agent installed with outbound access."
+      "hint": "Make sure the target machine has the lattice agent installed with outbound access."
     },
     "step4": {
       "title": "Configure Node Labels",
@@ -579,7 +631,8 @@
       "selectorTitle": "Node Selector (from Step 4)",
       "noLabels": "No labels set, policy will match all nodes in workspace",
       "nameRequired": "Please enter a policy name",
-      "createFailed": "Policy creation failed"
+      "createFailed": "Policy creation failed",
+      "submitted": "Policy submitted for approval, awaiting admin confirmation"
     }
   }
 }

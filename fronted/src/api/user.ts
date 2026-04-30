@@ -39,6 +39,30 @@ export const createPeering = (data: { name?: string; namespaceB: string; network
   request.post('/peering', data)
 export const deletePeering = (name: string) => request.delete(`/peering/${name}`)
 
+export interface ClusterPeeringItem {
+  name: string
+  localNamespace: string
+  localNetwork: string
+  remoteCluster: string
+  remoteNamespace: string
+  remoteNetwork: string
+  phase: string
+  localCIDR: string
+  remoteCIDR: string
+  errorMessage?: string
+  createdAt: string
+}
+
+export const listClusterPeerings = () => request.get<ClusterPeeringItem[]>('/cluster-peering/list')
+export const createClusterPeering = (data: {
+  localNamespace: string
+  localNetwork: string
+  remoteCluster: string
+  remoteNamespace: string
+  remoteNetwork: string
+}) => request.post('/cluster-peering', data)
+export const deleteClusterPeering = (name: string) => request.delete(`/cluster-peering/${name}`)
+
 export const getMe = (data?: any) => request.get('/users/getme', data)
 export const updateMe = (data?: any) => request.put('/profile/updateProfile', data)
 export const uploadAvatar = (formData: FormData) =>

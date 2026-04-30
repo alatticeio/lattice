@@ -551,7 +551,7 @@ function goToPage(p: number) {
     </div>
 
     <!-- table -->
-    <div class="rounded-md border">
+    <div class="rounded-md border min-w-0">
       <Table>
         <TableHeader>
           <TableRow v-for="hg in table.getHeaderGroups()" :key="hg.id">

@@ -1,4 +1,4 @@
-FROM registry.cn-hangzhou.aliyuncs.com/wireflow-io/alpine:3.15
+FROM registry.cn-hangzhou.aliyuncs.com/alatticeio/alpine:3.15
 LABEL authors="winston"
 
 # base deps, timezone, and dynamic linker compat in a single layer
@@ -13,6 +13,6 @@ RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories
 WORKDIR /app
 
 # copy binary and frontend assets from builder and source
-COPY bin/wireflow /app/wireflow
+COPY bin/lattice /app/lattice
 
-CMD ["/app/wireflow","login"]
+CMD ["/app/lattice","login"]

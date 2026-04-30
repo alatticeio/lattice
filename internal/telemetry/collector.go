@@ -1,4 +1,4 @@
-// Copyright 2025 The Wireflow Authors, Inc.
+// Copyright 2026 The Lattice Authors, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
 
 //go:build pro
 
-// Package telemetry provides a lightweight, push-only metric pipeline for wireflow-agent.
+// Package telemetry provides a lightweight, push-only metric pipeline for lattice-agent.
 //
 // # Architecture
 //
@@ -39,7 +39,7 @@
 //	func (m *MyMetrics) Name() string { return "my_metrics" }
 //	func (m *MyMetrics) Scrape(ctx context.Context, id Identity, nowMs int64) ([]Sample, error) {
 //	    return []Sample{
-//	        NewSample("wireflow_my_gauge",
+//	        NewSample("lattice_my_gauge",
 //	            Labels{"peer_id": id.PeerID, "network_id": id.NetworkID},
 //	            42.0, nowMs),
 //	    }, nil
@@ -64,8 +64,8 @@ import (
 	"github.com/klauspost/compress/s2"
 	"google.golang.org/protobuf/encoding/protowire"
 
-	"wireflow/internal/infra"
-	"wireflow/internal/log"
+	"github.com/alatticeio/lattice/internal/agent/infra"
+	"github.com/alatticeio/lattice/internal/agent/log"
 )
 
 // ─── Public extension API ─────────────────────────────────────────────────────

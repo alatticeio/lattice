@@ -1,13 +1,13 @@
 kind: pipeline # 定义对象类型，还有secret和signature两种类型
 type: docker # 定义流水线类型，还有kubernetes、exec、ssh等类型
-name: wireflow # 定义流水线名称
+name: lattice # 定义流水线名称
 
 clone:
   disable: true
 
 steps: # 定义流水线执行步骤，这些步骤将顺序执行
   - name: build
-    image: registry.cn-hangzhou.aliyuncs.com/wireflow-io/drone-ssh:latest # SSH工具镜像
+    image: registry.cn-hangzhou.aliyuncs.com/alatticeio/drone-ssh:latest # SSH工具镜像
     settings:
       host: 101.36.119.12 # 远程连接地址
       username: root # 远程连接账号
@@ -15,11 +15,11 @@ steps: # 定义流水线执行步骤，这些步骤将顺序执行
         from_secret: ssh_password # 从Secret中读取SSH密码
       port: 22 # 远程连接端口
       script:
-        - cd /root/drone/ci/wireflow && source ~/.bash_profile
+        - cd /root/drone/ci/lattice && source ~/.bash_profile
         - git pull
         - make docker-all
   - name: deploy
-    image: registry.cn-hangzhou.aliyuncs.com/wireflow-io/drone-ssh:latest # SSH工具镜像
+    image: registry.cn-hangzhou.aliyuncs.com/alatticeio/drone-ssh:latest # SSH工具镜像
     settings:
       host: 101.36.119.12 # 远程连接地址
       username: root # 远程连接账号
@@ -27,6 +27,6 @@ steps: # 定义流水线执行步骤，这些步骤将顺序执行
         from_secret: ssh_password # 从Secret中读取SSH密码
       port: 22 # 远程连接端口
       script:
-        - kubectl rollout restart deployment/wireflow-control -n wireflow
-        - kubectl rollout restart deployment/wireflow-turn -n wireflow
-        - kubectl rollout restart deployment/wireflow-controller-manager -n wireflow-system
+        - kubectl rollout restart deployment/lattice-control -n lattice
+        - kubectl rollout restart deployment/lattice-turn -n lattice
+        - kubectl rollout restart deployment/lattice-controller-manager -n lattice-system

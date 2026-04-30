@@ -1,4 +1,4 @@
-// Copyright 2025 The Wireflow Authors, Inc.
+// Copyright 2026 The Lattice Authors, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,8 +16,9 @@ package cmd
 
 import (
 	"fmt"
-	"wireflow/internal/config"
-	"wireflow/internal/controller"
+
+	"github.com/alatticeio/lattice/internal/agent/config"
+	"github.com/alatticeio/lattice/internal/agent/controller"
 
 	"github.com/spf13/cobra"
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
@@ -31,7 +32,7 @@ func newControllerCmd() *cobra.Command {
 		Short:        "controller",
 		Use:          "controller [command]",
 		SilenceUsage: true,
-		Long:         `wireflow core controller for CRDs reconcile`,
+		Long:         `lattice core controller for CRDs reconcile`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// 1. 检查用户是否传了 --save
 			save, _ := cmd.Flags().GetBool("save")

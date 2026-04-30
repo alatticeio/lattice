@@ -37,20 +37,20 @@ FROM alpine:latest
 ARG TARGETSERVICE
 
 # 根据服务名称动态安装依赖：
-#   wireflow  (edge agent)  -> 需要 WireGuard / iptables / iproute2
-#   wireflowd (all-in-one)  -> 同上，另需 ca-certificates（HTTPS 出向请求）
+#   lattice  (edge agent)  -> 需要 WireGuard / iptables / iproute2
+#   latticed (all-in-one)  -> 同上，另需 ca-certificates（HTTPS 出向请求）
 #   manager   (K8s operator) -> 仅需 ca-certificates
-RUN if [ "$TARGETSERVICE" = "wireflow" ] || [ "$TARGETSERVICE" = "wireflowd" ]; then \
+RUN if [ "$TARGETSERVICE" = "lattice" ] || [ "$TARGETSERVICE" = "latticed" ]; then \
         apk add --no-cache wireguard-tools iptables iproute2 ca-certificates; \
     else \
         apk add --no-cache ca-certificates; \
     fi
 
-RUN mkdir -p /app /etc/wireflow /var/log/wireflow
+RUN mkdir -p /app /etc/lattice /var/log/lattice
 
 WORKDIR /app
-ENV WIREFLOW_CONFIG_DIR=/etc/wireflow
+ENV LATTICE_CONFIG_DIR=/etc/lattice
 ENV HOME=/app
-COPY --from=builder /workspace/$TARGETSERVICE ./wireflow
+COPY --from=builder /workspace/$TARGETSERVICE ./lattice
 
-ENTRYPOINT ["/app/wireflow"]
+ENTRYPOINT ["/app/lattice"]

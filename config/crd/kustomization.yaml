@@ -2,18 +2,18 @@
 # since it depends on service name and namespace that are out of this kustomize package.
 # It should be run by config/default
 resources:
-- bases/wireflowcontroller.wireflow.run_wireflowinvitations.yaml
-- bases/wireflowcontroller.wireflow.run_wireflownetworks.yaml
-- bases/wireflowcontroller.wireflow.run_wireflowpolicies.yaml
-- bases/wireflowcontroller.wireflow.run_wireflowpeers.yaml
-- bases/wireflowcontroller.wireflow.run_wireflowglobalippools.yaml
-- bases/wireflowcontroller.wireflow.run_wireflowendpoints.yaml
-- bases/wireflowcontroller.wireflow.run_wireflowsubnetallocations.yaml
-- bases/wireflowcontroller.wireflow.run_wireflowenrollmenttokens.yaml
-- bases/wireflowcontroller.wireflow.run_wireflowrelayservers.yaml
-- bases/wireflowcontroller.wireflow.run_wireflownetworkpeerings.yaml
-- bases/wireflowcontroller.wireflow.run_wireflowclusters.yaml
-- bases/wireflowcontroller.wireflow.run_wireflowclusterpeerings.yaml
+- bases/alattice.io_latticeinvitations.yaml
+- bases/alattice.io_latticenetworks.yaml
+- bases/alattice.io_latticepolicies.yaml
+- bases/alattice.io_latticepeers.yaml
+- bases/alattice.io_latticeglobalippools.yaml
+- bases/alattice.io_latticeendpoints.yaml
+- bases/alattice.io_latticesubnetallocations.yaml
+- bases/alattice.io_latticeenrollmenttokens.yaml
+- bases/alattice.io_latticerelayservers.yaml
+- bases/alattice.io_latticenetworkpeerings.yaml
+- bases/alattice.io_latticeclusters.yaml
+- bases/alattice.io_latticeclusterpeerings.yaml
 # +kubebuilder:scaffold:crdkustomizeresource
 
 patches:

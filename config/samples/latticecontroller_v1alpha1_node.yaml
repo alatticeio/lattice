@@ -1,0 +1,12 @@
+apiVersion: alattice.io/v1alpha1
+kind: Node
+metadata:
+  labels:
+    app.kubernetes.io/name: lattice-controller
+    app.kubernetes.io/managed-by: kustomize
+    app: test
+  name: vm-test
+spec:
+  appId: vm-test
+  interfaceName: lattice-test
+  platform: linux

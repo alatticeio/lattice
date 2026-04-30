@@ -1,0 +1,15 @@
+database:
+  driver: "sqlite"
+  dsn: lattice.db
+
+#dex:
+#  issur: http://localhost:5556/dex/auth
+#  providerUrl: http://localhost:5556/dex
+
+monitor:
+  address: "http://101.36.119.12:8428"
+
+telemetry:
+  vmEndpoint: http://101.36.119.12:8428/api/v1/write
+
+signaling-url: nats://localhost:4222

@@ -68,6 +68,7 @@ const navMain = computed(() => {
         { title: t('common.nav.users'),          url: "/manage/users" },
         { title: t('common.nav.workspaces'),     url: "/manage/workspaces" },
         { title: t('common.nav.networkPeering'), url: "/platform/network-peering" },
+        { title: t('common.nav.clusterPeering'), url: "/platform/cluster-peering" },
         { title: t('common.nav.approvals'),      url: "/settings/approvals" },
       ],
     }] : []),

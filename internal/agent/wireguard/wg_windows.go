@@ -1,0 +1,98 @@
+// Copyright 2026 The Lattice Authors, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+//go:build windows
+
+// Package agent +build windows
+package wireguard
+
+import (
+	"bufio"
+	"errors"
+	"fmt"
+	"github.com/alatticeio/lattice/internal/agent/log"
+	"github.com/alatticeio/lattice/internal/agent/wferrors"
+	"io"
+	"net"
+
+	wg "golang.zx2c4.com/wireguard/device"
+	"golang.zx2c4.com/wireguard/ipc"
+)
+
+type DeviceManager struct {
+	logger *log.Logger
+	device *wg.Device
+	stopCh chan struct{}
+}
+
+func NewDeviceManager(logger *log.Logger, device *wg.Device, signal chan struct{}) *DeviceManager {
+	return &DeviceManager{logger: logger, device: device, stopCh: signal}
+}
+
+func (c *DeviceManager) IpcHandle(socket net.Conn) {
+	defer socket.Close()
+
+	buffered := func(s io.ReadWriter) *bufio.ReadWriter {
+		reader := bufio.NewReader(s)
+		writer := bufio.NewWriter(s)
+		return bufio.NewReadWriter(reader, writer)
+	}(socket)
+	for {
+		op, err := buffered.ReadString('\n')
+		if err != nil {
+			return
+		}
+
+		// handle operation
+		switch op {
+		case "stop\n":
+			buffered.Write([]byte("OK\n\n"))
+			buffered.Flush()
+			// send kill signal
+			close(c.stopCh)
+			return
+		case "set=1\n":
+			err = c.device.IpcSetOperation(buffered.Reader)
+		case "get=1\n":
+			var nextByte byte
+			nextByte, err = buffered.ReadByte()
+			if err != nil {
+				return
+			}
+			if nextByte != '\n' {
+				err = wferrors.IpcErrorf(ipc.IpcErrorInvalid, "trailing character in UAPI get: %q", nextByte)
+				break
+			}
+			err = c.device.IpcGetOperation(buffered.Writer)
+		default:
+			c.logger.Error("invalid UAPI operation", errors.New("set error"), "op", op)
+			return
+		}
+
+		// write status
+		var status *wferrors.IPCError
+		if err != nil && !errors.As(err, &status) {
+			// shouldn't happen
+			status = wferrors.IpcErrorf(ipc.IpcErrorUnknown, "other UAPI error: %w", err)
+		}
+		if status != nil {
+			c.logger.Error("UAPI returned non-zero status", status, "code", status.ErrorCode())
+			fmt.Fprintf(buffered, "errno=%d\n\n", status.ErrorCode())
+		} else {
+			fmt.Fprintf(buffered, "errno=0\n\n")
+		}
+		buffered.Flush()
+	}
+
+}

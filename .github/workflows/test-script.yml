@@ -3,14 +3,12 @@ name: Test README Scripts
 # Validates every CLI command documented in README.md, step by step,
 # simulating exactly what a real user would run on a fresh machine.
 #
-# Uses published wireflowio images — no build or image import required.
+# Uses published latticeio images — no build or image import required.
 # Setup:  bash hack/quickstart.sh  (installs k3d, creates cluster, deploys
-#         wireflowd, kubectl port-forward 8080/4222, waits for ready)
+#         latticed, kubectl port-forward 8080/4222, waits for ready)
 # Test:   README Steps 1-6
 
 on:
-  push:
-    branches: [dev]
   pull_request:
     branches: [master, main]
   workflow_dispatch:
@@ -18,7 +16,7 @@ on:
 env:
   SIGNALING_URL: nats://localhost:4222
   SERVER_URL: http://localhost:8080
-  AGENT_IMAGE: ghcr.io/wireflowio/wireflow:latest
+  AGENT_IMAGE: ghcr.io/alatticeio/lattice:latest
 
 permissions:
   contents: read
@@ -40,20 +38,20 @@ jobs:
 
       # ── Run quickstart.sh ──────────────────────────────────────────────────
       # Installs k3d, creates cluster, applies CRDs, deploys
-      # ghcr.io/wireflowio/wireflowd:latest, waits for pod Ready.
+      # ghcr.io/alatticeio/latticed:latest, waits for pod Ready.
 
       - name: "Run hack/quickstart.sh (README Quick Start)"
         run: bash hack/quickstart.sh
 
-      # quickstart.sh fetches wireflow-all-in-one.yaml from GitHub master, so
+      # quickstart.sh fetches lattice-all-in-one.yaml from GitHub master, so
       # the NATS service is deployed as ClusterIP.  Patch it to LoadBalancer so
       # k3d's servicelb binds hostPort 4222 on the node and the k3d loadbalancer
       # (mapped via --port "4222:4222@loadbalancer") can route to it.
       - name: "Patch NATS service to LoadBalancer"
         run: |
-          kubectl patch svc wireflow-nats-service -n wireflow-system \
+          kubectl patch svc lattice-nats-service -n lattice-system \
             -p '{"spec":{"type":"LoadBalancer"}}'
-          echo "✅ wireflow-nats-service patched to LoadBalancer"
+          echo "✅ lattice-nats-service patched to LoadBalancer"
 
       # ── Expose services to localhost ──────────────────────────────────────
       # API (8080): port-forward (ClusterIP, short-lived CLI calls only).
@@ -64,22 +62,22 @@ jobs:
           # Verify endpoints are populated before port-forwarding
           echo "Checking service endpoints..."
           for i in $(seq 1 20); do
-            EP=$(kubectl get endpoints wireflow-api-service -n wireflow-system \
+            EP=$(kubectl get endpoints lattice-api-service -n lattice-system \
               -o jsonpath='{.subsets[0].addresses[0].ip}' 2>/dev/null || true)
             if [[ -n "$EP" ]]; then
-              echo "✅ wireflow-api-service endpoint ready: $EP"
+              echo "✅ lattice-api-service endpoint ready: $EP"
               break
             fi
             echo "  Waiting for endpoints... ($i/20)"
             sleep 3
           done
-          kubectl get endpoints -n wireflow-system
+          kubectl get endpoints -n lattice-system
 
           # API: port-forward (CLI short-lived calls, instability is tolerable)
           # Bind to 0.0.0.0 so docker containers can reach via host gateway.
           (while true; do
-            kubectl port-forward --address 0.0.0.0 -n wireflow-system \
-              svc/wireflow-api-service 8080:8080 >>/tmp/pf-api.log 2>&1 || true
+            kubectl port-forward --address 0.0.0.0 -n lattice-system \
+              svc/lattice-api-service 8080:8080 >>/tmp/pf-api.log 2>&1 || true
             echo "[pf-api] restarting..." >>/tmp/pf-api.log
             sleep 1
           done) &
@@ -96,11 +94,11 @@ jobs:
             || {
               echo "❌ localhost:8080 not reachable"
               echo "--- port-forward API log ---"; cat /tmp/pf-api.log || true
-              echo "--- pods ---"; kubectl get pods -n wireflow-system -o wide || true
+              echo "--- pods ---"; kubectl get pods -n lattice-system -o wide || true
               exit 1
             }
 
-          # NATS: wireflow-nats-service is type LoadBalancer; k3d maps it to
+          # NATS: lattice-nats-service is type LoadBalancer; k3d maps it to
           # host port 4222 directly (no port-forward needed).
           # Wait for k3d's servicelb to assign the external IP.
           echo "Waiting for NATS LoadBalancer (k3d port mapping)..."
@@ -113,30 +111,30 @@ jobs:
             && echo "✅ localhost:4222 ready (LoadBalancer direct)" \
             || {
               echo "❌ localhost:4222 not reachable"
-              kubectl get svc wireflow-nats-service -n wireflow-system || true
-              kubectl get pods -n wireflow-system -o wide || true
+              kubectl get svc lattice-nats-service -n lattice-system || true
+              kubectl get pods -n lattice-system -o wide || true
               exit 1
             }
 
       # ── Use published image as CLI ─────────────────────────────────────────
-      # ENTRYPOINT is /app/wireflow, so `docker run image <subcommand>` works
+      # ENTRYPOINT is /app/lattice, so `docker run image <subcommand>` works
       # directly as a CLI. --network host lets it reach localhost:8080 / 4222.
 
-      - name: "Set WIREFLOW to published image"
+      - name: "Set LATTICE to published image"
         run: |
           docker pull "${AGENT_IMAGE}"
           docker run --rm --network host "${AGENT_IMAGE}" --help | head -5
-          echo "WIREFLOW=docker run --rm --network host ${AGENT_IMAGE}" >> $GITHUB_ENV
-          echo "✅ wireflow CLI via image: ${AGENT_IMAGE}"
+          echo "LATTICE=docker run --rm --network host ${AGENT_IMAGE}" >> $GITHUB_ENV
+          echo "✅ lattice CLI via image: ${AGENT_IMAGE}"
 
       # ════════════════════════════════════════════════════════════════════════
       # Step 1: Create a workspace
       # ════════════════════════════════════════════════════════════════════════
 
-      - name: "[Step 1a] wireflow workspace add"
+      - name: "[Step 1a] lattice workspace add"
         run: |
-          echo ">>> wireflow workspace add dev --display-name Development --signaling-url $SIGNALING_URL"
-          WS_OUTPUT=$($WIREFLOW workspace add dev \
+          echo ">>> lattice workspace add dev --display-name Development --signaling-url $SIGNALING_URL"
+          WS_OUTPUT=$($LATTICE workspace add dev \
             --display-name "Development" \
             --signaling-url "$SIGNALING_URL")
           echo "$WS_OUTPUT"
@@ -146,10 +144,10 @@ jobs:
           echo "NAMESPACE=$NAMESPACE" >> $GITHUB_ENV
           echo "✅ Workspace created — namespace=$NAMESPACE"
 
-      - name: "[Step 1b] wireflow workspace list"
+      - name: "[Step 1b] lattice workspace list"
         run: |
-          echo ">>> wireflow workspace list --signaling-url $SIGNALING_URL"
-          LIST=$($WIREFLOW workspace list --signaling-url "$SIGNALING_URL")
+          echo ">>> lattice workspace list --signaling-url $SIGNALING_URL"
+          LIST=$($LATTICE workspace list --signaling-url "$SIGNALING_URL")
           echo "$LIST"
           echo "$LIST" | grep -q "$NAMESPACE" \
             && echo "✅ Namespace '$NAMESPACE' visible in list" \
@@ -159,20 +157,20 @@ jobs:
       # Step 2: Create an enrollment token
       # ════════════════════════════════════════════════════════════════════════
 
-      - name: "[Step 2a] wireflow token create"
+      - name: "[Step 2a] lattice token create"
         run: |
-          echo ">>> wireflow token create dev-team -n $NAMESPACE --limit 10 --expiry 168h --signaling-url $SIGNALING_URL"
-          $WIREFLOW token create dev-team \
+          echo ">>> lattice token create dev-team -n $NAMESPACE --limit 10 --expiry 168h --signaling-url $SIGNALING_URL"
+          $LATTICE token create dev-team \
             -n "$NAMESPACE" \
             --limit 10 \
             --expiry 168h \
             --signaling-url "$SIGNALING_URL"
           echo "✅ Token created"
 
-      - name: "[Step 2b] wireflow token list — extract token value"
+      - name: "[Step 2b] lattice token list — extract token value"
         run: |
-          echo ">>> wireflow token list -n $NAMESPACE --signaling-url $SIGNALING_URL"
-          TOKEN_LIST=$($WIREFLOW token list -n "$NAMESPACE" --signaling-url "$SIGNALING_URL")
+          echo ">>> lattice token list -n $NAMESPACE --signaling-url $SIGNALING_URL"
+          TOKEN_LIST=$($LATTICE token list -n "$NAMESPACE" --signaling-url "$SIGNALING_URL")
           echo "$TOKEN_LIST"
 
           TOKEN=$(echo "$TOKEN_LIST" | awk '/^TOKEN/{found=1; next} found && NF>0 {print $1; exit}')
@@ -184,7 +182,7 @@ jobs:
       # Step 3: Start agents
       # docker run -d --name wf-agent --restart unless-stopped \
       #   --privileged --network host \
-      #   ghcr.io/wireflowio/wireflow:latest \
+      #   ghcr.io/alatticeio/lattice:latest \
       #   up --signaling-url nats://localhost:4222 --token <token>
       # ════════════════════════════════════════════════════════════════════════
 
@@ -217,13 +215,13 @@ jobs:
             --privileged \
             --network wf-test-net \
             --add-host=host.docker.internal:host-gateway \
-            -e WIREFLOW_APP_ID=ci-wf-agent-a \
+            -e LATTICE_APP_ID=ci-wf-agent-a \
             "$AGENT_IMAGE" \
             up \
             --signaling-url "$AGENT_NATS" \
             --server-url "$AGENT_API" \
             --token "$TOKEN" \
-            -- level debug
+            --level debug
 
           echo ">>> docker run -d --name wf-agent-b --privileged --network wf-test-net $AGENT_IMAGE up ..."
           docker run -d \
@@ -232,7 +230,7 @@ jobs:
             --privileged \
             --network wf-test-net \
             --add-host=host.docker.internal:host-gateway \
-            -e WIREFLOW_APP_ID=ci-wf-agent-b \
+            -e LATTICE_APP_ID=ci-wf-agent-b \
             "$AGENT_IMAGE" \
             up \
             --signaling-url "$AGENT_NATS" \
@@ -245,14 +243,14 @@ jobs:
       - name: "Wait for both agents to register"
         run: |
           for i in $(seq 1 36); do
-            NODE_COUNT=$($WIREFLOW workspace list --signaling-url "$SIGNALING_URL" 2>/dev/null \
+            NODE_COUNT=$($LATTICE workspace list --signaling-url "$SIGNALING_URL" 2>/dev/null \
               | awk '/dev/ {print $4}' || echo 0)
             echo "  Nodes: ${NODE_COUNT:-0}  (attempt $i/36)"
             [[ "${NODE_COUNT:-0}" -ge 2 ]] && break || true
             sleep 5
           done
 
-          FINAL=$($WIREFLOW workspace list --signaling-url "$SIGNALING_URL")
+          FINAL=$($LATTICE workspace list --signaling-url "$SIGNALING_URL")
           echo "$FINAL"
           NODE_COUNT=$(echo "$FINAL" | awk '/dev/ {print $4}')
           [[ "${NODE_COUNT:-0}" -ge 2 ]] \
@@ -263,12 +261,12 @@ jobs:
       # Step 4: Allow traffic between peers
       # ════════════════════════════════════════════════════════════════════════
 
-      # Wait for both WireflowPeers to have an AllocatedAddress before creating
+      # Wait for both LatticePeers to have an AllocatedAddress before creating
       # policy — mirrors e2e step 6. Policy matching requires peers to be fully
       # provisioned with a WG IP so the tunnel can be established immediately.
-      - name: "Wait for WireflowPeer IP allocation"
+      - name: "Wait for LatticePeer IP allocation"
         run: |
-          echo "Waiting for both WireflowPeers to have AllocatedAddress (max 90s)..."
+          echo "Waiting for both LatticePeers to have AllocatedAddress (max 90s)..."
           for i in $(seq 1 30); do
             COUNT=$(kubectl get wfpeer -n "$NAMESPACE" \
               -o jsonpath='{.items[*].status.allocatedAddress}' 2>/dev/null \
@@ -283,28 +281,28 @@ jobs:
             | tr ' ' '\n' | grep -v '^$' | wc -l || echo 0)
           [[ "${COUNT}" -ge 2 ]] \
             && echo "✅ Both peers have WireGuard IPs" \
-            || { echo "❌ WireflowPeer IP allocation timed out"; kubectl get wfpeer -n "$NAMESPACE" -o yaml || true; exit 1; }
+            || { echo "❌ LatticePeer IP allocation timed out"; kubectl get wfpeer -n "$NAMESPACE" -o yaml || true; exit 1; }
 
-      - name: "[Step 4a] wireflow policy allow-all"
+      - name: "[Step 4a] lattice policy allow-all"
         run: |
-          echo ">>> wireflow policy allow-all -n $NAMESPACE --signaling-url $SIGNALING_URL"
-          $WIREFLOW policy allow-all -n "$NAMESPACE" --signaling-url "$SIGNALING_URL"
-          echo "✅ allow-all policy applied (uses wireflow.run/network-{name}=true label selector)"
+          echo ">>> lattice policy allow-all -n $NAMESPACE --signaling-url $SIGNALING_URL"
+          $LATTICE policy allow-all -n "$NAMESPACE" --signaling-url "$SIGNALING_URL"
+          echo "✅ allow-all policy applied (uses alattice.io/network-{name}=true label selector)"
 
-      - name: "[Step 4c] wireflow policy add"
+      - name: "[Step 4c] lattice policy add"
         run: |
-          echo ">>> wireflow policy add my-policy -n $NAMESPACE --action ALLOW --signaling-url $SIGNALING_URL"
-          $WIREFLOW policy add my-policy \
+          echo ">>> lattice policy add my-policy -n $NAMESPACE --action ALLOW --signaling-url $SIGNALING_URL"
+          $LATTICE policy add my-policy \
             -n "$NAMESPACE" \
             --action ALLOW \
             --desc "allow all peer traffic" \
             --signaling-url "$SIGNALING_URL"
           echo "✅ my-policy added"
 
-      - name: "[Step 4d] wireflow policy list"
+      - name: "[Step 4d] lattice policy list"
         run: |
-          echo ">>> wireflow policy list -n $NAMESPACE --signaling-url $SIGNALING_URL"
-          POLICIES=$($WIREFLOW policy list -n "$NAMESPACE" --signaling-url "$SIGNALING_URL")
+          echo ">>> lattice policy list -n $NAMESPACE --signaling-url $SIGNALING_URL"
+          POLICIES=$($LATTICE policy list -n "$NAMESPACE" --signaling-url "$SIGNALING_URL")
           echo "$POLICIES"
           echo "$POLICIES" | grep -q "allow-all" \
             && echo "✅ allow-all present" || { echo "❌ allow-all missing"; exit 1; }
@@ -315,18 +313,18 @@ jobs:
       # Step 5: Verify connectivity
       # ════════════════════════════════════════════════════════════════════════
 
-      - name: "[Step 5a] wireflow status"
+      - name: "[Step 5a] lattice status"
         run: |
           echo "Waiting 20s for WireGuard peer config to be pushed and handshake to complete..."
           sleep 20
 
-          echo "===== wireflowd logs (last 200 lines) ====="
-          kubectl logs -n wireflow-system -l app.kubernetes.io/name=wireflowd --tail=200 2>&1 || true
+          echo "===== latticed logs (last 200 lines) ====="
+          kubectl logs -n lattice-system -l app.kubernetes.io/name=latticed --tail=200 2>&1 || true
 
-          echo "===== WireflowPeer CRD status ====="
+          echo "===== LatticePeer CRD status ====="
           kubectl get wfpeer -n "$NAMESPACE" -o wide 2>&1 || true
 
-          echo "===== WireflowPolicy CRD ====="
+          echo "===== LatticePolicy CRD ====="
           kubectl get wfpolicy -n "$NAMESPACE" -o yaml 2>&1 || true
 
           echo "--- agent-a container state ---"
@@ -350,8 +348,8 @@ jobs:
           echo "--- WireGuard peers (wg show) inside agent-a ---"
           docker exec wf-agent-a wg show 2>&1 || true
 
-          echo ">>> docker exec wf-agent-a /app/wireflow status"
-          STATUS=$(docker exec wf-agent-a /app/wireflow status 2>&1)
+          echo ">>> docker exec wf-agent-a /app/lattice status"
+          STATUS=$(docker exec wf-agent-a /app/lattice status 2>&1)
           echo "$STATUS"
           
           echo "$STATUS" | grep -q "Interface" \
@@ -364,8 +362,8 @@ jobs:
           echo "--- WireGuard peers (wg show) inside agent-b ---"
           docker exec wf-agent-b wg show 2>&1 || true
 
-          echo ">>> docker exec wf-agent-b /app/wireflow status"
-          STATUS=$(docker exec wf-agent-b /app/wireflow status 2>&1)
+          echo ">>> docker exec wf-agent-b /app/lattice status"
+          STATUS=$(docker exec wf-agent-b /app/lattice status 2>&1)
           echo "$STATUS"
 
           echo "$STATUS" | grep -q "Interface" \
@@ -375,8 +373,8 @@ jobs:
       - name: "[Step 5b] Ping Agent A → Agent B via WireGuard"
         run: |
           # Get Agent B's WireGuard address from the wf0 interface inside the container.
-          # wireflow status prints: Address  10.x.x.x/24  (field 2 of Address line)
-          STATUS_B=$(docker exec wf-agent-b /app/wireflow status 2>&1 || true)
+          # lattice status prints: Address  10.x.x.x/24  (field 2 of Address line)
+          STATUS_B=$(docker exec wf-agent-b /app/lattice status 2>&1 || true)
           echo "--- agent-b status ---"
           echo "$STATUS_B"
 
@@ -423,31 +421,31 @@ jobs:
       # Step 6: Clean up resources
       # ════════════════════════════════════════════════════════════════════════
 
-      - name: "[Step 6a] wireflow token remove"
+      - name: "[Step 6a] lattice token remove"
         run: |
-          echo ">>> wireflow token remove $TOKEN -n $NAMESPACE --signaling-url $SIGNALING_URL"
-          $WIREFLOW token remove "$TOKEN" -n "$NAMESPACE" --signaling-url "$SIGNALING_URL"
-          REMAINING=$($WIREFLOW token list -n "$NAMESPACE" --signaling-url "$SIGNALING_URL")
+          echo ">>> lattice token remove $TOKEN -n $NAMESPACE --signaling-url $SIGNALING_URL"
+          $LATTICE token remove "$TOKEN" -n "$NAMESPACE" --signaling-url "$SIGNALING_URL"
+          REMAINING=$($LATTICE token list -n "$NAMESPACE" --signaling-url "$SIGNALING_URL")
           echo "$REMAINING"
           echo "$REMAINING" | grep -q "^$TOKEN" \
             && { echo "❌ Token still present"; exit 1; } \
             || echo "✅ Token removed"
 
-      - name: "[Step 6b] wireflow policy remove"
+      - name: "[Step 6b] lattice policy remove"
         run: |
-          echo ">>> wireflow policy remove my-policy -n $NAMESPACE --signaling-url $SIGNALING_URL"
-          $WIREFLOW policy remove my-policy -n "$NAMESPACE" --signaling-url "$SIGNALING_URL"
-          POLICIES=$($WIREFLOW policy list -n "$NAMESPACE" --signaling-url "$SIGNALING_URL")
+          echo ">>> lattice policy remove my-policy -n $NAMESPACE --signaling-url $SIGNALING_URL"
+          $LATTICE policy remove my-policy -n "$NAMESPACE" --signaling-url "$SIGNALING_URL"
+          POLICIES=$($LATTICE policy list -n "$NAMESPACE" --signaling-url "$SIGNALING_URL")
           echo "$POLICIES"
           echo "$POLICIES" | grep -q "my-policy" \
             && { echo "❌ my-policy still present"; exit 1; } \
             || echo "✅ my-policy removed"
 
-      - name: "[Step 6c] wireflow workspace remove"
+      - name: "[Step 6c] lattice workspace remove"
         run: |
-          echo ">>> wireflow workspace remove $NAMESPACE --signaling-url $SIGNALING_URL"
-          $WIREFLOW workspace remove "$NAMESPACE" --signaling-url "$SIGNALING_URL"
-          WORKSPACES=$($WIREFLOW workspace list --signaling-url "$SIGNALING_URL")
+          echo ">>> lattice workspace remove $NAMESPACE --signaling-url $SIGNALING_URL"
+          $LATTICE workspace remove "$NAMESPACE" --signaling-url "$SIGNALING_URL"
+          WORKSPACES=$($LATTICE workspace list --signaling-url "$SIGNALING_URL")
           echo "$WORKSPACES"
           echo "$WORKSPACES" | grep -q "$NAMESPACE" \
             && { echo "❌ Workspace still present"; exit 1; } \
@@ -457,7 +455,7 @@ jobs:
         run: |
           docker rm -f wf-agent-a wf-agent-b 2>/dev/null || true
           docker network rm wf-test-net 2>/dev/null || true
-          k3d cluster delete wireflow
+          k3d cluster delete lattice
           echo "✅ Cluster and agent network deleted"
 
       # ── Failure diagnostics ───────────────────────────────────────────────
@@ -465,16 +463,16 @@ jobs:
       - name: Collect failure logs
         if: failure()
         run: |
-          echo "===== wireflow-system pods ====="
-          kubectl get all -n wireflow-system -o wide || true
+          echo "===== lattice-system pods ====="
+          kubectl get all -n lattice-system -o wide || true
 
-          echo "===== wireflow-aio (wireflowd) logs ====="
-          kubectl logs -n wireflow-system -l app.kubernetes.io/name=wireflowd --tail=300 2>&1 || true
+          echo "===== lattice-aio (latticed) logs ====="
+          kubectl logs -n lattice-system -l app.kubernetes.io/name=latticed --tail=300 2>&1 || true
 
           echo "===== workspace namespace ====="
           kubectl get all -n "${NAMESPACE:-unknown}" -o wide || true
 
-          echo "===== WireflowPeer CRDs ====="
+          echo "===== LatticePeer CRDs ====="
           kubectl get wfpeer --all-namespaces -o wide || true
 
           echo "===== Agent A docker logs ====="

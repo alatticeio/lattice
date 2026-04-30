@@ -1,7 +1,7 @@
 services:
-  wf-agent:
-    image: ${WF_IMAGE:-ghcr.io/wireflowio/wireflowd:latest}
-    container_name: wf-agent
+  lat-agent:
+    image: ${WF_IMAGE:-ghcr.io/latticeio/latticed:latest}
+    container_name: lat-agent
     privileged: true
     network_mode: "host"
     restart: always

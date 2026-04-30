@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # ================= 配置区 =================
-CLUSTER_NAME="wireflow"
-GITHUB_RAW="https://raw.githubusercontent.com/wireflowio/wireflow/master"
+CLUSTER_NAME="lattice"
+GITHUB_RAW="https://raw.githubusercontent.com/alatticeio/lattice/master"
 # =========================================
 
 set -e
@@ -65,7 +65,7 @@ k3d kubeconfig merge $CLUSTER_NAME
 
 # 7. 应用 GitHub 上的资源
 info "📡 正在从 GitHub 同步并应用资源..."
-kubectl apply -f "${GITHUB_RAW}/config/wireflow.yaml"
+kubectl apply -f "${GITHUB_RAW}/config/lattice.yaml"
 
 # 8. 最后验证
 info "⏳ 等待 Control Plane 启动 (约 30s)..."

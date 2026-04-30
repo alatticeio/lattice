@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# stop.sh — 停止并清理 Wireflow 10 节点集成测试环境
+# stop.sh — 停止并清理 Lattice 10 节点集成测试环境
 #
 # 用法:
 #   ./stop.sh           # 停止容器，保留卷
@@ -15,7 +15,7 @@ if [[ "${1:-}" == "--clean" ]]; then
   CLEAN=true
 fi
 
-echo "==> 停止 Wireflow 10 节点测试环境"
+echo "==> 停止 Lattice 10 节点测试环境"
 
 if $CLEAN; then
   echo "    模式: 完全清理（删除容器 + 卷）"

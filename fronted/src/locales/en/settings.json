@@ -214,7 +214,7 @@
     "dialog": {
       "createTitle": "Add Relay",
       "editTitle": "Edit Relay",
-      "desc": "Relay address will be synced to WireflowPeer in corresponding workspaces.",
+      "desc": "Relay address will be synced to LatticePeer in corresponding workspaces.",
       "displayNameLabel": "Display Name",
       "displayNamePlaceholder": "e.g. Hong Kong Relay 01",
       "nameLabel": "Resource Identifier",

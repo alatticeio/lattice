@@ -1,18 +1,18 @@
 version: 1
-project_name: wireflow
+project_name: lattice
 
 builds:
   # Edge Agent (bare metal / non-k8s nodes)
-  - id: "wireflow"
-    binary: "wireflow"
-    main: "./cmd/wireflow/main.go"
+  - id: "lattice"
+    binary: "lattice"
+    main: "./cmd/lattice/main.go"
     env:
       - CGO_ENABLED=0
     ldflags:
       - -s -w
-      - -X wireflow/pkg/version.Version={{.Version}}
-      - -X wireflow/pkg/version.GitCommit={{.Commit}}
-      - -X wireflow/pkg/version.BuildTime={{.Date}}
+      - -X lattice/pkg/version.Version={{.Version}}
+      - -X lattice/pkg/version.GitCommit={{.Commit}}
+      - -X lattice/pkg/version.BuildTime={{.Date}}
     goos:
       - linux
       - darwin
@@ -25,16 +25,16 @@ builds:
         goarch: arm64
 
   # All-in-One 控制面（嵌入 NATS + SQLite，仅 linux）
-  - id: "wireflowd"
-    binary: "wireflowd"
-    main: "./cmd/wireflowd/main.go"
+  - id: "latticed"
+    binary: "latticed"
+    main: "./cmd/latticed/main.go"
     env:
       - CGO_ENABLED=0
     ldflags:
       - -s -w
-      - -X wireflow/pkg/version.Version={{.Version}}
-      - -X wireflow/pkg/version.GitCommit={{.Commit}}
-      - -X wireflow/pkg/version.BuildTime={{.Date}}
+      - -X lattice/pkg/version.Version={{.Version}}
+      - -X lattice/pkg/version.GitCommit={{.Commit}}
+      - -X lattice/pkg/version.BuildTime={{.Date}}
     goos:
       - linux
     goarch:
@@ -42,20 +42,20 @@ builds:
       - arm64
 
 archives:
-  # wireflow agent 打包（面向边缘/终端用户）
-  - id: "wireflow-archive"
+  # lattice agent 打包（面向边缘/终端用户）
+  - id: "lattice-archive"
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     builds:
-      - wireflow
+      - lattice
     format_overrides:
       - goos: windows
         format: zip
 
-  # wireflowd 单独打包（面向服务端部署）
-  - id: "wireflowd-archive"
-    name_template: "wireflowd_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+  # latticed 单独打包（面向服务端部署）
+  - id: "latticed-archive"
+    name_template: "latticed_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     builds:
-      - wireflowd
+      - latticed
 
 checksum:
   name_template: "checksums.txt"

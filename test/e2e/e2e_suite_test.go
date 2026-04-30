@@ -4,8 +4,8 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	latticev1 "github.com/alatticeio/lattice/api/v1alpha1"
 	"testing"
-	wireflowv1 "wireflow/api/v1alpha1"
 
 	"path/filepath"
 
@@ -22,24 +22,24 @@ import (
 )
 
 var (
-	restConfig     *rest.Config
-	clientset      *kubernetes.Clientset
-	wireflowClient client.Client
-	ns             string
-	agentImage     string
-	manageUrl      string
-	kubeconfig     string
+	restConfig    *rest.Config
+	clientset     *kubernetes.Clientset
+	latticeClient client.Client
+	ns            string
+	agentImage    string
+	manageUrl     string
+	kubeconfig    string
 )
 
 func init() {
-	flag.StringVar(&agentImage, "agent-image", "ghcr.io/winstonfly/wireflow:e2e", "Docker image for the wireflow agent")
-	flag.StringVar(&manageUrl, "manage-url", "http://localhost:8080", "Wireflow manager API base URL")
+	flag.StringVar(&agentImage, "agent-image", "ghcr.io/winstonfly/lattice:e2e", "Docker image for the lattice agent")
+	flag.StringVar(&manageUrl, "manage-url", "http://localhost:8080", "Lattice manager API base URL")
 	flag.StringVar(&kubeconfig, "kubeconfig", "", "Path to kubeconfig (defaults to ~/.kube/config)")
 }
 
 func TestE2E(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "Wireflow E2E Suite")
+	RunSpecs(t, "Lattice E2E Suite")
 }
 
 var _ = BeforeSuite(func() {
@@ -58,10 +58,10 @@ var _ = BeforeSuite(func() {
 	Expect(err).NotTo(HaveOccurred(), "无法创建 Clientset")
 
 	s := scheme.Scheme
-	err = wireflowv1.AddToScheme(s)
-	Expect(err).NotTo(HaveOccurred(), "无法注册 WireflowPeer Scheme")
+	err = latticev1.AddToScheme(s)
+	Expect(err).NotTo(HaveOccurred(), "无法注册 LatticePeer Scheme")
 
-	wireflowClient, err = client.New(restConfig, client.Options{Scheme: s})
+	latticeClient, err = client.New(restConfig, client.Options{Scheme: s})
 	Expect(err).NotTo(HaveOccurred(), "无法创建 CRD Client")
 
 	By("测试环境就绪，Namespace: " + ns)

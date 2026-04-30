@@ -1,7 +1,7 @@
 // Package db 提供数据库 Store 的工厂函数。
 // 根据 DatabaseConfig.Driver 自动选择底层驱动：
 //
-//   - "sqlite"（或空值）→ SQLite，默认文件路径 wireflow.db，DSN 即文件路径。
+//   - "sqlite"（或空值）→ SQLite，默认文件路径 lattice.db，DSN 即文件路径。
 //     适合开源自部署场景，零额外依赖，开箱即用。
 //   - "mysql" / "mariadb"    → MySQL/MariaDB，DSN 为标准连接字符串。
 //     适合生产环境，支持高并发与集群部署。
@@ -12,11 +12,11 @@ package db
 
 import (
 	"fmt"
+	"github.com/alatticeio/lattice/internal/agent/config"
+	"github.com/alatticeio/lattice/internal/agent/store"
+	"github.com/alatticeio/lattice/internal/db/gormstore"
 	"log"
 	"time"
-	"wireflow/internal/config"
-	"wireflow/internal/db/gormstore"
-	"wireflow/internal/store"
 
 	gormsqlite "github.com/glebarez/sqlite"
 	"gorm.io/driver/mysql"
@@ -53,9 +53,9 @@ func NewStore(cfg *config.Config) (store.Store, error) {
 		}
 
 	default:
-		// 开源默认：SQLite。DSN 为文件路径，空时使用 wireflow.db。
+		// 开源默认：SQLite。DSN 为文件路径，空时使用 lattice.db。
 		if dsn == "" {
-			dsn = "wireflow.db"
+			dsn = "lattice.db"
 		}
 		db, err = gorm.Open(gormsqlite.Open(dsn), gormCfg)
 		if err != nil {

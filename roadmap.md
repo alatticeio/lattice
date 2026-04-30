@@ -1,4 +1,4 @@
-# Wireflow Roadmap
+# Lattice Roadmap
 
 ## Vision
 
@@ -55,7 +55,7 @@ Become the de-facto standard for managing VPN networks in Kubernetes environment
 
 ## Community Requests
 
-Vote for features: [GitHub Discussions](https://github.com/wireflowio/wireflow/discussions/categories/feature-requests)
+Vote for features: [GitHub Discussions](https://github.com/alatticeio/lattice/discussions/categories/feature-requests)
 
 ## Long-term Vision (2027+)
 

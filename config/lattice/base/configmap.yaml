@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: control-config
+data:
+  lattice.yaml: |
+    app:
+      listen: :8080
+      name: "LatticeFlow"
+      env: "development"
+      init_admins:
+        - username: "admin"
+          password: "123456"
+
+    jwt:
+      secret: "your-super-secret-key"
+      expire_hours: 24
+
+    signaling-url: "nats://lattice-nats-service.lattice-system.svc.cluster.local:4222"
+

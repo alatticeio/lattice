@@ -2,13 +2,13 @@
 set -euo pipefail
 
 # ─── 可覆盖的环境变量 ────────────────────────────────────────────────────────
-# BINARY      要安装的二进制名称：wireflow（边缘 Agent）或 wireflowd（All-in-One 控制面）
+# BINARY      要安装的二进制名称：lattice（边缘 Agent）或 latticed（All-in-One 控制面）
 # INSTALL_DIR 安装目录，默认 /usr/local/bin
 # TAG         指定版本，如 v0.2.0；不传则自动获取最新 Release
 # ─────────────────────────────────────────────────────────────────────────────
-BINARY="${BINARY:-wireflow}"
+BINARY="${BINARY:-lattice}"
 INSTALL_DIR="${INSTALL_DIR:-/usr/local/bin}"
-REPO="wireflowio/wireflow"
+REPO="alatticeio/lattice"
 
 # ─── 检查依赖 ─────────────────────────────────────────────────────────────────
 for cmd in curl tar; do
@@ -35,9 +35,9 @@ if [ "$OS" != "linux" ] && [ "$OS" != "darwin" ]; then
   exit 1
 fi
 
-# wireflowd 目前只发布 linux 版本
-if [ "$BINARY" = "wireflowd" ] && [ "$OS" != "linux" ]; then
-  echo "错误：wireflowd (all-in-one 控制面) 仅支持 linux，当前系统为 $OS" >&2
+# latticed 目前只发布 linux 版本
+if [ "$BINARY" = "latticed" ] && [ "$OS" != "linux" ]; then
+  echo "错误：latticed (all-in-one 控制面) 仅支持 linux，当前系统为 $OS" >&2
   exit 1
 fi
 
@@ -60,11 +60,11 @@ fi
 VERSION="${TAG#v}"
 
 # ─── 构造下载 URL ─────────────────────────────────────────────────────────────
-# wireflowd 有独立归档；wireflow / wfctl 共享同一个归档
-if [ "$BINARY" = "wireflowd" ]; then
-  ARCHIVE_NAME="wireflowd_${VERSION}_${OS}_${ARCH}.tar.gz"
+# latticed 有独立归档；lattice / wfctl 共享同一个归档
+if [ "$BINARY" = "latticed" ]; then
+  ARCHIVE_NAME="latticed_${VERSION}_${OS}_${ARCH}.tar.gz"
 else
-  ARCHIVE_NAME="wireflow_${VERSION}_${OS}_${ARCH}.tar.gz"
+  ARCHIVE_NAME="lattice_${VERSION}_${OS}_${ARCH}.tar.gz"
 fi
 
 BASE_URL="https://github.com/${REPO}/releases/download/${TAG}"

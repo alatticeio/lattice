@@ -1,4 +1,4 @@
-// Copyright 2025 The Wireflow Authors, Inc.
+// Copyright 2026 The Lattice Authors, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@ import (
 
 	"golang.zx2c4.com/wireguard/wgctrl"
 
-	"wireflow/internal/infra"
+	"github.com/alatticeio/lattice/internal/agent/infra"
 )
 
 // WireGuardScraper collects per-peer WireGuard counters and computes aggregated
@@ -31,15 +31,15 @@ import (
 //
 // Emitted metrics:
 //
-//	wireflow_peer_status                 {peer_id, network_id, remote_peer_id, remote_peer_name, endpoint}
-//	wireflow_peer_last_handshake_seconds {peer_id, network_id, remote_peer_id}
-//	wireflow_peer_traffic_bytes_total    {peer_id, network_id, remote_peer_id, remote_peer_name, direction}
-//	wireflow_node_traffic_bytes_total    {peer_id, network_id, direction}
-//	wireflow_peering_traffic_bytes_total {peer_id, local_network_id, remote_network_id, direction}
+//	lattice_peer_status                 {peer_id, network_id, remote_peer_id, remote_peer_name, endpoint}
+//	lattice_peer_last_handshake_seconds {peer_id, network_id, remote_peer_id}
+//	lattice_peer_traffic_bytes_total    {peer_id, network_id, remote_peer_id, remote_peer_name, direction}
+//	lattice_node_traffic_bytes_total    {peer_id, network_id, direction}
+//	lattice_peering_traffic_bytes_total {peer_id, local_network_id, remote_network_id, direction}
 //
 // workspace-level rollup in VM/PromQL:
 //
-//	sum by (network_id, direction) (wireflow_node_traffic_bytes_total)
+//	sum by (network_id, direction) (lattice_node_traffic_bytes_total)
 type WireGuardScraper struct {
 	peers *infra.PeerManager
 	wgctl *wgctrl.Client
@@ -123,19 +123,19 @@ func (s *WireGuardScraper) Scrape(_ context.Context, id Identity, nowMs int64) (
 			"remote_peer_name": remoteName,
 			"endpoint":         endpoint,
 		})
-		out = append(out, NewSample("wireflow_peer_status", statusLbls, status, nowMs))
+		out = append(out, NewSample("lattice_peer_status", statusLbls, status, nowMs))
 
 		hsLbls := mergeLabels(nodeBase, Labels{"remote_peer_id": remotePeerID})
-		out = append(out, NewSample("wireflow_peer_last_handshake_seconds", hsLbls, lastHS, nowMs))
+		out = append(out, NewSample("lattice_peer_last_handshake_seconds", hsLbls, lastHS, nowMs))
 
 		trafficLbls := mergeLabels(nodeBase, Labels{
 			"remote_peer_id":   remotePeerID,
 			"remote_peer_name": remoteName,
 		})
 		out = append(out,
-			NewSample("wireflow_peer_traffic_bytes_total",
+			NewSample("lattice_peer_traffic_bytes_total",
 				mergeLabels(trafficLbls, Labels{"direction": "rx"}), rxBytes, nowMs),
-			NewSample("wireflow_peer_traffic_bytes_total",
+			NewSample("lattice_peer_traffic_bytes_total",
 				mergeLabels(trafficLbls, Labels{"direction": "tx"}), txBytes, nowMs),
 		)
 
@@ -150,11 +150,11 @@ func (s *WireGuardScraper) Scrape(_ context.Context, id Identity, nowMs int64) (
 	}
 
 	// ── Node-level aggregate traffic ──────────────────────────────────────
-	// VM query for workspace-level: sum by (network_id, direction) (wireflow_node_traffic_bytes_total)
+	// VM query for workspace-level: sum by (network_id, direction) (lattice_node_traffic_bytes_total)
 	out = append(out,
-		NewSample("wireflow_node_traffic_bytes_total",
+		NewSample("lattice_node_traffic_bytes_total",
 			mergeLabels(nodeBase, Labels{"direction": "rx"}), totalRx, nowMs),
-		NewSample("wireflow_node_traffic_bytes_total",
+		NewSample("lattice_node_traffic_bytes_total",
 			mergeLabels(nodeBase, Labels{"direction": "tx"}), totalTx, nowMs),
 	)
 
@@ -166,9 +166,9 @@ func (s *WireGuardScraper) Scrape(_ context.Context, id Identity, nowMs int64) (
 			"remote_network_id": remoteNID,
 		}
 		out = append(out,
-			NewSample("wireflow_peering_traffic_bytes_total",
+			NewSample("lattice_peering_traffic_bytes_total",
 				mergeLabels(peeringLbls, Labels{"direction": "rx"}), rx, nowMs),
-			NewSample("wireflow_peering_traffic_bytes_total",
+			NewSample("lattice_peering_traffic_bytes_total",
 				mergeLabels(peeringLbls, Labels{"direction": "tx"}), peeringTx[remoteNID], nowMs),
 		)
 	}

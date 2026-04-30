@@ -32,15 +32,15 @@ rules:
   - list
   - watch
 - apiGroups:
-  - wireflowcontroller.wireflow.run
+  - alattice.io
   resources:
-  - wireflowclusterpeerings
-  - wireflowenrollmenttokens
-  - wireflownetworkpeerings
-  - wireflownetworks
-  - wireflowpeers
-  - wireflowpolicies
-  - wireflowrelayservers
+  - latticeclusterpeerings
+  - latticeenrollmenttokens
+  - latticenetworkpeerings
+  - latticenetworks
+  - latticepeers
+  - latticepolicies
+  - latticerelayservers
   verbs:
   - create
   - delete
@@ -50,35 +50,35 @@ rules:
   - update
   - watch
 - apiGroups:
-  - wireflowcontroller.wireflow.run
+  - alattice.io
   resources:
-  - wireflowclusterpeerings/finalizers
-  - wireflowenrollmenttokens/finalizers
-  - wireflownetworkpeerings/finalizers
-  - wireflownetworks/finalizers
-  - wireflowpeers/finalizers
-  - wireflowpolicies/finalizers
-  - wireflowrelayservers/finalizers
+  - latticeclusterpeerings/finalizers
+  - latticeenrollmenttokens/finalizers
+  - latticenetworkpeerings/finalizers
+  - latticenetworks/finalizers
+  - latticepeers/finalizers
+  - latticepolicies/finalizers
+  - latticerelayservers/finalizers
   verbs:
   - update
 - apiGroups:
-  - wireflowcontroller.wireflow.run
+  - alattice.io
   resources:
-  - wireflowclusterpeerings/status
-  - wireflowenrollmenttokens/status
-  - wireflownetworkpeerings/status
-  - wireflownetworks/status
-  - wireflowpeers/status
-  - wireflowpolicies/status
-  - wireflowrelayservers/status
+  - latticeclusterpeerings/status
+  - latticeenrollmenttokens/status
+  - latticenetworkpeerings/status
+  - latticenetworks/status
+  - latticepeers/status
+  - latticepolicies/status
+  - latticerelayservers/status
   verbs:
   - get
   - patch
   - update
 - apiGroups:
-  - wireflowcontroller.wireflow.run
+  - alattice.io
   resources:
-  - wireflowclusters
+  - latticeclusters
   verbs:
   - get
   - list

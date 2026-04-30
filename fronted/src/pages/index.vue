@@ -85,8 +85,8 @@ const advantages = [
     <header class="sticky top-0 z-50 border-b border-border bg-background/80 backdrop-blur-md">
       <div class="max-w-6xl mx-auto px-6 h-14 flex items-center justify-between">
         <div class="flex items-center gap-2.5">
-          <img src="@/assets/logo.svg" class="size-7" alt="Wireflow" />
-          <span class="font-black tracking-tighter text-sm">Wireflow</span>
+          <img src="@/assets/logo.svg" class="size-7" alt="Lattice" />
+          <span class="font-black tracking-tighter text-sm">Lattice</span>
           <span class="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-primary/10 text-primary ring-1 ring-primary/20">v0.1.2</span>
         </div>
 
@@ -163,7 +163,7 @@ const advantages = [
       <div class="max-w-3xl mx-auto text-center">
         <div class="inline-flex items-center gap-2 px-3 py-1.5 mb-8 rounded-full border border-border bg-muted text-xs font-medium text-muted-foreground">
           <span class="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
-          WIREFLOW ENGINE · 自动化网络编排平台
+          LATTICE ENGINE · 自动化网络编排平台
         </div>
 
         <h1 class="text-4xl md:text-[3.5rem] font-black tracking-tighter leading-[1.1] mb-5">
@@ -206,7 +206,7 @@ const advantages = [
             <div class="size-3 rounded-full bg-rose-500/70" />
             <div class="size-3 rounded-full bg-amber-400/70" />
             <div class="size-3 rounded-full bg-emerald-500/70" />
-            <span class="ml-2 text-[11px] text-zinc-500 font-mono flex-1">wireflow — control-plane</span>
+            <span class="ml-2 text-[11px] text-zinc-500 font-mono flex-1">lattice — control-plane</span>
             <div class="flex items-center gap-1.5">
               <span class="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
               <span class="text-[11px] text-emerald-400 font-mono font-semibold">FABRIC ONLINE</span>
@@ -319,7 +319,7 @@ const advantages = [
             </div>
             <div class="bg-zinc-950 p-5 font-mono text-sm leading-7">
               <p><span class="text-zinc-600 select-none">#  </span><span class="text-zinc-500 italic">Standard Node Onboarding</span></p>
-              <p><span class="text-zinc-500 select-none">$  </span><span class="text-emerald-400">curl -sSL https://get.wireflow.io \</span></p>
+              <p><span class="text-zinc-500 select-none">$  </span><span class="text-emerald-400">curl -sSL https://get.lattice.run \</span></p>
               <p><span class="text-zinc-700 select-none">   </span><span class="text-emerald-400">  | sudo bash -s -- join \</span></p>
               <p><span class="text-zinc-700 select-none">   </span><span class="text-emerald-400">  --token <span class="text-sky-400">wf_live_8s2k...92nz</span></span></p>
               <p class="mt-2"><span class="text-zinc-600 select-none">✓  </span><span class="text-emerald-500">Tunnel established · latency 12ms</span></p>
@@ -433,7 +433,7 @@ const advantages = [
         <!-- Enterprise hint -->
         <div class="mt-5 flex items-center justify-center gap-2 text-sm text-muted-foreground">
           <span>节点数超过 500 或有特殊合规需求？</span>
-          <a href="mailto:hello@wireflow.io" class="text-foreground font-medium hover:underline underline-offset-4 transition-colors">联系我们获取 Enterprise 报价 →</a>
+          <a href="mailto:hello@lattice.run" class="text-foreground font-medium hover:underline underline-offset-4 transition-colors">联系我们获取 Enterprise 报价 →</a>
         </div>
       </div>
     </section>
@@ -480,11 +480,11 @@ const advantages = [
     <footer class="border-t border-border px-6 py-7">
       <div class="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
         <div class="flex items-center gap-2">
-          <img src="@/assets/logo.svg" class="size-5" alt="Wireflow" />
-          <span class="text-sm font-black tracking-tighter text-muted-foreground">Wireflow</span>
+          <img src="@/assets/logo.svg" class="size-5" alt="Lattice" />
+          <span class="text-sm font-black tracking-tighter text-muted-foreground">Lattice</span>
         </div>
         <p class="text-[11px] text-muted-foreground font-mono uppercase tracking-widest">
-          © 2026 Wireflow · 自动化网络编排平台 · WireGuard-Native
+          © 2026 Lattice · 自动化网络编排平台 · WireGuard-Native
         </p>
         <div class="flex items-center gap-5 text-xs text-muted-foreground">
           <a href="#" class="hover:text-foreground transition-colors">文档</a>

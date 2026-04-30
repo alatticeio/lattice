@@ -3,5 +3,5 @@ export interface ApiResponse<T = any> {
     code: number;
     data: T;
     message?: string;
-    events?: any[]; // 针对你 Wireflow 项目的特殊字段
+    events?: any[]; // 针对你 Lattice 项目的特殊字段
 }

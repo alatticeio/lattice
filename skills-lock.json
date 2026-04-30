@@ -1,0 +1,52 @@
+{
+  "version": 1,
+  "skills": {
+    "git-commit": {
+      "source": "smithery.ai",
+      "sourceType": "well-known",
+      "computedHash": "8baf55899d54774510b3f751336f32c168e302f4c7d6d28a36b9792b82b2ecaa"
+    },
+    "pi-planning-with-files": {
+      "source": "OthmanAdi/planning-with-files",
+      "sourceType": "github",
+      "skillPath": ".pi/skills/planning-with-files/SKILL.md",
+      "computedHash": "1d784e0e7575d4d9a7c3602dbbb8ff45ac328e0253f8a110616d5e8bfffbf51c"
+    },
+    "planning-with-files": {
+      "source": "OthmanAdi/planning-with-files",
+      "sourceType": "github",
+      "skillPath": "skills/planning-with-files/SKILL.md",
+      "computedHash": "93522d6989e542f4670d9d7a347b2e0013c46935845d599a15fafd77643b9d42"
+    },
+    "planning-with-files-ar": {
+      "source": "OthmanAdi/planning-with-files",
+      "sourceType": "github",
+      "skillPath": "skills/planning-with-files-ar/SKILL.md",
+      "computedHash": "29e2847a61a421a78af2a012e72f5e051e5690719f7a91a6dc935a557bb17804"
+    },
+    "planning-with-files-de": {
+      "source": "OthmanAdi/planning-with-files",
+      "sourceType": "github",
+      "skillPath": "skills/planning-with-files-de/SKILL.md",
+      "computedHash": "8105dadce89043bb414a27970b5b6d3e3bd4a3cc5ef3666722392d6b7707dc20"
+    },
+    "planning-with-files-es": {
+      "source": "OthmanAdi/planning-with-files",
+      "sourceType": "github",
+      "skillPath": "skills/planning-with-files-es/SKILL.md",
+      "computedHash": "b88dc8cdbc95f8fd723e4be8459f723529420229b991c620148b7f53aca4a6c4"
+    },
+    "planning-with-files-zh": {
+      "source": "OthmanAdi/planning-with-files",
+      "sourceType": "github",
+      "skillPath": "skills/planning-with-files-zh/SKILL.md",
+      "computedHash": "d941a9deddd4ffbb2d3b3d397bda400e5d480d294c1e5d5de8ae0a97eb146bdf"
+    },
+    "planning-with-files-zht": {
+      "source": "OthmanAdi/planning-with-files",
+      "sourceType": "github",
+      "skillPath": "skills/planning-with-files-zht/SKILL.md",
+      "computedHash": "e7f7eb263bbb3018196e388e59625387af4c46a18f1085acd61af63a43507c3c"
+    }
+  }
+}

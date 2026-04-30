@@ -1,4 +1,4 @@
-// Copyright 2025 The Wireflow Authors, Inc.
+// Copyright 2026 The Lattice Authors, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,8 +16,8 @@ package cmd
 
 import (
 	"fmt"
+	"github.com/alatticeio/lattice/internal/agent/config"
 	"os"
-	"wireflow/internal/config"
 
 	"github.com/spf13/cobra"
 )
@@ -25,9 +25,9 @@ import (
 var cfgManager = config.NewConfigManager()
 
 var rootCmd = &cobra.Command{
-	Use:   "wireflow",
-	Short: "wireflow: High-performance WireGuard proxy tunneling\n A tool for creating fast and secure network proxies using WireGuard protocol.",
-	Long: `wireflow: High-performance WireGuard proxy tunneling
+	Use:   "lattice",
+	Short: "lattice: High-performance WireGuard proxy tunneling\n A tool for creating fast and secure network proxies using WireGuard protocol.",
+	Long: `lattice: High-performance WireGuard proxy tunneling
 A tool for creating fast and secure network proxies using WireGuard protocol.`,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 		return cfgManager.LoadConf(cmd)
@@ -42,6 +42,6 @@ func Execute() {
 }
 
 func init() {
-	rootCmd.PersistentFlags().StringP("config-dir", "", "", "config directory (default ~/.wireflow)")
+	rootCmd.PersistentFlags().StringP("config-dir", "", "", "config directory (default ~/.lattice)")
 	rootCmd.AddCommand(newStartCommand())
 }

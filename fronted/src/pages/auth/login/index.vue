@@ -14,7 +14,7 @@ import LoginForm from "@/components/auth/LoginForm.vue"
         <div class="bg-primary text-primary-foreground flex size-6 items-center justify-center rounded-md">
           <GalleryVerticalEnd class="size-4" />
         </div>
-        Wireflow Inc.
+        Lattice Inc.
       </a>
       <LoginForm />
     </div>

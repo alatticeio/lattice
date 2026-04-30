@@ -8,7 +8,7 @@ import (
 func newStartCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "start",
-		Short: "Starts a Wireflow component (controller, client, drp, turn).",
+		Short: "Starts a Lattice component (controller, client, drp, turn).",
 		Args:  cobra.MinimumNArgs(1),
 	}
 

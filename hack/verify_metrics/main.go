@@ -1,6 +1,6 @@
 // hack/verify_metrics/main.go
 //
-// 验证工具：检查 wireflow 节点的指标是否已正确上报到 VictoriaMetrics。
+// 验证工具：检查 lattice 节点的指标是否已正确上报到 VictoriaMetrics。
 //
 // 用法:
 //
@@ -91,13 +91,13 @@ type nodeInfo struct {
 
 func fetchNodes(ns string) []nodeInfo {
 	cpuR, _ := query(fmt.Sprintf(
-		`last_over_time(wireflow_node_cpu_usage_percent{network_id="%s"}[5m])`, ns))
+		`last_over_time(lattice_node_cpu_usage_percent{network_id="%s"}[5m])`, ns))
 	txR, _ := query(fmt.Sprintf(
-		`irate(wireflow_node_traffic_bytes_total{network_id="%s",direction="tx"}[2m]) * 8 / 1e6`, ns))
+		`irate(lattice_node_traffic_bytes_total{network_id="%s",direction="tx"}[2m]) * 8 / 1e6`, ns))
 	rxR, _ := query(fmt.Sprintf(
-		`irate(wireflow_node_traffic_bytes_total{network_id="%s",direction="rx"}[2m]) * 8 / 1e6`, ns))
+		`irate(lattice_node_traffic_bytes_total{network_id="%s",direction="rx"}[2m]) * 8 / 1e6`, ns))
 	latR, _ := query(fmt.Sprintf(
-		`avg by (peer_id) (wireflow_peer_latency_ms{network_id="%s"})`, ns))
+		`avg by (peer_id) (lattice_peer_latency_ms{network_id="%s"})`, ns))
 
 	// Build by peer_id
 	nodes := map[string]*nodeInfo{}
@@ -165,58 +165,58 @@ type check struct {
 var checks = []check{
 	{
 		name:   "节点心跳 (uptime)",
-		metric: "wireflow_node_uptime_seconds",
+		metric: "lattice_node_uptime_seconds",
 		promql: func(ns string) string {
-			return fmt.Sprintf(`count(last_over_time(wireflow_node_uptime_seconds{network_id="%s"}[5m]))`, ns)
+			return fmt.Sprintf(`count(last_over_time(lattice_node_uptime_seconds{network_id="%s"}[5m]))`, ns)
 		},
 	},
 	{
 		name:   "CPU 使用率",
-		metric: "wireflow_node_cpu_usage_percent",
+		metric: "lattice_node_cpu_usage_percent",
 		promql: func(ns string) string {
-			return fmt.Sprintf(`count(last_over_time(wireflow_node_cpu_usage_percent{network_id="%s"}[5m]))`, ns)
+			return fmt.Sprintf(`count(last_over_time(lattice_node_cpu_usage_percent{network_id="%s"}[5m]))`, ns)
 		},
 	},
 	{
 		name:   "内存用量",
-		metric: "wireflow_node_memory_bytes",
+		metric: "lattice_node_memory_bytes",
 		promql: func(ns string) string {
-			return fmt.Sprintf(`count(last_over_time(wireflow_node_memory_bytes{network_id="%s"}[5m]))`, ns)
+			return fmt.Sprintf(`count(last_over_time(lattice_node_memory_bytes{network_id="%s"}[5m]))`, ns)
 		},
 	},
 	{
 		name:   "流量计数器 TX",
-		metric: "wireflow_node_traffic_bytes_total{direction=tx}",
+		metric: "lattice_node_traffic_bytes_total{direction=tx}",
 		promql: func(ns string) string {
-			return fmt.Sprintf(`count(last_over_time(wireflow_node_traffic_bytes_total{network_id="%s",direction="tx"}[5m]))`, ns)
+			return fmt.Sprintf(`count(last_over_time(lattice_node_traffic_bytes_total{network_id="%s",direction="tx"}[5m]))`, ns)
 		},
 	},
 	{
 		name:   "流量计数器 RX",
-		metric: "wireflow_node_traffic_bytes_total{direction=rx}",
+		metric: "lattice_node_traffic_bytes_total{direction=rx}",
 		promql: func(ns string) string {
-			return fmt.Sprintf(`count(last_over_time(wireflow_node_traffic_bytes_total{network_id="%s",direction="rx"}[5m]))`, ns)
+			return fmt.Sprintf(`count(last_over_time(lattice_node_traffic_bytes_total{network_id="%s",direction="rx"}[5m]))`, ns)
 		},
 	},
 	{
 		name:   "Peer 握手状态",
-		metric: "wireflow_peer_status",
+		metric: "lattice_peer_status",
 		promql: func(ns string) string {
-			return fmt.Sprintf(`count(last_over_time(wireflow_peer_status{network_id="%s"}[5m]))`, ns)
+			return fmt.Sprintf(`count(last_over_time(lattice_peer_status{network_id="%s"}[5m]))`, ns)
 		},
 	},
 	{
 		name:   "ICMP 延迟",
-		metric: "wireflow_peer_latency_ms",
+		metric: "lattice_peer_latency_ms",
 		promql: func(ns string) string {
-			return fmt.Sprintf(`count(last_over_time(wireflow_peer_latency_ms{network_id="%s"}[5m]))`, ns)
+			return fmt.Sprintf(`count(last_over_time(lattice_peer_latency_ms{network_id="%s"}[5m]))`, ns)
 		},
 	},
 	{
 		name:   "丢包率",
-		metric: "wireflow_peer_packet_loss_percent",
+		metric: "lattice_peer_packet_loss_percent",
 		promql: func(ns string) string {
-			return fmt.Sprintf(`count(last_over_time(wireflow_peer_packet_loss_percent{network_id="%s"}[5m]))`, ns)
+			return fmt.Sprintf(`count(last_over_time(lattice_peer_packet_loss_percent{network_id="%s"}[5m]))`, ns)
 		},
 	},
 }
@@ -235,7 +235,7 @@ func colored(s, c string) string { return c + s + reset }
 
 func run() bool {
 	ns := *networkID
-	fmt.Printf("\n%s=== Wireflow Metrics Verify  %s ===%s\n",
+	fmt.Printf("\n%s=== Lattice Metrics Verify  %s ===%s\n",
 		bold, time.Now().Format("2006-01-02 15:04:05"), reset)
 	fmt.Printf("VM:         %s\n", *vmURL)
 	fmt.Printf("network_id: %s\n\n", ns)
@@ -264,15 +264,15 @@ func run() bool {
 
 	// ── aggregated rates ──────────────────────────────────────────────────
 	txR, _ := query(fmt.Sprintf(
-		`sum(irate(wireflow_node_traffic_bytes_total{network_id="%s",direction="tx"}[2m])) * 8 / 1e6`, ns))
+		`sum(irate(lattice_node_traffic_bytes_total{network_id="%s",direction="tx"}[2m])) * 8 / 1e6`, ns))
 	rxR, _ := query(fmt.Sprintf(
-		`sum(irate(wireflow_node_traffic_bytes_total{network_id="%s",direction="rx"}[2m])) * 8 / 1e6`, ns))
+		`sum(irate(lattice_node_traffic_bytes_total{network_id="%s",direction="rx"}[2m])) * 8 / 1e6`, ns))
 	latR, _ := query(fmt.Sprintf(
-		`avg(wireflow_peer_latency_ms{network_id="%s"})`, ns))
+		`avg(lattice_peer_latency_ms{network_id="%s"})`, ns))
 	lossR, _ := query(fmt.Sprintf(
-		`avg(wireflow_peer_packet_loss_percent{network_id="%s"})`, ns))
+		`avg(lattice_peer_packet_loss_percent{network_id="%s"})`, ns))
 	onlineR, _ := query(fmt.Sprintf(
-		`count(last_over_time(wireflow_node_uptime_seconds{network_id="%s"}[5m]))`, ns))
+		`count(last_over_time(lattice_node_uptime_seconds{network_id="%s"}[5m]))`, ns))
 
 	fmt.Println()
 	fmt.Println(strings.Repeat("─", 56))

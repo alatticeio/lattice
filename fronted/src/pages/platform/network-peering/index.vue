@@ -44,6 +44,7 @@ interface PeeringConnection {
   status:      PeeringStatus
   peeringMode: PeeringMode
   createdAt:   string
+  errorMessage?: string
 }
 
 // ── Data ──────────────────────────────────────────────────────────
@@ -531,8 +532,18 @@ async function confirmDelete() {
           class="flex gap-2 rounded-lg bg-rose-500/5 border border-rose-500/20 p-3">
           <XCircle class="size-4 text-rose-500 shrink-0 mt-0.5" />
           <p class="text-xs text-muted-foreground leading-relaxed">
-            {{ t('manage.networkPeering.detailDialog.failedTip1') }}<code class="font-mono">wireflow.run/gateway=true</code>{{ t('manage.networkPeering.detailDialog.failedTip2') }}
+            {{ t('manage.networkPeering.detailDialog.failedTip1') }}<code class="font-mono">lattice.run/gateway=true</code>{{ t('manage.networkPeering.detailDialog.failedTip2') }}
           </p>
+        </div>
+
+        <!-- API error detail (from backend errorMessage) -->
+        <div v-if="selected.errorMessage"
+          class="flex gap-2 rounded-lg bg-rose-500/5 border border-rose-500/20 p-3">
+          <AlertTriangle class="size-4 text-rose-500 shrink-0 mt-0.5" />
+          <div>
+            <p class="text-xs font-semibold text-rose-500">{{ t('manage.networkPeering.detailDialog.errorTitle') }}</p>
+            <p class="text-xs text-muted-foreground mt-0.5 leading-relaxed">{{ selected.errorMessage }}</p>
+          </div>
         </div>
       </div>
 
@@ -613,11 +624,20 @@ async function confirmDelete() {
           </div>
         </div>
 
+        <!-- Mesh mode warning -->
+        <div v-if="createForm.peeringMode === 'mesh'"
+          class="flex gap-2 rounded-lg bg-amber-400/5 border border-amber-400/20 p-3">
+          <AlertTriangle class="size-4 text-amber-400 shrink-0 mt-0.5" />
+          <p class="text-xs text-muted-foreground leading-relaxed">
+            {{ t('manage.networkPeering.createDialog.meshWarning') }}
+          </p>
+        </div>
+
         <!-- Info tip -->
         <div class="flex gap-2 rounded-lg bg-primary/5 border border-primary/10 p-3">
           <Zap class="size-4 text-primary shrink-0 mt-0.5" />
           <p class="text-xs text-muted-foreground leading-relaxed">
-            {{ t('manage.networkPeering.createDialog.zapTip1') }}<code class="font-mono">wireflow.run/gateway=true</code>{{ t('manage.networkPeering.createDialog.zapTip2') }}
+            {{ t('manage.networkPeering.createDialog.zapTip1') }}<code class="font-mono">lattice.run/gateway=true</code>{{ t('manage.networkPeering.createDialog.zapTip2') }}
           </p>
         </div>
       </div>
