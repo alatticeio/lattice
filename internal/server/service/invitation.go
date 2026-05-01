@@ -1,8 +1,24 @@
+// Copyright 2026 The Lattice Authors, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package service
 
 import (
 	"context"
+	"crypto/hmac"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -33,11 +49,12 @@ type InvitationService interface {
 }
 
 type invitationService struct {
-	store store.Store
+	store      store.Store
+	hmacSecret string
 }
 
-func NewInvitationService(st store.Store) InvitationService {
-	return &invitationService{store: st}
+func NewInvitationService(st store.Store, hmacSecret string) InvitationService {
+	return &invitationService{store: st, hmacSecret: hmacSecret}
 }
 
 func (s *invitationService) Create(ctx context.Context, workspaceID, inviterID, email string, role dto.WorkspaceRole) (*models.WorkspaceInvitation, error) {
@@ -70,7 +87,7 @@ func (s *invitationService) Create(ctx context.Context, workspaceID, inviterID, 
 		return nil, errors.New("a pending invitation already exists for this email")
 	}
 
-	token, err := generateInviteToken()
+	token, err := GenerateInviteToken(s.hmacSecret)
 	if err != nil {
 		return nil, err
 	}
@@ -125,6 +142,9 @@ func (s *invitationService) Accept(ctx context.Context, token, acceptorUserID st
 		if err != nil {
 			return errors.New("invitation not found")
 		}
+		if !VerifyInviteToken(token, s.hmacSecret) {
+			return errors.New("invalid invitation token")
+		}
 		if inv.Status != "pending" {
 			return errors.New("invitation is no longer pending")
 		}
@@ -166,6 +186,9 @@ func (s *invitationService) RegisterAndAccept(ctx context.Context, token, userna
 		inv, err := st.WorkspaceInvitations().GetByToken(ctx, token)
 		if err != nil {
 			return errors.New("invitation not found")
+		}
+		if !VerifyInviteToken(token, s.hmacSecret) {
+			return errors.New("invalid invitation token")
 		}
 		if inv.Status != "pending" {
 			return errors.New("invitation is no longer pending")
@@ -257,10 +280,31 @@ func (s *invitationService) List(ctx context.Context, workspaceID string) ([]*mo
 	return s.store.WorkspaceInvitations().ListByWorkspace(ctx, workspaceID)
 }
 
-func generateInviteToken() (string, error) {
-	b := make([]byte, 32)
-	if _, err := rand.Read(b); err != nil {
+// GenerateInviteToken creates a signed invitation token with HMAC-SHA256.
+// Format: hex(random(16)).hex(HMAC-SHA256(random, secret))
+func GenerateInviteToken(secret string) (string, error) {
+	random := make([]byte, 16)
+	if _, err := rand.Read(random); err != nil {
 		return "", err
 	}
-	return hex.EncodeToString(b), nil
+	mac := hmac.New(sha256.New, []byte(secret))
+	mac.Write(random)
+	signature := mac.Sum(nil)
+	return hex.EncodeToString(random) + "." + hex.EncodeToString(signature), nil
+}
+
+// VerifyInviteToken checks that the token's HMAC signature matches.
+func VerifyInviteToken(token, secret string) bool {
+	parts := strings.Split(token, ".")
+	if len(parts) != 2 {
+		return false
+	}
+	random, err := hex.DecodeString(parts[0])
+	if err != nil {
+		return false
+	}
+	mac := hmac.New(sha256.New, []byte(secret))
+	mac.Write(random)
+	expected := hex.EncodeToString(mac.Sum(nil))
+	return hmac.Equal([]byte(parts[1]), []byte(expected))
 }

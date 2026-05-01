@@ -179,8 +179,8 @@ async function handleCreateToken() {
       createDialogOpen.value = false
       await fetchList({ page: 1 })
     }
-  } catch {
-    toast.error(t('manage.tokens.toast.createFailed'))
+  } catch (e: any) {
+    toast.error(e?.response?.data?.message ?? t('manage.tokens.toast.createFailed'))
   } finally {
     creating.value = false
   }
@@ -202,8 +202,8 @@ async function confirmDelete() {
       deleteTarget.value = null
       await fetchList()
     }
-  } catch {
-    toast.error(t('manage.tokens.toast.deleteFailed'))
+  } catch (e: any) {
+    toast.error(e?.response?.data?.message ?? t('manage.tokens.toast.deleteFailed'))
   } finally {
     deleting.value = false
   }

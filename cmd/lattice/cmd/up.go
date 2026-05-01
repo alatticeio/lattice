@@ -40,7 +40,8 @@ server, negotiate peer connections via the signaling server, and apply the
 workspace's network policies.
 
 Configuration is read from ~/.lattice/config.yaml. CLI flags override file values.
-Use --save to persist the current flags back to the config file.`,
+Use --save to persist the current flags back to the config file.
+First time? Run "lattice init" to set up your config interactively.`,
 		Example: `  # minimal startup
   lattice up --token <token> --server-url <server-url> --signaling-url <signaling-url>
 
@@ -48,7 +49,7 @@ Use --save to persist the current flags back to the config file.`,
   lattice up --token <token> --server-url <server-url> --signaling-url <signaling-url> --save
 
   # enable the WRRP relay for restrictive NAT environments
-  lattice up --token <token> --server-url <server-url> --signaling-url <signaling-url> --enable-wrrp --wrrper-url <wrrp-url>`,
+  lattice up --token <token> --server-url <server-url> --signaling-url <signaling-url> --enable-wrrp --relay-url <relay-url>`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 
 			ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -105,8 +106,8 @@ Use --save to persist the current flags back to the config file.`,
 	fs := cmd.Flags()
 	fs.StringP("token", "", "", "enrollment token to authenticate and join a workspace")
 	fs.StringP("level", "", "", "log level: debug, info, warn, error")
-	fs.StringP("wrrper-url", "", "", "WRRP relay server URL (required when --enable-wrrp)")
-	fs.StringP("wrrp-quic-url", "", "", "QUIC WRRP relay server address (e.g. server:6267)")
+	fs.StringP("relay-url", "", "", "TCP relay server URL (required when --enable-wrrp)")
+	fs.StringP("relay-quic-url", "", "", "QUIC relay server address (e.g. server:6267)")
 	fs.BoolP("enable-wrrp", "", false, "use WRRP relay for NAT traversal")
 	fs.StringP("vm-endpoint", "", "", "use to push tele")
 	fs.BoolP("enable-metric", "", false, "expose Prometheus metrics endpoint")

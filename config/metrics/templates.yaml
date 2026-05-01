@@ -1,0 +1,72 @@
+metrics:
+  online_count:
+    query: "count(last_over_time(lattice_node_uptime_seconds{network_id=\"{{.Namespace}}\"}[5m]))"
+    type: instant
+    result: scalar
+    description: "Online node count"
+
+  tx_throughput:
+    query: "sum(irate(lattice_node_traffic_bytes_total{network_id=\"{{.Namespace}}\",direction=\"tx\"}[2m])) * 8 / 1e6"
+    type: instant
+    result: scalar
+    description: "Real-time TX throughput (Mbps)"
+
+  rx_throughput:
+    query: "sum(irate(lattice_node_traffic_bytes_total{network_id=\"{{.Namespace}}\",direction=\"rx\"}[2m])) * 8 / 1e6"
+    type: instant
+    result: scalar
+    description: "Real-time RX throughput (Mbps)"
+
+  tx_trend:
+    query: "sum(irate(lattice_node_traffic_bytes_total{network_id=\"{{.Namespace}}\",direction=\"tx\"}[5m])) * 8 / 1e6"
+    type: range
+    step: "2m"
+    result: series
+    description: "TX throughput trend"
+
+  rx_trend:
+    query: "sum(irate(lattice_node_traffic_bytes_total{network_id=\"{{.Namespace}}\",direction=\"rx\"}[5m])) * 8 / 1e6"
+    type: range
+    step: "2m"
+    result: series
+    description: "RX throughput trend"
+
+  avg_latency:
+    query: "avg(lattice_peer_latency_ms{network_id=\"{{.Namespace}}\"})"
+    type: instant
+    result: scalar
+    description: "Average peer latency (ms)"
+
+  packet_loss:
+    query: "avg(lattice_peer_packet_loss_percent{network_id=\"{{.Namespace}}\"})"
+    type: instant
+    result: scalar
+    description: "Average packet loss rate (%)"
+
+  cpu_per_node:
+    query: "last_over_time(lattice_node_cpu_usage_percent{network_id=\"{{.Namespace}}\"}[5m])"
+    type: instant
+    result: table
+    group_by: ["peer_id"]
+    description: "CPU usage per node"
+
+  memory_per_node:
+    query: "last_over_time(lattice_node_memory_bytes{network_id=\"{{.Namespace}}\"}[5m])"
+    type: instant
+    result: table
+    group_by: ["peer_id"]
+    description: "Memory usage per node"
+
+  top_nodes_24h:
+    query: "topk(10, sum by (peer_id)(increase(lattice_node_traffic_bytes_total{network_id=\"{{.Namespace}}\"}[24h])))"
+    type: instant
+    result: table
+    group_by: ["peer_id"]
+    description: "Top 10 nodes by 24h traffic"
+
+  peer_status:
+    query: "last_over_time(lattice_peer_status{network_id=\"{{.Namespace}}\"}[5m])"
+    type: instant
+    result: table
+    group_by: ["peer_id", "remote_peer_id"]
+    description: "Peer connection status"

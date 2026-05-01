@@ -5,7 +5,7 @@ import (
 	"strconv"
 
 	"github.com/alatticeio/lattice/internal/agent/store"
-	"github.com/alatticeio/lattice/internal/server/server/middleware"
+	"github.com/alatticeio/lattice/internal/server/dto"
 	"github.com/alatticeio/lattice/pkg/utils/resp"
 
 	"github.com/gin-gonic/gin"
@@ -14,14 +14,14 @@ import (
 func (s *Server) auditRouter() {
 	// Workspace-scoped audit logs (any workspace member can read their own workspace logs).
 	ws := s.Group("/api/v1/workspaces/:id/audit-logs")
-	ws.Use(middleware.AuthMiddleware())
+	ws.Use(s.middleware.WorkspaceAuthMiddleware(dto.RoleViewer))
 	{
 		ws.GET("", s.handleListAuditLogs())
 	}
 
 	// Platform-level audit logs (platform_admin only).
 	platform := s.Group("/api/v1/audit-logs")
-	platform.Use(middleware.AuthMiddleware())
+	platform.Use(s.middleware.PlatformAdminOnly())
 	{
 		platform.GET("", s.handleListAuditLogs())
 	}

@@ -31,12 +31,12 @@ type mockTransport struct {
 	closed bool
 }
 
-func (m *mockTransport) Priority() uint8                    { return 0 }
-func (m *mockTransport) Close() error                       { m.closed = true; return nil }
-func (m *mockTransport) Write(data []byte) error            { return nil }
-func (m *mockTransport) Read(buff []byte) (int, error)      { return 0, nil }
-func (m *mockTransport) RemoteAddr() string                 { return m.addr }
-func (m *mockTransport) Type() infra.TransportType          { return m.tp }
+func (m *mockTransport) Priority() uint8               { return 0 }
+func (m *mockTransport) Close() error                  { m.closed = true; return nil }
+func (m *mockTransport) Write(data []byte) error       { return nil }
+func (m *mockTransport) Read(buff []byte) (int, error) { return 0, nil }
+func (m *mockTransport) RemoteAddr() string            { return m.addr }
+func (m *mockTransport) Type() infra.TransportType     { return m.tp }
 
 func TestProbe_onSuccess_ICE(t *testing.T) {
 	sm := NewStateMachine(StateProbing)

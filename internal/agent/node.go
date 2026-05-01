@@ -250,10 +250,10 @@ func NewNode(ctx context.Context, cfg *NodeConfig) (*Node, error) {
 	// WRRP is an optional relay channel used as a fallback when ICE traversal
 	// fails (e.g. symmetric NAT on both sides).
 	if cfg.Flags.EnableWrrp {
-		if cfg.Flags.WrrpQuicURL != "" {
-			wrrp, err = relay.NewQUICClient(ctx, localIdentity.ID(), cfg.Flags.WrrpQuicURL, node.probeFactory.Handle)
+		if cfg.Flags.RelayQuicURL != "" {
+			wrrp, err = relay.NewQUICClient(ctx, localIdentity.ID(), cfg.Flags.RelayQuicURL, node.probeFactory.Handle)
 		} else {
-			wrrpUrl := cfg.Flags.WrrperURL
+			wrrpUrl := cfg.Flags.RelayURL
 			if wrrpUrl == "" {
 				wrrpUrl = node.current.WrrpUrl
 			}
@@ -295,10 +295,20 @@ func NewNode(ctx context.Context, cfg *NodeConfig) (*Node, error) {
 	node.iface = wg.NewDevice(iface, node.bind, wg.NewLogger(wgLogLevel, fmt.Sprintf("(%s) ", cfg.InterfaceName)))
 
 	// Provisioner abstracts all OS network-stack mutations: IP address assignment,
-	// routing table entries, iptables rules, and WireGuard peer configuration.
+	// routing table entries, policy enforcement rules, and WireGuard peer configuration.
 	// It must be created after the WireGuard device because it holds a reference to it.
-	node.provisioner = provision.NewProvisioner(provision.NewRouteProvisioner(cfg.Logger),
-		provision.NewRuleProvisioner(cfg.Logger, node.Name), &provision.Params{
+	enforcerMode := provision.SelectEnforcerMode(cfg.Logger)
+	var policyEnforcer provision.PolicyEnforcer
+	switch enforcerMode {
+	case provision.ModeEBPF:
+		policyEnforcer = provision.NewEBPFEnforcer(node.Name, cfg.Logger)
+	default:
+		policyEnforcer = provision.NewIptablesEnforcer(cfg.Logger, node.Name)
+	}
+	node.provisioner = provision.NewProvisioner(
+		provision.NewRouteProvisioner(cfg.Logger),
+		policyEnforcer,
+		&provision.Params{
 			Device:    node.iface,
 			IfaceName: node.Name,
 		})

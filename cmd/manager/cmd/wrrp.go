@@ -29,8 +29,12 @@ func newWrrpCmd() *cobra.Command {
 		Short:        "wrrp using as relay server for lattice",
 		Long:         `wrrp using as relay server for lattice`,
 
-		PreRunE: func(cmd *cobra.Command, args []string) error {
-			return nil
+		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+			// Map renamed server flags to their viper keys before config loading.
+			// PersistentPreRunE overrides parent's, so we call LoadConf here.
+			_ = cfgManager.Viper().BindPFlag("listen", cmd.Flags().Lookup("addr"))
+			_ = cfgManager.Viper().BindPFlag("relay-quic-url", cmd.Flags().Lookup("quic-addr"))
+			return cfgManager.LoadConf(cmd)
 		},
 
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -38,10 +42,10 @@ func newWrrpCmd() *cobra.Command {
 		},
 	}
 	fs := cmd.Flags()
-	fs.StringP("listen", "l", "", "port for wrrp server")
+	fs.StringP("addr", "l", "", "TCP relay listen address")
 	fs.BoolP("enable-tls", "", false, "using tls")
 	fs.StringP("level", "", "silent", "log level (debug, info, warn, error)")
-	fs.StringP("wrrp-quic-url", "", "", "QUIC WRRP relay server address (e.g. :6267)")
+	fs.StringP("quic-addr", "", "", "QUIC relay listen address (e.g. :6267)")
 	return cmd
 }
 
@@ -50,14 +54,14 @@ func runWrrp(flags *config.Config) error {
 	log.SetLevel(flags.Level)
 	server := relay.NewServer(flags)
 
-	if flags.WrrpQuicURL != "" {
+	if flags.RelayQuicURL != "" {
 		tlsCfg, err := relay.GenerateSelfSignedTLS()
 		if err != nil {
 			log.GetLogger("wrrp").Warn("failed to generate self-signed TLS, skipping QUIC", "err", err)
 		} else {
 			qs := relay.NewQUICServer(server.Manager())
 			go func() {
-				if err := qs.Start(flags.WrrpQuicURL, tlsCfg); err != nil {
+				if err := qs.Start(flags.RelayQuicURL, tlsCfg); err != nil {
 					log.GetLogger("wrrp").Error("QUIC server error", err)
 				}
 			}()

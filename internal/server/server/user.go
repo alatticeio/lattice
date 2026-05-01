@@ -1,27 +1,34 @@
 package server
 
 import (
+	"net/http"
+	"time"
+
 	"github.com/alatticeio/lattice/internal/server/dto"
 	"github.com/alatticeio/lattice/internal/server/server/middleware"
 	"github.com/alatticeio/lattice/pkg/utils"
 	"github.com/alatticeio/lattice/pkg/utils/resp"
-	"net/http"
-
 	"github.com/gin-gonic/gin"
 )
 
 func (s *Server) userRouter() {
 
+	// Auth group — logout endpoint.
+	authGroup := s.Group("/api/v1/auth")
+	{
+		authGroup.POST("/logout", middleware.AuthMiddleware(s.revocationList), s.logout())
+	}
+
 	userApi := s.Group("/api/v1/users")
 	{
 		userApi.POST("/register", s.RegisterUser)
 		userApi.POST("/login", s.login)
-		userApi.GET("/getme", middleware.AuthMiddleware(), s.getMe())
-		userApi.GET("/list", middleware.AuthMiddleware(), s.listUser())
-		userApi.POST("/add", middleware.AuthMiddleware(), s.handleAddUser())
-		userApi.DELETE("/:name", middleware.AuthMiddleware(), s.handleDeleteUser())
-		userApi.PATCH("/:id/system-role", middleware.AuthMiddleware(), s.handleUpdateSystemRole())
-		userApi.GET("/:id/workspaces", middleware.AuthMiddleware(), s.handleGetUserWorkspaces())
+		userApi.GET("/getme", middleware.AuthMiddleware(s.revocationList), s.getMe())
+		userApi.GET("/list", middleware.AuthMiddleware(s.revocationList), s.listUser())
+		userApi.POST("/add", middleware.AuthMiddleware(s.revocationList), s.handleAddUser())
+		userApi.DELETE("/:name", middleware.AuthMiddleware(s.revocationList), s.handleDeleteUser())
+		userApi.PATCH("/:id/system-role", middleware.AuthMiddleware(s.revocationList), s.handleUpdateSystemRole())
+		userApi.GET("/:id/workspaces", middleware.AuthMiddleware(s.revocationList), s.handleGetUserWorkspaces())
 	}
 }
 
@@ -213,5 +220,28 @@ func (s *Server) handleGetUserWorkspaces() gin.HandlerFunc {
 		}
 
 		resp.OK(c, result)
+	}
+}
+
+func (s *Server) logout() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		jti := c.GetString("jti")
+		if jti == "" {
+			resp.Error(c, "invalid token")
+			return
+		}
+
+		expRaw, exists := c.Get("exp")
+		if !exists {
+			s.revocationList.Revoke(jti, time.Now().Add(12*time.Hour))
+		} else {
+			if exp, ok := expRaw.(time.Time); ok {
+				s.revocationList.Revoke(jti, exp)
+			} else {
+				s.revocationList.Revoke(jti, time.Now().Add(12*time.Hour))
+			}
+		}
+
+		resp.OK(c, nil)
 	}
 }

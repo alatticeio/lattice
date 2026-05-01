@@ -35,14 +35,14 @@ var (
 
 // Probe manages the connection lifecycle to a single remote peer.
 type Probe struct {
-	mu        sync.RWMutex
-	localId   infra.PeerIdentity
-	remoteId  infra.PeerIdentity
-	iceDialer infra.Dialer
+	mu         sync.RWMutex
+	localId    infra.PeerIdentity
+	remoteId   infra.PeerIdentity
+	iceDialer  infra.Dialer
 	wrrpDialer infra.Dialer
-	iceState  ice.ConnectionState
-	signal    infra.SignalService
-	log       *log.Logger
+	iceState   ice.ConnectionState
+	signal     infra.SignalService
+	log        *log.Logger
 
 	// State machine guards lifecycle transitions.
 	sm *StateMachine
@@ -67,7 +67,7 @@ type Probe struct {
 
 	// Remote peer identity received from SYN/ACK.
 	// firstFailureAt tracks consecutive failure duration for 60s timeout.
-	muFail       sync.Mutex
+	muFail         sync.Mutex
 	firstFailureAt time.Time
 }
 

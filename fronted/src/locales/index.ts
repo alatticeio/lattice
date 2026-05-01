@@ -4,11 +4,13 @@ import { createI18n } from 'vue-i18n'
 import zhCommon  from './zh-CN/common.json'
 import zhManage  from './zh-CN/manage.json'
 import zhSettings from './zh-CN/settings.json'
+import zhLanding from './zh-CN/landing.json'
 
 // en
 import enCommon  from './en/common.json'
 import enManage  from './en/manage.json'
 import enSettings from './en/settings.json'
+import enLanding from './en/landing.json'
 
 export type Locale = 'zh-CN' | 'en'
 
@@ -29,11 +31,13 @@ export const i18n = createI18n({
       common: zhCommon,
       manage: zhManage,
       settings: zhSettings,
+      landing: zhLanding,
     },
     en: {
       common: enCommon,
       manage: enManage,
       settings: enSettings,
+      landing: enLanding,
     },
   },
 })

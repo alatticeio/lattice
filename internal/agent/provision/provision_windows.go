@@ -35,7 +35,7 @@ func (r *routeProvisioner) ApplyRoute(action, address, interfaceName string) err
 func (r *routeProvisioner) ApplyIP(action, address, name string) error {
 	switch action {
 	case "add":
-		ip := TrimCIDR(address)
+		ip := infra.TrimCIDR(address)
 		// Set the IP address using netsh on Windows
 		infra.ExecCommand("cmd", "/C", fmt.Sprintf(
 			"netsh interface ipv4 set address name=\"%s\" static %s 255.255.255.0",

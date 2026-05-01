@@ -19,6 +19,7 @@ import (
 
 	"github.com/alatticeio/lattice/api/v1alpha1"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
@@ -36,16 +37,11 @@ type NetworkPolicyReconciler struct {
 // +kubebuilder:rbac:groups=alattice.io,resources=latticepolicies,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=alattice.io,resources=latticepolicies/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=alattice.io,resources=latticepolicies/finalizers,verbs=update
+// +kubebuilder:rbac:groups=alattice.io,resources=latticepeers,verbs=get;list;watch
 
-// Reconcile is part of the main kubernetes reconciliation loop which aims to
-// move the current state of the cluster closer to the desired state.
-// TODO(user): Modify the Reconcile function to compare the state specified by
-// the LatticePolicy object against the actual cluster state, and then
-// perform operations to make the cluster state reflect the state specified by
-// the user.
-//
-// For more details, check Reconcile and its Result here:
-// - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.21.0/pkg/reconcile
+// Reconcile counts the LatticePeers matched by the policy's PeerSelector and
+// the total ingress+egress rules, then writes those counts back to the
+// LatticePolicy status subresource.
 func (r *NetworkPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := logf.FromContext(ctx)
 	log.Info("Reconciling LatticePolicy", "namespace", req.Namespace, "name", req.Name)
@@ -59,6 +55,37 @@ func (r *NetworkPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		return ctrl.Result{}, nil
 	}
 
+	// Count peers matched by PeerSelector.
+	selector, err := metav1.LabelSelectorAsSelector(&policy.Spec.PeerSelector)
+	if err != nil {
+		log.Error(err, "Failed to parse PeerSelector")
+		return ctrl.Result{}, err
+	}
+
+	var peerList v1alpha1.LatticePeerList
+	if err := r.List(ctx, &peerList,
+		client.InNamespace(req.Namespace),
+		client.MatchingLabelsSelector{Selector: selector},
+	); err != nil {
+		log.Error(err, "Failed to list LatticePeers")
+		return ctrl.Result{}, err
+	}
+
+	ruleCount := len(policy.Spec.Ingress) + len(policy.Spec.Egress)
+
+	patch := client.MergeFrom(policy.DeepCopy())
+	policy.Status.TargetNodes = len(peerList.Items)
+	policy.Status.RuleCount = ruleCount
+
+	if err := r.Status().Patch(ctx, &policy, patch); err != nil {
+		log.Error(err, "Failed to update LatticePolicy status")
+		return ctrl.Result{}, err
+	}
+
+	log.Info("Updated LatticePolicy status",
+		"targetNodes", policy.Status.TargetNodes,
+		"ruleCount", policy.Status.RuleCount,
+	)
 	return ctrl.Result{}, nil
 }
 

@@ -15,3 +15,5 @@ internal/web/dist/*
 *.tsbuildinfo
 docs/design/
 docs/superpowers
+*.out
+.superpowers

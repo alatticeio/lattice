@@ -158,6 +158,7 @@ type Network struct {
 
 type Policy struct {
 	PolicyName string  `json:"policyName"`
+	Action     string  `json:"action,omitempty"` // "ALLOW" or "DENY"
 	Ingress    []*Rule `json:"ingress"`
 	Egress     []*Rule `json:"egress"`
 }
@@ -171,8 +172,10 @@ type FirewallRule struct {
 
 type Rule struct {
 	PeerNames []string `json:"peerNames"`
+	CIDRs     []string `json:"cidrs,omitempty"` // from IPBlock
 	Protocol  string   `json:"protocol"`
 	Port      int      `json:"port"`
+	Action    string   `json:"action,omitempty"` // "ALLOW" or "DENY"
 }
 
 type TrafficRule struct {

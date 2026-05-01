@@ -2,15 +2,17 @@ package middleware
 
 import (
 	"context"
+	"strings"
+
 	"github.com/alatticeio/lattice/internal/agent/infra"
+	"github.com/alatticeio/lattice/internal/server/auth"
 	"github.com/alatticeio/lattice/pkg/utils"
 	"github.com/alatticeio/lattice/pkg/utils/resp"
-	"strings"
 
 	"github.com/gin-gonic/gin"
 )
 
-func AuthMiddleware() gin.HandlerFunc {
+func AuthMiddleware(revocationList *auth.RevocationList) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// 1. 获取 Authorization Header (格式: Bearer <token>)
 		authHeader := c.GetHeader("Authorization")
@@ -30,11 +32,20 @@ func AuthMiddleware() gin.HandlerFunc {
 			return
 		}
 
-		// 3. 将用户 ID 写入上下文，后续 Handler 可以通过 c.Get("userID") 拿到
+		// 3. Check revocation (skip if list is nil — for migration during Task 5)
+		if revocationList != nil && claims.ID != "" && revocationList.IsRevoked(claims.ID) {
+			resp.Unauthorized(c, "token has been revoked")
+			c.Abort()
+			return
+		}
+
+		// 4. 将用户 ID 写入上下文，后续 Handler 可以通过 c.Get("userID") 拿到
 		c.Set("user_id", claims.Subject)
 		c.Set("username", claims.Username)
 		c.Set("email", claims.Email)
 		c.Set("system_role", claims.SystemRole)
+		c.Set("jti", claims.ID)
+		c.Set("exp", claims.ExpiresAt.Time)
 
 		// 进阶：如果你想让后面的 context.Context 也能拿到这个值
 		// 可以重写 Request 的 Context (可选，但在纯净的架构中很有用)

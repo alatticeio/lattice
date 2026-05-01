@@ -26,9 +26,9 @@ import (
 )
 
 const (
-	sendChanDepth  = 256
-	writerBufSize  = 128 * 1024
-	probeChanSize  = 1024
+	sendChanDepth   = 256
+	writerBufSize   = 128 * 1024
+	probeChanSize   = 1024
 	MaxProbePayload = 2048
 )
 
@@ -101,4 +101,3 @@ func (c *lrpClient) makeFrame(toID uint64, cmd uint8, data []byte) []byte {
 	copy(frame[HeaderSize:], data)
 	return frame
 }
-

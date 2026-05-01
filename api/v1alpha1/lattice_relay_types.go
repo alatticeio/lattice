@@ -32,7 +32,7 @@ type LatticeRelayServerSpec struct {
 	TcpUrl string `json:"tcpUrl"`
 
 	// QuicUrl is the host:port of the QUIC WRRP relay endpoint.
-	// Corresponds to --wrrp-quic-url. Preferred over TCP when set.
+	// Corresponds to --relay-quic-url on the client. Preferred over TCP when set.
 	QuicUrl string `json:"quicUrl,omitempty"`
 
 	// Enabled controls whether this relay is pushed to nodes.

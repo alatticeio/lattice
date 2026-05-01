@@ -22,8 +22,8 @@ import (
 )
 
 type SessionManager struct {
-	mu       sync.RWMutex
-	sessions map[uint64]*Session
+	mu        sync.RWMutex
+	sessions  map[uint64]*Session
 	quicConns map[uint64]*quic.Conn
 }
 

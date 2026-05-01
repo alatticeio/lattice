@@ -57,6 +57,95 @@ archives:
     builds:
       - latticed
 
+nfpms:
+  # lattice agent package
+  - id: "lattice-nfpms"
+    package_name: lattice
+    builds:
+      - lattice
+    vendor: alatticeio
+    homepage: https://github.com/alatticeio/lattice
+    maintainer: "alatticeio <maintainers@alatticeio.io>"
+    description: "Lattice edge agent — secure peer-to-peer networking for Kubernetes and bare metal."
+    license: Apache 2.0
+    formats:
+      - rpm
+      - deb
+    bindir: /usr/bin
+    section: net
+    priority: optional
+    contents:
+      - src: ./packaging/lattice.service
+        dst: /usr/lib/systemd/system/lattice.service
+      - src: ./packaging/config.yaml
+        dst: /etc/lattice/config.yaml
+        type: "config|noreplace"
+    overrides:
+      rpm:
+        dependencies:
+          - systemd
+      deb:
+        dependencies:
+          - systemd
+    scripts:
+      postinstall: ./packaging/scripts/lattice-post-install.sh
+      postremove: ./packaging/scripts/lattice-post-remove.sh
+
+  # latticed server package
+  - id: "latticed-nfpms"
+    package_name: latticed
+    builds:
+      - latticed
+    vendor: alatticeio
+    homepage: https://github.com/alatticeio/lattice
+    maintainer: "alatticeio <maintainers@alatticeio.io>"
+    description: "Lattice all-in-one control plane — embedded NATS + SQLite for single-node deployment."
+    license: Apache 2.0
+    formats:
+      - rpm
+      - deb
+    bindir: /usr/bin
+    section: net
+    priority: optional
+    contents:
+      - src: ./packaging/latticed.service
+        dst: /usr/lib/systemd/system/latticed.service
+    overrides:
+      rpm:
+        dependencies:
+          - systemd
+      deb:
+        dependencies:
+          - systemd
+    scripts:
+      postinstall: ./packaging/scripts/latticed-post-install.sh
+      postremove: ./packaging/scripts/latticed-post-remove.sh
+
+brews:
+  - name: lattice
+    ids:
+      - lattice-archive
+    repository:
+      owner: alatticeio
+      name: homebrew-tap
+      token: "{{ .Env.GITHUB_TOKEN }}"
+    directory: Formula
+    homepage: https://github.com/alatticeio/lattice
+    description: "Lattice edge agent — secure peer-to-peer networking"
+    license: Apache 2.0
+    test: |
+      system "#{bin}/lattice", "version"
+    install: |
+      bin.install "lattice"
+    commit_author:
+      name: alatticeio-bot
+      email: maintainers@alatticeio.io
+    skip_upload: false
+    dependencies: []
+
+release:
+  prerelease: auto
+
 checksum:
   name_template: "checksums.txt"
 

@@ -49,8 +49,17 @@ service.interceptors.request.use(
 service.interceptors.response.use(
     (response: AxiosResponse<ApiResponse>) => {
         NProgress.done();
-        // 直接返回后端定义的 data 结构
-        return response.data as any;
+        const body = response.data;
+        // 后端统一返回 HTTP 200，业务错误通过 body.code 区分（4xx/5xx 视为错误）
+        if (body.code !== undefined && body.code >= 400) {
+            const message = body.message || body.msg || '操作失败';
+            const error: any = new Error(message);
+            error.response = { data: { ...body, message } };
+            error.message = message;
+            return Promise.reject(error);
+        }
+        // 正常响应
+        return body as any;
     },
     (error) => {
         NProgress.done();
@@ -66,10 +75,16 @@ service.interceptors.response.use(
                     message = '权限不足，无法操作';
                     break;
                 default:
-                    message = response.data?.message || message;
+                    message = response.data?.message || response.data?.msg || message;
             }
         }
         console.error('API Error:', message);
+        error.message = message;
+        if (!error.response) {
+            error.response = { data: { message } } as any;
+        } else {
+            error.response.data = { ...error.response.data, message };
+        }
         return Promise.reject(error);
     }
 );

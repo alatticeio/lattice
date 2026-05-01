@@ -123,8 +123,8 @@ async function fetchList(params?: { page?: number }) {
       rows.value = Array.isArray(data) ? data : (data?.list ?? data?.items ?? [])
       total.value = Array.isArray(data) ? rows.value.length : (data?.total ?? rows.value.length)
     }
-  } catch {
-    toast.error(t('settings.relays.toast.fetchFailed'))
+  } catch (e: any) {
+    toast.error(e?.response?.data?.message ?? t('settings.relays.toast.fetchFailed'))
   } finally {
     loading.value = false
   }
@@ -153,8 +153,8 @@ async function handleSave() {
         await fetchList({ page: 1 })
       }
     }
-  } catch {
-    toast.error(t(editingItem.value ? 'settings.relays.toast.updateFailed' : 'settings.relays.toast.createFailed'))
+  } catch (e: any) {
+    toast.error(e?.response?.data?.message ?? t(editingItem.value ? 'settings.relays.toast.updateFailed' : 'settings.relays.toast.createFailed'))
   } finally {
     saving.value = false
   }
@@ -176,8 +176,8 @@ async function confirmDelete() {
       deleteTarget.value = null
       await fetchList()
     }
-  } catch {
-    toast.error(t('settings.relays.toast.deleteFailed'))
+  } catch (e: any) {
+    toast.error(e?.response?.data?.message ?? t('settings.relays.toast.deleteFailed'))
   } finally {
     deleting.value = false
   }
@@ -193,8 +193,8 @@ async function handleTest(row: RelayServer) {
     } else {
       toast.error(t('settings.relays.toast.testFailed'))
     }
-  } catch {
-    toast.error(t('settings.relays.toast.testFailed'))
+  } catch (e: any) {
+    toast.error(e?.response?.data?.message ?? t('settings.relays.toast.testFailed'))
   } finally {
     testing.value = null
   }

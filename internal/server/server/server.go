@@ -23,16 +23,21 @@ import (
 	"github.com/alatticeio/lattice/internal/agent/log"
 	"github.com/alatticeio/lattice/internal/agent/store"
 	"github.com/alatticeio/lattice/internal/db"
+	"github.com/alatticeio/lattice/internal/monitor"
+	"github.com/alatticeio/lattice/internal/server/auth"
 	"github.com/alatticeio/lattice/internal/server/controller"
 	"github.com/alatticeio/lattice/internal/server/llm"
 	managementnats "github.com/alatticeio/lattice/internal/server/nats"
+	"github.com/alatticeio/lattice/internal/server/permission"
 	"github.com/alatticeio/lattice/internal/server/resource"
 	"github.com/alatticeio/lattice/internal/server/server/middleware"
 	"github.com/alatticeio/lattice/internal/server/service"
+	"github.com/alatticeio/lattice/pkg/utils"
 	"github.com/alatticeio/lattice/pkg/version"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 )
 
@@ -60,20 +65,24 @@ type Server struct {
 	relayController      controller.RelayController
 	invitationController controller.InvitationController
 
-	monitorController  controller.MonitorController
-	profileController  controller.ProfileController
-	auditController    controller.AuditController
-	workflowController controller.WorkflowController
+	monitorController      controller.MonitorController
+	alertController        controller.AlertController
+	customMetricController controller.CustomMetricController
+	profileController      controller.ProfileController
+	auditController        controller.AuditController
+	workflowController     controller.WorkflowController
 
 	aiService      service.AIService
 	peeringService service.PeeringService
 
-	tenantMiddleware *middleware.TenantMiddleware
-	auditService     service.AuditService
-	workflowService  service.WorkflowService
+	middleware      *middleware.Middleware
+	revocationList  *auth.RevocationList
+	auditService    service.AuditService
+	workflowService service.WorkflowService
 
 	store    store.Store
 	presence *managementnats.NodePresenceStore
+	monitor  *monitor.Monitor
 }
 
 // ServerConfig is the server configuration.
@@ -165,35 +174,58 @@ func NewServer(ctx context.Context, serverConfig *ServerConfig) (*Server, error)
 		logger.Info("AI service disabled (set ai.enabled=true and ai.api-key to enable)")
 	}
 
+	// ── 弱依赖④：Monitor（可选）────────────────────────────────────
+	var mon *monitor.Monitor
+	var heartbeatDB *gorm.DB
+	if gs, ok := st.(interface{ DB() *gorm.DB }); ok {
+		heartbeatDB = gs.DB()
+	}
+	mon, monErr := monitor.NewMonitor(cfg.Monitor.Address, st, heartbeatDB)
+	if monErr != nil {
+		logger.Warn("monitor init failed, monitoring features disabled", "err", monErr)
+	} else {
+		logger.Info("monitor initialized")
+		mon.StartAlertEngine(context.Background())
+	}
+
+	revocationList := auth.NewRevocationList()
+	revocationList.StartCleanup(5 * time.Minute)
+
+	checker := permission.NewChecker(st, nil)
+
 	s := &Server{
-		Engine:               gin.Default(),
-		logger:               logger,
-		listen:               cfg.Listen,
-		nats:                 signal,
-		manager:              mgr,
-		cacheReady:           cacheReady,
-		client:               client,
-		cfg:                  cfg,
-		presence:             presence,
-		peerController:       controller.NewPeerController(client, st, presence),
-		networkController:    controller.NewNetworkController(client, st),
-		userController:       controller.NewUserController(st),
-		policyController:     controller.NewPolicyController(client, st),
-		workspaceController:  controller.NewWorkspaceController(client, st),
-		memberController:     controller.NewWorkspaceMemberController(st),
-		tokenController:      controller.NewTokenController(client, st),
-		relayController:      controller.NewRelayController(client, st),
-		invitationController: controller.NewInvitationController(st),
-		monitorController:    controller.NewMonitorController(cfg.Monitor.Address, st),
-		profileController:    controller.NewProfileController(st),
-		auditController:      controller.NewAuditController(auditSvc),
-		workflowController:   controller.NewWorkflowController(workflowSvc),
-		tenantMiddleware:     middleware.NewTenantMiddleware(st),
-		auditService:         auditSvc,
-		workflowService:      workflowSvc,
-		store:                st,
-		aiService:            aiSvc,
-		peeringService:       service.NewPeeringService(client, st),
+		Engine:                 gin.Default(),
+		logger:                 logger,
+		listen:                 cfg.Listen,
+		nats:                   signal,
+		manager:                mgr,
+		cacheReady:             cacheReady,
+		client:                 client,
+		cfg:                    cfg,
+		presence:               presence,
+		peerController:         controller.NewPeerController(client, st, presence),
+		networkController:      controller.NewNetworkController(client, st),
+		userController:         controller.NewUserController(st),
+		policyController:       controller.NewPolicyController(client, st),
+		workspaceController:    controller.NewWorkspaceController(client, st),
+		memberController:       controller.NewWorkspaceMemberController(st),
+		tokenController:        controller.NewTokenController(client, st),
+		relayController:        controller.NewRelayController(client, st),
+		invitationController:   controller.NewInvitationController(st, string(utils.GetJWTSecret())),
+		monitorController:      controller.NewMonitorController(cfg.Monitor.Address, st),
+		alertController:        controller.NewAlertController(st),
+		customMetricController: controller.NewCustomMetricController(st),
+		profileController:      controller.NewProfileController(st),
+		auditController:        controller.NewAuditController(auditSvc),
+		workflowController:     controller.NewWorkflowController(workflowSvc),
+		middleware:             middleware.NewMiddleware(checker, st, revocationList),
+		revocationList:         revocationList,
+		auditService:           auditSvc,
+		workflowService:        workflowSvc,
+		store:                  st,
+		aiService:              aiSvc,
+		peeringService:         service.NewPeeringService(client, st),
+		monitor:                mon,
 	}
 
 	// initAdmins：DB 已就绪后执行；失败只告警，不阻断启动。

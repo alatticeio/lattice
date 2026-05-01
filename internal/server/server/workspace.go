@@ -10,12 +10,12 @@ import (
 
 func (s *Server) workspaceRouter() {
 	workspaceGroup := s.Group("/api/v1/workspaces")
-	workspaceGroup.Use(middleware.AuthMiddleware())
+	workspaceGroup.Use(middleware.AuthMiddleware(s.revocationList))
 	{
 		workspaceGroup.POST("/add", s.handleAddWs())
 		workspaceGroup.GET("/list", s.handleListWs())
-		workspaceGroup.PUT("/:id", s.handleUpdateWs())
-		workspaceGroup.DELETE("/:id", s.handleDeleteWs())
+		workspaceGroup.PUT("/:id", s.middleware.AdminOnly(), s.handleUpdateWs())
+		workspaceGroup.DELETE("/:id", s.middleware.AdminOnly(), s.handleDeleteWs())
 	}
 }
 

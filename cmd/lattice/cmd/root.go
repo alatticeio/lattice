@@ -78,6 +78,7 @@ func init() {
 	fs.BoolP("version", "", false, "print version information")
 	fs.BoolP("save", "", false, "persist flags to config file")
 
+	rootCmd.AddCommand(initCmd())
 	rootCmd.AddCommand(upCmd())
 	rootCmd.AddCommand(statusCmd())
 	rootCmd.AddCommand(token.NewTokenCommand())

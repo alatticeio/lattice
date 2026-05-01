@@ -164,7 +164,7 @@ async function confirmRemove() {
       await removeMember(removeTarget.value.userId)
       toast.success(t('manage.members.toast.removed'))
       refreshMembers()
-    } catch { toast.error(t('manage.members.toast.removeFailed')) }
+    } catch (e: any) { toast.error(e?.response?.data?.message ?? t('manage.members.toast.removeFailed')) }
   }
   removeTarget.value = null
 }
@@ -188,7 +188,7 @@ async function confirmEditRole() {
     toast.success(t('manage.members.toast.roleUpdated'))
     editDialogOpen.value = false
     refreshMembers()
-  } catch { toast.error(t('manage.members.toast.roleFailed')) }
+  } catch (e: any) { toast.error(e?.response?.data?.message ?? t('manage.members.toast.roleFailed')) }
   editLoading.value = false
 }
 

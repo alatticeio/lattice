@@ -1,0 +1,51 @@
+name: Package Repo Index
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+jobs:
+  build-repo:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout gh-pages
+        uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          path: repo
+
+      - name: Download release assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p repo/rpm repo/deb
+          gh release download --repo alatticeio/lattice --pattern '*.rpm' -D repo/rpm || true
+          gh release download --repo alatticeio/lattice --pattern '*.deb' -D repo/deb || true
+
+      - name: Build RPM repo index
+        uses: docker://openSUSE/createrepo_c:latest
+        with:
+          args: /github/workspace/repo/rpm
+
+      - name: Build APT repo index
+        uses: docker://ubuntu:latest
+        with:
+          args: |
+            apt-get update && apt-get install -y dpkg-dev
+            cd /github/workspace/repo/deb
+            dpkg-scanpackages . /dev/null | gzip -9c > Packages.gz
+
+      - name: Commit and push to gh-pages
+        working-directory: repo
+        run: |
+          git config user.name "alatticeio-bot"
+          git config user.email "maintainers@alatticeio.io"
+          git add rpm deb
+          git commit -m "Update package repo index for release ${GITHUB_REF_NAME}" || exit 0
+          git push

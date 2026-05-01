@@ -30,11 +30,11 @@ import (
 )
 
 type Generator struct {
-	client           client.Client
-	versionMu        sync.Mutex
-	versionCounter   int64
-	peerResolver     PeerResolver
-	firewallResolver FirewallRuleResolver
+	client          client.Client
+	versionMu       sync.Mutex
+	versionCounter  int64
+	peerResolver    PeerResolver
+	policyEvaluator PolicyEvaluator
 }
 
 // PeerStateSnapshot
@@ -48,9 +48,9 @@ type PeerStateSnapshot struct {
 
 func NewGenerator(client client.Client) *Generator {
 	return &Generator{
-		client:           client,
-		peerResolver:     NewPeerResolver(),
-		firewallResolver: NewFirewallResolver(),
+		client:          client,
+		peerResolver:    NewPeerResolver(),
+		policyEvaluator: NewPolicyEvaluator(),
 	}
 }
 
@@ -339,7 +339,7 @@ func (d *Generator) generate(ctx context.Context, current *v1alpha1.LatticePeer,
 		}
 	}
 
-	msg.ComputedRules, err = d.firewallResolver.ResolveRules(ctx, msg.Current, msg.Network, msg.Policies)
+	msg.ComputedRules, err = d.policyEvaluator.Evaluate(ctx, msg.Current, msg.Network, msg.Policies)
 	if err != nil {
 		return nil, err
 	}
@@ -368,8 +368,15 @@ func (d *Generator) generateConfigVersion() string {
 func (d *Generator) buildPolicy(ctx context.Context, src *v1alpha1.LatticePolicy) *infra.Policy {
 	log := logf.FromContext(ctx)
 	log.Info("buildPolicy", "policy", src.Name)
+
+	action := src.Spec.Action
+	if action == "" {
+		action = "ALLOW"
+	}
+
 	policy := &infra.Policy{
 		PolicyName: src.Name,
+		Action:     action,
 	}
 
 	var ingresses, egresses []*infra.Rule
@@ -379,16 +386,22 @@ func (d *Generator) buildPolicy(ctx context.Context, src *v1alpha1.LatticePolicy
 			log.Error(err, "failed to get peers from labels", "labels", ingress.From)
 			continue
 		}
-		// 每个 port 生成一条独立的 Rule，支持同一 from 下多端口
-		// 若未指定 ports，生成一条 Protocol/Port 为零值的 Rule（允许所有流量）
+		cidrs := extractCIDRs(ingress.From)
+
 		if len(ingress.Ports) == 0 {
-			ingresses = append(ingresses, &infra.Rule{PeerNames: names})
+			ingresses = append(ingresses, &infra.Rule{
+				PeerNames: names,
+				CIDRs:     cidrs,
+				Action:    action,
+			})
 		} else {
 			for _, port := range ingress.Ports {
 				ingresses = append(ingresses, &infra.Rule{
 					PeerNames: names,
+					CIDRs:     cidrs,
 					Protocol:  port.Protocol,
 					Port:      int(port.Port),
+					Action:    action,
 				})
 			}
 		}
@@ -400,14 +413,22 @@ func (d *Generator) buildPolicy(ctx context.Context, src *v1alpha1.LatticePolicy
 			log.Error(err, "failed to get peers from labels", "labels", egress.To)
 			continue
 		}
+		cidrs := extractCIDRs(egress.To)
+
 		if len(egress.Ports) == 0 {
-			egresses = append(egresses, &infra.Rule{PeerNames: names})
+			egresses = append(egresses, &infra.Rule{
+				PeerNames: names,
+				CIDRs:     cidrs,
+				Action:    action,
+			})
 		} else {
 			for _, port := range egress.Ports {
 				egresses = append(egresses, &infra.Rule{
 					PeerNames: names,
+					CIDRs:     cidrs,
 					Protocol:  port.Protocol,
 					Port:      int(port.Port),
+					Action:    action,
 				})
 			}
 		}
@@ -425,6 +446,9 @@ func (d *Generator) getPeerNamesByLabels(ctx context.Context, namespace, network
 	found := make(map[types.UID]string) // UID → Name
 
 	for _, rule := range rules {
+		if rule.PeerSelector == nil {
+			continue // IPBlock entries handled separately
+		}
 		selector, err := metav1.LabelSelectorAsSelector(rule.PeerSelector)
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse label selector %v: %w", rule.PeerSelector, err)
@@ -456,4 +480,15 @@ func (d *Generator) getPeerNamesByLabels(ctx context.Context, namespace, network
 	}
 	sort.Strings(names)
 	return names, nil
+}
+
+// extractCIDRs collects CIDR strings from IPBlock entries in the selection list.
+func extractCIDRs(rules []v1alpha1.PeerSelection) []string {
+	var cidrs []string
+	for _, r := range rules {
+		if r.IPBlock != nil && r.IPBlock.CIDR != "" {
+			cidrs = append(cidrs, r.IPBlock.CIDR)
+		}
+	}
+	return cidrs
 }

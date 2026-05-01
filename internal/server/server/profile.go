@@ -14,8 +14,8 @@ func (s *Server) profileRouter() {
 	profileApi := s.Group("/api/v1/profile")
 	//userApi.Use(dex.AuthMiddleware())
 	{
-		profileApi.POST("/getProfile", middleware.AuthMiddleware(), s.getProfile())
-		profileApi.PUT("/updateProfile", middleware.AuthMiddleware(), s.updateProfile())
+		profileApi.POST("/getProfile", middleware.AuthMiddleware(nil), s.getProfile())
+		profileApi.PUT("/updateProfile", middleware.AuthMiddleware(nil), s.updateProfile())
 	}
 }
 

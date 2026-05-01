@@ -2,11 +2,14 @@
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: wf-resource-editor
+  name: lattice-editor
 rules:
-  - apiGroups: ["lattice.io"]
-    resources: ["latticepeers", "latticenetworks", "latticepolicies"]
+  - apiGroups: ["alattice.io"]
+    resources: ["latticepeers", "latticenetworks"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["alattice.io"]
+    resources: ["latticepolicies", "latticeenrollmenttokens"]
+    verbs: ["get", "list", "watch", "create", "update", "patch"]
   - apiGroups: [""]
-    resources: ["secrets", "configmaps"]
+    resources: ["configmaps"]
     verbs: ["get", "list", "watch"]

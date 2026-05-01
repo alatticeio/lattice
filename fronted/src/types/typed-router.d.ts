@@ -41,6 +41,20 @@ declare module 'vue-router/auto-routes' {
       Record<never, never>,
       | never
     >,
+    '/alerts/': RouteRecordInfo<
+      '/alerts/',
+      '/alerts',
+      Record<never, never>,
+      Record<never, never>,
+      | never
+    >,
+    '/alerts/rules': RouteRecordInfo<
+      '/alerts/rules',
+      '/alerts/rules',
+      Record<never, never>,
+      Record<never, never>,
+      | never
+    >,
     '/apps/ecommerce/customers/': RouteRecordInfo<
       '/apps/ecommerce/customers/',
       '/apps/ecommerce/customers',
@@ -239,6 +253,18 @@ declare module 'vue-router/auto-routes' {
     'src/pages/ai/index.vue': {
       routes:
         | '/ai/'
+      views:
+        | never
+    }
+    'src/pages/alerts/index.vue': {
+      routes:
+        | '/alerts/'
+      views:
+        | never
+    }
+    'src/pages/alerts/rules.vue': {
+      routes:
+        | '/alerts/rules'
       views:
         | never
     }

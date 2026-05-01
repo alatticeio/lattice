@@ -166,6 +166,18 @@ func safeLabelValue(name string) string {
 	return name[:maxLen-9] + "-" + hash
 }
 
+// cleanIP strips the CIDR suffix from an IP string (e.g. "10.0.0.1/32" → "10.0.0.1").
+// Returns empty string if ip is nil.
+func cleanIP(ip *string) string {
+	if ip == nil {
+		return ""
+	}
+	if strings.Contains(*ip, "/") {
+		return strings.Split(*ip, "/")[0]
+	}
+	return *ip
+}
+
 func transferToPeer(peer *latticev1alpha1.LatticePeer) *infra.Peer {
 	var peerID uint64
 	if peer.Spec.PeerId != "" {

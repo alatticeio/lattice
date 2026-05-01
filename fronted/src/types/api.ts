@@ -3,5 +3,6 @@ export interface ApiResponse<T = any> {
     code: number;
     data: T;
     message?: string;
+    msg?: string;
     events?: any[]; // 针对你 Lattice 项目的特殊字段
 }

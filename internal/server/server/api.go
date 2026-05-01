@@ -41,38 +41,41 @@ func (s *Server) apiRouter() error {
 	s.GET("/metrics", gin.WrapH(promhttp.Handler()))
 	api := s.Group("/api/v1")
 	{
-		// 网络管理 (Namespace)
-		api.POST("/networks", CreateNetwork) // 创建新网络
-		api.GET("/networks", s.ListNetworks) // 获取网络列表
-
-		// 节点管理 (Peers)
-		api.GET("/networks/peers", s.tenantMiddleware.Handle(), s.GetPeers) // 获取该网络下的所有机器
+		// 网络管理 (Namespace) — workspace-scoped, requires membership
+		netApi := api.Group("")
+		netApi.Use(s.middleware.WorkspaceAuthMiddleware(dto.RoleViewer))
+		{
+			netApi.POST("/networks", CreateNetwork)   // 创建新网络
+			netApi.GET("/networks", s.ListNetworks)   // 获取网络列表
+			netApi.GET("/networks/peers", s.GetPeers) // 获取该网络下的所有机器
+		}
 	}
+
 	tokenApi := s.Group("/api/v1/token")
-	tokenApi.Use(middleware.AuthMiddleware())
+	tokenApi.Use(s.middleware.WorkspaceAuthMiddleware(dto.RoleViewer))
 	{
-		tokenApi.POST("/generate", s.tenantMiddleware.Handle(), s.generateToken())
-		tokenApi.DELETE("/:token", s.tenantMiddleware.Handle(), s.rmToken())
-		tokenApi.GET("/list", s.tenantMiddleware.Handle(), s.listTokens())
+		tokenApi.POST("/generate", s.generateToken())
+		tokenApi.DELETE("/:token", s.rmToken())
+		tokenApi.GET("/list", s.listTokens())
 	}
 
 	peerApi := s.Group("/api/v1/peers")
-	peerApi.Use(middleware.AuthMiddleware())
+	peerApi.Use(s.middleware.WorkspaceAuthMiddleware(dto.RoleViewer))
 	{
-		peerApi.GET("/list", s.tenantMiddleware.Handle(), s.listPeers)
+		peerApi.GET("/list", s.listPeers)
 		peerApi.PUT("/update", s.updatePeer)
-		peerApi.PUT("/:name/disable", s.tenantMiddleware.Handle(), s.disablePeer)
-		peerApi.PUT("/:name/enable", s.tenantMiddleware.Handle(), s.enablePeer)
-		peerApi.DELETE("/:name", s.tenantMiddleware.Handle(), s.deletePeerHandler)
+		peerApi.PUT("/:name/disable", s.disablePeer)
+		peerApi.PUT("/:name/enable", s.enablePeer)
+		peerApi.DELETE("/:name", s.deletePeerHandler)
 	}
 
 	policyApi := s.Group("/api/v1/policies")
-	policyApi.Use(middleware.AuthMiddleware())
+	policyApi.Use(s.middleware.WorkspaceAuthMiddleware(dto.RoleViewer))
 	{
-		policyApi.GET("/list", s.tenantMiddleware.Handle(), s.listPolicies)
-		policyApi.PUT("/update", s.tenantMiddleware.Handle(), s.createOrUpdatePolicy)
-		policyApi.POST("/create", s.tenantMiddleware.Handle(), s.createOrUpdatePolicy)
-		policyApi.DELETE("/:name", s.tenantMiddleware.Handle(), s.deletePolicy)
+		policyApi.GET("/list", s.listPolicies)
+		policyApi.PUT("/update", s.createOrUpdatePolicy)
+		policyApi.POST("/create", s.createOrUpdatePolicy)
+		policyApi.DELETE("/:name", s.deletePolicy)
 	}
 
 	s.userRouter()
@@ -86,6 +89,10 @@ func (s *Server) apiRouter() error {
 	s.invitationRouter()
 
 	s.monitorRouter()
+
+	s.alertRouter()
+
+	s.customMetricRouter()
 
 	s.profileRouter()
 

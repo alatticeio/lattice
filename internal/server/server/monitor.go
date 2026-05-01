@@ -4,6 +4,7 @@ package server
 
 import (
 	"github.com/alatticeio/lattice/internal/agent/infra"
+	"github.com/alatticeio/lattice/internal/server/dto"
 	"github.com/alatticeio/lattice/internal/server/server/middleware"
 	"github.com/alatticeio/lattice/pkg/utils/resp"
 
@@ -12,10 +13,10 @@ import (
 
 func (s *Server) monitorRouter() {
 	monitorRouter := s.Group("/api/v1/monitor")
-	monitorRouter.Use(middleware.AuthMiddleware())
+	monitorRouter.Use(middleware.AuthMiddleware(s.revocationList))
 	{
 		monitorRouter.GET("/topology", s.topology())
-		monitorRouter.GET("/ws-snapshot", s.tenantMiddleware.Handle(), s.workspaceSnapshot())
+		monitorRouter.GET("/ws-snapshot", s.middleware.WorkspaceAuthMiddleware(dto.RoleViewer), s.workspaceSnapshot())
 	}
 }
 

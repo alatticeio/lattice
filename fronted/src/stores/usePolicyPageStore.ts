@@ -229,8 +229,8 @@ export const usePolicyPageStore = defineStore('policyPage', () => {
                 await deletePolicy(policy.name)
                 toast("删除成功")
                 refresh()
-            } catch (e) {
-                toast("删除失败", "error")
+            } catch (e: any) {
+                toast.error(e?.response?.data?.message ?? '删除失败')
             } finally {
                 loading.value = false
             }

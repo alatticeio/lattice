@@ -87,7 +87,7 @@ spec:
               quicUrl:
                 description: |-
                   QuicUrl is the host:port of the QUIC WRRP relay endpoint.
-                  Corresponds to --wrrp-quic-url. Preferred over TCP when set.
+                  Corresponds to --relay-quic-url on the client. Preferred over TCP when set.
                 type: string
               tcpUrl:
                 description: |-

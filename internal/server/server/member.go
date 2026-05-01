@@ -2,7 +2,7 @@ package server
 
 import (
 	"github.com/alatticeio/lattice/internal/server/dto"
-	"github.com/alatticeio/lattice/internal/server/server/middleware"
+	"github.com/alatticeio/lattice/internal/server/models"
 	"github.com/alatticeio/lattice/pkg/utils/resp"
 
 	"github.com/gin-gonic/gin"
@@ -10,12 +10,11 @@ import (
 
 func (s *Server) memberRouter() {
 	g := s.Group("/api/v1/workspaces/:id/members")
-	g.Use(middleware.AuthMiddleware())
 	{
-		g.GET("", s.handleListMembers())
-		g.POST("/:userID", s.handleAddMember())
-		g.PUT("/:userID", s.handleUpdateMemberRole())
-		g.DELETE("/:userID", s.handleRemoveMember())
+		g.GET("", s.middleware.AdminOnly(), s.handleListMembers())
+		g.POST("/:userID", s.middleware.AdminOnly(), s.handleAddMember())
+		g.PUT("/:userID", s.middleware.AdminOnly(), s.handleUpdateMemberRole())
+		g.DELETE("/:userID", s.middleware.WorkspaceAuthMiddleware(dto.RoleViewer), s.handleRemoveMember())
 	}
 }
 
@@ -35,11 +34,6 @@ func (s *Server) handleAddMember() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		wsID := c.Param("id")
 		userID := c.Param("userID")
-
-		if !s.requireWorkspaceAdmin(c, wsID) {
-			c.Abort()
-			return
-		}
 
 		var req struct {
 			Role dto.WorkspaceRole `json:"role" binding:"required"`
@@ -66,17 +60,16 @@ func (s *Server) handleAddMember() gin.HandlerFunc {
 // requireWorkspaceAdmin checks that the caller is either a platform admin or a
 // workspace admin in wsID. Returns false and writes the error response if not.
 func (s *Server) requireWorkspaceAdmin(c *gin.Context, wsID string) bool {
-	callerID := c.GetString("user_id")
-	caller, err := s.store.Users().GetByID(c.Request.Context(), callerID)
-	if err != nil {
-		resp.Forbidden(c, "caller not found")
-		return false
-	}
-	if caller.SystemRole == dto.SystemRolePlatformAdmin {
+	if c.GetString("system_role") == string(dto.SystemRolePlatformAdmin) {
 		return true
 	}
-	member, err := s.store.WorkspaceMembers().GetMembership(c.Request.Context(), wsID, callerID)
-	if err != nil || dto.GetRoleWeight(member.Role) < dto.GetRoleWeight(dto.RoleAdmin) {
+	memberRaw, _ := c.Get("currentTeamMember")
+	if memberRaw == nil {
+		resp.Forbidden(c, "only workspace admins can perform this action")
+		return false
+	}
+	member := memberRaw.(*models.WorkspaceMember)
+	if dto.GetRoleWeight(member.Role) < dto.GetRoleWeight(dto.RoleAdmin) {
 		resp.Forbidden(c, "only workspace admins can perform this action")
 		return false
 	}
@@ -88,11 +81,6 @@ func (s *Server) handleUpdateMemberRole() gin.HandlerFunc {
 		wsID := c.Param("id")
 		userID := c.Param("userID")
 
-		if !s.requireWorkspaceAdmin(c, wsID) {
-			c.Abort()
-			return
-		}
-
 		var req struct {
 			Role dto.WorkspaceRole `json:"role" binding:"required"`
 		}
@@ -103,7 +91,11 @@ func (s *Server) handleUpdateMemberRole() gin.HandlerFunc {
 
 		// Prevent privilege escalation: cannot assign a role higher than your own.
 		callerID := c.GetString("user_id")
-		caller, _ := s.store.Users().GetByID(c.Request.Context(), callerID)
+		caller, err := s.store.Users().GetByID(c.Request.Context(), callerID)
+		if err != nil {
+			resp.Error(c, "caller not found")
+			return
+		}
 		if caller.SystemRole != dto.SystemRolePlatformAdmin {
 			callerMember, err := s.store.WorkspaceMembers().GetMembership(c.Request.Context(), wsID, callerID)
 			if err == nil && dto.GetRoleWeight(req.Role) > dto.GetRoleWeight(callerMember.Role) {

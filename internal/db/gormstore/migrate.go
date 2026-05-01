@@ -20,5 +20,10 @@ func migrate(db *gorm.DB) error {
 		&models.AuditLog{},
 		&models.WorkflowRequest{},
 		&models.Policy{},
+		&models.AlertRule{},
+		&models.AlertHistory{},
+		&models.AlertChannel{},
+		&models.AlertSilence{},
+		&models.CustomMetric{},
 	)
 }

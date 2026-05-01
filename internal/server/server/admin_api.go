@@ -10,7 +10,7 @@ import (
 func (s *Server) adminRouter() {
 	// 只有【系统管理员】才能访问的路由
 	adminGroup := s.Group("/api/v1/admin")
-	adminGroup.Use(middleware.AuthMiddleware(), middleware.AdminOnly())
+	adminGroup.Use(middleware.AuthMiddleware(s.revocationList), s.middleware.PlatformAdminOnly())
 	{
 		adminGroup.POST("/promote-user", handlePromoteUser())
 		adminGroup.POST("/create-user", handleCreateUser())
@@ -18,14 +18,10 @@ func (s *Server) adminRouter() {
 
 	// 【空间管理员】访问的路由
 	nsGroup := s.Group("/api/v1/ns/:ns_id")
-	nsGroup.Use(middleware.AuthMiddleware(), NamespaceAdminOnly())
+	nsGroup.Use(middleware.AuthMiddleware(s.revocationList), s.middleware.AdminOnly())
 	{
 		nsGroup.POST("/add-member", handleAddMemberToProject())
 	}
-}
-
-func NamespaceAdminOnly() gin.HandlerFunc {
-	return func(c *gin.Context) {}
 }
 
 // nolint:all

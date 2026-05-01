@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 
 	"github.com/alatticeio/lattice/internal/agent/store"
-	"github.com/alatticeio/lattice/internal/server/server/middleware"
+	"github.com/alatticeio/lattice/internal/server/dto"
 	"github.com/alatticeio/lattice/internal/server/service"
 	"github.com/alatticeio/lattice/pkg/utils/resp"
 
@@ -14,7 +14,7 @@ import (
 func (s *Server) workflowRouter() {
 	// Workspace-scoped workflow requests.
 	ws := s.Group("/api/v1/workspaces/:id/workflow-requests")
-	ws.Use(middleware.AuthMiddleware())
+	ws.Use(s.middleware.WorkspaceAuthMiddleware(dto.RoleViewer))
 	{
 		ws.GET("", s.handleListWorkflowRequests())
 		ws.POST("", s.handleSubmitWorkflowRequest())
@@ -25,7 +25,7 @@ func (s *Server) workflowRouter() {
 
 	// Platform-level workflow requests (platform admins).
 	platform := s.Group("/api/v1/workflow-requests")
-	platform.Use(middleware.AuthMiddleware())
+	platform.Use(s.middleware.PlatformAdminOnly())
 	{
 		platform.GET("", s.handleListWorkflowRequests())
 		platform.GET("/:reqId", s.handleGetWorkflowRequest())

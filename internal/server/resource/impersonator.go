@@ -29,18 +29,19 @@ func NewIdentityImpersonator() (*IdentityImpersonator, error) {
 	}, nil
 }
 
-// NamespaceAccessor 为特定的工作区生成一个受限的客户端
+// NamespaceAccessor 为特定工作区和用户生成受限的 K8s 客户端
 // wsID: 工作区 ID
-// role: 业务角色 (admin, member, viewer)
-func (i *IdentityImpersonator) NamespaceAccessor(wsID string, role string) (client.Client, error) {
+// userID: 调用者的用户 ID（用于审计和 RBAC group 绑定）
+// role: 业务角色 (admin, editor, member, viewer)
+func (i *IdentityImpersonator) NamespaceAccessor(wsID, userID, role string) (client.Client, error) {
 	// 1. 深度拷贝原始的 rest.Config，避免修改全局配置
 	config := rest.CopyConfig(i.baseConfig)
 
 	// 2. 构造身份面具 (Impersonation)
-	// 用户名：用于审计日志，wf-user-101
-	// 组：这是 RBAC 校验的关键，wf-group-101-admin
+	// 用户名：用于审计日志，wf-user-<userID>
+	// 组：这是 RBAC 校验的关键，wf-group-<wsID>-<role>
 	config.Impersonate = rest.ImpersonationConfig{
-		UserName: fmt.Sprintf("wf-user-%s", wsID),
+		UserName: fmt.Sprintf("wf-user-%s", userID),
 		Groups:   []string{fmt.Sprintf("wf-group-%s-%s", wsID, role)},
 	}
 

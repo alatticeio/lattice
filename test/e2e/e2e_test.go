@@ -307,6 +307,192 @@ var _ = Describe("Lattice 核心连通性 E2E", Ordered, func() {
 			return nil
 		}, "60s", "5s").Should(Succeed(), "隧道连通性验证失败")
 	})
+
+	It("ACL 规则验证：DENY 阻断 + 端口级控制 + default-deny", func() {
+		// 复用步骤 6 中获取的变量（需在同一 Describe 作用域内）
+		// 重新获取必要的数据
+		peerA := &v1alpha1.LatticePeer{}
+		Expect(latticeClient.Get(ctx, sigclient.ObjectKey{Namespace: ns, Name: podA}, peerA)).To(Succeed())
+		peerB := &v1alpha1.LatticePeer{}
+		Expect(latticeClient.Get(ctx, sigclient.ObjectKey{Namespace: ns, Name: podB}, peerB)).To(Succeed())
+
+		var podAIP, podBIP string
+		if peerA.Status.AllocatedAddress != nil {
+			podAIP = *peerA.Status.AllocatedAddress
+			if idx := strings.Index(podAIP, "/"); idx != -1 {
+				podAIP = podAIP[:idx]
+			}
+		}
+		if peerB.Status.AllocatedAddress != nil {
+			podBIP = *peerB.Status.AllocatedAddress
+			if idx := strings.Index(podBIP, "/"); idx != -1 {
+				podBIP = podBIP[:idx]
+			}
+		}
+		Expect(podAIP).NotTo(BeEmpty(), "无法获取 pod-a 的 WireGuard IP")
+		Expect(podBIP).NotTo(BeEmpty(), "无法获取 pod-b 的 WireGuard IP")
+
+		var networkName string
+		if peerB.Spec.Network != nil && *peerB.Spec.Network != "" {
+			networkName = *peerB.Spec.Network
+		} else if peerB.Status.ActiveNetwork != nil {
+			networkName = *peerB.Status.ActiveNetwork
+		}
+		Expect(networkName).NotTo(BeEmpty(), "无法从 LatticePeer 获取网络名称")
+
+		networkLabel := fmt.Sprintf("alattice.io/network-%s", networkName)
+		peerNetSelector := metav1.LabelSelector{
+			MatchLabels: map[string]string{networkLabel: "true"},
+		}
+
+		getPodName := func(role string) string {
+			pods, err := clientset.CoreV1().Pods(ns).List(ctx, metav1.ListOptions{
+				LabelSelector: "wf-role=" + role,
+			})
+			Expect(err).NotTo(HaveOccurred(), "列出 %s 的 Pod 失败", role)
+			Expect(pods.Items).NotTo(BeEmpty(), "未找到 %s 的 Pod", role)
+			return pods.Items[0].Name
+		}
+		podAName := getPodName(podA)
+		podBName := getPodName(podB)
+
+		By("ACL-1: 验证 e2e-allow-all 策略下 ping 通（基线确认）")
+		output, err := execInPod(clientset, restConfig, ns, podAName, []string{"ping", "-c", "3", "-W", "2", podBIP})
+		Expect(err).NotTo(HaveOccurred(), "基线 ping 失败")
+		Expect(strings.Contains(output, "0% packet loss")).To(BeTrue(), "基线 ping 存在丢包: %s", output)
+
+		By("ACL-2: 更新策略为 DENY，验证 pod-a → pod-b 被阻断")
+		allowPolicy := &v1alpha1.LatticePolicy{}
+		Expect(latticeClient.Get(ctx, sigclient.ObjectKey{Namespace: ns, Name: "e2e-allow-all"}, allowPolicy)).To(Succeed())
+
+		// 修改策略为 DENY（保持 PeerSelector 和规则不变）
+		allowPolicy.Spec.Action = "DENY"
+		Expect(latticeClient.Update(ctx, allowPolicy)).To(Succeed(), "更新 LatticePolicy 为 DENY 失败")
+
+		// 等待策略生效（agent 通过 NATS 接收更新并刷新 iptables）
+		Eventually(func() error {
+			out, execErr := execInPod(clientset, restConfig, ns, podAName, []string{"ping", "-c", "3", "-W", "2", podBIP})
+			if execErr != nil {
+				return fmt.Errorf("ping 执行失败: %w", execErr)
+			}
+			if strings.Contains(out, "0% packet loss") {
+				return fmt.Errorf("DENY 策略未生效，ping 仍然通: %s", out)
+			}
+			return nil
+		}, "30s", "2s").Should(Succeed(), "DENY 策略应在 30s 内阻断 ping")
+
+		By("ACL-3: 恢复 ALLOW + 端口级规则，仅允许 TCP 8080")
+		allowPolicy.Spec.Action = "ALLOW"
+		allowPolicy.Spec.Ingress = []v1alpha1.IngressRule{
+			{
+				From: []v1alpha1.PeerSelection{{PeerSelector: &peerNetSelector}},
+				Ports: []v1alpha1.NetworkPolicyPort{
+					{Port: 8080, Protocol: "tcp"},
+				},
+			},
+		}
+		allowPolicy.Spec.Egress = []v1alpha1.EgressRule{
+			{
+				To: []v1alpha1.PeerSelection{{PeerSelector: &peerNetSelector}},
+				Ports: []v1alpha1.NetworkPolicyPort{
+					{Port: 8080, Protocol: "tcp"},
+				},
+			},
+		}
+		Expect(latticeClient.Update(ctx, allowPolicy)).To(Succeed(), "更新端口级策略失败")
+
+		// 等待策略生效
+		Eventually(func() error {
+			out, execErr := execInPod(clientset, restConfig, ns, podAName, []string{"ping", "-c", "3", "-W", "2", podBIP})
+			if execErr != nil {
+				return fmt.Errorf("ping 执行失败: %w", execErr)
+			}
+			if strings.Contains(out, "0% packet loss") {
+				return fmt.Errorf("端口级策略下 ping 仍应被阻断: %s", out)
+			}
+			return nil
+		}, "30s", "2s").Should(Succeed(), "端口级策略应阻断 ICMP")
+
+		By("ACL-4: 在 pod-b 启动 TCP 8080 监听，验证 pod-a 能连上（白名单端口通）")
+		// 启动 nc 监听（后台运行）
+		_, err = execInPod(clientset, restConfig, ns, podBName, []string{"sh", "-c", "nohup nc -l -p 8080 > /dev/null 2>&1 &"})
+		Expect(err).NotTo(HaveOccurred(), "启动 nc 监听失败")
+		time.Sleep(2 * time.Second) // 等待 nc 启动
+
+		// 从 pod-a 发起 TCP 连接测试
+		Eventually(func() error {
+			out, execErr := execInPod(clientset, restConfig, ns, podAName, []string{"sh", "-c", fmt.Sprintf("echo hello | nc -w 2 %s 8080", podBIP)})
+			if execErr != nil {
+				return fmt.Errorf("TCP 8080 连接失败: %w\noutput: %s", execErr, out)
+			}
+			return nil
+		}, "15s", "2s").Should(Succeed(), "TCP 8080 应在白名单内放行")
+
+		By("ACL-5: 验证 TCP 9999 被阻断（非白名单端口）")
+		_, err = execInPod(clientset, restConfig, ns, podBName, []string{"sh", "-c", "nohup nc -l -p 9999 > /dev/null 2>&1 &"})
+		Expect(err).NotTo(HaveOccurred(), "启动 nc 9999 监听失败")
+		time.Sleep(1 * time.Second)
+
+		_, err = execInPod(clientset, restConfig, ns, podAName, []string{"sh", "-c", fmt.Sprintf("echo hello | nc -w 2 %s 9999", podBIP)})
+		Expect(err).To(HaveOccurred(), "TCP 9999 应被阻断")
+
+		By("ACL-6: 验证 IPBlock CIDR 规则 — 仅允许 pod-b 的精确 CIDR")
+		// 动态构造 podB 的 /32 CIDR，确保匹配实际分配的 IP
+		podBCIDR := podBIP + "/32"
+		podACIDR := podAIP + "/32"
+
+		cidrOnlyPolicy := &v1alpha1.LatticePolicy{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "e2e-cidr-allow",
+				Namespace: ns,
+			},
+			Spec: v1alpha1.LatticePolicySpec{
+				Network:      networkName,
+				PeerSelector: peerNetSelector,
+				Action:       "ALLOW",
+				Ingress: []v1alpha1.IngressRule{
+					{From: []v1alpha1.PeerSelection{{IPBlock: &v1alpha1.IPBlock{CIDR: podACIDR}}}},
+				},
+				Egress: []v1alpha1.EgressRule{
+					{To: []v1alpha1.PeerSelection{{IPBlock: &v1alpha1.IPBlock{CIDR: podBCIDR}}}},
+				},
+			},
+		}
+		Expect(latticeClient.Delete(ctx, allowPolicy)).To(Succeed())
+		Expect(latticeClient.Create(ctx, cidrOnlyPolicy)).To(Succeed(), "创建 CIDR 策略失败")
+
+		Eventually(func() error {
+			out, execErr := execInPod(clientset, restConfig, ns, podAName, []string{"ping", "-c", "3", "-W", "2", podBIP})
+			if execErr != nil {
+				return fmt.Errorf("ping 执行失败: %w", execErr)
+			}
+			if !strings.Contains(out, "0% packet loss") {
+				return fmt.Errorf("CIDR 规则下 ping 应通: %s", out)
+			}
+			return nil
+		}, "30s", "2s").Should(Succeed(), "CIDR 策略应放行 pod-b 的 IP")
+
+		By("ACL-7: 替换 CIDR 为不匹配的网段，验证流量被阻断")
+		wrongCIDR := "192.168.99.0/24"
+		cidrOnlyPolicy.Spec.Egress = []v1alpha1.EgressRule{
+			{To: []v1alpha1.PeerSelection{{IPBlock: &v1alpha1.IPBlock{CIDR: wrongCIDR}}}},
+		}
+		Expect(latticeClient.Update(ctx, cidrOnlyPolicy)).To(Succeed(), "更新 CIDR 策略失败")
+
+		Eventually(func() error {
+			out, execErr := execInPod(clientset, restConfig, ns, podAName, []string{"ping", "-c", "3", "-W", "2", podBIP})
+			if execErr != nil {
+				return fmt.Errorf("ping 执行失败: %w", execErr)
+			}
+			if strings.Contains(out, "0% packet loss") {
+				return fmt.Errorf("错误 CIDR 下 ping 仍应被阻断: %s", out)
+			}
+			return nil
+		}, "30s", "2s").Should(Succeed(), "不匹配的 CIDR 应阻断流量")
+
+		By("ACL 测试完成，清理策略")
+		_ = latticeClient.Delete(ctx, cidrOnlyPolicy)
+	})
 })
 
 // collectDiagnostics 在测试失败时打印关键日志，方便 CI 排查

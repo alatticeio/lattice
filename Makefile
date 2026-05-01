@@ -16,7 +16,7 @@ LDFLAGS = -X 'lattice/pkg/version.Version=$(LATTICE_VERSION)' \
 
 REGISTRY ?= ghcr.io/alatticeio
 # manager: K8s operator; lattice: edge agent; latticed: all-in-one control plane
-SERVICES := manager lattice latticed wrrper
+SERVICES := manager lattice latticed lrp
 TARGETOS ?= linux
 TARGETARCH ?=amd64
 VERSION ?= dev
@@ -77,7 +77,7 @@ build-all: ## 构建所有服务
 	done
 
 .PHONY: build
-build: ## 构建单个服务 (使用: make build SERVICE=lattice)
+build: ebpf-gen ## 构建单个服务 (使用: make build SERVICE=lattice)
 	@if [ -z "$(SERVICE)" ]; then \
 		echo "❌ Error: SERVICE is required. Usage: make build SERVICE=lattice"; \
 		exit 1; \
@@ -96,6 +96,16 @@ build: ## 构建单个服务 (使用: make build SERVICE=lattice)
 		./cmd/$(SERVICE)/main.go
 	@echo "✅ Built: bin/$(SERVICE)"
 	@ls -lh bin/$(SERVICE)
+
+# eBPF code generation (bpf2go)
+.PHONY: ebpf-gen
+ebpf-gen:
+# macOS needs Homebrew LLVM; Linux uses system clang
+ifeq ($(shell uname -s),Darwin)
+	BPF2GO_CC=/opt/homebrew/opt/llvm/bin/clang go generate ./internal/agent/ebpf/
+else
+	go generate ./internal/agent/ebpf/
+endif
 
 .PHONY: test-latticed
 test-latticed: ## 运行 latticed 相关单元测试

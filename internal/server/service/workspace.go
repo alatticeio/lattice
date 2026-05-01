@@ -229,7 +229,7 @@ func (w *workspaceMemberService) Update(ctx context.Context, member *models.Work
 }
 
 func (w *workspaceMemberService) Delete(ctx context.Context, member *models.WorkspaceMember) error {
-	return w.store.WorkspaceMembers().RemoveMember(ctx, member.WorkspaceID, member.UserID)
+	return w.store.WorkspaceMembers().SoftRemove(ctx, member.WorkspaceID, member.UserID)
 }
 
 func (w *workspaceMemberService) List(ctx context.Context, workspaceID string) ([]*models.WorkspaceMember, error) {

@@ -127,3 +127,19 @@ export interface WorkspaceResponse {
     data: NodeSnapshot[]
     events: EventLog[]
 }
+
+// ── Custom Metrics ────────────────────────────────────────────────────
+
+export interface CustomMetric {
+    id: string
+    name: string
+    workspace_id: string
+    query: string
+    type: string
+    result_type: string
+    labels: string
+    created_by: string
+    created_at: string
+    updated_at: string
+}
+

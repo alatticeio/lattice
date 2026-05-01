@@ -83,6 +83,13 @@ func (r *workspaceMemberRepo) RemoveMember(ctx context.Context, workspaceID, use
 	return r.Delete(ctx, repository.WithWorkspaceID(workspaceID), repository.WithUserID(userID))
 }
 
+func (r *workspaceMemberRepo) SoftRemove(ctx context.Context, workspaceID, userID string) error {
+	return r.DB().WithContext(ctx).
+		Model(&models.WorkspaceMember{}).
+		Where("workspace_id = ? AND user_id = ?", workspaceID, userID).
+		Update("status", models.MemberStatusRemoved).Error
+}
+
 func (r *workspaceMemberRepo) DeleteByWorkspace(ctx context.Context, workspaceID string) error {
 	return r.Delete(ctx, repository.WithWorkspaceID(workspaceID))
 }
@@ -90,7 +97,7 @@ func (r *workspaceMemberRepo) DeleteByWorkspace(ctx context.Context, workspaceID
 func (r *workspaceMemberRepo) ListMembers(ctx context.Context, workspaceID string) ([]*models.WorkspaceMember, error) {
 	var members []*models.WorkspaceMember
 	err := r.DB().WithContext(ctx).
-		Where("workspace_id = ?", workspaceID).
+		Where("workspace_id = ? AND status != ?", workspaceID, models.MemberStatusRemoved).
 		Preload("User").
 		Preload("User.Identities").
 		Find(&members).Error

@@ -1,0 +1,176 @@
+name: Build Lattice-K3s Image
+
+on:
+  pull_request:
+    paths:
+      - "deploy/k3s/**"
+      - "config/crd/bases/**"
+      - "cmd/latticed/**"
+      - "internal/**"
+      - "go.mod"
+      - "go.sum"
+  push:
+    branches:
+      - master
+      - dev
+    paths:
+      - "deploy/k3s/**"
+      - "config/crd/bases/**"
+      - "cmd/latticed/**"
+      - "internal/**"
+      - ".github/workflows/build-k3s-image.yml"
+      - "go.mod"
+      - "go.sum"
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Determine Image Tag
+        id: tag
+        run: |
+          if [ "${{ github.event_name }}" == "push" ] && [ "${{ github.ref }}" == "refs/heads/master" ]; then
+            echo "tag=latest" >> $GITHUB_OUTPUT
+          else
+            echo "tag=pr-${{ github.event.pull_request.number }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build Image
+        run: |
+          OWNER_LOWER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          docker build \
+            --cache-from type=gha \
+            --cache-to type=gha,mode=max \
+            -t ghcr.io/${OWNER_LOWER}/lattice-k3s:${{ steps.tag.outputs.tag }} \
+            -f deploy/k3s/Dockerfile \
+            .
+
+      - name: Smoke Test — Start Container
+        run: |
+          OWNER_LOWER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          docker run -d \
+            --name lattice-k3s-test \
+            --privileged \
+            -p 18080:8080 \
+            -p 14222:4222 \
+            ghcr.io/${OWNER_LOWER}/lattice-k3s:${{ steps.tag.outputs.tag }}
+
+      - name: Smoke Test — Wait for k3s + latticed
+        run: |
+          echo "Waiting for K8s API + Lattice..."
+          # 等待 k3s API 就绪（通过 kubectl get nodes）
+          for i in $(seq 1 120); do
+            if docker exec lattice-k3s-test kubectl get nodes > /dev/null 2>&1; then
+              echo "K8s API ready after ${i}s"
+              break
+            fi
+            if [ $i -eq 120 ]; then
+              echo "ERROR: K8s API not ready within 120s"
+              docker logs lattice-k3s-test
+              docker exec lattice-k3s-test cat /var/log/k3s.log 2>/dev/null || true
+              exit 1
+            fi
+            sleep 1
+          done
+
+          # 等待 CRD 就绪
+          for i in $(seq 1 60); do
+            if docker exec lattice-k3s-test kubectl get crd latticepeers.alattice.io > /dev/null 2>&1; then
+              echo "CRDs ready after ${i}s"
+              break
+            fi
+            if [ $i -eq 60 ]; then
+              echo "ERROR: CRDs not ready within 60s"
+              docker exec lattice-k3s-test kubectl get crd 2>&1 || true
+              exit 1
+            fi
+            sleep 1
+          done
+
+          # 验证 LatticeGlobalIPPool 被创建
+          for i in $(seq 1 30); do
+            if docker exec lattice-k3s-test kubectl get latticeglobalippool -A > /dev/null 2>&1; then
+              echo "LatticeGlobalIPPool ready after ${i}s"
+              break
+            fi
+            if [ $i -eq 30 ]; then
+              echo "WARNING: LatticeGlobalIPPool not found, but continuing"
+            fi
+            sleep 1
+          done
+
+      - name: Smoke Test — Verify Lattice Dashboard
+        run: |
+          echo "Waiting for Lattice Dashboard (http://localhost:18080)..."
+          for i in $(seq 1 60); do
+            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:18080/ 2>/dev/null || echo "000")
+            if [ "$HTTP_CODE" != "000" ]; then
+              echo "Dashboard responded with HTTP $HTTP_CODE after ${i}s"
+              break
+            fi
+            if [ $i -eq 60 ]; then
+              echo "ERROR: Dashboard not reachable within 60s"
+              docker logs lattice-k3s-test 2>&1 | tail -30
+              exit 1
+            fi
+            sleep 1
+          done
+
+      - name: Smoke Test — Verify NATS Port
+        run: |
+          # 验证 NATS 端口在监听（INFO 行包含 nats:// 或端口可连）
+          for i in $(seq 1 30); do
+            if docker exec lattice-k3s-test ss -tlnp 2>/dev/null | grep -q 4222; then
+              echo "NATS listening on :4222 after ${i}s"
+              break
+            fi
+            if docker exec lattice-k3s-test nc -z localhost 4222 2>/dev/null; then
+              echo "NATS port 4222 reachable after ${i}s"
+              break
+            fi
+            if [ $i -eq 30 ]; then
+              echo "WARNING: NATS port not confirmed, but continuing"
+            fi
+            sleep 1
+          done
+
+      - name: Smoke Test — Container Stability
+        run: |
+          # 等待 30 秒确认容器不崩溃
+          sleep 30
+          STATUS=$(docker ps --filter name=lattice-k3s-test --format "{{.Status}}")
+          echo "Container status after stability check: $STATUS"
+          if echo "$STATUS" | grep -q "Exited"; then
+            echo "ERROR: Container exited during stability check"
+            docker logs lattice-k3s-test 2>&1 | tail -50
+            exit 1
+          fi
+          echo "Stability check passed"
+
+      - name: Push Image
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        run: |
+          OWNER_LOWER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          docker push ghcr.io/${OWNER_LOWER}/lattice-k3s:${{ steps.tag.outputs.tag }}
+
+      - name: Cleanup
+        if: always()
+        run: |
+          docker rm -f lattice-k3s-test 2>/dev/null || true

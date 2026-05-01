@@ -172,11 +172,15 @@ func (p *ruleProvisioner) initChain(chain, parent, flag string) {
 // 内部辅助：添加单条规则。
 // 当 Protocol 或 Port 未指定（零值）时，省略 -p/--dport，允许该 IP 的所有流量。
 func (p *ruleProvisioner) addRule(chain, dir, ip string, tr infra.TrafficRule) error {
+	target := tr.Action
+	if target == "" {
+		target = "ACCEPT"
+	}
 	var args []string
 	if tr.Protocol != "" && tr.Port != 0 {
-		args = []string{"-A", chain, dir, ip, "-p", strings.ToLower(tr.Protocol), "--dport", fmt.Sprintf("%d", tr.Port), "-j", "ACCEPT"}
+		args = []string{"-A", chain, dir, ip, "-p", strings.ToLower(tr.Protocol), "--dport", fmt.Sprintf("%d", tr.Port), "-j", target}
 	} else {
-		args = []string{"-A", chain, dir, ip, "-j", "ACCEPT"}
+		args = []string{"-A", chain, dir, ip, "-j", target}
 	}
 	return exec.Command("iptables", args...).Run()
 }

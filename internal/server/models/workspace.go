@@ -13,6 +13,14 @@ import (
 //return
 //}
 
+// WorkspaceMember status constants.
+const (
+	MemberStatusActive    = "active"
+	MemberStatusPending   = "pending"
+	MemberStatusSuspended = "suspended"
+	MemberStatusRemoved   = "removed"
+)
+
 // WorkspaceMember 关联表：连接 User 和 Workspace (Namespace)  这里其实就是RoleBinding 所有的权限校验在数据库层面，不去找k8s的
 type WorkspaceMember struct {
 	Model
@@ -52,7 +60,7 @@ type Workspace struct {
 
 	// 状态
 	Status  string `gorm:"default:'active'" json:"status"` // active, terminating, frozen
-	Members []User `gorm:"many2many:t_workspace_member;" json:"members,omitempty"`
+	Members []User `gorm:"-" json:"members,omitempty"`
 
 	// 操作人
 	CreatedBy string `gorm:"type:varchar(100)" json:"createdBy,omitempty"`

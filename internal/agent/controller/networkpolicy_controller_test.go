@@ -15,68 +15,78 @@
 package controller
 
 import (
-	"context"
-
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/types"
-	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/alatticeio/lattice/api/v1alpha1"
 )
 
-var _ = Describe("LatticePolicy Controller", func() {
-	Context("When reconciling a resource", func() {
-		const resourceName = "test-resource"
+var _ = Describe("NetworkPolicyReconciler", func() {
+	ns := "default"
 
-		ctx := context.Background()
-
-		typeNamespacedName := types.NamespacedName{
-			Name:      resourceName,
-			Namespace: "default", // TODO(user):Modify as needed
+	It("writes targetNodes and ruleCount to status", func() {
+		// Create two peers with labels
+		peer1 := &v1alpha1.LatticePeer{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "peer-status-1",
+				Namespace: ns,
+				Labels:    map[string]string{"role": "backend"},
+			},
+			Spec: v1alpha1.LatticePeerSpec{},
 		}
-		networkpolicy := &v1alpha1.LatticePolicy{}
+		peer2 := &v1alpha1.LatticePeer{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "peer-status-2",
+				Namespace: ns,
+				Labels:    map[string]string{"role": "backend"},
+			},
+			Spec: v1alpha1.LatticePeerSpec{},
+		}
+		Expect(k8sClient.Create(ctx, peer1)).To(Succeed())
+		Expect(k8sClient.Create(ctx, peer2)).To(Succeed())
 
-		BeforeEach(func() {
-			By("creating the custom resource for the Kind LatticePolicy")
-			err := k8sClient.Get(ctx, typeNamespacedName, networkpolicy)
-			if err != nil && errors.IsNotFound(err) {
-				resource := &v1alpha1.LatticePolicy{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      resourceName,
-						Namespace: "default",
-					},
-					// TODO(user): Specify other spec details if needed.
-				}
-				Expect(k8sClient.Create(ctx, resource)).To(Succeed())
-			}
+		// Create a policy targeting role=backend with 2 ingress rules
+		policy := &v1alpha1.LatticePolicy{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test-status-policy",
+				Namespace: ns,
+			},
+			Spec: v1alpha1.LatticePolicySpec{
+				Network: "test-net",
+				PeerSelector: metav1.LabelSelector{
+					MatchLabels: map[string]string{"role": "backend"},
+				},
+				Action: "ALLOW",
+				Ingress: []v1alpha1.IngressRule{
+					{From: []v1alpha1.PeerSelection{{PeerSelector: &metav1.LabelSelector{MatchLabels: map[string]string{"role": "frontend"}}}}},
+					{From: []v1alpha1.PeerSelection{{IPBlock: &v1alpha1.IPBlock{CIDR: "10.0.0.0/8"}}}},
+				},
+			},
+		}
+		Expect(k8sClient.Create(ctx, policy)).To(Succeed())
+
+		DeferCleanup(func() {
+			_ = k8sClient.Delete(ctx, policy)
+			_ = k8sClient.Delete(ctx, peer1)
+			_ = k8sClient.Delete(ctx, peer2)
 		})
 
-		AfterEach(func() {
-			// TODO(user): Cleanup logic after each test, like removing the resource instance.
-			resource := &v1alpha1.LatticePolicy{}
-			err := k8sClient.Get(ctx, typeNamespacedName, resource)
-			Expect(err).NotTo(HaveOccurred())
-
-			By("Cleanup the specific resource instance LatticePolicy")
-			Expect(k8sClient.Delete(ctx, resource)).To(Succeed())
+		// Instantiate and invoke reconciler directly (no manager running in envtest suite)
+		reconciler := &NetworkPolicyReconciler{
+			Client: k8sClient,
+			Scheme: k8sClient.Scheme(),
+		}
+		_, err := reconciler.Reconcile(ctx, reconcile.Request{
+			NamespacedName: client.ObjectKeyFromObject(policy),
 		})
-		It("should successfully reconcile the resource", func() {
-			By("Reconciling the created resource")
-			controllerReconciler := &NetworkPolicyReconciler{
-				Client: k8sClient,
-				Scheme: k8sClient.Scheme(),
-			}
+		Expect(err).NotTo(HaveOccurred())
 
-			_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
-				NamespacedName: typeNamespacedName,
-			})
-			Expect(err).NotTo(HaveOccurred())
-			// TODO(user): Add more specific assertions depending on your controller's reconciliation logic.
-			// Example: If you expect a certain status condition after reconciliation, verify it here.
-		})
+		var updated v1alpha1.LatticePolicy
+		Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(policy), &updated)).To(Succeed())
+		Expect(updated.Status.TargetNodes).To(Equal(2))
+		Expect(updated.Status.RuleCount).To(Equal(2))
 	})
 })

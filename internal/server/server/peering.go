@@ -19,7 +19,6 @@ import (
 
 	"github.com/alatticeio/lattice/api/v1alpha1"
 	"github.com/alatticeio/lattice/internal/server/dto"
-	"github.com/alatticeio/lattice/internal/server/server/middleware"
 	"github.com/alatticeio/lattice/pkg/utils/resp"
 
 	"github.com/gin-gonic/gin"
@@ -30,11 +29,11 @@ import (
 
 func (s *Server) peeringRouter() {
 	g := s.Group("/api/v1/peering")
-	g.Use(middleware.AuthMiddleware())
+	g.Use(s.middleware.WorkspaceAuthMiddleware(dto.RoleViewer))
 	{
-		g.GET("/list", s.tenantMiddleware.Handle(), s.listPeerings)
-		g.POST("", s.tenantMiddleware.Handle(), s.createPeering)
-		g.DELETE("/:name", s.tenantMiddleware.Handle(), s.deletePeering)
+		g.GET("/list", s.listPeerings)
+		g.POST("", s.createPeering)
+		g.DELETE("/:name", s.deletePeering)
 		g.GET("/gateway-info", s.gatewayInfo())
 	}
 }

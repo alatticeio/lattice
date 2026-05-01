@@ -48,22 +48,93 @@ Lattice is a WireGuard management platform built for Kubernetes. It automates th
 
 ---
 
-## Quick Start
+## Installation
 
-Lattice's control plane runs on Kubernetes. The quickstart script handles cluster creation and deployment automatically.
+### Homebrew (macOS / Linux)
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/alatticeio/lattice/master/hack/quickstart.sh | bash
+brew tap alatticeio/tap
+brew install lattice
 ```
 
-The script will:
-1. Verify Docker, k3d, and kubectl are present (installing missing tools automatically).
-2. Check that ports **8080** (Dashboard / API) and **4222** (NATS signaling) are free.
-3. Create a local k3d cluster and apply CRDs, RBAC, and Deployments.
-4. Wait for the pod to become healthy.
-5. Print a ready-to-use `lattice up` command with the NATS address and initial token.
+> **Note:** If prompted for GitHub credentials, you've hit GitHub's API rate limit.
+> Authenticate brew with a [Personal Access Token](https://github.com/settings/tokens):
+>
+> ```bash
+> export HOMEBREW_GITHUB_API_TOKEN=<your-token>
+> brew tap alatticeio/tap
+> brew install lattice
+> ```
 
-**Existing cluster (kustomize):**
+### YUM (RHEL / CentOS / Rocky / Fedora)
+
+Create `/etc/yum.repos.d/lattice.repo`:
+
+```ini
+[lattice]
+name=Lattice
+baseurl=https://alatticeio.github.io/lattice/rpm
+enabled=1
+gpgcheck=0
+```
+
+```bash
+sudo yum install lattice
+sudo systemctl enable --now lattice
+```
+
+### APT (Debian / Ubuntu)
+
+```bash
+curl -fsSL https://alatticeio.github.io/lattice/deb/Packages.gz -o /tmp/lattice-Packages.gz
+echo "deb [trusted=yes] https://alatticeio.github.io/lattice/deb ./" | sudo tee /etc/apt/sources.list.d/lattice.list
+sudo apt update
+sudo apt install lattice
+sudo systemctl enable --now lattice
+```
+
+### Docker
+
+```bash
+docker run -d \
+  --name lattice \
+  --restart unless-stopped \
+  --privileged \
+  --network host \
+  ghcr.io/alatticeio/lattice:latest \
+  up --signaling-url nats://<host>:4222 --token <token>
+```
+
+### Binary Download
+
+Download pre-built binaries from [GitHub Releases](https://github.com/alatticeio/lattice/releases).
+
+```bash
+# Linux amd64
+curl -sSL https://github.com/alatticeio/lattice/releases/latest/download/lattice_<version>_linux_amd64.tar.gz | tar xz
+sudo mv lattice /usr/local/bin/
+```
+
+---
+
+## Quick Start
+
+### Docker (single command, no Kubernetes required)
+
+```bash
+docker run -d \
+  --name lattice-k3s \
+  --privileged \
+  -p 8080:8080 \
+  -p 4222:4222 \
+  ghcr.io/alatticeio/lattice-k3s:latest
+```
+
+This starts a self-contained container with k3s (lightweight Kubernetes) and the Lattice control plane already deployed inside. After ~30 seconds:
+- Dashboard / API: `http://localhost:8080`
+- NATS signaling: `nats://localhost:4222`
+
+### Existing Kubernetes cluster (kustomize)
 
 ```bash
 kubectl apply -k https://github.com/alatticeio/lattice/config/lattice/overlays/all-in-one

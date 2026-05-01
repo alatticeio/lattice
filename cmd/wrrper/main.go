@@ -37,6 +37,9 @@ func main() {
 		Long:         `Standalone LRP relay server. Bridges WireGuard peers that cannot reach each other directly.`,
 		SilenceUsage: true,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+			// Map renamed server flags to their viper keys before config loading.
+			_ = cfgManager.Viper().BindPFlag("listen", cmd.Flags().Lookup("addr"))
+			_ = cfgManager.Viper().BindPFlag("relay-quic-url", cmd.Flags().Lookup("quic-addr"))
 			return cfgManager.LoadConf(cmd)
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -46,9 +49,9 @@ func main() {
 
 	fs := cmd.PersistentFlags()
 	fs.StringP("config-dir", "", "", "config directory (default ~/.lattice)")
-	fs.StringP("listen", "l", ":6266", "TCP LRP listen address")
+	fs.StringP("addr", "l", ":6266", "TCP relay listen address")
 	fs.BoolP("enable-tls", "", false, "enable TLS on TCP listener")
-	fs.StringP("wrrp-quic-url", "", "", "QUIC LRP listen address (e.g. :6267); empty disables QUIC")
+	fs.StringP("quic-addr", "", "", "QUIC relay listen address (e.g. :6267); empty disables QUIC")
 	fs.StringP("level", "", "info", "log level: debug, info, warn, error, silent")
 
 	if err := cmd.Execute(); err != nil {
@@ -62,14 +65,14 @@ func run(flags *config.Config) error {
 
 	server := relay.NewServer(flags)
 
-	if flags.WrrpQuicURL != "" {
+	if flags.RelayQuicURL != "" {
 		tlsCfg, err := relay.GenerateSelfSignedTLS()
 		if err != nil {
 			log.GetLogger("wrrper").Warn("failed to generate TLS cert, QUIC disabled", "err", err)
 		} else {
 			qs := relay.NewQUICServer(server.Manager())
 			go func() {
-				if startErr := qs.Start(flags.WrrpQuicURL, tlsCfg); startErr != nil {
+				if startErr := qs.Start(flags.RelayQuicURL, tlsCfg); startErr != nil {
 					log.GetLogger("wrrper").Error("QUIC server stopped", startErr)
 				}
 			}()

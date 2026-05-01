@@ -7,7 +7,10 @@ import (
 // mockProvisioner records method calls for verification.
 type mockProvisioner struct {
 	registerCalls []struct{ publicKey, allowedIPs string }
-	setEpCalls    []struct{ publicKey, endpoint string; keepalive int }
+	setEpCalls    []struct {
+		publicKey, endpoint string
+		keepalive           int
+	}
 	removeCalls   []string
 	routeCalls    []struct{ address, iface string }
 	setupNATCalls []string
@@ -18,7 +21,10 @@ func (m *mockProvisioner) AddPeer(pk, allowedIPs string) error {
 	return nil
 }
 func (m *mockProvisioner) SetEndpoint(pk, endpoint string, ka int) error {
-	m.setEpCalls = append(m.setEpCalls, struct{ publicKey, endpoint string; keepalive int }{pk, endpoint, ka})
+	m.setEpCalls = append(m.setEpCalls, struct {
+		publicKey, endpoint string
+		keepalive           int
+	}{pk, endpoint, ka})
 	return nil
 }
 func (m *mockProvisioner) RemovePeer(pk string) error {

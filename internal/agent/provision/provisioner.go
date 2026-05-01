@@ -36,7 +36,7 @@ const (
 // Provisioner is the interface for configuring WireGuard interfaces.
 type Provisioner interface {
 	RouteProvisioner
-	RuleProvisioner
+	PolicyEnforcer
 	// ConfigureWG configures the WireGuard interface.
 	SetupInterface(conf *infra.DeviceConfig) error
 
@@ -56,7 +56,7 @@ type RouteProvisioner interface {
 	ApplyIP(action, address, name string) error
 }
 
-type RuleProvisioner interface {
+type PolicyEnforcer interface {
 	// Name 返回执行器的名称（如 "iptables", "nftables", "windows-fw"）
 	Name() string
 
@@ -129,7 +129,7 @@ func (p *SetPeer) String() string {
 
 type provisioner struct {
 	RouteProvisioner
-	RuleProvisioner
+	PolicyEnforcer
 	device    *wg.Device
 	address   string
 	ifaceName string
@@ -165,10 +165,10 @@ func (p *provisioner) RemoveAllPeers() {
 	p.device.RemoveAllPeers()
 }
 
-func NewProvisioner(routeProvisioner RouteProvisioner, ruleProvisioner RuleProvisioner, config *Params) Provisioner {
+func NewProvisioner(routeProvisioner RouteProvisioner, policyEnforcer PolicyEnforcer, config *Params) Provisioner {
 	return &provisioner{
 		RouteProvisioner: routeProvisioner,
-		RuleProvisioner:  ruleProvisioner,
+		PolicyEnforcer:   policyEnforcer,
 		device:           config.Device,
 		address:          config.Address,
 		ifaceName:        config.IfaceName,
@@ -194,7 +194,7 @@ type ruleProvisioner struct {
 	logger        *log.Logger
 }
 
-func NewRuleProvisioner(logger *log.Logger, ifaceName string) RuleProvisioner {
+func NewIptablesEnforcer(logger *log.Logger, ifaceName string) PolicyEnforcer {
 	return &ruleProvisioner{
 		interfaceName: ifaceName,
 		logger:        logger,

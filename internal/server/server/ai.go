@@ -18,7 +18,7 @@ func (s *Server) aiRouter() {
 	if s.aiService == nil {
 		// AI not configured: register stub handlers returning 503
 		ai := s.Group("/api/v1/ai")
-		ai.Use(middleware.AuthMiddleware())
+		ai.Use(middleware.AuthMiddleware(nil))
 		ai.POST("/chat", func(c *gin.Context) {
 			resp.Error(c, "AI not configured: set ai.enabled=true and ai.api-key in lattice.yaml")
 		})
@@ -29,7 +29,7 @@ func (s *Server) aiRouter() {
 	}
 
 	ai := s.Group("/api/v1/ai")
-	ai.Use(middleware.AuthMiddleware())
+	ai.Use(middleware.AuthMiddleware(nil))
 	{
 		ai.POST("/chat", s.handleAIChat())
 		ai.GET("/audit", s.handleAIAudit())

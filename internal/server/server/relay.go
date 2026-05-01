@@ -2,7 +2,6 @@ package server
 
 import (
 	"github.com/alatticeio/lattice/internal/server/dto"
-	"github.com/alatticeio/lattice/internal/server/server/middleware"
 	"github.com/alatticeio/lattice/pkg/utils/resp"
 
 	"github.com/gin-gonic/gin"
@@ -10,7 +9,7 @@ import (
 
 func (s *Server) relayRouter() {
 	g := s.Group("/api/v1/settings/relays")
-	g.Use(middleware.AuthMiddleware())
+	g.Use(s.middleware.WorkspaceAuthMiddleware(dto.RoleViewer))
 	{
 		g.GET("", s.listRelays())
 		g.POST("", s.createRelay())

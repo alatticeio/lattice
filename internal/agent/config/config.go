@@ -242,7 +242,8 @@ func (cm *ConfigManager) load(cmd *cobra.Command) error {
 //
 // 多子服务端口分配约定（All-in-One 模式）：
 //   - Management API  → Listen      (默认 :8080)
-//   - Wrrper relay    → WrrperURL   (默认 :6266)
+//   - Relay (TCP)     → RelayURL    (默认 :6266)
+//   - Relay (QUIC)    → RelayQuicURL (默认空)
 //   - TURN server     → Port        (默认 3478)
 //   - Metrics/Probe   → MetricsAddr (默认 :8443)
 type Config struct {
@@ -268,9 +269,9 @@ type Config struct {
 	// agent 用于注册、获取 Token、上报状态等控制面操作。
 	// K8s 场景：由 LATTICE_MANAGER_SERVICE_HOST 等环境变量自动补全。
 	ServerUrl     string `mapstructure:"server-url"`
-	WrrperURL     string `mapstructure:"wrrper-url"`    // Wrrper relay 地址，默认 :6266
-	WrrpQuicURL   string `mapstructure:"wrrp-quic-url"` // QUIC relay server address
-	TurnServerURL string `mapstructure:"stun-url"`      // TURN/STUN 地址
+	RelayURL      string `mapstructure:"relay-url"`      // TCP relay 连接地址，默认 :6266
+	RelayQuicURL  string `mapstructure:"relay-quic-url"` // QUIC relay 连接地址，空=禁用
+	TurnServerURL string `mapstructure:"stun-url"`       // TURN/STUN 地址
 	PublicIP      string `mapstructure:"public-ip"`
 	Port          int    `mapstructure:"port"`    // TURN 业务端口，默认 3478
 	WgPort        int    `mapstructure:"wg-port"` // WireGuard/ICE UDP 监听端口，默认 51820
@@ -365,7 +366,8 @@ type NatsConfig struct {
 }
 
 type MonitorConfig struct {
-	Address string `mapstructure:"address"`
+	Address     string `mapstructure:"address"`
+	TemplateDir string `mapstructure:"templateDir"` // YAML template path, default "config/metrics/templates.yaml"
 }
 
 // TelemetryConfig configures the lightweight VM telemetry push module in the agent.
@@ -545,8 +547,8 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("server-url", "")
 
 	v.SetDefault("stun-url", "stun.alattice.io:3478")
-	v.SetDefault("wrrper-url", ":6266")
-	v.SetDefault("wrrp-quic-url", "")
+	v.SetDefault("relay-url", ":6266")
+	v.SetDefault("relay-quic-url", "")
 	v.SetDefault("port", 3478)
 	v.SetDefault("wg-port", 51820)
 

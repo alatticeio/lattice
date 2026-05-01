@@ -24,10 +24,13 @@ type mockStream struct {
 	written [][]byte
 }
 
-func (m *mockStream) Read(p []byte) (int, error)  { return 0, nil }
-func (m *mockStream) Write(p []byte) (int, error) { m.written = append(m.written, p); return len(p), nil }
-func (m *mockStream) Close() error                { return nil }
-func (m *mockStream) RemoteAddr() net.Addr        { return nil }
+func (m *mockStream) Read(p []byte) (int, error) { return 0, nil }
+func (m *mockStream) Write(p []byte) (int, error) {
+	m.written = append(m.written, p)
+	return len(p), nil
+}
+func (m *mockStream) Close() error         { return nil }
+func (m *mockStream) RemoteAddr() net.Addr { return nil }
 
 func TestSessionManager_RegisterAndGet(t *testing.T) {
 	sm := NewSessionManager()

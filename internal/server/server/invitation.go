@@ -10,11 +10,10 @@ import (
 
 func (s *Server) invitationRouter() {
 	g := s.Group("/api/v1/workspaces/:id/invitations")
-	g.Use(middleware.AuthMiddleware())
 	{
-		g.POST("", s.handleCreateInvitation())
-		g.GET("", s.handleListInvitations())
-		g.DELETE("/:invID", s.handleRevokeInvitation())
+		g.POST("", s.middleware.AdminOnly(), s.handleCreateInvitation())
+		g.GET("", s.middleware.AdminOnly(), s.handleListInvitations())
+		g.DELETE("/:invID", s.middleware.AdminOnly(), s.handleRevokeInvitation())
 	}
 
 	// Public invite endpoints — no auth required.
@@ -25,7 +24,7 @@ func (s *Server) invitationRouter() {
 		// POST /api/v1/invite/:token/register — register new account + accept (public)
 		pub.POST("/:token/register", s.handleRegisterAndAccept())
 		// POST /api/v1/invite/:token/accept   — accept with existing logged-in account
-		pub.POST("/:token/accept", middleware.AuthMiddleware(), s.handleAcceptInvitation())
+		pub.POST("/:token/accept", middleware.AuthMiddleware(s.revocationList), s.handleAcceptInvitation())
 	}
 }
 

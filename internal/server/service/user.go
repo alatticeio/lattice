@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/alatticeio/lattice/internal/agent/config"
@@ -52,9 +53,13 @@ func (u *userService) UpdateSystemRole(ctx context.Context, userID string, role 
 
 func (u *userService) AddUser(ctx context.Context, dto *dto.UserDto) error {
 	return u.store.Tx(ctx, func(s store.Store) error {
+		hashedPassword, err := utils.EncryptPassword(dto.Password)
+		if err != nil {
+			return fmt.Errorf("failed to hash password: %w", err)
+		}
 		newUser := &models.User{
 			Username: dto.Username,
-			Password: dto.Password,
+			Password: hashedPassword,
 		}
 		if err := s.Users().Create(ctx, newUser); err != nil {
 			return err

@@ -23,8 +23,8 @@ type invitationController struct {
 	svc service.InvitationService
 }
 
-func NewInvitationController(st store.Store) InvitationController {
-	return &invitationController{svc: service.NewInvitationService(st)}
+func NewInvitationController(st store.Store, hmacSecret string) InvitationController {
+	return &invitationController{svc: service.NewInvitationService(st, hmacSecret)}
 }
 
 func (c *invitationController) Create(ctx context.Context, workspaceID, inviterID, email string, role dto.WorkspaceRole) (*models.WorkspaceInvitation, error) {
