@@ -41,7 +41,7 @@ its own set of peers, tokens, and network policies.`,
 }
 
 func newClient() (*cmd.Client, error) {
-	return cmd.NewClient(config.Conf.SignalingURL)
+	return cmd.NewClient(config.Conf.ServerUrl, config.Conf.AuthToken)
 }
 
 // workspaceAddCmd: lattice workspace add <slug> [flags]

@@ -25,5 +25,6 @@ func migrate(db *gorm.DB) error {
 		&models.AlertChannel{},
 		&models.AlertSilence{},
 		&models.CustomMetric{},
+		&models.SystemConfig{},
 	)
 }

@@ -28,7 +28,7 @@ const (
 	StateCreated   PeerState = "created"
 	StateProbing   PeerState = "probing"
 	StateICEReady  PeerState = "ice-ready"
-	StateWRRPReady PeerState = "wrrp-ready"
+	StateLRPReady PeerState = "lrp-ready"
 	StateFailed    PeerState = "failed"
 	StateClosed    PeerState = "closed"
 )
@@ -42,8 +42,8 @@ var stateChangeCounter = victoriametrics.NewCounter(`lattice_transport_state_cha
 // allowedTransitions defines the legal state transitions.
 var allowedTransitions = map[PeerState][]PeerState{
 	StateCreated:   {StateProbing},
-	StateProbing:   {StateICEReady, StateWRRPReady, StateFailed},
-	StateWRRPReady: {StateICEReady, StateFailed, StateClosed},
+	StateProbing:   {StateICEReady, StateLRPReady, StateFailed},
+	StateLRPReady: {StateICEReady, StateFailed, StateClosed},
 	StateICEReady:  {StateFailed, StateClosed},
 	StateFailed:    {StateProbing, StateClosed},
 }

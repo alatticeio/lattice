@@ -12,27 +12,20 @@ import (
 	"github.com/google/uuid"
 )
 
-// ParseToken 解析并校验 JWT
 func ParseToken(tokenString string) (*models.LatticeClaims, error) {
 	claims := &models.LatticeClaims{}
-
 	token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("意外的签名算法: %v", token.Header["alg"])
 		}
-
-		secret := GetJWTSecret()
-		return secret, nil
+		return GetJWTSecret(), nil
 	})
-
 	if err != nil {
 		return nil, err
 	}
-
 	if token.Valid {
 		return claims, nil
 	}
-
 	return nil, errors.New("token 验证失败：无效的凭证")
 }
 
@@ -44,26 +37,25 @@ func GetJWTSecret() []byte {
 	return []byte(secret)
 }
 
+// GenerateBusinessJWT issues a short-lived JWT (12h) for Dashboard sessions.
 func GenerateBusinessJWT(userID, email, username, systemRole string) (string, error) {
+	return GenerateBusinessJWTWithDuration(userID, email, username, systemRole, 12*time.Hour)
+}
+
+// GenerateBusinessJWTWithDuration issues a JWT with an explicit lifetime.
+func GenerateBusinessJWTWithDuration(userID, email, username, systemRole string, duration time.Duration) (string, error) {
 	claims := models.LatticeClaims{
 		Email:      email,
 		Username:   username,
 		SystemRole: systemRole,
 		RegisteredClaims: jwt.RegisteredClaims{
-			ID:        uuid.New().String(), // jti for revocation tracking
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(12 * time.Hour)),
+			ID:        uuid.New().String(),
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(duration)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
 			Issuer:    "lattice-bff",
 			Subject:   userID,
 		},
 	}
-
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-
-	signedToken, err := token.SignedString(GetJWTSecret())
-	if err != nil {
-		return "", err
-	}
-
-	return signedToken, nil
+	return token.SignedString(GetJWTSecret())
 }

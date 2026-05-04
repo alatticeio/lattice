@@ -108,6 +108,7 @@
     "users": "用户管理",
     "workspaces": "空间管理",
     "approvals": "审批工作台",
+    "platformSettings": "平台设置",
     "audit": "审计日志",
     "relays": "中继节点",
     "quickstart": "快速接入"

@@ -27,6 +27,7 @@ type GormStore struct {
 	policies             store.PolicyRepository
 	alerts               store.AlertRepository
 	customMetrics        store.CustomMetricRepository
+	systemConfig         store.SystemConfigRepository
 }
 
 // New 创建 gormStore：先执行 AutoMigrate，再初始化各子 Repository。
@@ -50,6 +51,7 @@ func newStore(db *gorm.DB) *GormStore {
 		policies:             newPolicyRepo(db),
 		alerts:               newAlertRepo(db),
 		customMetrics:        newCustomMetricRepo(db),
+		systemConfig:         newSystemConfigRepo(db),
 	}
 }
 
@@ -64,8 +66,9 @@ func (s *GormStore) WorkspaceInvitations() store.WorkspaceInvitationRepository {
 func (s *GormStore) AuditLogs() store.AuditLogRepository         { return s.auditLogs }
 func (s *GormStore) WorkflowRequests() store.WorkflowRepository  { return s.workflowRequests }
 func (s *GormStore) Policies() store.PolicyRepository            { return s.policies }
-func (s *GormStore) Alerts() store.AlertRepository               { return s.alerts }
-func (s *GormStore) CustomMetrics() store.CustomMetricRepository { return s.customMetrics }
+func (s *GormStore) Alerts() store.AlertRepository                 { return s.alerts }
+func (s *GormStore) CustomMetrics() store.CustomMetricRepository   { return s.customMetrics }
+func (s *GormStore) SystemConfig() store.SystemConfigRepository    { return s.systemConfig }
 
 // Tx 在数据库事务中执行 fn，fn 内通过临时 Store 访问所有 Repository。
 func (s *GormStore) Tx(ctx context.Context, fn func(store.Store) error) error {

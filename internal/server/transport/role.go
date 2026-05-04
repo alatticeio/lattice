@@ -16,7 +16,7 @@ package transport
 
 import "github.com/alatticeio/lattice/internal/agent/infra"
 
-// isInitiator returns true when the local node should drive the ICE/WRRP
+// isInitiator returns true when the local node should drive the ICE/LRP
 // handshake (send SYN, drive OFFER/ANSWER, set PersistentKeepalive).
 //
 // Numeric uint64 comparison is used throughout to avoid decimal string ordering

@@ -4,6 +4,7 @@ import (
 	"github.com/alatticeio/lattice/internal/agent/infra"
 	"github.com/alatticeio/lattice/internal/server/dex"
 	"github.com/alatticeio/lattice/internal/server/dto"
+	"github.com/alatticeio/lattice/internal/server/models"
 	"github.com/alatticeio/lattice/internal/server/server/middleware"
 	"github.com/alatticeio/lattice/internal/server/service"
 	"github.com/alatticeio/lattice/internal/web"
@@ -106,6 +107,11 @@ func (s *Server) apiRouter() error {
 
 	s.aiRouter()
 
+	s.platformRouter()
+
+	// Discovery — no auth required; returns NATS URL for agent auto-connect.
+	api.GET("/discovery", s.handleDiscovery())
+
 	// SPA 静态资源：必须最后注册，通过 NoRoute 捕获所有未匹配路径
 	s.logger.Info("Registering SPA static files")
 	web.RegisterHandlers(s.Engine)
@@ -139,7 +145,11 @@ func (s *Server) listTokens() gin.HandlerFunc {
 
 func (s *Server) generateToken() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		token, err := s.tokenController.Create(c.Request.Context())
+		var req dto.TokenDto
+		// Body is optional for backward compat (Dashboard may POST empty body)
+		_ = c.ShouldBindJSON(&req)
+
+		token, err := s.tokenController.Create(c.Request.Context(), &req)
 		if err != nil {
 			resp.Error(c, err.Error())
 			return
@@ -267,4 +277,18 @@ func (s *Server) deletePeerHandler(c *gin.Context) {
 		return
 	}
 	resp.OK(c, nil)
+}
+
+func (s *Server) handleDiscovery() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		natsURL := s.cfg.SignalingURL
+		// Prefer DB-stored value (set via platform settings UI)
+		if dbURL, err := s.store.SystemConfig().Get(c.Request.Context(), models.ConfigKeyNatsURL); err == nil && dbURL != "" {
+			natsURL = dbURL
+		}
+		if natsURL == "" {
+			natsURL = "nats://127.0.0.1:4222"
+		}
+		resp.OK(c, gin.H{"nats_url": natsURL})
+	}
 }

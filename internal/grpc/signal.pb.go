@@ -82,19 +82,19 @@ func (PacketType) EnumDescriptor() ([]byte, []int) {
 type DialerType int32
 
 const (
-	DialerType_ICE  DialerType = 0
-	DialerType_WRRP DialerType = 1
+	DialerType_ICE DialerType = 0
+	DialerType_LRP DialerType = 1
 )
 
 // Enum value maps for DialerType.
 var (
 	DialerType_name = map[int32]string{
 		0: "ICE",
-		1: "WRRP",
+		1: "LRP",
 	}
 	DialerType_value = map[string]int32{
-		"ICE":  0,
-		"WRRP": 1,
+		"ICE": 0,
+		"LRP": 1,
 	}
 )
 

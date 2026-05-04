@@ -39,7 +39,7 @@ spec:
     schema:
       openAPIV3Schema:
         description: |-
-          LatticeRelayServer is the Schema for managing WRRP relay servers.
+          LatticeRelayServer is the Schema for managing LRP relay servers.
           It is cluster-scoped because relay infrastructure is shared across workspaces.
         properties:
           apiVersion:
@@ -60,7 +60,7 @@ spec:
           metadata:
             type: object
           spec:
-            description: LatticeRelayServerSpec defines the desired state of a WRRP
+            description: LatticeRelayServerSpec defines the desired state of a LRP
               relay server.
             properties:
               description:
@@ -86,13 +86,13 @@ spec:
                 type: array
               quicUrl:
                 description: |-
-                  QuicUrl is the host:port of the QUIC WRRP relay endpoint.
+                  QuicUrl is the host:port of the QUIC LRP relay endpoint.
                   Corresponds to --relay-quic-url on the client. Preferred over TCP when set.
                 type: string
               tcpUrl:
                 description: |-
-                  TcpUrl is the host:port of the TCP WRRP relay endpoint.
-                  Corresponds to the node flag --wrrp-url.
+                  TcpUrl is the host:port of the TCP LRP relay endpoint.
+                  Corresponds to the node flag --lrp-url.
                 type: string
             required:
             - displayName

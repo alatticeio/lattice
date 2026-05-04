@@ -36,9 +36,9 @@ centralized management plane. Agents join a workspace via enrollment tokens,
 and traffic is governed by explicit allow/deny policies.
 
 Quick start:
-  lattice workspace add dev
-  lattice token create dev-team -n <namespace>
-  lattice up --token <token> --server-url <server-url> --signaling-url <signaling-url>`,
+  lattice init
+  lattice login
+  lattice up --token <token>`,
 	SilenceUsage:  true,
 	SilenceErrors: true,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
@@ -74,11 +74,11 @@ func init() {
 	fs := rootCmd.PersistentFlags()
 	fs.StringP("config-dir", "", "", "config directory (default: ~/.lattice)")
 	fs.StringP("server-url", "", "", "management server URL")
-	fs.StringP("signaling-url", "", "", "signaling server URL")
 	fs.BoolP("version", "", false, "print version information")
 	fs.BoolP("save", "", false, "persist flags to config file")
 
 	rootCmd.AddCommand(initCmd())
+	rootCmd.AddCommand(loginCmd())
 	rootCmd.AddCommand(upCmd())
 	rootCmd.AddCommand(statusCmd())
 	rootCmd.AddCommand(token.NewTokenCommand())

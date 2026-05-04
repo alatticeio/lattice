@@ -17,13 +17,14 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"os/signal"
+	"syscall"
+
 	"github.com/alatticeio/lattice/internal/agent/config"
 	"github.com/alatticeio/lattice/internal/agent/controller"
 	internalnats "github.com/alatticeio/lattice/internal/agent/nats"
 	"github.com/alatticeio/lattice/internal/db"
 	"github.com/alatticeio/lattice/internal/server"
-	"os/signal"
-	"syscall"
 
 	"golang.org/x/sync/errgroup"
 )

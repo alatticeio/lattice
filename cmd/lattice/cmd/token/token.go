@@ -68,7 +68,7 @@ lattice token create dev-team --limit 5 --expiry 168h -n lattice-system`,
 }
 
 func runCreate(namespace, name, expiry string) error {
-	client, err := cmd.NewClient(config.Conf.SignalingURL)
+	client, err := cmd.NewClient(config.Conf.ServerUrl, config.Conf.AuthToken)
 	if err != nil {
 		return err
 	}
@@ -88,7 +88,7 @@ func tokenListCmd() *cobra.Command {
   # tokens in a specific workspace
   lattice token list -n wf-550e8400-e29b-41d4-a716-446655440000`,
 		RunE: func(c *cobra.Command, args []string) error {
-			client, err := cmd.NewClient(config.Conf.SignalingURL)
+			client, err := cmd.NewClient(config.Conf.ServerUrl, config.Conf.AuthToken)
 			if err != nil {
 				return err
 			}
@@ -109,7 +109,7 @@ func tokenRemoveCmd() *cobra.Command {
 		Example: `  lattice token remove dev-team -n lattice-system`,
 		Args:    cobra.ExactArgs(1),
 		RunE: func(c *cobra.Command, args []string) error {
-			client, err := cmd.NewClient(config.Conf.SignalingURL)
+			client, err := cmd.NewClient(config.Conf.ServerUrl, config.Conf.AuthToken)
 			if err != nil {
 				return err
 			}

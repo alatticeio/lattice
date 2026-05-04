@@ -13,15 +13,15 @@ type TransportType int
 
 const (
 	ICE TransportType = iota
-	WRRP
+	LRP
 )
 
 func (t TransportType) String() string {
 	switch t {
 	case ICE:
 		return "ICE"
-	case WRRP:
-		return "WRRP"
+	case LRP:
+		return "LRP"
 	default:
 		return "Unknown"
 	}
@@ -31,7 +31,7 @@ func (t TransportType) String() string {
 const (
 	PriorityDirect uint8 = 100 // 比如 LAN 直连
 	PriorityICE    uint8 = 80  // P2P 穿透 (STUN)
-	PriorityRelay  uint8 = 50  // WRRP 中转 (NATS/Server)
+	PriorityRelay  uint8 = 50  // LRP 中转 (NATS/Server)
 )
 
 // Transport using from read/write data from/to wire

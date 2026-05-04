@@ -29,9 +29,9 @@ import (
 	wgconn "golang.zx2c4.com/wireguard/conn"
 )
 
-var _ infra.Wrrp = (*QUICClient)(nil)
+var _ infra.Lrp = (*QUICClient)(nil)
 
-// QUICClient implements infra.Wrrp using QUIC datagrams for Forward/Probe
+// QUICClient implements infra.Lrp using QUIC datagrams for Forward/Probe
 // and a QUIC control stream for registration. App-level keepalive is not needed
 // because quic.Config.KeepAlivePeriod handles connection liveness.
 type QUICClient struct {
@@ -155,10 +155,10 @@ func (c *QUICClient) ReceiveFunc() wgconn.ReceiveFunc {
 				}
 				copy(packets[0], payload)
 				sizes[0] = len(payload)
-				eps[0] = &infra.WRRPEndpoint{
-					Addr:          infra.WrrpFakeAddrPort(uint64(header.ToID)),
+				eps[0] = &infra.LRPEndpoint{
+					Addr:          infra.LrpFakeAddrPort(uint64(header.ToID)),
 					RemoteId:      uint64(header.ToID),
-					TransportType: infra.WRRP,
+					TransportType: infra.LRP,
 				}
 				return 1, nil
 

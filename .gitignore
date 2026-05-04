@@ -15,5 +15,9 @@ internal/web/dist/*
 *.tsbuildinfo
 docs/design/
 docs/superpowers
+docs/node_modules/
+docs/.vitepress/cache/
 *.out
-.superpowers
+.superpowerslatticed
+.superpowers/
+cmd/licensegen/

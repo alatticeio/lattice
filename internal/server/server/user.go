@@ -53,7 +53,11 @@ func (s *Server) RegisterUser(c *gin.Context) {
 }
 
 func (s *Server) login(c *gin.Context) {
-	var req dto.UserDto
+	var req struct {
+		Username string `json:"username"`
+		Password string `json:"password"`
+		Client   string `json:"client"` // "cli" → long-lived token (30 days)
+	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		resp.BadRequest(c, err.Error())
 		return
@@ -65,7 +69,14 @@ func (s *Server) login(c *gin.Context) {
 		return
 	}
 
-	businessToken, err := utils.GenerateBusinessJWT(user.ID, user.Email, user.Username, string(user.SystemRole))
+	duration := 12 * time.Hour
+	if req.Client == "cli" {
+		duration = 720 * time.Hour // 30 days
+	}
+
+	businessToken, err := utils.GenerateBusinessJWTWithDuration(
+		user.ID, user.Email, user.Username, string(user.SystemRole), duration,
+	)
 	if err != nil {
 		resp.Error(c, err.Error())
 		return

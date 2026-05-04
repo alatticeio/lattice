@@ -26,6 +26,6 @@ type Dialer interface {
 type DialerType string
 
 const (
-	ICE_DIALER  DialerType = "ICE_DIALER"
-	WRRP_DIALER DialerType = "WRRP_DIALER"
+	ICE_DIALER DialerType = "ICE_DIALER"
+	LRP_DIALER DialerType = "LRP_DIALER"
 )

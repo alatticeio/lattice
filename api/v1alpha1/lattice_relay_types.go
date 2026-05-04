@@ -19,7 +19,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 )
 
-// LatticeRelayServerSpec defines the desired state of a WRRP relay server.
+// LatticeRelayServerSpec defines the desired state of an LRP relay server.
 type LatticeRelayServerSpec struct {
 	// DisplayName is the human-readable label shown in the management UI.
 	DisplayName string `json:"displayName"`
@@ -27,11 +27,11 @@ type LatticeRelayServerSpec struct {
 	// Description is an optional free-text note.
 	Description string `json:"description,omitempty"`
 
-	// TcpUrl is the host:port of the TCP WRRP relay endpoint.
-	// Corresponds to the node flag --wrrp-url.
+	// TcpUrl is the host:port of the TCP LRP relay endpoint.
+	// Corresponds to the node flag --lrp-url.
 	TcpUrl string `json:"tcpUrl"`
 
-	// QuicUrl is the host:port of the QUIC WRRP relay endpoint.
+	// QuicUrl is the host:port of the QUIC LRP relay endpoint.
 	// Corresponds to --relay-quic-url on the client. Preferred over TCP when set.
 	QuicUrl string `json:"quicUrl,omitempty"`
 
@@ -109,7 +109,7 @@ const RelayPeerLabel = "relay.alattice.io/name"
 // +kubebuilder:printcolumn:name="ENABLED",type="boolean",JSONPath=".spec.enabled"
 // +kubebuilder:printcolumn:name="AGE",type="date",JSONPath=".metadata.creationTimestamp"
 
-// LatticeRelayServer is the Schema for managing WRRP relay servers.
+// LatticeRelayServer is the Schema for managing LRP relay servers.
 // It is cluster-scoped because relay infrastructure is shared across workspaces.
 type LatticeRelayServer struct {
 	metav1.TypeMeta   `json:",inline"`

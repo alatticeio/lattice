@@ -142,7 +142,7 @@ type Peer struct {
 	Version             uint64            `json:"version"`
 	LastUpdatedAt       string            `json:"lastUpdatedAt"`
 	Token               string            `json:"token,omitempty"`
-	WrrpUrl             string            `json:"wrrpUrl,omitempty"`
+	LrpUrl              string            `json:"lrpUrl,omitempty"`
 	Labels              map[string]string `json:"labels,omitempty"`
 }
 

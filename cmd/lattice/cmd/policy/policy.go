@@ -43,7 +43,7 @@ until an ALLOW policy is explicitly created for their workspace.`,
 }
 
 func newClient() (*cmd.Client, error) {
-	return cmd.NewClient(config.Conf.SignalingURL)
+	return cmd.NewClient(config.Conf.ServerUrl, config.Conf.AuthToken)
 }
 
 // policyAddCmd: lattice policy add <name> -n <namespace> [flags]

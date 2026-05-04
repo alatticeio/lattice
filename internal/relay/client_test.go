@@ -4,7 +4,7 @@ import (
 	"testing"
 )
 
-func TestNewWrrpClient(t *testing.T) {
+func TestNewLrpClient(t *testing.T) {
 
 	//privateKey, err := wgtypes.GeneratePrivateKey()
 	//if err != nil {
@@ -18,7 +18,7 @@ func TestNewWrrpClient(t *testing.T) {
 	////	panic(err)
 	////}
 	//
-	//client := NewWrrpClient(sessionId, "127.0.0.1:8080")
+	//client := NewLrpClient(sessionId, "127.0.0.1:8080")
 	//if err = client.Connect(); err != nil {
 	//	panic(err)
 	//}

@@ -276,9 +276,6 @@ spec:
               targetNodes:
                 description: 策略当前匹配到的节点数量
                 type: integer
-            required:
-            - ruleCount
-            - targetNodes
             type: object
         type: object
     served: true

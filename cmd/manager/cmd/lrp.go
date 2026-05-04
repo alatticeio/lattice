@@ -22,12 +22,12 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func newWrrpCmd() *cobra.Command {
+func newLrpCmd() *cobra.Command {
 	var cmd = &cobra.Command{
-		Use:          "wrrper",
+		Use:          "lrper",
 		SilenceUsage: true,
-		Short:        "wrrp using as relay server for lattice",
-		Long:         `wrrp using as relay server for lattice`,
+		Short:        "lrp using as relay server for lattice",
+		Long:         `lrp using as relay server for lattice`,
 
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			// Map renamed server flags to their viper keys before config loading.
@@ -38,7 +38,7 @@ func newWrrpCmd() *cobra.Command {
 		},
 
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runWrrp(config.Conf)
+			return runLrp(config.Conf)
 		},
 	}
 	fs := cmd.Flags()
@@ -50,19 +50,19 @@ func newWrrpCmd() *cobra.Command {
 }
 
 // run signaling server
-func runWrrp(flags *config.Config) error {
+func runLrp(flags *config.Config) error {
 	log.SetLevel(flags.Level)
 	server := relay.NewServer(flags)
 
 	if flags.RelayQuicURL != "" {
 		tlsCfg, err := relay.GenerateSelfSignedTLS()
 		if err != nil {
-			log.GetLogger("wrrp").Warn("failed to generate self-signed TLS, skipping QUIC", "err", err)
+			log.GetLogger("lrp").Warn("failed to generate self-signed TLS, skipping QUIC", "err", err)
 		} else {
 			qs := relay.NewQUICServer(server.Manager())
 			go func() {
 				if err := qs.Start(flags.RelayQuicURL, tlsCfg); err != nil {
-					log.GetLogger("wrrp").Error("QUIC server error", err)
+					log.GetLogger("lrp").Error("QUIC server error", err)
 				}
 			}()
 		}

@@ -72,9 +72,9 @@ type NetworkPolicyPort struct {
 // NetworkPolicyStatus defines the observed state of LatticePolicy.
 type NetworkPolicyStatus struct {
 	// 策略当前匹配到的节点数量
-	TargetNodes int `json:"targetNodes"`
+	TargetNodes int `json:"targetNodes,omitempty"`
 	// 规则条数（Ingress + Egress）
-	RuleCount int `json:"ruleCount"`
+	RuleCount int `json:"ruleCount,omitempty"`
 }
 
 // +kubebuilder:object:root=true

@@ -21,7 +21,7 @@ import (
 )
 
 func runVersion() error {
-	client, err := cmd.NewClient(config.Conf.SignalingURL)
+	client, err := cmd.NewClient(config.Conf.ServerUrl, config.Conf.AuthToken)
 	if err != nil {
 		return fmt.Errorf("failed to create client: %w", err)
 	}

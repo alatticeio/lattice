@@ -16,38 +16,41 @@ package cmd
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"github.com/alatticeio/lattice/internal/server/vo"
+	"net/http"
 	"os"
 	"strings"
 	"text/tabwriter"
+
+	"github.com/alatticeio/lattice/internal/server/vo"
 )
 
-// call sends a NATS request to "lattice.signals.service.<method>" and returns
-// the raw JSON response body, or an error if the server returned one.
-func (c *Client) call(method string, payload any) ([]byte, error) {
-	bs, err := json.Marshal(payload)
-	if err != nil {
-		return nil, err
+// resolveWorkspaceID looks up the workspace UUID for a given K8s namespace string.
+// The CLI uses namespace as the user-visible identifier; the HTTP API requires the UUID.
+func (c *Client) resolveWorkspaceID(namespace string) (string, error) {
+	var list []vo.WorkspaceVo
+	if err := c.do(context.Background(), http.MethodGet, "/api/v1/workspaces/list", "", nil, &list); err != nil {
+		return "", fmt.Errorf("listing workspaces: %w", err)
 	}
-	return c.client.Request(context.Background(), "lattice.signals.service", method, bs)
+	for _, ws := range list {
+		if ws.Namespace == namespace {
+			return ws.ID, nil
+		}
+	}
+	return "", fmt.Errorf("workspace with namespace %q not found", namespace)
 }
 
 // ── workspace ─────────────────────────────────────────────────────────────────
 
 // AddWorkspace creates a workspace and prints the result.
 func (c *Client) AddWorkspace(slug, namespace, displayName string) error {
-	data, err := c.call("workspace.add", map[string]string{
-		"slug":         slug,
-		"namespace":    namespace,
-		"display_name": displayName,
-	})
-	if err != nil {
-		return err
-	}
 	var ws vo.WorkspaceVo
-	if err = json.Unmarshal(data, &ws); err != nil {
+	err := c.do(context.Background(), http.MethodPost, "/api/v1/workspaces/add", "", map[string]string{
+		"slug":        slug,
+		"namespace":   namespace,
+		"displayName": displayName,
+	}, &ws)
+	if err != nil {
 		return err
 	}
 	fmt.Printf("workspace created\n")
@@ -60,8 +63,11 @@ func (c *Client) AddWorkspace(slug, namespace, displayName string) error {
 
 // RemoveWorkspace deletes a workspace identified by its K8s namespace.
 func (c *Client) RemoveWorkspace(namespace string) error {
-	_, err := c.call("workspace.remove", map[string]string{"namespace": namespace})
+	wsID, err := c.resolveWorkspaceID(namespace)
 	if err != nil {
+		return err
+	}
+	if err := c.do(context.Background(), http.MethodDelete, "/api/v1/workspaces/"+wsID, "", nil, nil); err != nil {
 		return err
 	}
 	fmt.Printf("workspace %q removed\n", namespace)
@@ -70,12 +76,8 @@ func (c *Client) RemoveWorkspace(namespace string) error {
 
 // ListWorkspaces prints all workspaces as a table.
 func (c *Client) ListWorkspaces() error {
-	data, err := c.call("workspace.list", struct{}{})
-	if err != nil {
-		return err
-	}
 	var list []vo.WorkspaceVo
-	if err = json.Unmarshal(data, &list); err != nil {
+	if err := c.do(context.Background(), http.MethodGet, "/api/v1/workspaces/list", "", nil, &list); err != nil {
 		return err
 	}
 	if len(list) == 0 {
@@ -93,19 +95,20 @@ func (c *Client) ListWorkspaces() error {
 
 // ── policy ────────────────────────────────────────────────────────────────────
 
-// AddPolicy creates or updates a network policy.
+// AddPolicy creates or updates a network policy in the given workspace namespace.
 func (c *Client) AddPolicy(namespace, name, action, description string) error {
-	data, err := c.call("policy.add", map[string]string{
-		"namespace":   namespace,
-		"name":        name,
-		"action":      action,
-		"description": description,
-	})
+	wsID, err := c.resolveWorkspaceID(namespace)
 	if err != nil {
 		return err
 	}
 	var p vo.PolicyVo
-	if err = json.Unmarshal(data, &p); err != nil {
+	err = c.do(context.Background(), http.MethodPost, "/api/v1/policies/create", wsID, map[string]string{
+		"name":        name,
+		"namespace":   namespace,
+		"action":      action,
+		"description": description,
+	}, &p)
+	if err != nil {
 		return err
 	}
 	fmt.Printf("policy %q applied\n", p.Name)
@@ -114,29 +117,18 @@ func (c *Client) AddPolicy(namespace, name, action, description string) error {
 	return nil
 }
 
-// AllowAll creates a full-mesh allow-all policy using the network label selector.
+// AllowAll creates a full-mesh ALLOW policy for the given workspace namespace.
 func (c *Client) AllowAll(namespace string) error {
-	data, err := c.call("policy.allow-all", map[string]string{"namespace": namespace})
-	if err != nil {
-		return err
-	}
-	var p vo.PolicyVo
-	if err = json.Unmarshal(data, &p); err != nil {
-		return err
-	}
-	fmt.Printf("policy %q applied (full-mesh, network label selector)\n", p.Name)
-	fmt.Printf("  action:  %s\n", p.Action)
-	fmt.Printf("  types:   %s\n", strings.Join(p.PolicyTypes, ", "))
-	return nil
+	return c.AddPolicy(namespace, "allow-all", "ALLOW", "Full mesh — allow all peer traffic")
 }
 
-// RemovePolicy deletes a policy by name from the given namespace.
+// RemovePolicy deletes a policy by name.
 func (c *Client) RemovePolicy(namespace, name string) error {
-	_, err := c.call("policy.remove", map[string]string{
-		"namespace": namespace,
-		"name":      name,
-	})
+	wsID, err := c.resolveWorkspaceID(namespace)
 	if err != nil {
+		return err
+	}
+	if err := c.do(context.Background(), http.MethodDelete, "/api/v1/policies/"+name, wsID, nil, nil); err != nil {
 		return err
 	}
 	fmt.Printf("policy %q removed from %s\n", name, namespace)
@@ -145,12 +137,12 @@ func (c *Client) RemovePolicy(namespace, name string) error {
 
 // ListPolicies prints all policies in the given namespace as a table.
 func (c *Client) ListPolicies(namespace string) error {
-	data, err := c.call("policy.list", map[string]string{"namespace": namespace})
+	wsID, err := c.resolveWorkspaceID(namespace)
 	if err != nil {
 		return err
 	}
 	var list []vo.PolicyVo
-	if err = json.Unmarshal(data, &list); err != nil {
+	if err := c.do(context.Background(), http.MethodGet, "/api/v1/policies/list", wsID, nil, &list); err != nil {
 		return err
 	}
 	if len(list) == 0 {
@@ -166,77 +158,34 @@ func (c *Client) ListPolicies(namespace string) error {
 	return w.Flush()
 }
 
-// ── peer ──────────────────────────────────────────────────────────────────────
-
-type peerRow struct {
-	Name    string            `json:"name"`
-	AppID   string            `json:"app_id"`
-	IP      string            `json:"ip"`
-	Network string            `json:"network"`
-	Phase   string            `json:"phase"`
-	Labels  map[string]string `json:"labels"`
-}
-
-// ListPeers prints all LatticePeers in the given namespace.
-func (c *Client) ListPeers(namespace string) error {
-	data, err := c.call("peer.list", map[string]string{"namespace": namespace})
-	if err != nil {
-		return err
-	}
-	var list []peerRow
-	if err = json.Unmarshal(data, &list); err != nil {
-		return err
-	}
-	if len(list) == 0 {
-		fmt.Printf("no peers in namespace %q\n", namespace)
-		return nil
-	}
-	w := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
-	fmt.Fprintln(w, "NAME\tAPP-ID\tIP\tNETWORK\tPHASE") //nolint:errcheck
-	for _, p := range list {
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", //nolint:errcheck
-			p.Name, p.AppID, p.IP, p.Network, p.Phase)
-	}
-	return w.Flush()
-}
-
-// PeerLabel merges the given labels into the LatticePeer's metadata.labels.
-// labels is a map of key → value parsed from "key=value" CLI args.
-func (c *Client) PeerLabel(namespace, peerName string, labels map[string]string) error {
-	data, err := c.call("peer.label", map[string]any{
-		"namespace": namespace,
-		"peer_name": peerName,
-		"labels":    labels,
-	})
-	if err != nil {
-		return err
-	}
-	var result struct {
-		Peer   string            `json:"peer"`
-		Labels map[string]string `json:"labels"`
-	}
-	if err = json.Unmarshal(data, &result); err != nil {
-		return err
-	}
-	fmt.Printf("labels updated on peer %q\n", result.Peer)
-	w := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
-	fmt.Fprintln(w, "KEY\tVALUE") //nolint:errcheck
-	for k, v := range result.Labels {
-		fmt.Fprintf(w, "%s\t%s\n", k, v) //nolint:errcheck
-	}
-	return w.Flush()
-}
-
 // ── token ─────────────────────────────────────────────────────────────────────
 
-// ListTokens prints all enrollment tokens, optionally filtered by namespace.
+// CreateToken creates an enrollment token in the given workspace namespace.
+func (c *Client) CreateToken(namespace, name, expiry string) error {
+	wsID, err := c.resolveWorkspaceID(namespace)
+	if err != nil {
+		return err
+	}
+	var result map[string]string
+	err = c.do(context.Background(), http.MethodPost, "/api/v1/token/generate", wsID, map[string]string{
+		"name":   name,
+		"expiry": expiry,
+	}, &result)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("Token Created: %s\n", result["token"])
+	return nil
+}
+
+// ListTokens prints all enrollment tokens filtered by namespace.
 func (c *Client) ListTokens(namespace string) error {
-	data, err := c.call("token.list", map[string]string{"namespace": namespace})
+	wsID, err := c.resolveWorkspaceID(namespace)
 	if err != nil {
 		return err
 	}
 	var list []*vo.TokenVo
-	if err = json.Unmarshal(data, &list); err != nil {
+	if err := c.do(context.Background(), http.MethodGet, "/api/v1/token/list", wsID, nil, &list); err != nil {
 		return err
 	}
 	if len(list) == 0 {
@@ -259,12 +208,75 @@ func (c *Client) ListTokens(namespace string) error {
 	return w.Flush()
 }
 
-// RemoveToken revokes an enrollment token by its value within the given namespace.
+// RemoveToken revokes an enrollment token by its value.
 func (c *Client) RemoveToken(namespace, token string) error {
-	_, err := c.call("token.remove", map[string]string{"namespace": namespace, "token": token})
+	wsID, err := c.resolveWorkspaceID(namespace)
 	if err != nil {
+		return err
+	}
+	if err := c.do(context.Background(), http.MethodDelete, "/api/v1/token/"+token, wsID, nil, nil); err != nil {
 		return err
 	}
 	fmt.Printf("token %q revoked\n", token)
 	return nil
+}
+
+// ── peer ──────────────────────────────────────────────────────────────────────
+
+type peerRow struct {
+	Name    string            `json:"name"`
+	AppID   string            `json:"app_id"`
+	IP      string            `json:"ip"`
+	Network string            `json:"network"`
+	Phase   string            `json:"phase"`
+	Labels  map[string]string `json:"labels"`
+}
+
+// ListPeers prints all LatticePeers in the given namespace.
+func (c *Client) ListPeers(namespace string) error {
+	wsID, err := c.resolveWorkspaceID(namespace)
+	if err != nil {
+		return err
+	}
+	var list []peerRow
+	if err := c.do(context.Background(), http.MethodGet, "/api/v1/peers/list", wsID, nil, &list); err != nil {
+		return err
+	}
+	if len(list) == 0 {
+		fmt.Printf("no peers in namespace %q\n", namespace)
+		return nil
+	}
+	w := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
+	fmt.Fprintln(w, "NAME\tAPP-ID\tIP\tNETWORK\tPHASE") //nolint:errcheck
+	for _, p := range list {
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", //nolint:errcheck
+			p.Name, p.AppID, p.IP, p.Network, p.Phase)
+	}
+	return w.Flush()
+}
+
+// PeerLabel merges labels into a LatticePeer's metadata.
+func (c *Client) PeerLabel(namespace, peerName string, labels map[string]string) error {
+	wsID, err := c.resolveWorkspaceID(namespace)
+	if err != nil {
+		return err
+	}
+	var result struct {
+		Peer   string            `json:"peer"`
+		Labels map[string]string `json:"labels"`
+	}
+	err = c.do(context.Background(), http.MethodPut, "/api/v1/peers/update", wsID, map[string]any{
+		"peer_name": peerName,
+		"labels":    labels,
+	}, &result)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("labels updated on peer %q\n", result.Peer)
+	w := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
+	fmt.Fprintln(w, "KEY\tVALUE") //nolint:errcheck
+	for k, v := range result.Labels {
+		fmt.Fprintf(w, "%s\t%s\n", k, v) //nolint:errcheck
+	}
+	return w.Flush()
 }

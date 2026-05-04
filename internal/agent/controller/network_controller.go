@@ -91,6 +91,10 @@ func (r *NetworkReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		var pool v1alpha1.LatticeGlobalIPPool
 		poolKey := client.ObjectKey{Name: "lattice-ip-pool"}
 		if err = r.Get(ctx, poolKey, &pool); err != nil {
+			if errors.IsNotFound(err) {
+				log.Info("lattice-ip-pool not found, requeuing")
+				return ctrl.Result{RequeueAfter: time.Second * 10}, nil
+			}
 			return ctrl.Result{}, err
 		}
 

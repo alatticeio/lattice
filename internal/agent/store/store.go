@@ -30,6 +30,7 @@ type Store interface {
 
 	Alerts() AlertRepository
 	CustomMetrics() CustomMetricRepository
+	SystemConfig() SystemConfigRepository
 
 	Close() error
 }
@@ -181,6 +182,13 @@ type AlertRepository interface {
 	ListAlertSilences(ctx context.Context, wsID string) ([]*models.AlertSilence, error)
 	CreateAlertSilence(ctx context.Context, s *models.AlertSilence) error
 	DeleteAlertSilence(ctx context.Context, id string) error
+}
+
+// SystemConfigRepository manages platform-level key-value configuration.
+type SystemConfigRepository interface {
+	Get(ctx context.Context, key string) (string, error)
+	Set(ctx context.Context, key, value string) error
+	GetAll(ctx context.Context) (map[string]string, error)
 }
 
 // CustomMetricRepository manages user-defined metric DB operations.

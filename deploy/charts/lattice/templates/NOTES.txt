@@ -1,0 +1,22 @@
+Lattice {{ .Chart.AppVersion }} has been deployed to {{ .Release.Namespace }}.
+
+1. Get the dashboard URL:
+   {{- if .Values.ingress.enabled }}
+   https://{{ .Values.ingress.host }}
+   {{- else }}
+   kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "lattice.fullname" . }} 8080:{{ .Values.service.apiPort }}
+   Then open http://localhost:8080
+   {{- end }}
+
+2. Sign in with the admin credentials configured in your lattice.yaml.
+
+3. Configure the agent:
+   ```bash
+   lattice init
+   ```
+
+   When prompted for the signaling URL, use:
+   nats://<service-address>:{{ .Values.service.natsPort }}
+
+   For the server URL, use:
+   http://<service-address>:{{ .Values.service.apiPort }}

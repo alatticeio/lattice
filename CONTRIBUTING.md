@@ -59,7 +59,7 @@ Follow the README.md to run or tests locally
    Looking for where to start? Check issues labeled good first issue
    
 ### Questions?
-   Open a GitHub Discussion
-   Join our Slack 
+   Open a [GitHub Discussion](https://github.com/alatticeio/lattice/discussions)
+   Join our Slack
 ### Code of Conduct
-   Be respectful and inclusive. See CODE_OF_CONDUCT.md
+   Be respectful and inclusive. See [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)

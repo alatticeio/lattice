@@ -1,0 +1,20 @@
+apiVersion: v2
+name: lattice
+description: A self-hosted WireGuard mesh orchestration platform
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+icon: https://lattice.run/icon.png
+home: https://lattice.run
+sources:
+  - https://github.com/alatticeio/lattice
+keywords:
+  - wireguard
+  - vpn
+  - mesh
+  - overlay-network
+  - kubernetes
+maintainers:
+  - name: Lattice Authors
+    email: maintainers@alatticeio.io
+    url: https://github.com/alatticeio/lattice

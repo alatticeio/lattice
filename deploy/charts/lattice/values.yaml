@@ -1,0 +1,86 @@
+# -- Overrides the chart name.
+nameOverride: ""
+
+# -- Overrides the full app name.
+fullnameOverride: ""
+
+# -- Number of replicas for the deployment.
+replicaCount: 1
+
+# -- Container image configuration.
+image:
+  repository: ghcr.io/alatticeio/latticed
+  tag: latest
+  pullPolicy: IfNotPresent
+
+# -- Service configuration.
+service:
+  type: ClusterIP
+  apiPort: 8080
+  natsPort: 4222
+  apiNodePort: ""
+  natsNodePort: ""
+
+# -- Ingress configuration for the dashboard API.
+ingress:
+  enabled: false
+  className: ""
+  host: lattice.example.com
+  tls:
+    enabled: false
+    secretName: ""
+
+# -- Persistent storage for SQLite data.
+persistence:
+  enabled: true
+  size: 10Gi
+  storageClass: ""
+  accessMode: ReadWriteOnce
+
+# -- Config file contents (lattice.yaml).
+config:
+  app:
+    name: "Lattice"
+    env: "production"
+    listen: ":8080"
+  jwt:
+    secret: ""  # auto-generated if empty
+    expireHours: 24
+  signalingUrl: ""  # defaults to embedded NATS within the pod
+  database:
+    dsn: "data/lattice.db"  # SQLite path
+
+# -- Resource requests and limits.
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 1000m
+    memory: 512Mi
+
+# -- Pro edition license (optional).
+license:
+  enabled: false
+  # fileContents: "..."  # raw license JWT string
+
+# -- Service account configuration.
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+
+# -- Additional environment variables (e.g. APP_DATABASE_DSN for MySQL).
+extraEnv: []
+
+# -- Node selector for pod placement.
+nodeSelector: {}
+
+# -- Pod tolerations.
+tolerations: []
+
+# -- Pod affinity.
+affinity: {}
+
+# -- Annotations to add to the pod.
+podAnnotations: {}

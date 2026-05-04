@@ -164,6 +164,20 @@
     "detailBtn": "Detail",
     "empty": "No audit records"
   },
+  "platform": {
+    "title": "Platform Settings",
+    "desc": "Manage platform-level configuration for all workspaces and agents.",
+    "natsUrlLabel": "NATS Signaling URL",
+    "natsUrlPlaceholder": "nats://nats-cluster:4222",
+    "natsUrlHint": "Agent nodes use this URL to connect to the signaling server. Format: nats://host:port",
+    "saveBtn": "Save Changes",
+    "saving": "Saving...",
+    "saved": "Platform settings saved",
+    "saveFailed": "Failed to save platform settings",
+    "loadFailed": "Failed to load platform settings",
+    "validationRequired": "NATS URL is required",
+    "validationPrefix": "NATS URL must start with nats:// or nats+tls://"
+  },
   "relays": {
     "title": "Relay Nodes",
     "desc": "Manage WireGuard relay servers.",
@@ -224,10 +238,10 @@
       "regionLabel": "Region",
       "regionPlaceholder": "e.g. Asia-HK, US-West",
       "tcpLabel": "TCP Address",
-      "tcpHint": "Corresponds to the --wrrp-url parameter (WrrpUrl field)",
+      "tcpHint": "Corresponds to the --lrp-url parameter (LrpUrl field)",
       "quicLabel": "QUIC Address",
       "quicOptional": "(optional, recommended)",
-      "quicHint": "Corresponds to --wrrp-quic-url. Higher priority than TCP, supports 0-RTT.",
+      "quicHint": "Corresponds to --lrp-quic-url. Higher priority than TCP, supports 0-RTT.",
       "peerLabelsLabel": "Peer Labels",
       "peerLabelsHint": "Format key=value. These labels are attached to peers using this relay.",
       "peerLabelsPlaceholder": "e.g. relay=asia-hk",

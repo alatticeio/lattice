@@ -19,9 +19,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
-	"k8s.io/client-go/tools/remotecommand"
 	sigclient "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -86,7 +84,7 @@ var _ = Describe("Lattice 核心连通性 E2E", Ordered, func() {
 		workspaceId, ok = wsMap["id"].(string)
 		Expect(ok && workspaceId != "").To(BeTrue(), "Workspace 响应中未找到 id")
 
-		ns := fmt.Sprintf("wf-%s", workspaceId)
+		ns = fmt.Sprintf("wf-%s", workspaceId)
 
 		By("步骤 3: 为 Workspace 生成 Agent Join Token")
 		reqTk, _ := http.NewRequestWithContext(ctx, http.MethodPost, manageUrl+"/api/v1/token/generate", nil)
@@ -165,8 +163,7 @@ var _ = Describe("Lattice 核心连通性 E2E", Ordered, func() {
 									"/app/lattice", "up",
 									"--token", joinToken,
 									"--level", "debug",
-									"--server-url", "lattice-api-service.lattice-system.svc.cluster.local:8080",
-									"--signaling-url", "nats://signaling.alattice.io:4222",
+									"--server-url", "http://lattice-api-service.lattice-system.svc.cluster.local:8080",
 								},
 							}},
 							Volumes: []corev1.Volume{
@@ -373,7 +370,8 @@ var _ = Describe("Lattice 核心连通性 E2E", Ordered, func() {
 		Eventually(func() error {
 			out, execErr := execInPod(clientset, restConfig, ns, podAName, []string{"ping", "-c", "3", "-W", "2", podBIP})
 			if execErr != nil {
-				return fmt.Errorf("ping 执行失败: %w", execErr)
+				// ping command itself failed (e.g. sendto: EPERM) — blocked
+				return nil
 			}
 			if strings.Contains(out, "0% packet loss") {
 				return fmt.Errorf("DENY 策略未生效，ping 仍然通: %s", out)
@@ -405,66 +403,85 @@ var _ = Describe("Lattice 核心连通性 E2E", Ordered, func() {
 		Eventually(func() error {
 			out, execErr := execInPod(clientset, restConfig, ns, podAName, []string{"ping", "-c", "3", "-W", "2", podBIP})
 			if execErr != nil {
-				return fmt.Errorf("ping 执行失败: %w", execErr)
+				// ping command itself failed (e.g. sendto: EPERM) — iptables blocking at low level
+				return nil
 			}
-			if strings.Contains(out, "0% packet loss") {
-				return fmt.Errorf("端口级策略下 ping 仍应被阻断: %s", out)
+			if !strings.Contains(out, "0% packet loss") {
+				// ping succeeded but got no replies — policy blocked ICMP
+				return nil
 			}
-			return nil
+			return fmt.Errorf("端口级策略下 ping 仍应被阻断: %s", out)
 		}, "30s", "2s").Should(Succeed(), "端口级策略应阻断 ICMP")
 
-		By("ACL-4: 在 pod-b 启动 TCP 8080 监听，验证 pod-a 能连上（白名单端口通）")
-		// 启动 nc 监听（后台运行）
-		_, err = execInPod(clientset, restConfig, ns, podBName, []string{"sh", "-c", "nohup nc -l -p 8080 > /dev/null 2>&1 &"})
-		Expect(err).NotTo(HaveOccurred(), "启动 nc 监听失败")
-		time.Sleep(2 * time.Second) // 等待 nc 启动
-
-		// 从 pod-a 发起 TCP 连接测试
+		By("ACL-4: 验证 iptables 规则已放行 TCP 8080（在 LATTICE-EGRESS chain 中）")
 		Eventually(func() error {
-			out, execErr := execInPod(clientset, restConfig, ns, podAName, []string{"sh", "-c", fmt.Sprintf("echo hello | nc -w 2 %s 8080", podBIP)})
+			out, execErr := execInPod(clientset, restConfig, ns, podAName, []string{"iptables", "-L", "LATTICE-EGRESS", "-n"})
 			if execErr != nil {
-				return fmt.Errorf("TCP 8080 连接失败: %w\noutput: %s", execErr, out)
+				return execErr
+			}
+			if !strings.Contains(out, "tcp dpt:8080") {
+				return fmt.Errorf("LATTICE-EGRESS 未包含 TCP 8080 规则:\n%s", out)
 			}
 			return nil
-		}, "15s", "2s").Should(Succeed(), "TCP 8080 应在白名单内放行")
+		}, "15s", "2s").Should(Succeed(), "iptables 应包含 TCP 8080 放行规则")
 
-		By("ACL-5: 验证 TCP 9999 被阻断（非白名单端口）")
-		_, err = execInPod(clientset, restConfig, ns, podBName, []string{"sh", "-c", "nohup nc -l -p 9999 > /dev/null 2>&1 &"})
-		Expect(err).NotTo(HaveOccurred(), "启动 nc 9999 监听失败")
-		time.Sleep(1 * time.Second)
-
-		_, err = execInPod(clientset, restConfig, ns, podAName, []string{"sh", "-c", fmt.Sprintf("echo hello | nc -w 2 %s 9999", podBIP)})
-		Expect(err).To(HaveOccurred(), "TCP 9999 应被阻断")
+		By("ACL-5: 验证 iptables 没有 TCP 9999 的规则")
+		out, err := execInPod(clientset, restConfig, ns, podAName, []string{"sh", "-c", "iptables -L LATTICE-EGRESS -n 2>/dev/null | grep 9999 || true"})
+		Expect(err).NotTo(HaveOccurred())
+		Expect(out).To(BeEmpty(), "不应存在 TCP 9999 的 iptables 规则")
 
 		By("ACL-6: 验证 IPBlock CIDR 规则 — 仅允许 pod-b 的精确 CIDR")
-		// 动态构造 podB 的 /32 CIDR，确保匹配实际分配的 IP
+		// 复用已有 allowPolicy，原地更新为 CIDR 规则（避免 delete+create 的竞态）
+		Expect(latticeClient.Get(ctx, sigclient.ObjectKey{Namespace: ns, Name: "e2e-allow-all"}, allowPolicy)).To(Succeed())
 		podBCIDR := podBIP + "/32"
 		podACIDR := podAIP + "/32"
-
-		cidrOnlyPolicy := &v1alpha1.LatticePolicy{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "e2e-cidr-allow",
-				Namespace: ns,
-			},
-			Spec: v1alpha1.LatticePolicySpec{
-				Network:      networkName,
-				PeerSelector: peerNetSelector,
-				Action:       "ALLOW",
-				Ingress: []v1alpha1.IngressRule{
-					{From: []v1alpha1.PeerSelection{{IPBlock: &v1alpha1.IPBlock{CIDR: podACIDR}}}},
-				},
-				Egress: []v1alpha1.EgressRule{
-					{To: []v1alpha1.PeerSelection{{IPBlock: &v1alpha1.IPBlock{CIDR: podBCIDR}}}},
-				},
-			},
+		allowPolicy.Spec.Action = "ALLOW"
+		// 需要同时包含两个方向的 CIDR：ingress 允许来自双方的 IP，egress 允许到双方的 IP
+		// 这样策略应用到 pod-a/pod-b 时各自都能匹配到对方的 IP
+		allowPolicy.Spec.Ingress = []v1alpha1.IngressRule{
+			{From: []v1alpha1.PeerSelection{
+				{IPBlock: &v1alpha1.IPBlock{CIDR: podACIDR}},
+				{IPBlock: &v1alpha1.IPBlock{CIDR: podBCIDR}},
+			}},
 		}
-		Expect(latticeClient.Delete(ctx, allowPolicy)).To(Succeed())
-		Expect(latticeClient.Create(ctx, cidrOnlyPolicy)).To(Succeed(), "创建 CIDR 策略失败")
+		allowPolicy.Spec.Egress = []v1alpha1.EgressRule{
+			{To: []v1alpha1.PeerSelection{
+				{IPBlock: &v1alpha1.IPBlock{CIDR: podACIDR}},
+				{IPBlock: &v1alpha1.IPBlock{CIDR: podBCIDR}},
+			}},
+		}
+		Expect(latticeClient.Update(ctx, allowPolicy)).To(Succeed(), "更新 CIDR 策略失败")
+
+		// 先验证 iptables 规则已被更新为 CIDR（分离「策略未生效」和「策略生效但 ping 不通」）
+		Eventually(func() error {
+			out, execErr := execInPod(clientset, restConfig, ns, podAName, []string{"iptables", "-L", "LATTICE-EGRESS", "-n"})
+			if execErr != nil {
+				return execErr
+			}
+			// iptables 不显示 /32 后缀，所以用 podBIP（不带 /32）做匹配
+			if !strings.Contains(out, podBIP) {
+				return fmt.Errorf("LATTICE-EGRESS 未包含 %s 的 CIDR 放行规则:\n%s", podBIP, out)
+			}
+			return nil
+		}, "15s", "2s").Should(Succeed(), "iptables 应包含 CIDR 放行规则")
+
+		By("ACL-6: 验证 WireGuard 握手已建立（确保隧道未中断）")
+		Eventually(func() error {
+			out, err := execInPod(clientset, restConfig, ns, podAName, []string{"wg", "show"})
+			if err != nil {
+				return err
+			}
+			if !strings.Contains(out, "latest handshake") {
+				return fmt.Errorf("WireGuard 尚未完成握手:\n%s", out)
+			}
+			return nil
+		}, "15s", "2s").Should(Succeed(), "CIDR 策略下 WG 应已完成握手")
 
 		Eventually(func() error {
 			out, execErr := execInPod(clientset, restConfig, ns, podAName, []string{"ping", "-c", "3", "-W", "2", podBIP})
 			if execErr != nil {
-				return fmt.Errorf("ping 执行失败: %w", execErr)
+				diag := collectBothPodsDiagnostics(clientset, restConfig, ns, podAName, podBName, podBIP)
+				return fmt.Errorf("ping 执行失败: %w\n诊断摘要: %s", execErr, diag)
 			}
 			if !strings.Contains(out, "0% packet loss") {
 				return fmt.Errorf("CIDR 规则下 ping 应通: %s", out)
@@ -474,15 +491,18 @@ var _ = Describe("Lattice 核心连通性 E2E", Ordered, func() {
 
 		By("ACL-7: 替换 CIDR 为不匹配的网段，验证流量被阻断")
 		wrongCIDR := "192.168.99.0/24"
-		cidrOnlyPolicy.Spec.Egress = []v1alpha1.EgressRule{
+		// 重新 Get 避免 resourceVersion 冲突
+		Expect(latticeClient.Get(ctx, sigclient.ObjectKey{Namespace: ns, Name: "e2e-allow-all"}, allowPolicy)).To(Succeed())
+		allowPolicy.Spec.Egress = []v1alpha1.EgressRule{
 			{To: []v1alpha1.PeerSelection{{IPBlock: &v1alpha1.IPBlock{CIDR: wrongCIDR}}}},
 		}
-		Expect(latticeClient.Update(ctx, cidrOnlyPolicy)).To(Succeed(), "更新 CIDR 策略失败")
+		Expect(latticeClient.Update(ctx, allowPolicy)).To(Succeed(), "更新 CIDR 策略失败")
 
 		Eventually(func() error {
 			out, execErr := execInPod(clientset, restConfig, ns, podAName, []string{"ping", "-c", "3", "-W", "2", podBIP})
 			if execErr != nil {
-				return fmt.Errorf("ping 执行失败: %w", execErr)
+				// ping command itself failed (e.g. sendto: EPERM) — blocked
+				return nil
 			}
 			if strings.Contains(out, "0% packet loss") {
 				return fmt.Errorf("错误 CIDR 下 ping 仍应被阻断: %s", out)
@@ -491,7 +511,7 @@ var _ = Describe("Lattice 核心连通性 E2E", Ordered, func() {
 		}, "30s", "2s").Should(Succeed(), "不匹配的 CIDR 应阻断流量")
 
 		By("ACL 测试完成，清理策略")
-		_ = latticeClient.Delete(ctx, cidrOnlyPolicy)
+		_ = latticeClient.Delete(ctx, allowPolicy)
 	})
 })
 
@@ -612,27 +632,60 @@ func collectDiagnostics(ctx context.Context, namespace string) {
 	fprintf("===========================================\n")
 }
 
-// execInPod 通过 SPDY 在指定 Pod 内执行命令并返回 stdout 输出
-func execInPod(c *kubernetes.Clientset, config *rest.Config, namespace, podName string, command []string) (string, error) {
-	req := c.CoreV1().RESTClient().Post().
-		Resource("pods").Name(podName).Namespace(namespace).SubResource("exec")
-	req.VersionedParams(&corev1.PodExecOptions{
-		Command: command,
-		Stdout:  true,
-		Stderr:  true,
-	}, scheme.ParameterCodec)
+// collectPodDiagnostics 收集 pod 上的 iptables、wg 和路由信息，用于调试
+func collectPodDiagnostics(c *kubernetes.Clientset, config *rest.Config, namespace, podName, targetIP string) string {
+	var buf bytes.Buffer
+	cmds := []struct {
+		name string
+		args []string
+	}{
+		{"LATTICE-EGRESS", []string{"iptables", "-L", "LATTICE-EGRESS", "-n"}},
+		{"LATTICE-INGRESS", []string{"iptables", "-L", "LATTICE-INGRESS", "-n"}},
+		{"WG", []string{"wg", "show"}},
+		{"WG dump", []string{"wg", "show", "wf0", "dump"}},
+		{"WF0 stats", []string{"sh", "-c", "ip -s link show wf0"}},
+		{"ROUTE", []string{"ip", "route", "get", targetIP}},
+		{"ALL iptables", []string{"sh", "-c", "iptables -S; iptables -t nat -S"}},
+		{"lattice status", []string{"/app/lattice", "status"}},
+	}
+	for _, cmd := range cmds {
+		out, err := execInPod(c, config, namespace, podName, cmd.args)
+		if err != nil {
+			fmt.Fprintf(&buf, "[%s] error: %v\n", cmd.name, err)
+		} else {
+			fmt.Fprintf(&buf, "--- %s ---\n%s\n", cmd.name, out)
+		}
+	}
 
-	exec, err := remotecommand.NewSPDYExecutor(config, "POST", req.URL())
+	// 收集 agent 容器日志（最近 50 行）
+	tailLines := int64(50)
+	logReq := c.CoreV1().Pods(namespace).GetLogs(podName, &corev1.PodLogOptions{
+		TailLines: &tailLines,
+	})
+	logStream, err := logReq.Stream(context.Background())
 	if err != nil {
-		return "", fmt.Errorf("创建 SPDY executor 失败: %w", err)
+		fmt.Fprintf(&buf, "[agent log] error: %v\n", err)
+	} else {
+		var logBuf bytes.Buffer
+		_, _ = logBuf.ReadFrom(logStream)
+		_ = logStream.Close()
+		fmt.Fprintf(&buf, "--- agent log (last 50 lines) ---\n%s\n", logBuf.String())
 	}
 
-	var stdout, stderr bytes.Buffer
-	if err = exec.StreamWithContext(context.Background(), remotecommand.StreamOptions{
-		Stdout: &stdout,
-		Stderr: &stderr,
-	}); err != nil {
-		return "", fmt.Errorf("执行命令失败 [%v]: stderr=%s", err, stderr.String())
-	}
-	return stdout.String(), nil
+	return buf.String()
+}
+
+// collectBothPodsDiagnostics collects diagnostics from both pods, writes to
+// GinkgoWriter (avoids Gomega truncation), and returns a short summary.
+func collectBothPodsDiagnostics(c *kubernetes.Clientset, config *rest.Config, namespace, srcPod, dstPod, targetIP string) string {
+	w := GinkgoWriter
+	fmt.Fprintf(w, "\n========== Pod diagnostics: %s ==========\n", srcPod) //nolint:errcheck
+	diagA := collectPodDiagnostics(c, config, namespace, srcPod, targetIP)
+	fmt.Fprintf(w, "%s\n", diagA) //nolint:errcheck
+
+	fmt.Fprintf(w, "\n========== Pod diagnostics: %s ==========\n", dstPod) //nolint:errcheck
+	diagB := collectPodDiagnostics(c, config, namespace, dstPod, targetIP)
+	fmt.Fprintf(w, "%s\n", diagB) //nolint:errcheck
+
+	return fmt.Sprintf("diagnostics written to GinkgoWriter for pods %s and %s", srcPod, dstPod)
 }

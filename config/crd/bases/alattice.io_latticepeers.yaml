@@ -95,14 +95,14 @@ spec:
                 type: string
               publicKey:
                 type: string
-              wrrpQuicUrl:
+              lrpQuicUrl:
                 description: |-
-                  WrrpQuicUrl is the QUIC address of the WRRP relay server.
+                  LrpQuicUrl is the QUIC address of the LRP relay server.
                   When set, nodes prefer QUIC over TCP for relay traffic.
                 type: string
-              wrrpUrl:
+              lrpUrl:
                 description: |-
-                  WrrpUrl is the TCP address of the WRRP relay server assigned to this peer.
+                  LrpUrl is the TCP address of the LRP relay server assigned to this peer.
                   Populated by the relay settings controller when a relay is bound to the peer's workspace.
                 type: string
             type: object

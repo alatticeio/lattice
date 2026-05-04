@@ -69,12 +69,37 @@ func (e *policyEvaluator) Evaluate(ctx context.Context, currentPeer *infra.Peer,
 	ingressDecisions := make(map[ruleDecisionKey]string)
 	egressDecisions := make(map[ruleDecisionKey]string)
 
-	applyDecision := func(decisions map[ruleDecisionKey]string, rule *infra.Rule) {
+	applyDecision := func(decisions map[ruleDecisionKey]string, rule *infra.Rule, direction string) {
 		peers := e.resolveRulePeers(rule, peerIPByName, currentPeer.Name)
+		if len(peers) == 0 {
+			log.V(1).Info("policy rule resolved no peers, skipping",
+				"direction", direction,
+				"action", rule.Action,
+				"peerNames", rule.PeerNames,
+				"cidrs", rule.CIDRs,
+			)
+		}
 		for _, peer := range peers {
 			k := ruleDecisionKey{peer: peer, port: rule.Port, protocol: rule.Protocol}
-			if decisions[k] != "ALLOW" {
+			prev := decisions[k]
+			if prev != "ALLOW" {
 				decisions[k] = rule.Action
+				log.V(1).Info("policy decision",
+					"direction", direction,
+					"peer", peer,
+					"port", rule.Port,
+					"protocol", rule.Protocol,
+					"action", rule.Action,
+					"prev", prev,
+				)
+			} else {
+				log.V(1).Info("policy decision kept ALLOW (conflict resolution)",
+					"direction", direction,
+					"peer", peer,
+					"port", rule.Port,
+					"protocol", rule.Protocol,
+					"skippedAction", rule.Action,
+				)
 			}
 		}
 	}
@@ -83,17 +108,23 @@ func (e *policyEvaluator) Evaluate(ctx context.Context, currentPeer *infra.Peer,
 		if policy == nil {
 			continue
 		}
+		log.V(1).Info("evaluating policy",
+			"policy", policy.PolicyName,
+			"action", policy.Action,
+			"ingressRules", len(policy.Ingress),
+			"egressRules", len(policy.Egress),
+		)
 		for _, rule := range policy.Ingress {
 			if rule == nil {
 				continue
 			}
-			applyDecision(ingressDecisions, rule)
+			applyDecision(ingressDecisions, rule, "ingress")
 		}
 		for _, rule := range policy.Egress {
 			if rule == nil {
 				continue
 			}
-			applyDecision(egressDecisions, rule)
+			applyDecision(egressDecisions, rule, "egress")
 		}
 	}
 

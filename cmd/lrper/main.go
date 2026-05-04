@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// wrrper is the standalone Lattice relay server.
+// lrper is the standalone Lattice relay server.
 // It bridges WireGuard peers that cannot establish a direct ICE path
 // (e.g. symmetric NAT on both sides) by forwarding encrypted datagrams
 // over TCP (HTTP upgrade) and/or QUIC.
@@ -32,7 +32,7 @@ var cfgManager = config.NewConfigManager()
 
 func main() {
 	cmd := &cobra.Command{
-		Use:          "wrrper",
+		Use:          "lrper",
 		Short:        "LRP relay server for Lattice",
 		Long:         `Standalone LRP relay server. Bridges WireGuard peers that cannot reach each other directly.`,
 		SilenceUsage: true,
@@ -68,12 +68,12 @@ func run(flags *config.Config) error {
 	if flags.RelayQuicURL != "" {
 		tlsCfg, err := relay.GenerateSelfSignedTLS()
 		if err != nil {
-			log.GetLogger("wrrper").Warn("failed to generate TLS cert, QUIC disabled", "err", err)
+			log.GetLogger("lrper").Warn("failed to generate TLS cert, QUIC disabled", "err", err)
 		} else {
 			qs := relay.NewQUICServer(server.Manager())
 			go func() {
 				if startErr := qs.Start(flags.RelayQuicURL, tlsCfg); startErr != nil {
-					log.GetLogger("wrrper").Error("QUIC server stopped", startErr)
+					log.GetLogger("lrper").Error("QUIC server stopped", startErr)
 				}
 			}()
 		}

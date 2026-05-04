@@ -172,7 +172,17 @@ func (h *MessageHandler) applyRemotePeers(ctx context.Context, msg *infra.Messag
 
 func (h *MessageHandler) applyFirewallRules(ctx context.Context, msg *infra.Message) error {
 	if msg.ComputedRules == nil {
+		h.logger.Debug("no firewall rules in config, skipping provision")
 		return nil
 	}
-	return h.provisioner.Provision(msg.ComputedRules)
+	h.logger.Info("applying firewall rules",
+		"enforcer", h.provisioner.Name(),
+		"ingressRules", len(msg.ComputedRules.Ingress),
+		"egressRules", len(msg.ComputedRules.Egress),
+	)
+	if err := h.provisioner.Provision(msg.ComputedRules); err != nil {
+		h.logger.Error("firewall provision failed", err)
+		return err
+	}
+	return nil
 }

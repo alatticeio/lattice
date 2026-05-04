@@ -17,7 +17,7 @@ import (
 )
 
 type TokenService interface {
-	Create(ctx context.Context) (string, error)
+	Create(ctx context.Context, req *dto.TokenDto) (string, error)
 	Delete(ctx context.Context, token string) error
 }
 
@@ -49,7 +49,7 @@ func (t *tokenService) Delete(ctx context.Context, token string) error {
 	return client.IgnoreNotFound(t.client.Delete(ctx, res))
 }
 
-func (t *tokenService) Create(ctx context.Context) (string, error) {
+func (t *tokenService) Create(ctx context.Context, req *dto.TokenDto) (string, error) {
 	workspaceV := ctx.Value(infra.WorkspaceKey)
 	wsId, _ := workspaceV.(string)
 	if wsId == "" {
@@ -66,11 +66,23 @@ func (t *tokenService) Create(ctx context.Context) (string, error) {
 		return "", err
 	}
 
+	// Use caller-provided params, fall back to defaults for empty fields.
 	tokenDto := dto.TokenDto{
 		Namespace: workspace.Namespace,
+		Name:      tokenStr,
 		Expiry:    "168h",
 		Limit:     5,
-		Name:      tokenStr,
+	}
+	if req != nil {
+		if req.Name != "" {
+			tokenDto.Name = req.Name
+		}
+		if req.Expiry != "" {
+			tokenDto.Expiry = req.Expiry
+		}
+		if req.Limit > 0 {
+			tokenDto.Limit = req.Limit
+		}
 	}
 
 	if _, err = t.peerService.CreateToken(ctx, &tokenDto); err != nil {

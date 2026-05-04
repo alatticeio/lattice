@@ -31,9 +31,9 @@ import (
 	wgconn "golang.zx2c4.com/wireguard/conn"
 )
 
-var _ infra.Wrrp = (*TCPClient)(nil)
+var _ infra.Lrp = (*TCPClient)(nil)
 
-// TCPClient implements infra.Wrrp using a persistent TCP connection with
+// TCPClient implements infra.Lrp using a persistent TCP connection with
 // HTTP upgrade handshake, buffered writer, and keepalive loop.
 type TCPClient struct {
 	*lrpClient
@@ -269,10 +269,10 @@ func (c *TCPClient) ReceiveFunc() wgconn.ReceiveFunc {
 				return 0, err
 			}
 			sizes[0] = int(header.PayloadLen)
-			eps[0] = &infra.WRRPEndpoint{
-				Addr:          infra.WrrpFakeAddrPort(uint64(header.ToID)),
+			eps[0] = &infra.LRPEndpoint{
+				Addr:          infra.LrpFakeAddrPort(uint64(header.ToID)),
 				RemoteId:      uint64(header.ToID),
-				TransportType: infra.WRRP,
+				TransportType: infra.LRP,
 			}
 			return 1, nil
 

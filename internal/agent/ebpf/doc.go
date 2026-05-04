@@ -14,5 +14,5 @@
 
 // Package ebpf contains the eBPF programs and loader for Lattice policy enforcement.
 //
-//go:generate go run github.com/cilium/ebpf/cmd/bpf2go -target bpfel -cc clang -no-strip -type ip_key -type port_key tc_ingress ./tc_ingress.bpf.c -- -I. -O2
+//go:generate go run github.com/cilium/ebpf/cmd/bpf2go -target bpfel -no-strip -type ip_key -type port_key tc_ingress ./tc_ingress.bpf.c -- -I. -O2
 package ebpf

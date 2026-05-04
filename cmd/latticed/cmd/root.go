@@ -60,7 +60,7 @@ func init() {
 	fs := rootCmd.PersistentFlags()
 	fs.StringP("config-dir", "", "", "config directory (default ~/.lattice)")
 	fs.StringP("server-url", "", "", "management server url")
-	fs.StringP("signaling-url", "", "", "signaling server url")
+	fs.StringP("signaling-url", "", "", "NATS server URL for agent signaling (server-side)")
 	fs.BoolP("version", "", false, "Print version information")
 	fs.BoolP("save", "", false, "whether save config to file")
 

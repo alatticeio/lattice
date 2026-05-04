@@ -37,7 +37,7 @@ type ProbeFactory struct {
 	signal         infra.SignalService
 	getProvisioner func() provision.Provisioner
 	getOnMessage   func() func(context.Context, *infra.Message) error
-	getWrrp        func() infra.Wrrp
+	getLrp        func() infra.Lrp
 
 	log *log.Logger
 
@@ -53,7 +53,7 @@ type ProbeFactoryConfig struct {
 	Signal         infra.SignalService
 	GetOnMessage   func() func(context.Context, *infra.Message) error
 	PeerManager    *infra.PeerManager
-	GetWrrp        func() infra.Wrrp
+	GetLrp        func() infra.Lrp
 	FilteringMux   *infra.FilteringUDPMux
 	FilteringMux6  *infra.FilteringUDPMux
 	GetProvisioner func() provision.Provisioner
@@ -67,7 +67,7 @@ func NewProbeFactory(cfg *ProbeFactoryConfig) *ProbeFactory {
 		signal:         cfg.Signal,
 		probes:         make(map[string]*Probe),
 		peerManager:    cfg.PeerManager,
-		getWrrp:        cfg.GetWrrp,
+		getLrp:        cfg.GetLrp,
 		showLog:        cfg.ShowLog,
 		FilteringMux:   cfg.FilteringMux,
 		FilteringMux6:  cfg.FilteringMux6,
@@ -264,8 +264,8 @@ func (p *ProbeFactory) NewProbe(remoteId infra.PeerIdentity) (*Probe, error) {
 		p.log.Debug("state transition", "remoteId", remoteId.AppID, "from", from, "to", to)
 
 		switch {
-		// First transport ready (ICE or WRRP): set endpoint, route, NAT.
-		case from == StateProbing && (to == StateICEReady || to == StateWRRPReady):
+		// First transport ready (ICE or LRP): set endpoint, route, NAT.
+		case from == StateProbing && (to == StateICEReady || to == StateLRPReady):
 			rp := getRemotePeer()
 			if rp == nil || rp.Address == nil {
 				p.log.Warn("remote peer info not received, cannot set endpoint")
@@ -282,8 +282,8 @@ func (p *ProbeFactory) NewProbe(remoteId infra.PeerIdentity) (*Probe, error) {
 			}
 
 			var endpoint string
-			if t.Type() == infra.WRRP {
-				endpoint = infra.WrrpFakeAddrPort(remoteId.ID().ToUint64()).String()
+			if t.Type() == infra.LRP {
+				endpoint = infra.LrpFakeAddrPort(remoteId.ID().ToUint64()).String()
 			} else {
 				endpoint = t.RemoteAddr()
 			}
@@ -304,9 +304,9 @@ func (p *ProbeFactory) NewProbe(remoteId infra.PeerIdentity) (*Probe, error) {
 				p.log.Error("transition: SetupNAT failed", err)
 			}
 
-		// ICE upgrade after WRRP: only SetEndpoint — NO duplicate AddPeer,
+		// ICE upgrade after LRP: only SetEndpoint — NO duplicate AddPeer,
 		// NO route/NAT re-application. This is the P1 bug fix.
-		case from == StateWRRPReady && to == StateICEReady:
+		case from == StateLRPReady && to == StateICEReady:
 			probe.mu.Lock()
 			t := probe.currentTransport
 			probe.mu.Unlock()
@@ -326,12 +326,12 @@ func (p *ProbeFactory) NewProbe(remoteId infra.PeerIdentity) (*Probe, error) {
 		}
 	})
 
-	var makeWrrpDialer func() infra.Dialer
-	makeWrrpDialer = func() infra.Dialer {
-		return NewWrrpDialer(&WrrpDialerConfig{
+	var makeLrpDialer func() infra.Dialer
+	makeLrpDialer = func() infra.Dialer {
+		return NewLrpDialer(&LrpDialerConfig{
 			LocalId:        p.localId,
 			RemoteId:       remoteId,
-			Wrrp:           p.getWrrp(),
+			Lrp:           p.getLrp(),
 			Sender:         p.signal.Send,
 			GetLocalPeer:   getLocalPeer,
 			OnPeerReceived: onPeerReceived,
@@ -361,8 +361,8 @@ func (p *ProbeFactory) NewProbe(remoteId infra.PeerIdentity) (*Probe, error) {
 	}
 	probe.newIceDialer = makeIceDialer
 	probe.iceDialer = makeIceDialer()
-	probe.newWrrpDialer = makeWrrpDialer
-	probe.wrrpDialer = makeWrrpDialer()
+	probe.newLrpDialer = makeLrpDialer
+	probe.lrpDialer = makeLrpDialer()
 
 	// onBeforeRestart resets the peerKnown guard for fresh SYN/ACK exchange.
 	probe.onBeforeRestart = func() {

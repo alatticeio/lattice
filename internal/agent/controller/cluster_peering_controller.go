@@ -57,7 +57,7 @@ type GatewayInfo struct {
 //  3. Creates a LatticeNetworkPeering in the local cluster using a synthetic
 //     shadow namespace for the remote side (using the local gateway + remote shadow).
 //
-// The actual WireGuard tunnel establishment reuses the existing WRRP relay
+// The actual WireGuard tunnel establishment reuses the existing LRP relay
 // transport — no additional signaling infrastructure is needed.
 type ClusterPeeringReconciler struct {
 	client.Client

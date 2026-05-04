@@ -15,7 +15,7 @@ enum PacketType {
 
 enum DialerType {
   ICE = 0;
-  WRRP = 1;
+  LRP = 1;
 }
 
 message SignalPacket {

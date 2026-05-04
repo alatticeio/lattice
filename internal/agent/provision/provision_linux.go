@@ -86,16 +86,24 @@ func (r *ruleProvisioner) Provision(rule *infra.FirewallRule) error {
 	inChain := "LATTICE-INGRESS"
 	outChain := "LATTICE-EGRESS"
 
+	r.logger.Info("provisioning iptables rules",
+		"ingressRules", len(rule.Ingress),
+		"egressRules", len(rule.Egress),
+	)
+
 	// 1. 初始化链
 	r.initChain(inChain, "INPUT", "-i")
 	r.initChain(outChain, "OUTPUT", "-o")
 
 	// 2. 清空旧规则 (Flush)
+	r.logger.Debug("flushing iptables chains", "ingress", inChain, "egress", outChain)
 	if err := exec.Command("iptables", "-F", inChain).Run(); err != nil {
+		r.logger.Error("failed to flush ingress chain", err, "chain", inChain)
 		return err
 	}
 
 	if err := exec.Command("iptables", "-F", outChain).Run(); err != nil {
+		r.logger.Error("failed to flush egress chain", err, "chain", outChain)
 		return err
 	}
 
@@ -111,7 +119,9 @@ func (r *ruleProvisioner) Provision(rule *infra.FirewallRule) error {
 	// 4. 应用 Ingress (源地址匹配 -s)
 	for _, tr := range rule.Ingress {
 		for _, ip := range tr.Peers {
+			r.logger.Debug("adding ingress rule", "chain", inChain, "src", ip, "protocol", tr.Protocol, "port", tr.Port, "action", tr.Action)
 			if err := r.addRule(inChain, "-s", ip, tr); err != nil {
+				r.logger.Error("failed to add ingress rule", err, "chain", inChain, "src", ip)
 				return err
 			}
 		}
@@ -120,7 +130,9 @@ func (r *ruleProvisioner) Provision(rule *infra.FirewallRule) error {
 	// 5. 应用 Egress (目的地址匹配 -d)
 	for _, tr := range rule.Egress {
 		for _, ip := range tr.Peers {
+			r.logger.Debug("adding egress rule", "chain", outChain, "dst", ip, "protocol", tr.Protocol, "port", tr.Port, "action", tr.Action)
 			if err := r.addRule(outChain, "-d", ip, tr); err != nil {
+				r.logger.Error("failed to add egress rule", err, "chain", outChain, "dst", ip)
 				return err
 			}
 		}
@@ -135,6 +147,7 @@ func (r *ruleProvisioner) Provision(rule *infra.FirewallRule) error {
 		return err
 	}
 
+	r.logger.Info("iptables rules applied", "ingress", inChain, "egress", outChain)
 	return nil
 }
 
@@ -182,7 +195,12 @@ func (p *ruleProvisioner) addRule(chain, dir, ip string, tr infra.TrafficRule) e
 	} else {
 		args = []string{"-A", chain, dir, ip, "-j", target}
 	}
-	return exec.Command("iptables", args...).Run()
+	p.logger.Debug("iptables", "cmd", fmt.Sprintf("iptables %s", strings.Join(args, " ")))
+	if err := exec.Command("iptables", args...).Run(); err != nil {
+		p.logger.Error("iptables rule failed", err, "args", args)
+		return err
+	}
+	return nil
 }
 
 func (p *ruleProvisioner) Cleanup() error {

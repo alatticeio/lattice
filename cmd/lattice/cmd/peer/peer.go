@@ -43,7 +43,7 @@ token. Use 'peer label' to attach custom labels that policy selectors can match.
 }
 
 func newClient() (*cmd.Client, error) {
-	return cmd.NewClient(config.Conf.SignalingURL)
+	return cmd.NewClient(config.Conf.ServerUrl, config.Conf.AuthToken)
 }
 
 // peerListCmd: lattice peer list -n <namespace>

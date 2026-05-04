@@ -19,7 +19,7 @@ package infra
 
 // setSrcControl parses the control for PKTINFO and if found updates ep with
 // the source information found.
-func setSrcControl(control *[]byte, ep *WRRPEndpoint) {
+func setSrcControl(control *[]byte, ep *LRPEndpoint) {
 }
 
 // srcControlSize returns the recommended buffer size for pooling sticky control

@@ -33,7 +33,7 @@ ICE 来穿透。
 │  WireGuard  │◄──►  WireGuard  │◄──►  WireGuard  │   
 │  TUN + UDP  │   │  TUN + UDP  │   │  TUN + UDP  │                                                    
 └─────────────┘   └─────────────┘   └─────────────┘   
-ICE / WRRP (P2P or relay)
+ICE / LRP (P2P or relay)
 
 三个层次职责分明：
 
@@ -334,7 +334,7 @@ changes := msg.Changes
 增量模式避免了全量 diff，在节点数量大时显著降低 Agent CPU 开销。
    
 ---                                                                                                        
-八、NAT 穿透：ICE + WRRP 双保险
+八、NAT 穿透：ICE + LRP 双保险
 
 这是 Overlay 网络最棘手的问题：两台机器都在 NAT 后面，如何建立直连？
 
@@ -373,7 +373,7 @@ type Probe struct {
 localId  PeerIdentity                                                                                  
 remoteId PeerIdentity
 signal   SignalService                                                                                 
-dialers  []Dialer  // [ICEDialer, WRRPDialer]         
+dialers  []Dialer  // [ICEDialer, LRPDialer]         
 }
 
 func (p *Probe) Connect() error {                                                                          
@@ -388,17 +388,17 @@ return nil
 return ErrCannotConnect                               
 }
 
-ICE 成功则直连（延迟低），失败则 fallback 到 WRRP relay（延迟高但保证可达）。
+ICE 成功则直连（延迟低），失败则 fallback 到 LRP relay（延迟高但保证可达）。
 
-8.3 WRRP Endpoint 格式
+8.3 LRP Endpoint 格式
 
-// Endpoint 格式：wrrp://{remoteId}
-// DefaultBind.ParseEndpoint() 识别 scheme 并路由给 WRRPDialer                                             
+// Endpoint 格式：lrp://{remoteId}
+// DefaultBind.ParseEndpoint() 识别 scheme 并路由给 LRPDialer                                             
 func (b *DefaultBind) ParseEndpoint(s string) (conn.Endpoint, error) {                                     
 u, _ := url.Parse(s)                                                                                   
 switch u.Scheme {                                                                                      
-case "wrrp":                                                                                           
-return &WRRPEndpoint{RemoteID: u.Host}, nil                                                        
+case "lrp":
+return &LRPEndpoint{RemoteID: u.Host}, nil                                                        
 default:
 return parseUDPEndpoint(s)                                                                         
 }                                                                                                      
@@ -454,7 +454,7 @@ resources:
 ├──────────────────────┼──────────────────────────────────────┼───────────────────────────────────┤
 │ 如何分发配置变更     │ NATS Pub/Sub                         │ 解耦控制平面与 Agent，天然 fanout │        
 ├──────────────────────┼──────────────────────────────────────┼───────────────────────────────────┤        
-│ 如何处理 NAT         │ ICE + WRRP fallback                  │ 覆盖直连、STUN、TURN 所有场景     │        
+│ 如何处理 NAT         │ ICE + LRP fallback                  │ 覆盖直连、STUN、TURN 所有场景     │        
 ├──────────────────────┼──────────────────────────────────────┼───────────────────────────────────┤        
 │ 如何保证幂等         │ ConfigVersion + 全量 reconcile       │ 增量失败时可安全重放全量          │
 ├──────────────────────┼──────────────────────────────────────┼───────────────────────────────────┤        

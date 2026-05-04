@@ -30,15 +30,15 @@ import (
 )
 
 var (
-	_ infra.Dialer = (*wrrpDialer)(nil)
+	_ infra.Dialer = (*lrpDialer)(nil)
 )
 
-type wrrpDialer struct {
+type lrpDialer struct {
 	mu             sync.Mutex
 	log            *log.Logger
 	localId        infra.PeerIdentity
 	remoteId       infra.PeerIdentity
-	wrrp           infra.Wrrp
+	lrp           infra.Lrp
 	readyChan      chan struct{}
 	readyOnce      sync.Once // guards close(readyChan)
 	active         bool      // true once SYN/ACK exchange completes; guarded by mu
@@ -52,10 +52,10 @@ type wrrpDialer struct {
 	stopChan       chan struct{} // closed on Close() to unblock goroutines
 }
 
-type WrrpDialerConfig struct {
+type LrpDialerConfig struct {
 	LocalId   infra.PeerIdentity
 	RemoteId  infra.PeerIdentity
-	Wrrp      infra.Wrrp
+	Lrp      infra.Lrp
 	SM        *SessionManager
 	SessionId uint64
 	// GetLocalPeer is called at send time so late-arriving ApplyFullConfig
@@ -69,12 +69,12 @@ type WrrpDialerConfig struct {
 	OnRestart func()
 }
 
-func NewWrrpDialer(cfg *WrrpDialerConfig) infra.Dialer {
-	return &wrrpDialer{
-		log:            log.GetLogger("wrrp-dialer"),
+func NewLrpDialer(cfg *LrpDialerConfig) infra.Dialer {
+	return &lrpDialer{
+		log:            log.GetLogger("lrp-dialer"),
 		localId:        cfg.LocalId,
 		remoteId:       cfg.RemoteId,
-		wrrp:           cfg.Wrrp,
+		lrp:           cfg.Lrp,
 		readyChan:      make(chan struct{}),
 		stopChan:       make(chan struct{}),
 		sm:             cfg.SM,
@@ -88,7 +88,7 @@ func NewWrrpDialer(cfg *WrrpDialerConfig) infra.Dialer {
 // Prepare sends HANDSHAKE_SYN every 2 s for up to 60 s.
 // Both sides send SYN so that either side can detect a remote restart.
 // The first SYN is sent immediately (no initial 2 s wait), matching iceDialer behaviour.
-func (w *wrrpDialer) Prepare(ctx context.Context, remoteId infra.PeerIdentity) error {
+func (w *lrpDialer) Prepare(ctx context.Context, remoteId infra.PeerIdentity) error {
 	go func() {
 		ticker := time.NewTicker(2 * time.Second)
 		defer ticker.Stop()
@@ -128,10 +128,10 @@ func (w *wrrpDialer) Prepare(ctx context.Context, remoteId infra.PeerIdentity) e
 	return nil
 }
 
-func (w *wrrpDialer) sendPacket(ctx context.Context, remoteId infra.PeerIdentity, packetType grpc.PacketType, _ ice.Candidate) error {
+func (w *lrpDialer) sendPacket(ctx context.Context, remoteId infra.PeerIdentity, packetType grpc.PacketType, _ ice.Candidate) error {
 	p := &grpc.SignalPacket{
 		Type:     packetType,
-		Dialer:   grpc.DialerType_WRRP,
+		Dialer:   grpc.DialerType_LRP,
 		SenderId: w.localId.ID().ToUint64(),
 	}
 
@@ -157,14 +157,14 @@ func (w *wrrpDialer) sendPacket(ctx context.Context, remoteId infra.PeerIdentity
 	return w.sender(ctx, remoteId.ID(), data)
 }
 
-func (w *wrrpDialer) sendOfferFromWrrp(ctx context.Context, offerType grpc.PacketType) error {
+func (w *lrpDialer) sendOfferFromLrp(ctx context.Context, offerType grpc.PacketType) error {
 	data, err := json.Marshal(w.getLocalPeer())
 	if err != nil {
 		return err
 	}
 	p := &grpc.SignalPacket{
 		Type:     offerType,
-		Dialer:   grpc.DialerType_WRRP,
+		Dialer:   grpc.DialerType_LRP,
 		SenderId: w.localId.ID().ToUint64(),
 		Payload: &grpc.SignalPacket_Offer{
 			Offer: &grpc.Offer{
@@ -178,11 +178,11 @@ func (w *wrrpDialer) sendOfferFromWrrp(ctx context.Context, offerType grpc.Packe
 	if err != nil {
 		return err
 	}
-	return w.wrrp.Send(ctx, w.remoteId.ID().ToUint64(), relay.Probe, offerData)
+	return w.lrp.Send(ctx, w.remoteId.ID().ToUint64(), relay.Probe, offerData)
 }
 
-func (w *wrrpDialer) Handle(ctx context.Context, remoteId infra.PeerIdentity, packet *grpc.SignalPacket) error {
-	if packet.Dialer != grpc.DialerType_WRRP {
+func (w *lrpDialer) Handle(ctx context.Context, remoteId infra.PeerIdentity, packet *grpc.SignalPacket) error {
+	if packet.Dialer != grpc.DialerType_LRP {
 		return nil
 	}
 	switch packet.Type {
@@ -207,7 +207,7 @@ func (w *wrrpDialer) Handle(ctx context.Context, remoteId infra.PeerIdentity, pa
 		w.mu.Unlock()
 
 		if isActive {
-			w.log.Debug("SYN on active WRRP session — remote restarted, triggering restart", "remoteId", remoteId)
+			w.log.Debug("SYN on active LRP session — remote restarted, triggering restart", "remoteId", remoteId)
 			if w.onRestart != nil {
 				w.onRestart()
 			}
@@ -233,7 +233,7 @@ func (w *wrrpDialer) Handle(ctx context.Context, remoteId infra.PeerIdentity, pa
 		// Only the initiator (bigger-ID numerically) drives the OFFER/ANSWER exchange.
 		// Use numeric comparison to avoid decimal string ordering bugs.
 		if isInitiator(w.localId, w.remoteId) {
-			return w.sendOfferFromWrrp(ctx, grpc.PacketType_OFFER)
+			return w.sendOfferFromLrp(ctx, grpc.PacketType_OFFER)
 		}
 		return nil
 
@@ -253,7 +253,7 @@ func (w *wrrpDialer) Handle(ctx context.Context, remoteId infra.PeerIdentity, pa
 			cancel() // stop SYN ticker so we don't trigger spurious onRestart on the remote
 		}
 		w.closeReady()
-		if err := w.sendOfferFromWrrp(ctx, grpc.PacketType_ANSWER); err != nil {
+		if err := w.sendOfferFromLrp(ctx, grpc.PacketType_ANSWER); err != nil {
 			w.log.Error("send ANSWER failed", err)
 		}
 		return nil
@@ -282,26 +282,26 @@ func (w *wrrpDialer) Handle(ctx context.Context, remoteId infra.PeerIdentity, pa
 // Dial blocks until the OFFER/ANSWER exchange completes or the 65 s deadline
 // fires.  The timeout matches iceDialer so discover() sees consistent failure
 // semantics: onFailure → 10 s backoff → probe.restart().
-func (w *wrrpDialer) Dial(ctx context.Context) (infra.Transport, error) {
+func (w *lrpDialer) Dial(ctx context.Context) (infra.Transport, error) {
 	dialCtx, cancel := context.WithTimeout(ctx, 65*time.Second)
 	defer cancel()
 	select {
 	case <-dialCtx.Done():
-		return nil, fmt.Errorf("wrrpDialer: timed out waiting for ready: %w", dialCtx.Err())
+		return nil, fmt.Errorf("lrpDialer: timed out waiting for ready: %w", dialCtx.Err())
 	case <-w.readyChan:
 		remoteAddr := ""
-		if ra := w.wrrp.RemoteAddr(); ra != nil {
+		if ra := w.lrp.RemoteAddr(); ra != nil {
 			remoteAddr = ra.String()
 		}
-		return &WrrpTransport{remoteAddr: remoteAddr}, nil
+		return &LrpTransport{remoteAddr: remoteAddr}, nil
 	}
 }
 
-func (w *wrrpDialer) Type() infra.DialerType {
-	return infra.WRRP_DIALER
+func (w *lrpDialer) Type() infra.DialerType {
+	return infra.LRP_DIALER
 }
 
-func (w *wrrpDialer) Close() error {
+func (w *lrpDialer) Close() error {
 	w.closeOnce.Do(func() {
 		w.mu.Lock()
 		cancel := w.cancel
@@ -314,34 +314,34 @@ func (w *wrrpDialer) Close() error {
 	return nil
 }
 
-func (w *wrrpDialer) closeReady() {
+func (w *lrpDialer) closeReady() {
 	w.readyOnce.Do(func() { close(w.readyChan) })
 }
 
-type WrrpTransport struct {
+type LrpTransport struct {
 	remoteAddr string
 }
 
-func (w WrrpTransport) Priority() uint8 {
+func (w LrpTransport) Priority() uint8 {
 	return infra.PriorityRelay
 }
 
-func (w WrrpTransport) Close() error {
+func (w LrpTransport) Close() error {
 	return nil
 }
 
-func (w WrrpTransport) Write(data []byte) error {
+func (w LrpTransport) Write(data []byte) error {
 	return nil
 }
 
-func (w WrrpTransport) Read(buff []byte) (int, error) {
+func (w LrpTransport) Read(buff []byte) (int, error) {
 	return 0, nil
 }
 
-func (w WrrpTransport) RemoteAddr() string {
+func (w LrpTransport) RemoteAddr() string {
 	return w.remoteAddr
 }
 
-func (w WrrpTransport) Type() infra.TransportType {
-	return infra.WRRP
+func (w LrpTransport) Type() infra.TransportType {
+	return infra.LRP
 }

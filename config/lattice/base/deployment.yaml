@@ -104,18 +104,18 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: wrrper
+  name: lrper
   labels:
-    k8s-app: lattice-wrrper
+    k8s-app: lattice-lrper
 spec:
   replicas: 1
   selector:
     matchLabels:
-      k8s-app: lattice-wrrper
+      k8s-app: lattice-lrper
   template:
     metadata:
       labels:
-        k8s-app: lattice-wrrper
+        k8s-app: lattice-lrper
     spec:
       serviceAccountName: lattice-controller-admin
       initContainers:
@@ -130,7 +130,7 @@ spec:
                 sleep 2
               done
       containers:
-        - name: lattice-wrrper
+        - name: lattice-lrper
           image: manager:latest
           imagePullPolicy: IfNotPresent
           ports:
@@ -138,7 +138,7 @@ spec:
               hostPort: 6266
           args:
             - "start"
-            - "wrrper"
+            - "lrper"
             - "--listen=:6266"
             - "--level=INFO"
           volumeMounts:

@@ -37,7 +37,7 @@ type configField struct {
 //   - 忽略 ServerUrl / Token 校验，始终返回 nil。
 //
 // isServer=false（lattice agent 客户端）：
-//   - 严格校验 SignalingURL、ServerUrl、Token 均非空。
+//   - 严格校验 ServerUrl、Token 均非空。
 //   - TTY 环境：向 stderr 输出美化诊断报告后返回错误。
 //   - 非 TTY（Docker/K8s/CI）：直接返回简洁错误字符串。
 //
@@ -68,7 +68,6 @@ func applyServerDefaults(cfg *Config) error {
 // runClientValidation 对 agent 模式执行严格的字段校验。
 func runClientValidation(cfg *Config) error {
 	fields := []configField{
-		{name: "signaling-url", value: cfg.SignalingURL, suggestion: "--signaling-url nats://<HOST>:4222"},
 		{name: "server-url", value: cfg.ServerUrl, suggestion: "--server-url http://<HOST>:8080"},
 		{name: "token", value: cfg.Token, suggestion: "--token <TOKEN>"},
 	}
@@ -132,9 +131,9 @@ func printDiagnostic(fields []configField, missing []string) {
 	}
 
 	// 3. 修复引导：直接给出 Copy-Paste 命令
-	fmt.Fprintln(w, "\n QUICK FIX:")                                                                                 //nolint:errcheck
-	fmt.Fprintln(w, "   Run the following command to initialize:")                                                   //nolint:errcheck
-	fmt.Fprintf(w, "   %s\n", "lattice up --signaling-url <NATS_URL> --server-url <API_URL> --token <TOKEN> --save") //nolint:errcheck
+	fmt.Fprintln(w, "\n QUICK FIX:")                                                                             //nolint:errcheck
+	fmt.Fprintln(w, "   Run the following command to initialize:")                                               //nolint:errcheck
+	fmt.Fprintf(w, "   %s\n", "lattice up --server-url <API_URL> --token <TOKEN> --save")                       //nolint:errcheck
 
 	// 4. 环境说明：简短的结语
 	fmt.Fprintln(w, "\n To use environment variables instead, check the documentation.") //nolint:errcheck

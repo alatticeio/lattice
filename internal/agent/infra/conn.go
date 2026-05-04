@@ -45,10 +45,10 @@ var (
 // methods for sending and receiving multiple datagrams per-syscall. See the
 // proposal in https://github.com/golang/go/issues/45886#issuecomment-1218301564.
 type DefaultBind struct {
-	logger       *log.Logger
-	PublicKey    wgtypes.Key
-	keyManager   KeyManager
-	wrrperClient Wrrp
+	logger      *log.Logger
+	PublicKey   wgtypes.Key
+	keyManager  KeyManager
+	lrperClient Lrp
 
 	// passThroughCh receives non-STUN packets forwarded by FilteringUDPMux (v4).
 	// makeReceiveIPv4 reads from here instead of the raw socket.
@@ -80,7 +80,7 @@ type BindConfig struct {
 	V6Conn       *net.UDPConn
 	PassThrough  <-chan PassThroughPacket // non-STUN v4 packets from FilteringUDPMux
 	PassThrough6 <-chan PassThroughPacket // non-STUN v6 packets from FilteringUDPMux (v6)
-	WrrpClient   Wrrp
+	LrpClient    Lrp
 	KeyManager   KeyManager
 }
 
@@ -92,7 +92,7 @@ func NewBind(cfg *BindConfig) *DefaultBind {
 		passThroughCh:  cfg.PassThrough,
 		passThrough6Ch: cfg.PassThrough6,
 		keyManager:     cfg.KeyManager,
-		wrrperClient:   cfg.WrrpClient,
+		lrperClient:    cfg.LrpClient,
 		udpAddrPool: sync.Pool{
 			New: func() any {
 				return &net.UDPAddr{
@@ -135,28 +135,28 @@ func (b *DefaultBind) GetPackectConn6() net.PacketConn {
 }
 
 func (b *DefaultBind) ParseEndpoint(s string) (conn.Endpoint, error) {
-	if strings.HasPrefix(s, "wrrp:") {
-		_, after, ok := strings.Cut(s, "wrrp://")
+	if strings.HasPrefix(s, "lrp:") {
+		_, after, ok := strings.Cut(s, "lrp://")
 		if !ok {
-			return nil, errors.New("invalid wrrp endpoint")
+			return nil, errors.New("invalid lrp endpoint")
 		}
 		remoteId, err := strconv.ParseUint(after, 10, 64)
 		if err != nil {
 			return nil, err
 		}
-		// Addr is not used for WRRP routing (Send routes via RemoteId through
-		// wrrperClient), so we don't require a valid relay IP here.
+		// Addr is not used for LRP routing (Send routes via RemoteId through
+		// lrperClient), so we don't require a valid relay IP here.
 		// We opportunistically fill it from the connected client for debugging.
 		var addr netip.AddrPort
-		if b.wrrperClient != nil {
-			if ra := b.wrrperClient.RemoteAddr(); ra != nil {
+		if b.lrperClient != nil {
+			if ra := b.lrperClient.RemoteAddr(); ra != nil {
 				addr, _ = netip.ParseAddrPort(ra.String())
 			}
 		}
-		return &WRRPEndpoint{
+		return &LRPEndpoint{
 			Addr:          addr,
 			RemoteId:      remoteId,
-			TransportType: WRRP,
+			TransportType: LRP,
 		}, nil
 	}
 	e, err := netip.ParseAddrPort(s)
@@ -164,15 +164,15 @@ func (b *DefaultBind) ParseEndpoint(s string) (conn.Endpoint, error) {
 		return nil, err
 	}
 
-	if IsWrrpFakeAddr(e.Addr()) {
-		return &WRRPEndpoint{
+	if IsLrpFakeAddr(e.Addr()) {
+		return &LRPEndpoint{
 			Addr:          e,
-			RemoteId:      RemoteIdFromWrrpFakeAddr(e.Addr()),
-			TransportType: WRRP,
+			RemoteId:      RemoteIdFromLrpFakeAddr(e.Addr()),
+			TransportType: LRP,
 		}, nil
 	}
 
-	return &WRRPEndpoint{
+	return &LRPEndpoint{
 		Addr:          e,
 		TransportType: ICE,
 	}, nil
@@ -249,8 +249,8 @@ func (b *DefaultBind) Open(uport uint16) ([]conn.ReceiveFunc, uint16, error) {
 		return nil, 0, syscall.EAFNOSUPPORT
 	}
 
-	if config.Conf.EnableWrrp {
-		fns = append(fns, b.wrrperClient.ReceiveFunc())
+	if config.Conf.EnableLrp {
+		fns = append(fns, b.lrperClient.ReceiveFunc())
 	}
 
 	return fns, uint16(port), nil
@@ -267,7 +267,7 @@ func (b *DefaultBind) makeReceiveIPv4() conn.ReceiveFunc {
 			return 0, net.ErrClosed
 		}
 		sizes[0] = copy(bufs[0], pkt.Data)
-		eps[0] = &WRRPEndpoint{
+		eps[0] = &LRPEndpoint{
 			Addr:          pkt.Addr.AddrPort(),
 			TransportType: ICE,
 		}
@@ -286,7 +286,7 @@ func (b *DefaultBind) makeReceiveIPv6() conn.ReceiveFunc {
 			return 0, net.ErrClosed
 		}
 		sizes[0] = copy(bufs[0], pkt.Data)
-		eps[0] = &WRRPEndpoint{
+		eps[0] = &LRPEndpoint{
 			Addr:          pkt.Addr.AddrPort(),
 			TransportType: ICE,
 		}
@@ -333,15 +333,15 @@ func (b *DefaultBind) Close() error {
 
 func (b *DefaultBind) Send(bufs [][]byte, endpoint conn.Endpoint) error {
 	// add drp write
-	var e *WRRPEndpoint
+	var e *LRPEndpoint
 	var ok bool
-	if e, ok = endpoint.(*WRRPEndpoint); !ok {
-		return fmt.Errorf("endpoint is not WRRPEndpoint")
+	if e, ok = endpoint.(*LRPEndpoint); !ok {
+		return fmt.Errorf("endpoint is not LRPEndpoint")
 	}
 
-	if e.TransportType == WRRP {
+	if e.TransportType == LRP {
 		for _, buf := range bufs {
-			err := b.wrrperClient.Send(context.Background(), e.RemoteId, WrrpForward, buf)
+			err := b.lrperClient.Send(context.Background(), e.RemoteId, LrpForward, buf)
 			if err != nil {
 				return err
 			}
@@ -386,12 +386,12 @@ func (b *DefaultBind) send4(udpConn *net.UDPConn, pc *ipv4.PacketConn, ep conn.E
 	as4 := ep.DstIP().As4()
 	copy(ua.IP, as4[:])
 	ua.IP = ua.IP[:4]
-	ua.Port = int(ep.(*WRRPEndpoint).Addr.Port())
+	ua.Port = int(ep.(*LRPEndpoint).Addr.Port())
 	msgs := b.ipv4MsgsPool.Get().(*[]ipv4.Message)
 	for i, buf := range bufs {
 		(*msgs)[i].Buffers[0] = buf
 		(*msgs)[i].Addr = ua
-		setSrcControl(&(*msgs)[i].OOB, ep.(*WRRPEndpoint))
+		setSrcControl(&(*msgs)[i].OOB, ep.(*LRPEndpoint))
 	}
 	var (
 		n     int
@@ -429,7 +429,7 @@ func (b *DefaultBind) send6(udpConn *net.UDPConn, pc *ipv6.PacketConn, ep conn.E
 	for i, buf := range bufs {
 		(*msgs)[i].Buffers[0] = buf
 		(*msgs)[i].Addr = ua
-		setSrcControl(&(*msgs)[i].OOB, ep.(*WRRPEndpoint))
+		setSrcControl(&(*msgs)[i].OOB, ep.(*LRPEndpoint))
 	}
 	var (
 		n     int

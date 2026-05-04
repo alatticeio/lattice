@@ -58,7 +58,6 @@ func runInit(cmd *cobra.Command) error {
 
 	// 必填项
 	serverURL := prompt(scanner, "Management server URL (--server-url)", v.GetString("server-url"))
-	signalingURL := prompt(scanner, "Signaling server URL (--signaling-url)", v.GetString("signaling-url"))
 	token := prompt(scanner, "Enrollment token (--token)", v.GetString("token"))
 
 	// 可选项
@@ -67,7 +66,6 @@ func runInit(cmd *cobra.Command) error {
 
 	// 写入 Viper 并保存
 	v.Set("server-url", serverURL)
-	v.Set("signaling-url", signalingURL)
 	v.Set("token", token)
 	if relayURL != "" {
 		v.Set("relay-url", relayURL)
@@ -81,7 +79,9 @@ func runInit(cmd *cobra.Command) error {
 	}
 
 	fmt.Printf("\nConfig saved to %s\n", cfgPath)
-	fmt.Println(`Run "lattice up" to connect.`)
+	fmt.Println(`Next steps:
+  lattice login   — authenticate for management commands (workspace, token, policy)
+  lattice up      — connect this device as a peer`)
 	return nil
 }
 

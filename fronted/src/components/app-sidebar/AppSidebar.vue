@@ -65,6 +65,7 @@ const navMain = computed(() => {
       url: "#",
       icon: ShieldCheck,
       items: [
+        { title: t('common.nav.platformSettings'), url: "/settings/platform" },
         { title: t('common.nav.users'),          url: "/manage/users" },
         { title: t('common.nav.workspaces'),     url: "/manage/workspaces" },
         { title: t('common.nav.networkPeering'), url: "/platform/network-peering" },

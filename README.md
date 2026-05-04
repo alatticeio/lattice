@@ -10,7 +10,7 @@
 [![Container](https://img.shields.io/badge/ghcr.io-alatticeio%2Flattice-blue)](https://github.com/alatticeio/lattice/pkgs/container/lattice)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
-Lattice simplifies the construction of encrypted overlay networks across multi-cloud, cross-datacenter, and edge environments — without touching firewalls or exposing public IPs.
+Lattice is a self-hosted WireGuard orchestration platform that connects any device — laptops, servers, IoT, and Kubernetes pods — into a single encrypted overlay network, without touching firewalls or exposing public IPs.
 
 [**Website**](https://lattice.run) · [**Documentation**](https://lattice.run/docs) · [**Issues**](https://github.com/alatticeio/lattice/issues)
 
@@ -18,13 +18,28 @@ Lattice simplifies the construction of encrypted overlay networks across multi-c
 
 ---
 
+## Why Lattice?
+
+Most mesh VPNs make you choose: either a SaaS-controlled mesh (Tailscale) or a self-hosted mesh with limited management tools (Netbird / Headscale).
+
+**Lattice gives you both — a self-hosted control plane with a full management console.**
+
+Deploy the entire control plane on your infrastructure — bare metal, Docker, or Kubernetes — and manage your network through a web dashboard. No third-party coordination servers, no data leaving your network.
+
+- **Self-hosted dashboard** — Manage peers, policies, monitoring, and workspaces through a web UI, not just CLI
+- **K8s-native + device-native** — The same mesh works for Kubernetes clusters (via CRD operator) and personal devices (via `lattice up`)
+- **Full data sovereignty** — Your keys, your traffic, your infrastructure stays on your infrastructure
+- **Open core** — Apache 2.0 community edition with optional Pro features (eBPF policy, SSO, monitoring)
+
+---
+
 ## Overview
 
-Lattice is a WireGuard management platform built for Kubernetes. It automates the full lifecycle of secure peer-to-peer tunnels:
+Lattice is a WireGuard orchestration platform for Kubernetes and beyond. It automates the full lifecycle of secure peer-to-peer tunnels:
 
-- **Control Plane** — Kubernetes Operator that declaratively manages network topology via CRDs. Acts as the single source of truth for keys, IP allocation, and peer relationships.
-- **Data Plane** — Lightweight agent deployed on each device. Establishes encrypted WireGuard tunnels with automatic NAT traversal (ICE/STUN/TURN), even across symmetric NATs.
-- **Relay Plane** — Built-in WRRP relay server as fallback when direct P2P is not possible.
+- **Control Plane** — Kubernetes Operator (or all-in-one standalone mode) that declaratively manages network topology. Acts as the single source of truth for keys, IP allocation, and peer relationships.
+- **Data Plane** — Lightweight (~12 MB) agent deployed on any device — K8s pods, laptops, servers, or edge. Establishes encrypted WireGuard tunnels with automatic NAT traversal (ICE/STUN/TURN), even across symmetric NATs.
+- **Relay Plane** — Built-in LRP relay server as fallback when direct P2P is not possible.
 
 ## Architecture
 
@@ -101,9 +116,12 @@ docker run -d \
   --restart unless-stopped \
   --privileged \
   --network host \
+  -v ~/.lattice:/root/.lattice \
   ghcr.io/alatticeio/lattice:latest \
-  up --signaling-url nats://<host>:4222 --token <token>
+  up
 ```
+
+Before running, configure via `lattice init` (or pass flags directly: `up --signaling-url nats://<host>:4222 --token <token>`).
 
 ### Binary Download
 
@@ -144,19 +162,24 @@ kubectl apply -k https://github.com/alatticeio/lattice/config/lattice/overlays/a
 
 ## Connecting an Agent
 
-All management commands below use `--signaling-url` to reach the embedded NATS server (default port 4222).
+### 0. One-time setup (interactive)
+
+```bash
+lattice init
+```
+
+Follow the prompts to enter your server URL, signaling URL, and enrollment token. Config is saved to `~/.lattice/lattice.yaml`. After this, all commands read from config — no need to pass `--signaling-url` every time.
 
 ### 1. Create a workspace
 
 ```bash
 lattice workspace add dev \
-  --display-name "Development" \
-  --signaling-url nats://localhost:4222
+  --display-name "Development"
 ```
 
 ```bash
-# List all workspaces (shows namespace values used in subsequent commands)
-lattice workspace list --signaling-url nats://localhost:4222
+# List all workspaces
+lattice workspace list
 ```
 
 ### 2. Create an enrollment token
@@ -165,8 +188,7 @@ lattice workspace list --signaling-url nats://localhost:4222
 lattice token create dev-team \
   -n <namespace> \
   --limit 10 \
-  --expiry 168h \
-  --signaling-url nats://localhost:4222
+  --expiry 168h
 ```
 
 | Flag | Description |
@@ -178,10 +200,12 @@ lattice token create dev-team \
 ### 3. Start an agent
 
 ```bash
-lattice up --signaling-url nats://localhost:4222 --token <token>
+lattice up
 ```
 
-Run as a container:
+Reads config from `~/.lattice/lattice.yaml` (set up via `lattice init`). Flags still override file values when needed.
+
+Run as a container (mount the config directory):
 
 ```bash
 docker run -d \
@@ -189,8 +213,9 @@ docker run -d \
   --restart unless-stopped \
   --privileged \
   --network host \
+  -v ~/.lattice:/root/.lattice \
   ghcr.io/alatticeio/lattice:latest \
-  up --signaling-url nats://localhost:4222 --token <token>
+  up
 ```
 
 ### 4. Allow traffic between peers
@@ -201,8 +226,7 @@ Lattice enforces a **default-deny** policy — agents can establish tunnels but 
 
 ```bash
 lattice policy allow-all \
-  -n <namespace> \
-  --signaling-url nats://localhost:4222
+  -n <namespace>
 ```
 
 **CLI — fine-grained policy:**
@@ -211,8 +235,7 @@ lattice policy allow-all \
 lattice policy add my-policy \
   -n <namespace> \
   --action ALLOW \
-  --desc "allow all peer traffic" \
-  --signaling-url nats://localhost:4222
+  --desc "allow all peer traffic"
 ```
 
 **Dashboard — visual policy editor:**
@@ -312,13 +335,13 @@ lattice token remove <token>
 Delete a workspace and all its peers:
 
 ```bash
-lattice workspace remove <namespace> --signaling-url nats://localhost:4222
+lattice workspace remove <namespace>
 ```
 
 Remove a policy:
 
 ```bash
-lattice policy remove <name> -n <namespace> --signaling-url nats://localhost:4222
+lattice policy remove <name> -n <namespace>
 ```
 
 Uninstall the control plane from Kubernetes:
@@ -331,13 +354,14 @@ kubectl delete -k https://github.com/alatticeio/lattice/config/lattice/overlays/
 
 ## CLI Reference
 
-All commands accept `--signaling-url nats://<host>:4222` to target the control plane.
+All commands read `signaling-url` from the config file (`~/.lattice/lattice.yaml`). Use `lattice init` to set it up, or pass `--signaling-url` to override for a single command.
 
-### Agent
+### Setup & Agent
 
 ```bash
-lattice up     --token <token> --signaling-url <url>
-lattice status
+lattice init     # Interactive first-time setup (saves to ~/.lattice/lattice.yaml)
+lattice up       # Connect to the mesh (reads config, zero flags needed after init)
+lattice status   # Show local WireGuard status and peer list
 ```
 
 ### Workspace

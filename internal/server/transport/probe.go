@@ -39,7 +39,7 @@ type Probe struct {
 	localId    infra.PeerIdentity
 	remoteId   infra.PeerIdentity
 	iceDialer  infra.Dialer
-	wrrpDialer infra.Dialer
+	lrpDialer infra.Dialer
 	iceState   ice.ConnectionState
 	signal     infra.SignalService
 	log        *log.Logger
@@ -52,7 +52,7 @@ type Probe struct {
 
 	// Factory funcs for creating fresh dialers on restart.
 	newIceDialer  func() infra.Dialer
-	newWrrpDialer func() infra.Dialer
+	newLrpDialer func() infra.Dialer
 
 	// onBeforeRestart is called before rebuilding dialers to clean up
 	// stale WireGuard peer state.
@@ -78,9 +78,9 @@ func (p *Probe) Handle(ctx context.Context, remoteId infra.PeerIdentity, packet 
 		d := p.iceDialer
 		p.mu.RUnlock()
 		return d.Handle(ctx, p.remoteId, packet)
-	case grpc.DialerType_WRRP:
+	case grpc.DialerType_LRP:
 		p.mu.RLock()
-		d := p.wrrpDialer
+		d := p.lrpDialer
 		p.mu.RUnlock()
 		return d.Handle(ctx, p.remoteId, packet)
 	}
@@ -98,12 +98,17 @@ func (p *Probe) restart() {
 	}
 	p.mu.Lock()
 	p.iceDialer = p.newIceDialer()
-	if p.newWrrpDialer != nil {
-		p.wrrpDialer = p.newWrrpDialer()
+	if p.newLrpDialer != nil {
+		p.lrpDialer = p.newLrpDialer()
 	}
 	p.mu.Unlock()
 
 	p.epoch.Add(1)
+	// Ensure the state machine is in Failed (or already there) so that Start()
+	// can transition to Probing. This handles the case where restart() is called
+	// directly from a connected state (e.g. ICEReady/LRPReady via LRP OnRestart).
+	// The transition is a no-op if state is already Failed.
+	_ = p.sm.Transition(StateFailed)
 	p.running.Store(false)
 	_ = p.Start(context.Background(), p.remoteId)
 }
@@ -112,11 +117,11 @@ func (p *Probe) restart() {
 func (p *Probe) Close() {
 	p.mu.Lock()
 	p.newIceDialer = nil
-	p.newWrrpDialer = nil
+	p.newLrpDialer = nil
 	d := p.iceDialer
 	p.iceDialer = nil
-	wd := p.wrrpDialer
-	p.wrrpDialer = nil
+	wd := p.lrpDialer
+	p.lrpDialer = nil
 	p.mu.Unlock()
 
 	if d != nil {
@@ -144,7 +149,16 @@ func (p *Probe) Start(ctx context.Context, remoteId infra.PeerIdentity) error {
 	p.log.Debug("Start probe peer", "localId", p.localId, "remoteId", remoteId)
 
 	// Transition to Probing (valid from Created or Failed).
-	_ = p.sm.Transition(StateProbing)
+	// If the transition is rejected (e.g. already ICEReady/LRPReady), the probe
+	// is already connected — reset the running flag and return without starting a
+	// new discovery goroutine. This prevents the closed ICE dialer from being
+	// re-used, which would immediately return ErrDialerClosed, trigger StateFailed,
+	// and tear down the WireGuard peer on every ApplyFullConfig call.
+	if err := p.sm.Transition(StateProbing); err != nil {
+		p.running.Store(false)
+		p.log.Debug("probe already connected, skipping start", "state", p.sm.Current())
+		return nil
+	}
 
 	go func() {
 		t, err := p.discover(ctx)
@@ -183,7 +197,7 @@ func (p *Probe) onSuccess(transport infra.Transport) {
 	if transportType == infra.ICE {
 		_ = p.sm.Transition(StateICEReady)
 	} else {
-		_ = p.sm.Transition(StateWRRPReady)
+		_ = p.sm.Transition(StateLRPReady)
 	}
 }
 
@@ -218,16 +232,16 @@ func (p *Probe) onFailure(err error) {
 	time.AfterFunc(10*time.Second, p.restart)
 }
 
-// discover races ICE and WRRP dialers concurrently.
+// discover races ICE and LRP dialers concurrently.
 func (p *Probe) discover(ctx context.Context) (infra.Transport, error) {
 	dialerCount := 1
-	if config.Conf.EnableWrrp {
+	if config.Conf.EnableLrp {
 		dialerCount = 2
 	}
 
 	result := make(chan infra.Transport, dialerCount)
 	errs := make(chan error, dialerCount)
-	var wrrpWon atomic.Bool
+	var lrpWon atomic.Bool
 
 	go func() {
 		p.log.Debug("Starting ice dialer", "remoteId", p.remoteId)
@@ -242,21 +256,21 @@ func (p *Probe) discover(ctx context.Context) (infra.Transport, error) {
 			return
 		}
 		result <- t
-		if wrrpWon.Load() {
+		if lrpWon.Load() {
 			if err = p.handleUpgradeTransport(t); err != nil {
 				p.log.Error("Upgrade transport failed", err)
 			}
 		}
 	}()
 
-	if config.Conf.EnableWrrp {
+	if config.Conf.EnableLrp {
 		go func() {
-			p.log.Debug("Starting wrrp dialer", "remoteId", p.remoteId)
-			if err := p.wrrpDialer.Prepare(ctx, p.remoteId); err != nil {
+			p.log.Debug("Starting lrp dialer", "remoteId", p.remoteId)
+			if err := p.lrpDialer.Prepare(ctx, p.remoteId); err != nil {
 				errs <- err
 				return
 			}
-			t, err := p.wrrpDialer.Dial(ctx)
+			t, err := p.lrpDialer.Dial(ctx)
 			if err != nil {
 				errs <- err
 				return
@@ -270,13 +284,13 @@ func (p *Probe) discover(ctx context.Context) (infra.Transport, error) {
 	for {
 		select {
 		case t := <-result:
-			if t.Type() == infra.WRRP && config.Conf.EnableWrrp {
+			if t.Type() == infra.LRP && config.Conf.EnableLrp {
 				select {
 				case iceT := <-result:
 					_ = t.Close()
 					return iceT, nil
 				case <-time.After(500 * time.Millisecond):
-					wrrpWon.Store(true)
+					lrpWon.Store(true)
 				}
 			}
 			return t, nil
@@ -307,7 +321,7 @@ func (p *Probe) handleUpgradeTransport(newTransport infra.Transport) error {
 		}()
 	}
 
-	// Transition WRRPReady -> ICEReady: WG config handled by state machine callbacks.
+	// Transition LRPReady -> ICEReady: WG config handled by state machine callbacks.
 	_ = p.sm.Transition(StateICEReady)
 	return nil
 }

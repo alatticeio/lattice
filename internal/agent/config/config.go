@@ -259,11 +259,17 @@ type Config struct {
 
 	// ── 网络 / 地址 ───────────────────────────────────────────────
 
-	// SignalingURL 是 NATS 信令服务地址（对应需求中的 nats_url）。
-	// 空值含义：信令服务不可用——server 端降级为 noop，agent 端 ValidateAndReport 会拒绝启动。
-	// K8s 场景：部署名为 "nats" 的 Service 后，K8s 会注入 NATS_SERVICE_HOST，由
-	// applyK8sFallbacks() 自动补全本字段，无需手动配置。
+	// SignalingURL is the NATS signaling server URL for server-side components.
+	// Agent runtime: use GetSignalingURL()/SetSignalingURL() which check the
+	// runtime override first (set after /api/v1/discovery).
 	SignalingURL string `mapstructure:"signaling-url"`
+
+	// runtimeNATSURL overrides SignalingURL at runtime, set by the agent after
+	// auto-discovery from the server's /api/v1/discovery endpoint.
+	runtimeNATSURL string
+
+	// AuthToken is the JWT stored after 'lattice login'. Used by CLI management commands.
+	AuthToken string `mapstructure:"auth-token"`
 
 	// ServerUrl 是 Manager API 地址（对应需求中的 manager_api_url）。
 	// agent 用于注册、获取 Token、上报状态等控制面操作。
@@ -277,7 +283,7 @@ type Config struct {
 	WgPort        int    `mapstructure:"wg-port"` // WireGuard/ICE UDP 监听端口，默认 51820
 
 	// ── 功能开关 ──────────────────────────────────────────────────
-	EnableWrrp   bool `mapstructure:"enable-wrrp"`
+	EnableLrp    bool `mapstructure:"enable-lrp"`
 	EnableTLS    bool `mapstructure:"enable-tls"`
 	EnableMetric bool `mapstructure:"enable-metric"`
 	EnableDNS    bool `mapstructure:"enable-dns"`
@@ -305,6 +311,19 @@ type Config struct {
 	JWT       JWTConfig       `mapstructure:"jwt"`
 	Dex       DexConfig       `mapstructure:"dex"`
 	AI        AIConfig        `mapstructure:"ai"`
+}
+
+// GetSignalingURL returns the NATS URL, checking the runtime override first.
+func (c *Config) GetSignalingURL() string {
+	if c.runtimeNATSURL != "" {
+		return c.runtimeNATSURL
+	}
+	return c.SignalingURL
+}
+
+// SetSignalingURL stores the discovered NATS URL at runtime (agent-side).
+func (c *Config) SetSignalingURL(url string) {
+	c.runtimeNATSURL = url
 }
 
 // AIConfig 聚合 AI 功能相关配置。
@@ -430,18 +449,6 @@ func ValidateConfig(cfg *Config) error {
 // 其中 Service 名中的 "-" 替换为 "_" 并全部大写。
 // 例如：Service "nats" → NATS_SERVICE_HOST；Service "lattice-manager" → LATTICE_MANAGER_SERVICE_HOST。
 func applyK8sFallbacks(cfg *Config) {
-	// ── NATS 信令地址 ─────────────────────────────────────────────
-	if cfg.SignalingURL == "" {
-		if host := os.Getenv("NATS_SERVICE_HOST"); host != "" {
-			port := os.Getenv("NATS_SERVICE_PORT")
-			if port == "" {
-				port = "4222"
-			}
-			cfg.SignalingURL = "nats://" + host + ":" + port
-			log.Info("K8s service discovery: NATS_SERVICE_HOST", "signaling-url", cfg.SignalingURL)
-		}
-	}
-
 	// ── Manager API 地址：依次检测常见 Service 名对应的环境变量 ──
 	if cfg.ServerUrl == "" {
 		for _, prefix := range []string{
@@ -540,10 +547,9 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("env", "dev")
 
 	// 关键连接地址：不设硬编码默认值，空值即"未配置"语义：
-	//   signaling-url = ""  → 信令服务不可用（server 端降级，agent 端 ValidateConfig 报错）
 	//   server-url    = ""  → Manager API 未知（agent 端 ValidateConfig 报错）
 	//   database.dsn  = ""  → 自动退化为本地 SQLite lattice.db（inferDatabaseDriver 处理）
-	v.SetDefault("signaling-url", "")
+	v.SetDefault("auth-token", "")
 	v.SetDefault("server-url", "")
 
 	v.SetDefault("stun-url", "stun.alattice.io:3478")

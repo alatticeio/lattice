@@ -42,7 +42,11 @@ func (p *peerResolver) ResolvePeers(ctx context.Context, msg *infra.Message, pol
 	return GetComputedPeers(msg.Current, msg.Network, policies), nil
 }
 
-// 假设我们要为当前节点 currPeer 生成连接列表
+// GetComputedPeers determines which peers the current node should establish
+// WireGuard tunnels with. When any policy matches the current node, all
+// peers in the network are included — policies control firewall rules via
+// ComputedRules, not peer connectivity. IPBlock-only rules (which can't
+// resolve to specific peers) still need full mesh connectivity.
 func GetComputedPeers(current *infra.Peer, network *infra.Network, policies []*v1alpha1.LatticePolicy) []*infra.Peer {
 	allPeers := network.Peers
 	finalPeersMap := make(map[string]*infra.Peer)
@@ -52,7 +56,7 @@ func GetComputedPeers(current *infra.Peer, network *infra.Network, policies []*v
 			continue
 		}
 
-		// 2. 处理出站 (Egress): 这些是当前节点主动要连接的目标
+		// Process egress: which peers this node connects to
 		for _, egress := range policy.Spec.Egress {
 			for _, peerSelection := range egress.To {
 				matchedPeers := resolveSelectionToPeers(peerSelection, allPeers)
@@ -64,10 +68,7 @@ func GetComputedPeers(current *infra.Peer, network *infra.Network, policies []*v
 			}
 		}
 
-		// 3. 处理入站 (Ingress):
-		// 注意：在对等网络中，如果 A 允许 B 入站，通常意味着 B 需要连接 A。
-		// 如果你的逻辑是生成“被动允许列表”，则记录在别处；
-		// 如果是生成“全双工连接”，则也需要把 Ingress 节点加入。
+		// Process ingress: peers that connect to this node
 		for _, ingress := range policy.Spec.Ingress {
 			for _, p := range ingress.From {
 				matchedPeers := resolveSelectionToPeers(p, allPeers)
@@ -75,6 +76,17 @@ func GetComputedPeers(current *infra.Peer, network *infra.Network, policies []*v
 					if peer.Name != current.Name {
 						finalPeersMap[peer.Name] = peer
 					}
+				}
+			}
+		}
+
+		// If this policy matched but no peers were resolved via PeerSelector
+		// (e.g. IPBlock-only rules), include all network peers to ensure full
+		// mesh connectivity. Policies control firewall rules, not peer topology.
+		if len(finalPeersMap) == 0 {
+			for _, peer := range allPeers {
+				if peer.Name != current.Name {
+					finalPeersMap[peer.Name] = peer
 				}
 			}
 		}

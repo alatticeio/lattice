@@ -1,10 +1,14 @@
 package e2e
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	latticev1 "github.com/alatticeio/lattice/api/v1alpha1"
+	"github.com/alatticeio/lattice/pkg/utils/resp"
+	"net/http"
 	"testing"
 
 	"path/filepath"
@@ -63,6 +67,29 @@ var _ = BeforeSuite(func() {
 
 	latticeClient, err = client.New(restConfig, client.Options{Scheme: s})
 	Expect(err).NotTo(HaveOccurred(), "无法创建 CRD Client")
+
+	By("登录并配置 NATS URL（agent pod 通过 discovery 获取正确的 NATS 地址）")
+	loginBody, _ := json.Marshal(map[string]string{"username": "admin", "password": "123456"})
+	loginResp, err := http.Post(manageUrl+"/api/v1/users/login", "application/json", bytes.NewBuffer(loginBody))
+	Expect(err).NotTo(HaveOccurred(), "登录失败")
+	defer loginResp.Body.Close() //nolint:errcheck
+
+	var loginData resp.Response
+	Expect(json.NewDecoder(loginResp.Body).Decode(&loginData)).To(Succeed())
+	dataMap, ok := loginData.Data.(map[string]any)
+	Expect(ok).To(BeTrue(), "登录响应格式错误")
+	token, ok := dataMap["token"].(string)
+	Expect(ok && token != "").To(BeTrue(), "未找到 token")
+
+	natsSvcDNS := "nats://lattice-nats-service.lattice-system.svc.cluster.local:4222"
+	settingsBody, _ := json.Marshal(map[string]string{"nats_url": natsSvcDNS})
+	req, _ := http.NewRequest(http.MethodPut, manageUrl+"/api/v1/settings/platform", bytes.NewBuffer(settingsBody))
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Content-Type", "application/json")
+	settingsResp, err := http.DefaultClient.Do(req)
+	Expect(err).NotTo(HaveOccurred(), "写入 settings 失败")
+	Expect(settingsResp.StatusCode).To(Equal(http.StatusOK), "settings API 返回非 200")
+	settingsResp.Body.Close() //nolint:errcheck
 
 	By("测试环境就绪，Namespace: " + ns)
 })
