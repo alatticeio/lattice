@@ -33,5 +33,5 @@ func NewDex(_ service.UserService) (*Dex, error) {
 }
 
 func (d *Dex) Login(c *gin.Context) {
-	c.JSON(503, gin.H{"error": "OIDC authentication requires Lattice Pro"})
+	c.JSON(402, gin.H{"error": "OIDC/SSO authentication requires Lattice Pro — upgrade at https://alattice.io/pro"})
 }

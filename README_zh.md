@@ -83,7 +83,7 @@ Lattice 使用基于 Token 的认证系统安全管理节点入网授权。如�
 
 ```bash
 lattice token create dev-team \
-  --signaling-url nats://localhost:4222 \
+  --server-url http://localhost:8080 \
   -n test --limit 5 --expiry 168h
 ```
 
@@ -96,7 +96,7 @@ lattice token create dev-team \
 ### 使用令牌接入网络
 
 ```bash
-lattice up --signaling-url nats://localhost:4222 --token <token>
+lattice up --server-url http://localhost:8080 --token <token>
 ```
 
 在 Docker 中运行：
@@ -104,7 +104,7 @@ lattice up --signaling-url nats://localhost:4222 --token <token>
 ```bash
 docker run -d --name lattice --restart=always \
   ghcr.io/alatticeio/lattice:latest up \
-  --signaling-url nats://localhost:4222 --token <token>
+  --server-url http://localhost:8080 --token <token>
 ```
 
 ### 在控制面查看节点

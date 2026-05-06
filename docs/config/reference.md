@@ -6,7 +6,6 @@ The agent configuration file is created by `lattice init` and read by `lattice u
 
 ```yaml
 server-url: "http://lattice.example.com:8080"
-signaling-url: "nats://lattice.example.com:4222"
 token: "eyJhbGci..."
 relay-url: "relay.example.com:6266"
 relay-quic-url: "relay.example.com:6267"
@@ -15,10 +14,11 @@ relay-quic-url: "relay.example.com:6267"
 | Key | Required | Description |
 |-----|----------|-------------|
 | `server-url` | Yes | Management server HTTP URL |
-| `signaling-url` | Yes | NATS signaling server URL |
 | `token` | Yes | Enrollment token |
 | `relay-url` | No | TCP relay server address |
 | `relay-quic-url` | No | QUIC relay server address |
+
+> **Note:** `signaling-url` (NATS URL) is auto-discovered from `server-url` via `/api/v1/discovery`. You can still set it manually to override the discovered value.
 
 ## Server Config (`/etc/lattice/lattice.yaml`)
 

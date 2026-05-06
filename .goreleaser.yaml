@@ -1,4 +1,4 @@
-version: 1
+version: 2
 project_name: lattice
 
 builds:
@@ -41,6 +41,49 @@ builds:
       - amd64
       - arm64
 
+  # Pro: Edge Agent
+  - id: "lattice-pro"
+    binary: "lattice-pro"
+    main: "./cmd/lattice/main.go"
+    flags:
+      - -tags pro
+    env:
+      - CGO_ENABLED=0
+    ldflags:
+      - -s -w
+      - -X lattice/pkg/version.Version={{.Version}}
+      - -X lattice/pkg/version.GitCommit={{.Commit}}
+      - -X lattice/pkg/version.BuildTime={{.Date}}
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ignore:
+      - goos: windows
+        goarch: arm64
+
+  # Pro: All-in-One 控制面（仅 linux）
+  - id: "latticed-pro"
+    binary: "latticed-pro"
+    main: "./cmd/latticed/main.go"
+    flags:
+      - -tags pro
+    env:
+      - CGO_ENABLED=0
+    ldflags:
+      - -s -w
+      - -X lattice/pkg/version.Version={{.Version}}
+      - -X lattice/pkg/version.GitCommit={{.Commit}}
+      - -X lattice/pkg/version.BuildTime={{.Date}}
+    goos:
+      - linux
+    goarch:
+      - amd64
+      - arm64
+
 archives:
   # lattice agent 打包（面向边缘/终端用户）
   - id: "lattice-archive"
@@ -56,6 +99,21 @@ archives:
     name_template: "latticed_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     builds:
       - latticed
+
+  # lattice-pro archive
+  - id: "lattice-pro-archive"
+    name_template: "lattice-pro_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    builds:
+      - lattice-pro
+    format_overrides:
+      - goos: windows
+        format: zip
+
+  # latticed-pro archive
+  - id: "latticed-pro-archive"
+    name_template: "latticed-pro_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    builds:
+      - latticed-pro
 
 nfpms:
   # lattice agent package
@@ -121,6 +179,69 @@ nfpms:
       postinstall: ./packaging/scripts/latticed-post-install.sh
       postremove: ./packaging/scripts/latticed-post-remove.sh
 
+  # lattice-pro package
+  - id: "lattice-pro-nfpms"
+    package_name: lattice-pro
+    builds:
+      - lattice-pro
+    vendor: alatticeio
+    homepage: https://github.com/alatticeio/lattice
+    maintainer: "alatticeio <maintainers@alatticeio.io>"
+    description: "Lattice Pro edge agent — includes Pro features (eBPF, TURN, SSO)."
+    license: Lattice Commercial License
+    formats:
+      - rpm
+      - deb
+    bindir: /usr/bin
+    section: net
+    priority: optional
+    contents:
+      - src: ./packaging/lattice.service
+        dst: /usr/lib/systemd/system/lattice.service
+      - src: ./packaging/config.yaml
+        dst: /etc/lattice/config.yaml
+        type: "config|noreplace"
+    overrides:
+      rpm:
+        dependencies:
+          - systemd
+      deb:
+        dependencies:
+          - systemd
+    scripts:
+      postinstall: ./packaging/scripts/lattice-post-install.sh
+      postremove: ./packaging/scripts/lattice-post-remove.sh
+
+  # latticed-pro package
+  - id: "latticed-pro-nfpms"
+    package_name: latticed-pro
+    builds:
+      - latticed-pro
+    vendor: alatticeio
+    homepage: https://github.com/alatticeio/lattice
+    maintainer: "alatticeio <maintainers@alatticeio.io>"
+    description: "Lattice Pro all-in-one control plane — includes Pro features (SSO, telemetry, analytics)."
+    license: Lattice Commercial License
+    formats:
+      - rpm
+      - deb
+    bindir: /usr/bin
+    section: net
+    priority: optional
+    contents:
+      - src: ./packaging/latticed.service
+        dst: /usr/lib/systemd/system/latticed.service
+    overrides:
+      rpm:
+        dependencies:
+          - systemd
+      deb:
+        dependencies:
+          - systemd
+    scripts:
+      postinstall: ./packaging/scripts/latticed-post-install.sh
+      postremove: ./packaging/scripts/latticed-post-remove.sh
+
 brews:
   - name: lattice
     ids:
@@ -128,7 +249,7 @@ brews:
     repository:
       owner: alatticeio
       name: homebrew-tap
-      token: "{{ .Env.GITHUB_TOKEN }}"
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
     directory: Formula
     homepage: https://github.com/alatticeio/lattice
     description: "Lattice edge agent — secure peer-to-peer networking"
@@ -137,6 +258,27 @@ brews:
       system "#{bin}/lattice", "version"
     install: |
       bin.install "lattice"
+    commit_author:
+      name: alatticeio-bot
+      email: maintainers@alatticeio.io
+    skip_upload: false
+    dependencies: []
+
+  - name: lattice-pro
+    ids:
+      - lattice-pro-archive
+    repository:
+      owner: alatticeio
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    directory: Formula
+    homepage: https://github.com/alatticeio/lattice
+    description: "Lattice Pro edge agent — secure peer-to-peer networking with Pro features"
+    license: Apache 2.0
+    test: |
+      system "#{bin}/lattice-pro", "version"
+    install: |
+      bin.install "lattice-pro"
     commit_author:
       name: alatticeio-bot
       email: maintainers@alatticeio.io

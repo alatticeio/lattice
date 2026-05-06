@@ -3,6 +3,7 @@
 package server
 
 import (
+	"github.com/alatticeio/lattice/internal/license"
 	"github.com/alatticeio/lattice/internal/server/dto"
 	"github.com/alatticeio/lattice/pkg/utils/resp"
 
@@ -10,16 +11,18 @@ import (
 )
 
 func (s *Server) dashboardRouter() {
-	// Global dashboard — platform_admin only
+	// Global dashboard — platform_admin only + license check
 	dashApi := s.Group("/api/v1/dashboard")
 	dashApi.Use(s.middleware.PlatformAdminOnly())
+	dashApi.Use(s.requireFeature(license.FeatureDashboard))
 	{
 		dashApi.GET("/overview", s.dashboardOverview())
 	}
 
-	// Workspace-scoped dashboard — any workspace member
+	// Workspace-scoped dashboard — any workspace member + license check
 	wsApi := s.Group("/api/v1/workspaces/:id/dashboard")
 	wsApi.Use(s.middleware.WorkspaceAuthMiddleware(dto.RoleViewer))
+	wsApi.Use(s.requireFeature(license.FeatureDashboard))
 	{
 		wsApi.GET("", s.workspaceDashboard())
 	}

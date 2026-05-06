@@ -8,6 +8,7 @@ import (
 	"github.com/alatticeio/lattice/internal/agent/infra"
 	"github.com/alatticeio/lattice/internal/agent/log"
 	"github.com/alatticeio/lattice/internal/agent/store"
+	"github.com/alatticeio/lattice/internal/license"
 	"github.com/alatticeio/lattice/internal/server/dto"
 	"github.com/alatticeio/lattice/internal/server/resource"
 	"github.com/alatticeio/lattice/pkg/utils"
@@ -105,7 +106,7 @@ func NewTokenService(client *resource.Client, st store.Store) TokenService {
 	return &tokenService{
 		log:           log.GetLogger("token-service"),
 		store:         st,
-		peerService:   NewPeerService(client, st, nil),
+		peerService:   NewPeerService(client, st, nil, license.NewVerifier()),
 		policyService: NewPolicyService(client, st),
 		client:        client,
 	}

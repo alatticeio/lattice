@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"github.com/alatticeio/lattice/internal/agent/infra"
 	"github.com/alatticeio/lattice/internal/agent/store"
+	"github.com/alatticeio/lattice/internal/license"
 	"github.com/alatticeio/lattice/internal/server/dto"
 	managementnats "github.com/alatticeio/lattice/internal/server/nats"
 	"github.com/alatticeio/lattice/internal/server/resource"
@@ -46,9 +47,9 @@ type PeerController interface {
 	DeletePeer(ctx context.Context, namespace, name string) error
 }
 
-func NewPeerController(client *resource.Client, st store.Store, presence *managementnats.NodePresenceStore) PeerController {
+func NewPeerController(client *resource.Client, st store.Store, presence *managementnats.NodePresenceStore, verifier license.Verifier) PeerController {
 	return &peerController{
-		peerService:   service.NewPeerService(client, st, presence),
+		peerService:   service.NewPeerService(client, st, presence, verifier),
 		policyService: service.NewPolicyService(client, st),
 	}
 }

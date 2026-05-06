@@ -104,14 +104,14 @@ docker run -d \
 
 ```bash
 # 在有 WireGuard 的设备上
-lattice up --signaling-url nats://<容器主机IP>:4222 --token <token>
+lattice up --server-url http://<容器主机IP>:8080 --token <token>
 ```
 
 Token 在 Dashboard 中创建，或通过 CLI：
 
 ```bash
 docker exec lattice lattice token create my-token \
-  --signaling-url nats://localhost:4222 \
+  --server-url http://localhost:8080 \
   -n default --limit 10
 ```
 

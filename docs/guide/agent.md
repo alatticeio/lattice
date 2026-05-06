@@ -23,11 +23,7 @@ Config is saved to `~/.lattice/lattice.yaml`.
 lattice up
 ```
 
-After `lattice init`, no flags are needed. Flags still override file values when needed:
-
-```bash
-lattice up --signaling-url nats://other-server:4222
-```
+After `lattice init`, no flags are needed. The NATS signaling URL is auto-discovered from the server via `/api/v1/discovery` — only `--server-url` and `--token` are required if you haven't run `lattice init`.
 
 ## Run as a Container
 

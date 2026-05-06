@@ -9,7 +9,6 @@ version: "3.8"
 #   - WF_IMAGE      pro 构建的镜像，需包含 telemetry（--enable-metric 才有效）
 #   - WF_TOKEN      workspace enrollment token（在管理界面创建）
 #   - WF_SERVER_URL lattice management server 地址，如 http://192.168.1.10:8080
-#   - WF_SIGNALING_URL nats/signaling 地址，如 nats://192.168.1.10:4222
 #   - VM_ENDPOINT   VictoriaMetrics 地址，如 http://192.168.1.10:8428
 #
 # 启动:
@@ -38,7 +37,6 @@ x-node: &node
     up
     --token=${WF_TOKEN}
     --server-url=${WF_SERVER_URL}
-    --signaling-url=${WF_SIGNALING_URL}
     --vm-endpoint=${VM_ENDPOINT}/api/v1/write
     --enable-metric
     --enable-sys-log=true

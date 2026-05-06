@@ -14,7 +14,6 @@ on:
   workflow_dispatch:
 
 env:
-  SIGNALING_URL: nats://localhost:4222
   SERVER_URL: http://localhost:8080
   AGENT_IMAGE: ghcr.io/alatticeio/lattice:latest
   K3S_IMAGE: ghcr.io/alatticeio/lattice-k3s:latest
@@ -115,10 +114,10 @@ jobs:
 
       - name: "[Step 1a] lattice workspace add"
         run: |
-          echo ">>> lattice workspace add dev --display-name Development --signaling-url $SIGNALING_URL"
+          echo ">>> lattice workspace add dev --display-name Development --server-url $SERVER_URL"
           WS_OUTPUT=$($LATTICE workspace add dev \
             --display-name "Development" \
-            --signaling-url "$SIGNALING_URL")
+            --server-url "$SERVER_URL")
           echo "$WS_OUTPUT"
 
           NAMESPACE=$(echo "$WS_OUTPUT" | awk '/namespace:/ {print $2}')
@@ -128,8 +127,8 @@ jobs:
 
       - name: "[Step 1b] lattice workspace list"
         run: |
-          echo ">>> lattice workspace list --signaling-url $SIGNALING_URL"
-          LIST=$($LATTICE workspace list --signaling-url "$SIGNALING_URL")
+          echo ">>> lattice workspace list --server-url $SERVER_URL"
+          LIST=$($LATTICE workspace list --server-url "$SERVER_URL")
           echo "$LIST"
           echo "$LIST" | grep -q "$NAMESPACE" \
             && echo "Namespace '$NAMESPACE' visible in list" \
@@ -141,18 +140,18 @@ jobs:
 
       - name: "[Step 2a] lattice token create"
         run: |
-          echo ">>> lattice token create dev-team -n $NAMESPACE --limit 10 --expiry 168h --signaling-url $SIGNALING_URL"
+          echo ">>> lattice token create dev-team -n $NAMESPACE --limit 10 --expiry 168h --server-url $SERVER_URL"
           $LATTICE token create dev-team \
             -n "$NAMESPACE" \
             --limit 10 \
             --expiry 168h \
-            --signaling-url "$SIGNALING_URL"
+            --server-url "$SERVER_URL"
           echo "Token created"
 
       - name: "[Step 2b] lattice token list — extract token value"
         run: |
-          echo ">>> lattice token list -n $NAMESPACE --signaling-url $SIGNALING_URL"
-          TOKEN_LIST=$($LATTICE token list -n "$NAMESPACE" --signaling-url "$SIGNALING_URL")
+          echo ">>> lattice token list -n $NAMESPACE --server-url $SERVER_URL"
+          TOKEN_LIST=$($LATTICE token list -n "$NAMESPACE" --server-url "$SERVER_URL")
           echo "$TOKEN_LIST"
 
           TOKEN=$(echo "$TOKEN_LIST" | awk '/^TOKEN/{found=1; next} found && NF>0 {print $1; exit}')
@@ -165,7 +164,7 @@ jobs:
       # docker run -d --name wf-agent --restart unless-stopped \
       #   --privileged --network host \
       #   ghcr.io/alatticeio/lattice:latest \
-      #   up --signaling-url nats://localhost:4222 --token <token>
+      #   up --server-url http://localhost:8080 --token <token>
       # ════════════════════════════════════════════════════════════════════════
 
       - name: "Wait for operator to create workspace namespace"
@@ -187,7 +186,6 @@ jobs:
           # containers can reach the lattice-k3s ports mapped to the host (8080/4222).
           docker network create wf-test-net
 
-          AGENT_NATS="nats://host.docker.internal:4222"
           AGENT_API="http://host.docker.internal:8080"
 
           echo ">>> docker run -d --name wf-agent-a --privileged --network wf-test-net $AGENT_IMAGE up ..."
@@ -200,7 +198,6 @@ jobs:
             -e LATTICE_APP_ID=ci-wf-agent-a \
             "$AGENT_IMAGE" \
             up \
-            --signaling-url "$AGENT_NATS" \
             --server-url "$AGENT_API" \
             --token "$TOKEN" \
             --level debug
@@ -215,7 +212,6 @@ jobs:
             -e LATTICE_APP_ID=ci-wf-agent-b \
             "$AGENT_IMAGE" \
             up \
-            --signaling-url "$AGENT_NATS" \
             --server-url "$AGENT_API" \
             --token "$TOKEN" \
             --level debug
@@ -225,14 +221,14 @@ jobs:
       - name: "Wait for both agents to register"
         run: |
           for i in $(seq 1 36); do
-            NODE_COUNT=$($LATTICE workspace list --signaling-url "$SIGNALING_URL" 2>/dev/null \
+            NODE_COUNT=$($LATTICE workspace list --server-url "$SERVER_URL" 2>/dev/null \
               | awk '/dev/ {print $4}' || echo 0)
             echo "  Nodes: ${NODE_COUNT:-0}  (attempt $i/36)"
             [[ "${NODE_COUNT:-0}" -ge 2 ]] && break || true
             sleep 5
           done
 
-          FINAL=$($LATTICE workspace list --signaling-url "$SIGNALING_URL")
+          FINAL=$($LATTICE workspace list --server-url "$SERVER_URL")
           echo "$FINAL"
           NODE_COUNT=$(echo "$FINAL" | awk '/dev/ {print $4}')
           [[ "${NODE_COUNT:-0}" -ge 2 ]] \
@@ -267,24 +263,24 @@ jobs:
 
       - name: "[Step 4a] lattice policy allow-all"
         run: |
-          echo ">>> lattice policy allow-all -n $NAMESPACE --signaling-url $SIGNALING_URL"
-          $LATTICE policy allow-all -n "$NAMESPACE" --signaling-url "$SIGNALING_URL"
+          echo ">>> lattice policy allow-all -n $NAMESPACE --server-url $SERVER_URL"
+          $LATTICE policy allow-all -n "$NAMESPACE" --server-url "$SERVER_URL"
           echo "allow-all policy applied"
 
       - name: "[Step 4c] lattice policy add"
         run: |
-          echo ">>> lattice policy add my-policy -n $NAMESPACE --action ALLOW --signaling-url $SIGNALING_URL"
+          echo ">>> lattice policy add my-policy -n $NAMESPACE --action ALLOW --server-url $SERVER_URL"
           $LATTICE policy add my-policy \
             -n "$NAMESPACE" \
             --action ALLOW \
             --desc "allow all peer traffic" \
-            --signaling-url "$SIGNALING_URL"
+            --server-url "$SERVER_URL"
           echo "my-policy added"
 
       - name: "[Step 4d] lattice policy list"
         run: |
-          echo ">>> lattice policy list -n $NAMESPACE --signaling-url $SIGNALING_URL"
-          POLICIES=$($LATTICE policy list -n "$NAMESPACE" --signaling-url "$SIGNALING_URL")
+          echo ">>> lattice policy list -n $NAMESPACE --server-url $SERVER_URL"
+          POLICIES=$($LATTICE policy list -n "$NAMESPACE" --server-url "$SERVER_URL")
           echo "$POLICIES"
           echo "$POLICIES" | grep -q "allow-all" \
             && echo "allow-all present" || { echo "allow-all missing"; exit 1; }
@@ -405,9 +401,9 @@ jobs:
 
       - name: "[Step 6a] lattice token remove"
         run: |
-          echo ">>> lattice token remove $TOKEN -n $NAMESPACE --signaling-url $SIGNALING_URL"
-          $LATTICE token remove "$TOKEN" -n "$NAMESPACE" --signaling-url "$SIGNALING_URL"
-          REMAINING=$($LATTICE token list -n "$NAMESPACE" --signaling-url "$SIGNALING_URL")
+          echo ">>> lattice token remove $TOKEN -n $NAMESPACE --server-url $SERVER_URL"
+          $LATTICE token remove "$TOKEN" -n "$NAMESPACE" --server-url "$SERVER_URL"
+          REMAINING=$($LATTICE token list -n "$NAMESPACE" --server-url "$SERVER_URL")
           echo "$REMAINING"
           echo "$REMAINING" | grep -q "^$TOKEN" \
             && { echo "Token still present"; exit 1; } \
@@ -415,9 +411,9 @@ jobs:
 
       - name: "[Step 6b] lattice policy remove"
         run: |
-          echo ">>> lattice policy remove my-policy -n $NAMESPACE --signaling-url $SIGNALING_URL"
-          $LATTICE policy remove my-policy -n "$NAMESPACE" --signaling-url "$SIGNALING_URL"
-          POLICIES=$($LATTICE policy list -n "$NAMESPACE" --signaling-url "$SIGNALING_URL")
+          echo ">>> lattice policy remove my-policy -n $NAMESPACE --server-url $SERVER_URL"
+          $LATTICE policy remove my-policy -n "$NAMESPACE" --server-url "$SERVER_URL"
+          POLICIES=$($LATTICE policy list -n "$NAMESPACE" --server-url "$SERVER_URL")
           echo "$POLICIES"
           echo "$POLICIES" | grep -q "my-policy" \
             && { echo "my-policy still present"; exit 1; } \
@@ -425,9 +421,9 @@ jobs:
 
       - name: "[Step 6c] lattice workspace remove"
         run: |
-          echo ">>> lattice workspace remove $NAMESPACE --signaling-url $SIGNALING_URL"
-          $LATTICE workspace remove "$NAMESPACE" --signaling-url "$SIGNALING_URL"
-          WORKSPACES=$($LATTICE workspace list --signaling-url "$SIGNALING_URL")
+          echo ">>> lattice workspace remove $NAMESPACE --server-url $SERVER_URL"
+          $LATTICE workspace remove "$NAMESPACE" --server-url "$SERVER_URL"
+          WORKSPACES=$($LATTICE workspace list --server-url "$SERVER_URL")
           echo "$WORKSPACES"
           echo "$WORKSPACES" | grep -q "$NAMESPACE" \
             && { echo "Workspace still present"; exit 1; } \

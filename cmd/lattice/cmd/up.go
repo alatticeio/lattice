@@ -42,20 +42,20 @@ workspace's network policies.
 Configuration is read from ~/.lattice/config.yaml. CLI flags override file values.
 Use --save to persist the current flags back to the config file.
 First time? Run "lattice init" to set up your config interactively.`,
-		Example: `  # minimal startup
-  lattice up --token <token> --server-url <server-url> --signaling-url <signaling-url>
+		Example: `  # minimal startup (NATS URL is auto-discovered from server)
+  lattice up --token <token> --server-url <server-url>
 
   # save flags to config file for future runs
-  lattice up --token <token> --server-url <server-url> --signaling-url <signaling-url> --save
+  lattice up --token <token> --server-url <server-url> --save
 
   # enable the LRP relay for restrictive NAT environments
-  lattice up --token <token> --server-url <server-url> --signaling-url <signaling-url> --enable-lrp --relay-url <relay-url>`,
+  lattice up --token <token> --server-url <server-url> --enable-lrp --relay-url <relay-url>`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 
 			ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 			defer stop()
 
-			// pre-flight: 严格校验客户端必须配置项（signaling-url / server-url / token）
+			// pre-flight: 严格校验客户端必须配置项（server-url / token）
 			if err := config.ValidateAndReport(config.Conf, false); err != nil {
 				return err
 			}

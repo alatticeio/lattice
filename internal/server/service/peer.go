@@ -20,6 +20,7 @@ import (
 	"github.com/alatticeio/lattice/internal/agent/infra"
 	"github.com/alatticeio/lattice/internal/agent/log"
 	"github.com/alatticeio/lattice/internal/agent/store"
+	"github.com/alatticeio/lattice/internal/license"
 	"github.com/alatticeio/lattice/internal/server/dto"
 	managementnats "github.com/alatticeio/lattice/internal/server/nats"
 	"github.com/alatticeio/lattice/internal/server/resource"
@@ -57,10 +58,11 @@ type PeerService interface {
 }
 
 type peerService struct {
-	logger   *log.Logger
-	client   *resource.Client
-	store    store.Store
-	presence *managementnats.NodePresenceStore
+	logger          *log.Logger
+	client          *resource.Client
+	store           store.Store
+	presence        *managementnats.NodePresenceStore
+	licenseVerifier license.Verifier
 }
 
 const (
@@ -262,12 +264,13 @@ func (p *peerService) CreateToken(ctx context.Context, tokenDto *dto.TokenDto) (
 	return []byte(actualToken), nil
 }
 
-func NewPeerService(client *resource.Client, st store.Store, presence *managementnats.NodePresenceStore) PeerService {
+func NewPeerService(client *resource.Client, st store.Store, presence *managementnats.NodePresenceStore, verifier license.Verifier) PeerService {
 	return &peerService{
-		client:   client,
-		logger:   log.GetLogger("peer-service"),
-		store:    st,
-		presence: presence,
+		client:          client,
+		logger:          log.GetLogger("peer-service"),
+		store:           st,
+		presence:        presence,
+		licenseVerifier: verifier,
 	}
 }
 
@@ -328,6 +331,11 @@ func (p *peerService) Register(ctx context.Context, dto *dto.PeerDto) (*infra.Pe
 
 	if !tokenValid {
 		return nil, fmt.Errorf("token is invalid")
+	}
+
+	// Enforce license node limit for new peers (re-registration is always allowed).
+	if err := p.checkNodeLimit(ctx, token.Namespace, dto.AppID); err != nil {
+		return nil, err
 	}
 
 	node, err := p.client.Register(ctx, token.Namespace, dto)
@@ -411,6 +419,33 @@ func (p *peerService) ensureNamespace(ctx context.Context, nsName string) error 
 				p.logger.Error("create namespace failed", err)
 			}
 		}
+	}
+	return nil
+}
+
+// checkNodeLimit returns an error if the license's MaxNodes limit would be exceeded
+// by registering a new peer. Re-registration of an existing peer is always allowed.
+func (p *peerService) checkNodeLimit(ctx context.Context, namespace, appID string) error {
+	lic, status, _ := p.licenseVerifier.Verify()
+	if status != license.StatusValid || lic == nil || lic.Limits.MaxNodes <= 0 {
+		// Community (no license) or unlimited license: no restriction.
+		return nil
+	}
+
+	// Allow re-registration of an existing peer without counting against the limit.
+	var existing v1alpha1.LatticePeer
+	if err := p.client.GetAPIReader().Get(ctx, types.NamespacedName{Namespace: namespace, Name: appID}, &existing); err == nil {
+		return nil
+	}
+
+	var peerList v1alpha1.LatticePeerList
+	if err := p.client.GetAPIReader().List(ctx, &peerList); err != nil {
+		return fmt.Errorf("check node limit: %w", err)
+	}
+
+	if len(peerList.Items) >= lic.Limits.MaxNodes {
+		return fmt.Errorf("node limit reached (%d/%d) — upgrade at https://alattice.io/pro",
+			len(peerList.Items), lic.Limits.MaxNodes)
 	}
 	return nil
 }

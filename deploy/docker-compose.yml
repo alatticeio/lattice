@@ -9,7 +9,6 @@ services:
       - up
       - --token=${WF_TOKEN}
       - --server-url=${WF_SERVER_URL}
-      - --signaling-url=${WF_SIGNALING_URL}
       - --vm-endpoint=${VM_ENDPOINT}/api/v1/write
       - --enable-metric
       - --save

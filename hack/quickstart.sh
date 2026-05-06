@@ -141,7 +141,7 @@ INITIAL_TOKEN=""
 if command -v lattice &>/dev/null; then
     info "Generating initial agent token via lattice CLI..."
     TOKEN_OUTPUT=$(lattice \
-        --signaling-url "nats://localhost:${NATS_PORT}" \
+        --server-url "http://localhost:${API_PORT}" \
         token create quickstart \
         -n default \
         --limit 100 \
@@ -164,18 +164,18 @@ if [ -n "${INITIAL_TOKEN}" ]; then
 echo "║   One-click Agent connect:                              ║"
 echo "║                                                          ║"
 printf "║     lattice up \\\\                                        ║\n"
-printf "║       --signaling-url nats://localhost:%-18s║\n" "${NATS_PORT} \\"
+printf "║       --server-url http://localhost:%-20s║\n" "${API_PORT} \\"
 printf "║       --token %-43s║\n" "${INITIAL_TOKEN}"
 echo "╚══════════════════════════════════════════════════════════╝"
 else
 echo "║   To connect an agent, first create a token:            ║"
 echo "║                                                          ║"
 printf "║     lattice token create my-token \\\\                    ║\n"
-printf "║       --signaling-url nats://localhost:%-18s║\n" "${NATS_PORT} \\"
+printf "║       --server-url http://localhost:%-21s║\n" "${API_PORT} \\"
 printf "║       -n default --limit 10 --expiry 168h               ║\n"
 echo "║                                                          ║"
 echo "║     lattice up --token <TOKEN>  \\                       ║"
-printf "║       --signaling-url nats://localhost:%-18s║\n" "${NATS_PORT}"
+printf "║       --server-url http://localhost:%-21s║\n" "${API_PORT}"
 echo "╚══════════════════════════════════════════════════════════╝"
 fi
 

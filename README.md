@@ -121,7 +121,7 @@ docker run -d \
   up
 ```
 
-Before running, configure via `lattice init` (or pass flags directly: `up --signaling-url nats://<host>:4222 --token <token>`).
+Before running, configure via `lattice init` (or pass flags directly: `up --server-url http://<host>:8080 --token <token>`).
 
 ### Binary Download
 
@@ -168,7 +168,7 @@ kubectl apply -k https://github.com/alatticeio/lattice/config/lattice/overlays/a
 lattice init
 ```
 
-Follow the prompts to enter your server URL, signaling URL, and enrollment token. Config is saved to `~/.lattice/lattice.yaml`. After this, all commands read from config — no need to pass `--signaling-url` every time.
+Follow the prompts to enter your server URL and enrollment token. Config is saved to `~/.lattice/lattice.yaml`. After this, all commands read from config — no flags needed.
 
 ### 1. Create a workspace
 
@@ -354,7 +354,7 @@ kubectl delete -k https://github.com/alatticeio/lattice/config/lattice/overlays/
 
 ## CLI Reference
 
-All commands read `signaling-url` from the config file (`~/.lattice/lattice.yaml`). Use `lattice init` to set it up, or pass `--signaling-url` to override for a single command.
+All management commands (`workspace`, `token`, `policy`) use `--server-url` to reach the control plane. The NATS signaling URL is auto-discovered — no need to configure it separately. Use `lattice init` for interactive first-time setup.
 
 ### Setup & Agent
 

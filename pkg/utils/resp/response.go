@@ -39,3 +39,8 @@ func Unauthorized(c *gin.Context, msg string) {
 func BadRequest(c *gin.Context, msg string) {
 	c.JSON(http.StatusOK, NewResponse(http.StatusBadRequest, msg, nil))
 }
+
+// PaymentRequired returns a 402 Payment Required response with standardized format.
+func PaymentRequired(c *gin.Context, msg string) {
+	c.JSON(http.StatusOK, NewResponse(http.StatusPaymentRequired, msg, nil))
+}

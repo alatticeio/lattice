@@ -69,11 +69,31 @@ jobs:
           args: ${{ github.event_name == 'push' && 'release --clean --skip=docker' || 'release --snapshot --clean --skip=docker' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
 
-  docker-image:
+  docker-images:
     needs: check
     if: needs.check.outputs.should_run == 'true'
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - service: latticed
+            build_tags: ""
+            tag_suffix: ""
+            image_title: "latticed (community)"
+          - service: lattice
+            build_tags: ""
+            tag_suffix: ""
+            image_title: "lattice (community)"
+          - service: latticed
+            build_tags: "pro"
+            tag_suffix: "-pro"
+            image_title: "latticed (Pro)"
+          - service: lattice
+            build_tags: "pro"
+            tag_suffix: "-pro"
+            image_title: "lattice (Pro)"
     permissions:
       contents: read
       packages: write
@@ -106,17 +126,18 @@ jobs:
         id: meta
         run: |
           OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          SUFFIX="${{ matrix.tag_suffix }}"
           if [ "${{ github.event_name }}" = "push" ]; then
-            # tag push: 用 git tag 作为版本号，同时打 latest
-            echo "tags=ghcr.io/${OWNER}/latticed:${{ github.ref_name }},ghcr.io/${OWNER}/latticed:latest" >> $GITHUB_OUTPUT
+            # tag push
+            echo "tags=ghcr.io/${OWNER}/${{ matrix.service }}:${{ github.ref_name }}${SUFFIX},ghcr.io/${OWNER}/${{ matrix.service }}:latest${SUFFIX}" >> $GITHUB_OUTPUT
             echo "version=${{ github.ref_name }}" >> $GITHUB_OUTPUT
           else
-            # PR: 用 pr-{number} 作为 tag，不覆盖 latest
-            echo "tags=ghcr.io/${OWNER}/latticed:pr-${{ github.event.number }}" >> $GITHUB_OUTPUT
+            # PR
+            echo "tags=ghcr.io/${OWNER}/${{ matrix.service }}:pr-${{ github.event.number }}${SUFFIX}" >> $GITHUB_OUTPUT
             echo "version=pr-${{ github.event.number }}" >> $GITHUB_OUTPUT
           fi
 
-      - name: Build and push latticed image
+      - name: Build and push ${{ matrix.image_title }} image
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -124,11 +145,12 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
           build-args: |
-            TARGETSERVICE=latticed
+            TARGETSERVICE=${{ matrix.service }}
             VERSION=${{ steps.meta.outputs.version }}
+            BUILD_TAGS=${{ matrix.build_tags }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: |
-            org.opencontainers.image.title=latticed
+            org.opencontainers.image.title=${{ matrix.service }}
             org.opencontainers.image.version=${{ steps.meta.outputs.version }}
             org.opencontainers.image.revision=${{ github.sha }}
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}

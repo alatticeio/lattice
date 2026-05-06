@@ -32,6 +32,7 @@ import (
 	"github.com/alatticeio/lattice/internal/server/resource"
 	"github.com/alatticeio/lattice/internal/server/server/middleware"
 	"github.com/alatticeio/lattice/internal/server/service"
+	"github.com/alatticeio/lattice/internal/license"
 	"github.com/alatticeio/lattice/pkg/utils"
 	"time"
 
@@ -80,9 +81,10 @@ type Server struct {
 	auditService    service.AuditService
 	workflowService service.WorkflowService
 
-	store    store.Store
-	presence *managementnats.NodePresenceStore
-	monitor  *monitor.Monitor
+	store             store.Store
+	presence          *managementnats.NodePresenceStore
+	monitor           *monitor.Monitor
+	licenseVerifier   license.Verifier
 }
 
 // ServerConfig is the server configuration.
@@ -174,6 +176,16 @@ func NewServer(ctx context.Context, serverConfig *ServerConfig) (*Server, error)
 		logger.Info("AI service disabled (set ai.enabled=true and ai.api-key to enable)")
 	}
 
+	// ── 许可验证（Pro 版验证 JWT，社区版返回 StatusNotFound）───────────
+	lv := license.NewVerifier()
+	lic, status, err := lv.Verify()
+	if err != nil {
+		logger.Warn("license check", "status", status, "err", err)
+	} else {
+		logger.Info("license valid", "type", lic.Type, "customer", lic.CustomerName,
+			"expires", lic.ExpiresAt.Format(time.RFC3339), "features", lic.Features)
+	}
+
 	// ── 弱依赖④：Monitor（可选）────────────────────────────────────
 	var mon *monitor.Monitor
 	var heartbeatDB *gorm.DB
@@ -203,7 +215,7 @@ func NewServer(ctx context.Context, serverConfig *ServerConfig) (*Server, error)
 		client:                 client,
 		cfg:                    cfg,
 		presence:               presence,
-		peerController:         controller.NewPeerController(client, st, presence),
+		peerController:         controller.NewPeerController(client, st, presence, lv),
 		networkController:      controller.NewNetworkController(client, st),
 		userController:         controller.NewUserController(st),
 		policyController:       controller.NewPolicyController(client, st),
@@ -226,6 +238,7 @@ func NewServer(ctx context.Context, serverConfig *ServerConfig) (*Server, error)
 		store:                  st,
 		aiService:              aiSvc,
 		peeringService:         service.NewPeeringService(client, st),
+		licenseVerifier:        lv,
 		monitor:                mon,
 	}
 

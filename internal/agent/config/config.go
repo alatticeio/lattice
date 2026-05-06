@@ -213,7 +213,7 @@ func (cm *ConfigManager) load(cmd *cobra.Command) error {
 	log.Debug("config loaded", "env", env, "listen", GlobalConfig.Listen, "driver", GlobalConfig.Database.Driver)
 
 	// ── --save：把本次命令行显式指定的参数持久化回配置文件 ───────
-	// 典型用法：lattice up --signaling-url nats://x:4222 --server-url http://y --save
+	// 典型用法：lattice up --server-url http://y --save
 	if f := cmd.Flags().Lookup("save"); f != nil && f.Value.String() == "true" {
 		if err := cm.SaveChangedFlags(cmd); err != nil {
 			log.Warn("failed to save config", "err", err)
@@ -235,9 +235,9 @@ func (cm *ConfigManager) load(cmd *cobra.Command) error {
 // 顶层扁平字段对应 CLI flag 名（BindPFlags 直接映射）；
 // 嵌套子结构体对应 YAML 中的块（也可通过 LATTICE_APP_NAME 等环境变量覆盖）。
 //
-// 三个关键连接字段均无硬编码默认值，必须由用户显式提供：
-//   - SignalingURL（NATS 信令，即 nats_url）：--signaling-url / LATTICE_SIGNALING_URL / NATS_SERVICE_HOST
-//   - ServerUrl  （Manager API，即 manager_api_url）：--server-url / LATTICE_SERVER_URL / LATTICE_MANAGER_SERVICE_HOST
+// 关键连接字段：
+//   - SignalingURL（NATS 信令）：由 server-url 的 /api/v1/discovery 自动发现；可通过 LATTICE_SIGNALING_URL / NATS_SERVICE_HOST 手动覆盖
+//   - ServerUrl  （Manager API）：--server-url / LATTICE_SERVER_URL / LATTICE_MANAGER_SERVICE_HOST（必填）
 //   - Database.DSN：缺省时自动退化为本地 SQLite（lattice.db），无需额外配置
 //
 // 多子服务端口分配约定（All-in-One 模式）：
