@@ -4,7 +4,6 @@ import { useI18n } from 'vue-i18n'
 import { useWorkspaceStore } from '@/stores/workspace'
 import { Zap, Loader2, AlertCircle, CheckCircle2, ArrowLeft } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { toast } from 'vue-sonner'
@@ -104,7 +103,7 @@ const changeColor = (action: string) => {
           v-model="intent"
           :placeholder="t('common.ai.intent.placeholder')"
           :disabled="loading"
-          rows="3"
+          :rows="3"
           class="resize-none"
         />
         <div class="flex justify-end gap-2">

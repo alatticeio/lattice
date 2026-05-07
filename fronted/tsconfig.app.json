@@ -33,13 +33,15 @@
     "src/**/*.ts",
     "src/**/*.d.ts",
     "src/**/*.tsx",
-    "src/**/*.vue",
-    "src/**/*.test.ts",
-    "src/__mocks__/**/*.ts"
+    "src/**/*.vue"
   ],
   "exclude": [
     "node_modules",
     "dist",
-    "src/**/*.vue.d.ts"                // 👈 防止产生重复的 .d.ts 文件
+    "src/**/*.vue.d.ts",
+    "src/**/*.test.ts",
+    "src/**/*.spec.ts",
+    "src/__mocks__",
+    "src/**/__tests__"                // 👈 防止产生重复的 .d.ts 文件
   ]
 }

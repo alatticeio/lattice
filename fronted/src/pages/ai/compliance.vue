@@ -3,8 +3,8 @@ import { ref, onMounted, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useWorkspaceStore } from '@/stores/workspace'
 import {
-  ShieldCheck, AlertTriangle, Info, RefreshCw,
-  Loader2, AlertCircle, Search,
+  AlertTriangle, Info, RefreshCw,
+  AlertCircle, Search,
 } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -13,7 +13,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
-import { fetchAuditReport, type AuditReport, type AuditFinding } from '@/api/ai'
+import { fetchAuditReport, type AuditReport } from '@/api/ai'
 
 definePage({
   meta: { titleKey: 'common.ai.compliance.title', descKey: 'common.ai.compliance.desc' },

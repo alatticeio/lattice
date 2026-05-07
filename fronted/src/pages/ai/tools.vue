@@ -3,15 +3,13 @@ import { ref, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useWorkspaceStore } from '@/stores/workspace'
 import {
-  Puzzle, Search, Play, Loader2, Terminal, X,
+  Puzzle, Search, Play, Loader2, Terminal,
 } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from '@/components/ui/dialog'
-import { toast } from 'vue-sonner'
 import { listTools, callTool, type MCPTool } from '@/api/tools'
 
 definePage({

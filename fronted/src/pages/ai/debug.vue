@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { listSnapshots, diffSnapshots, type NetworkSnapshot, type DiffResult } from '@/api/snapshot'
-import { streamDebug, type DebugStreamEvent } from '@/api/debug'
+import { streamDebug } from '@/api/debug'
 
 definePage({
   meta: { titleKey: 'common.ai.debug.title', descKey: 'common.ai.debug.desc' },

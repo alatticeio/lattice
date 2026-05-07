@@ -4,6 +4,11 @@ import { createPinia, setActivePinia } from 'pinia'
 import { createRouter, createMemoryHistory } from 'vue-router'
 import DashboardPage from '../index.vue'
 
+declare global {
+  // eslint-disable-next-line no-var
+  var definePage: (...args: unknown[]) => void
+}
+
 // Hoisted global mock for definePage (normally auto-imported by unplugin-auto-import)
 vi.hoisted(() => {
   globalThis.definePage = vi.fn()

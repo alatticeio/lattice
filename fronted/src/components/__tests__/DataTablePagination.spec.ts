@@ -2,8 +2,9 @@ import { describe, it, expect } from 'vitest'
 import { mount } from '@vue/test-utils'
 import DataTablePagination from '@/components/DataTablePagination.vue'
 import type { Table } from '@tanstack/vue-table'
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 
-function createMockTable(overrides: Partial<ReturnType<Table<any>>> = {}) {
+function createMockTable(overrides: Record<string, unknown> = {}) {
   return {
     getState: () => ({
       pagination: { pageIndex: 0, pageSize: 10 },
