@@ -35,7 +35,7 @@ make manifests && make build-all
 make test
 
 # Run locally
-Follow the README.md to run or tests locally
+Follow the README.md to run or test locally
 ```
 
 ### How to Contribute
@@ -48,7 +48,7 @@ Follow the README.md to run or tests locally
    - Create a feature branch: git checkout -b feature/amazing-feature
    - Make your changes
    - Run tests: make test
-   - Commit: git commit -m 'Add amazing feature'
+   - Commit: git commit -s -m 'Add amazing feature'
    - Push: git push origin feature/amazing-feature
    - Open a Pull Request
 ### Code Style
