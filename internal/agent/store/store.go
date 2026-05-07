@@ -5,6 +5,7 @@ package store
 
 import (
 	"context"
+	"time"
 
 	"github.com/alatticeio/lattice/internal/server/dto"
 	"github.com/alatticeio/lattice/internal/server/models"
@@ -31,6 +32,8 @@ type Store interface {
 	Alerts() AlertRepository
 	CustomMetrics() CustomMetricRepository
 	SystemConfig() SystemConfigRepository
+	IntentPlans() IntentPlanRepository
+	NetworkSnapshots() NetworkSnapshotRepository
 
 	Close() error
 }
@@ -189,6 +192,22 @@ type SystemConfigRepository interface {
 	Get(ctx context.Context, key string) (string, error)
 	Set(ctx context.Context, key, value string) error
 	GetAll(ctx context.Context) (map[string]string, error)
+}
+
+// IntentPlanRepository manages intent plan records.
+type IntentPlanRepository interface {
+	Create(ctx context.Context, plan *models.IntentPlan) error
+	GetByID(ctx context.Context, id string) (*models.IntentPlan, error)
+	DeleteExpired(ctx context.Context) error
+	Delete(ctx context.Context, id string) error
+}
+
+// NetworkSnapshotRepository manages point-in-time network state captures.
+type NetworkSnapshotRepository interface {
+	Create(ctx context.Context, snap *models.NetworkSnapshot) error
+	GetByID(ctx context.Context, id string) (*models.NetworkSnapshot, error)
+	List(ctx context.Context, workspaceID string, from, to time.Time, triggerType string) ([]*models.NetworkSnapshot, error)
+	DeleteOlderThan(ctx context.Context, before time.Time) (int64, error)
 }
 
 // CustomMetricRepository manages user-defined metric DB operations.

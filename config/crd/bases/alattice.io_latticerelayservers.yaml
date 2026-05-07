@@ -60,7 +60,7 @@ spec:
           metadata:
             type: object
           spec:
-            description: LatticeRelayServerSpec defines the desired state of a LRP
+            description: LatticeRelayServerSpec defines the desired state of an LRP
               relay server.
             properties:
               description:

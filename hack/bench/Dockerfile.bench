@@ -1,0 +1,2 @@
+FROM ghcr.io/alatticeio/lattice:latest
+RUN apk add --no-cache iperf3

@@ -38,7 +38,7 @@ type lrpDialer struct {
 	log            *log.Logger
 	localId        infra.PeerIdentity
 	remoteId       infra.PeerIdentity
-	lrp           infra.Lrp
+	lrp            infra.Lrp
 	readyChan      chan struct{}
 	readyOnce      sync.Once // guards close(readyChan)
 	active         bool      // true once SYN/ACK exchange completes; guarded by mu
@@ -55,7 +55,7 @@ type lrpDialer struct {
 type LrpDialerConfig struct {
 	LocalId   infra.PeerIdentity
 	RemoteId  infra.PeerIdentity
-	Lrp      infra.Lrp
+	Lrp       infra.Lrp
 	SM        *SessionManager
 	SessionId uint64
 	// GetLocalPeer is called at send time so late-arriving ApplyFullConfig
@@ -74,7 +74,7 @@ func NewLrpDialer(cfg *LrpDialerConfig) infra.Dialer {
 		log:            log.GetLogger("lrp-dialer"),
 		localId:        cfg.LocalId,
 		remoteId:       cfg.RemoteId,
-		lrp:           cfg.Lrp,
+		lrp:            cfg.Lrp,
 		readyChan:      make(chan struct{}),
 		stopChan:       make(chan struct{}),
 		sm:             cfg.SM,

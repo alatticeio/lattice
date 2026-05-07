@@ -326,6 +326,18 @@ func (c *Config) SetSignalingURL(url string) {
 	c.runtimeNATSURL = url
 }
 
+// AIWorkflowConfig controls which write tools require human approval.
+type AIWorkflowConfig struct {
+	// AutoApprove maps tool name -> bool. If true, the tool executes immediately.
+	// If false (default), a WorkflowRequest is created and execution waits for approval.
+	// Example:
+	//   auto_approve:
+	//     create_peer: false
+	//     delete_peer: false
+	//     create_policy: false
+	AutoApprove map[string]bool `mapstructure:"auto_approve"`
+}
+
 // AIConfig 聚合 AI 功能相关配置。
 // AI 功能为弱依赖：Enabled=false 或 APIKey 为空时所有 /api/v1/ai/* 接口返回 503。
 type AIConfig struct {
@@ -356,6 +368,9 @@ type AIConfig struct {
 	// AuditSchedule 安全审计定时任务 cron 表达式，默认 "0 2 * * *"（每日凌晨 2 点）。
 	// 留空时禁用定时审计。
 	AuditSchedule string `mapstructure:"audit-schedule"`
+
+	// Workflow controls write-tool approval behaviour.
+	Workflow AIWorkflowConfig `mapstructure:"workflow"`
 }
 
 // AppConfig 聚合应用层服务端配置（不含 CLI 覆盖字段）。

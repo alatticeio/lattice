@@ -18,9 +18,9 @@ var trustedPublicKeys = map[string]string{
 
 // proVerifier performs Ed25519 JWT-based license verification.
 type proVerifier struct {
-	cached      *License
-	cachedAt    time.Time
-	cacheTTL    time.Duration
+	cached   *License
+	cachedAt time.Time
+	cacheTTL time.Duration
 }
 
 // NewVerifier creates a Pro-edition license verifier.

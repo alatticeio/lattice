@@ -80,7 +80,11 @@ const navMain = computed(() => {
       url: '/ai',
       icon: Bot,
       items: [
-        { title: t('common.nav.ai'), url: '/ai' },
+        { title: t('common.nav.aiChat'), url: '/ai' },
+        { title: t('common.nav.aiIntent'), url: '/ai/intent' },
+        { title: t('common.nav.aiDebug'), url: '/ai/debug' },
+        { title: t('common.nav.aiCompliance'), url: '/ai/compliance' },
+        { title: t('common.nav.aiTools'), url: '/ai/tools' },
       ],
     },
 

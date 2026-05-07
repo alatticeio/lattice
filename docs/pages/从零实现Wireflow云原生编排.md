@@ -340,30 +340,34 @@ changes := msg.Changes
 
 8.1 ICE 候选收集
 
-func (d *ICEDialer) GatherCandidates() error {                                                             
-agent, _ := ice.NewAgent(&ice.AgentConfig{                                                             
-Urls: []*stun.URI{{                                                                                
-Scheme: stun.SchemeTypeSTUN,                                                                   
-Host:   "stun.lattice.run",                                                                   
-Port:   3478,                                 
-}},                                                                                                
-NetworkTypes: []ice.NetworkType{ice.NetworkTypeUDP4},
-UDPMux:       d.udpMux, // 复用 Agent 的 51820 端口                                                
-})
+::: v-pre
+```go
+func (d *ICEDialer) GatherCandidates() error {
+    agent, _ := ice.NewAgent(&ice.AgentConfig{
+        Urls: []*stun.URI{{
+            Scheme: stun.SchemeTypeSTUN,
+            Host:   "stun.lattice.run",
+            Port:   3478,
+        }},
+        NetworkTypes: []ice.NetworkType{ice.NetworkTypeUDP4},
+        UDPMux:       d.udpMux, // 复用 Agent 的 51820 端口
+    })
 
-      agent.OnCandidate(func(c ice.Candidate) {                                                              
-          if c != nil {                                                                                      
-              // 通过 NATS 把候选发给对端                   
-              d.signal.Publish(remoteSubject, &ICEMessage{                                                   
-                  Type:      ICECandidate,                                                                   
-                  Candidate: c.Marshal(),                                                                    
-              })                                                                                             
-          }                                                 
-      })                                                                                                     
-                                                            
-      agent.GatherCandidates()
-      return nil
+    agent.OnCandidate(func(c ice.Candidate) {
+        if c != nil {
+            // 通过 NATS 把候选发给对端
+            d.signal.Publish(remoteSubject, &ICEMessage{
+                Type:      ICECandidate,
+                Candidate: c.Marshal(),
+            })
+        }
+    })
+
+    agent.GatherCandidates()
+    return nil
 }
+```
+:::
 
 8.2 探测协调（ProbeFactory）
 

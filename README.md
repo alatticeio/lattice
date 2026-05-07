@@ -10,6 +10,10 @@
 [![Container](https://img.shields.io/badge/ghcr.io-alatticeio%2Flattice-blue)](https://github.com/alatticeio/lattice/pkgs/container/lattice)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
+[![Handshake LAN](https://img.shields.io/endpoint?url=https://alatticeio.github.io/lattice/docs/benchmarks/handshake.json)](https://github.com/alatticeio/lattice/actions/workflows/bench.yml)
+[![Throughput](https://img.shields.io/endpoint?url=https://alatticeio.github.io/lattice/docs/benchmarks/throughput.json)](https://github.com/alatticeio/lattice/actions/workflows/bench.yml)
+[![API p99](https://img.shields.io/endpoint?url=https://alatticeio.github.io/lattice/docs/benchmarks/api-p99.json)](https://github.com/alatticeio/lattice/actions/workflows/bench.yml)
+
 Lattice is a self-hosted WireGuard orchestration platform that connects any device — laptops, servers, IoT, and Kubernetes pods — into a single encrypted overlay network, without touching firewalls or exposing public IPs.
 
 [**Website**](https://lattice.run) · [**Documentation**](https://lattice.run/docs) · [**Issues**](https://github.com/alatticeio/lattice/issues)
@@ -22,14 +26,15 @@ Lattice is a self-hosted WireGuard orchestration platform that connects any devi
 
 Most mesh VPNs make you choose: either a SaaS-controlled mesh (Tailscale) or a self-hosted mesh with limited management tools (Netbird / Headscale).
 
-**Lattice gives you both — a self-hosted control plane with a full management console.**
+**Lattice gives you both — a self-hosted control plane with a full management console, plus built-in AI-native networking capabilities that no other mesh VPN offers.**
 
 Deploy the entire control plane on your infrastructure — bare metal, Docker, or Kubernetes — and manage your network through a web dashboard. No third-party coordination servers, no data leaving your network.
 
 - **Self-hosted dashboard** — Manage peers, policies, monitoring, and workspaces through a web UI, not just CLI
 - **K8s-native + device-native** — The same mesh works for Kubernetes clusters (via CRD operator) and personal devices (via `lattice up`)
 - **Full data sovereignty** — Your keys, your traffic, your infrastructure stays on your infrastructure
-- **Open core** — Apache 2.0 community edition with optional Pro features (eBPF policy, SSO, monitoring)
+- **AI-native networking** — Built-in MCP server, natural-language intent engine, zero-trust AI agent enrollment, and compliance-as-conversation — unique in the mesh VPN space
+- **Open core** — Apache 2.0 community edition with optional Pro features (AI intent engine, eBPF policy, SSO, compliance reporting)
 
 ---
 
@@ -58,6 +63,12 @@ Lattice is a WireGuard orchestration platform for Kubernetes and beyond. It auto
 | Web Dashboard | ✅ |
 | All-in-One deployment (embedded NATS + SQLite, no external deps) | ✅ |
 | Telemetry export (VictoriaMetrics push) | ✅ |
+| **MCP Server — AI assistant integration** | ✅ |
+| **AI Agent Zero-Trust Enrollment — TTL identities, network isolation presets** | ✅ |
+| **Python Agent SDK — `async with LatticeAgent(...)`** | ✅ |
+| **Network Intent Engine (Pro) — natural language → CRD change plans** | ✅ |
+| Compliance-as-Conversation (Pro) | 🔜 |
+| Time-Travel Network Debugging (Pro) | 🔜 |
 | Multi-region / multi-cloud bridging | 🔜 |
 | Smart DNS (internal service naming) | 🔜 |
 
@@ -388,6 +399,167 @@ lattice policy add <name>  -n <namespace> [--action ALLOW|DENY] [--desc <text>]
 lattice policy list  -n <namespace>
 lattice policy remove <name> -n <namespace>
 ```
+
+---
+
+## AI Assistant Integration (MCP)
+
+Lattice ships with an [MCP](https://modelcontextprotocol.io) server (`lattice-mcp`) that lets
+Claude Desktop, Cursor, and other MCP-compatible AI assistants manage your network with natural language.
+
+### Setup
+
+1. Install `lattice-mcp`:
+   ```bash
+   go install github.com/alatticeio/lattice/cmd/lattice-mcp@latest
+   ```
+
+2. Log in to your Lattice server:
+   ```bash
+   lattice login
+   ```
+
+3. Find your workspace ID:
+   ```bash
+   lattice workspace list
+   ```
+
+4. Add to Claude Desktop (`~/.config/claude/claude_desktop_config.json`):
+   ```json
+   {
+     "mcpServers": {
+       "lattice": {
+         "command": "lattice-mcp",
+         "args": ["--workspace", "YOUR_WORKSPACE_ID"]
+       }
+     }
+   }
+   ```
+
+5. Restart Claude Desktop. You can now ask:
+   > "List all peers in my network"
+   > "Create a policy that allows frontend to reach api-gateway on port 443"
+   > "Why can't payment-service reach postgres?"
+   > "Show me all offline peers"
+
+### Available Tools
+
+| Tool | Type | Description |
+|------|------|-------------|
+| `list_peers` | Read | List all WireGuard peers with status |
+| `list_policies` | Read | List all access control policies |
+| `list_networks` | Read | List all networks and CIDRs |
+| `check_connectivity` | Read | Check if two peers can communicate |
+| `audit_workspace` | Read | Security audit of workspace policies |
+| `plan_network_change` | Read (Pro) | Translate natural language intent into a CRD change plan diff |
+| `apply_network_change` | Write (Pro) | Execute an approved change plan (requires admin approval) |
+| `create_policy` | Write | Create an access control policy |
+| `delete_policy` | Write | Delete a policy |
+| `create_peer` | Write | Create a new peer node |
+| `delete_peer` | Write | Delete a peer node |
+
+Write operations require approval in the Lattice dashboard unless `ai.workflow.auto_approve` is configured:
+
+```yaml
+ai:
+  enabled: true
+  api-key: sk-...
+  workflow:
+    auto_approve:
+      create_policy: false  # require approval (default)
+      delete_peer: false    # require approval (default)
+```
+
+---
+
+## AI Agent Networking
+
+Lattice provides **Zero-Trust networking for AI agent clusters**. When running multi-agent
+systems (AutoGen, LangGraph, Claude Agent SDK), each agent gets a unique WireGuard
+identity and network isolation enforced at the kernel level — even if an agent is
+compromised by a prompt injection attack, it cannot reach services outside its policy preset.
+
+### Python SDK
+
+```bash
+pip install lattice-sdk
+```
+
+```python
+from lattice_sdk import LatticeAgent
+
+async with LatticeAgent(
+    server="https://lattice.company.com",
+    token="lt-workspace-token",
+    workspace_id="ws-prod-agents",
+    agent_name="code-executor",
+    agent_type="code-executor",
+    ttl_seconds=3600,
+    policy_preset="sandboxed",   # no ingress, egress to tool services only
+) as agent:
+    # WireGuard tunnel is up; agent.peer_name and agent.enrollment_token are set
+    result = await run_agent_task()
+# Tunnel torn down automatically on exit
+```
+
+### Policy Presets
+
+| Preset | Behaviour |
+|--------|-----------|
+| `sandboxed` | Egress allowed; all ingress denied |
+| `coordinator` | Accepts ingress from same-workspace agents |
+| `isolated` | No network access (whitelist only) |
+
+### REST API
+
+```bash
+# Enroll an agent
+curl -X POST https://lattice.company.com/api/v1/agent-enroll \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"agentName":"executor-1","agentType":"code-executor","workspaceId":"ws-xxx","ttlSeconds":3600,"policyPreset":"sandboxed"}'
+
+# Revoke an agent before TTL expiry
+curl -X DELETE "https://lattice.company.com/api/v1/agent-enroll/agent-executor-1?workspaceId=ws-xxx" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+---
+
+## AI-Native Networking: Lattice vs Other Mesh VPNs
+
+Lattice is the only mesh VPN with a **built-in AI-native networking stack**. While competitors focus on basic connectivity, Lattice treats AI as a first-class citizen of the network.
+
+### AI Feature Comparison
+
+| Capability | Lattice | Tailscale | Netbird | ZeroTier | Netmaker |
+|---|---|---|---|---|---|
+| **MCP Server** — AI assistant manages your network via natural language | ✅ Built-in `lattice-mcp` | ❌ No native MCP; community adapters only | ❌ | ❌ | ❌ |
+| **AI Agent Zero-Trust Enrollment** — Programmatic agent onboarding with TTL + network isolation | ✅ API + Python SDK (`LatticeAgent`) | ❌ Manual ACLs only | ❌ | ❌ | ❌ |
+| **Policy Presets** — `sandboxed` / `coordinator` / `isolated` for AI workloads | ✅ Built-in | ❌ Only raw ACLs | ❌ | ❌ | ❌ |
+| **Network Intent Engine** — "allow frontend to reach api-gateway" → CRD plan → approval → execute | ✅ (Pro) | ❌ | ❌ | ❌ | ❌ |
+| **Compliance-as-Conversation** — "Run PCI-DSS audit" → automated evidence package | 🔜 (Pro) | ❌ | ❌ | ❌ | ❌ |
+| **Write Tool Approval Workflow** — All AI-driven changes require human-in-the-loop | ✅ Built-in | N/A (no AI) | N/A | N/A | N/A |
+| **Time-Travel Network Debugging** — "What changed between Tuesday and Wednesday?" | 🔜 (Pro) | ❌ | ❌ | ❌ | ❌ |
+
+### Why This Matters for AI Workloads
+
+Most AI security discussion focuses on **application-layer** guardrails (prompt injection filters, output validation). But if an AI agent is compromised, network-layer isolation is the last line of defense — and most mesh VPNs don't address this at all.
+
+Lattice's approach:
+- **L1 (MCP Server)** — Any AI assistant (Claude, Cursor, custom agents) can manage the network through natural language, with human approval for all write operations
+- **L2 (Zero-Trust AI Agent Enrollment)** — Each AI agent gets a unique WireGuard identity with TTL and network isolation enforced at kernel level. Even if compromised, lateral movement is impossible
+- **L3 (Network Intent Engine)** — DevOps teams describe desired network state in plain language; the AI generates CRD change plans with diff preview and risk assessment before any change touches the network
+- **L4-L5** — Coming soon: time-travel debugging and compliance-as-conversation for regulated environments
+
+### When to Choose Each
+
+| You should choose Lattice if... | You might prefer alternatives if... |
+|---|---|
+| You run AI agent fleets and need network-layer isolation | You need a simple point-to-point VPN (Tailscale Funnel) |
+| You want AI-assisted network management (MCP + Intent Engine) | You're fully invested in a specific SaaS mesh ecosystem |
+| You need self-hosted data sovereignty + AI capabilities | You only need basic site-to-site VPN |
+| You operate in regulated environments (compliance reporting coming) | You don't need policy enforcement or audit trails |
 
 ---
 

@@ -48,7 +48,7 @@ func main() {
 		LocalId:     localId,
 		Signal:      nats,
 		PeerManager: peerManager,
-		GetLrp:     func() infra.Lrp { return lrpClient },
+		GetLrp:      func() infra.Lrp { return lrpClient },
 	})
 
 	lrpClient, err = relay.NewTCPClient(ctx, localId.ID(), "127.0.0.1:6266", probeFactory.Handle)

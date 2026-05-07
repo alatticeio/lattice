@@ -19,7 +19,9 @@
     "back": "返回",
     "copy": "复制",
     "invite": "邀请",
-    "publish": "发布"
+    "publish": "发布",
+    "clear": "清空",
+    "retry": "重试"
   },
   "status": {
     "loading": "加载中...",
@@ -95,6 +97,11 @@
       "settings": "设置"
     },
     "ai": "AI 助手",
+    "aiChat": "智能聊天",
+    "aiIntent": "意图引擎",
+    "aiDebug": "网络调试",
+    "aiCompliance": "合规审计",
+    "aiTools": "MCP 工具",
     "dashboard": "仪表盘",
     "members": "成员管理",
     "policies": "策略管理",
@@ -112,5 +119,65 @@
     "audit": "审计日志",
     "relays": "中继节点",
     "quickstart": "快速接入"
+  },
+  "ai": {
+    "tools": {
+      "title": "MCP 工具",
+      "desc": "浏览和调用 AI 工具",
+      "searchPlaceholder": "搜索工具...",
+      "noTools": "暂无可用工具",
+      "noMatch": "没有匹配的工具",
+      "invoke": "调用",
+      "execute": "执行",
+      "result": "执行结果",
+      "noParams": "该工具无需参数"
+    },
+    "compliance": {
+      "title": "合规审计",
+      "desc": "安全合规扫描与报告",
+      "good": "良好",
+      "fair": "一般",
+      "poor": "较差",
+      "highRisk": "高风险",
+      "mediumRisk": "中风险",
+      "lowRisk": "低风险",
+      "severity": "严重度",
+      "rule": "规则",
+      "resource": "资源",
+      "description": "描述",
+      "suggestion": "修复建议",
+      "noFindings": "暂无发现项",
+      "error": "加载审计报告失败",
+      "proRequired": "合规审计是 Pro 功能。升级后使用。"
+    },
+    "debug": {
+      "title": "网络调试",
+      "desc": "时间旅行网络调试",
+      "timeline": "快照时间线",
+      "noSnapshots": "当前时间范围内无快照",
+      "compareSelected": "对比选中",
+      "askQuestion": "描述你想排查的问题",
+      "inputPlaceholder": "例如：为什么 peer-b 连不上 api？",
+      "error": "调试分析失败"
+    },
+    "intent": {
+      "title": "意图引擎",
+      "desc": "用自然语言描述网络变更",
+      "inputTitle": "描述你的意图",
+      "inputDesc": "描述你想要做的网络变更，AI 将为你生成变更计划。",
+      "placeholder": "例如：允许 frontend 访问 api 的 8080 端口",
+      "generatePlan": "生成计划",
+      "planTitle": "变更计划",
+      "planError": "生成计划失败",
+      "applySuccess": "计划已提交审批",
+      "applyError": "提交计划失败",
+      "submitApply": "提交申请",
+      "risk": {
+        "low": "低风险",
+        "medium": "中风险",
+        "high": "高风险"
+      },
+      "proRequired": "意图引擎是 Pro 功能。升级后使用。"
+    }
   }
 }

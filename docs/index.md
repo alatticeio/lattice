@@ -1,23 +1,64 @@
 ---
-title: Lattice Documentation
+layout: home
+
+hero:
+  name: "Lattice"
+  text: "Self-hosted WireGuard Mesh Orchestration"
+  tagline: Deploy encrypted overlay networks on your infrastructure. Kubernetes-native, AI-powered, open-core.
+  image:
+    src: /logo.svg
+    alt: Lattice
+  actions:
+    - theme: brand
+      text: Quick Start (10 min)
+      link: /guide/quickstart
+    - theme: alt
+      text: Live Demo
+      link: /demo/
+    - theme: alt
+      text: GitHub
+      link: https://github.com/alatticeio/lattice
+
+features:
+  - icon: 🔐
+    title: WireGuard Mesh
+    details: Automatic NAT traversal via ICE/STUN/TURN with built-in relay (LRP) over QUIC
+  - icon: ☸️
+    title: K8s + Device Native
+    details: CRD operator for Kubernetes clusters, CLI agent for personal devices — same network plane
+  - icon: 🛡️
+    title: Network Policies
+    details: Default-deny, label-based ACLs with eBPF (Pro) or iptables enforcement
+  - icon: 🤖
+    title: AI-Powered Operations
+    details: Natural language network management via MCP Server, intent engine, time-travel debugging
+  - icon: 👥
+    title: Multi-Tenant RBAC
+    details: Workspace isolation, role-based access control, audit logging
+  - icon: 🏷️
+    title: Open-Core
+    details: Community edition is free forever. Pro adds eBPF, compliance automation, and AI debugging
 ---
 
-# Lattice Documentation
+## Feature Map
 
-Lattice is a **self-hosted WireGuard mesh orchestration platform**. Deploy the control plane on your infrastructure and manage your encrypted overlay network through a web dashboard.
+| Module | Community | Pro |
+|--------|-----------|-----|
+| WireGuard Tunnels | ✅ | ✅ |
+| NAT Traversal (ICE/STUN/TURN) | ✅ | ✅ |
+| LRP Relay (QUIC) | ✅ | ✅ |
+| K8s CRD Operator | ✅ | ✅ |
+| Dashboard UI | ✅ | ✅ |
+| Label-based ACLs | ✅ (iptables) | ✅ (eBPF) |
+| Cluster Peering | ✅ | ✅ |
+| Multi-Tenant Workspaces | ✅ | ✅ |
+| MCP Server & ChatOps | ✅ | ✅ |
+| Network Topology Map | ✅ | ✅ |
+| Policy Engine | Basic | Advanced |
+| Time-Travel Debugging | — | ✅ |
+| Compliance Reports | — | ✅ |
+| Audit Logging | Basic | Advanced |
 
-## Quick Links
+## Ready to Try?
 
-- [Quick Start](guide/quickstart) — Get a mesh network running in 10 minutes
-- [Installation](guide/installation) — Install the CLI and server components
-- [All-in-One Deployment](deploy/all-in-one) — Deploy with Docker or K8s
-- [Configuration Reference](config/reference) — All config options
-
-## Key Features
-
-- **Self-hosted Dashboard** — Full web UI for managing peers, policies, and monitoring
-- **K8s-native + Device-native** — Works for K8s clusters (CRD operator) and personal devices
-- **WireGuard tunnels** — Automatic NAT traversal via ICE/STUN/TURN
-- **Built-in relay** — LRP with QUIC fallback when direct P2P isn't possible
-- **Network policies** — Default-deny, label-based ACLs with eBPF (Pro) or iptables
-- **Multi-tenant** — Workspace isolation with RBAC
+[Quick Start](/guide/quickstart) · [Live Demo](/demo/) · [GitHub](https://github.com/alatticeio/lattice)

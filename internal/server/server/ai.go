@@ -33,6 +33,8 @@ func (s *Server) aiRouter() {
 	{
 		ai.POST("/chat", s.handleAIChat())
 		ai.GET("/audit", s.handleAIAudit())
+		ai.GET("/tools", s.handleAIListTools())
+		ai.POST("/tools/call", s.handleAIToolCall())
 	}
 }
 
@@ -95,6 +97,54 @@ func (s *Server) handleAIAudit() gin.HandlerFunc {
 		}
 		report.GeneratedAt = time.Now().UTC().Format(time.RFC3339)
 		resp.OK(c, report)
+	}
+}
+
+// handleAIListTools returns all available MCP tools for the workspace.
+//
+// Query params: workspaceId=ws-xxx
+func (s *Server) handleAIListTools() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		ns, err := s.peerNamespace(c)
+		if err != nil {
+			resp.Error(c, "workspace not found: "+err.Error())
+			return
+		}
+		tools := s.aiService.ListTools(ns)
+		resp.OK(c, tools)
+	}
+}
+
+// ToolCallRequest is the request body for POST /api/v1/ai/tools/call.
+type ToolCallRequest struct {
+	WorkspaceID string          `json:"workspaceId" binding:"required"`
+	Tool        string          `json:"tool"        binding:"required"`
+	Input       json.RawMessage `json:"input"`
+}
+
+// handleAIToolCall executes a single tool call and returns the result.
+// Write tools may return a workflow approval ID instead of immediate results.
+func (s *Server) handleAIToolCall() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var req ToolCallRequest
+		if err := c.ShouldBindJSON(&req); err != nil {
+			resp.BadRequest(c, "invalid request: "+err.Error())
+			return
+		}
+		ns, err := s.peerNamespace(c)
+		if err != nil {
+			resp.Error(c, "workspace not found: "+err.Error())
+			return
+		}
+		if req.Input == nil {
+			req.Input = json.RawMessage(`{}`)
+		}
+		result, err := s.aiService.ExecuteTool(c.Request.Context(), ns, req.Tool, req.Input)
+		if err != nil {
+			resp.Error(c, err.Error())
+			return
+		}
+		resp.OK(c, gin.H{"result": result})
 	}
 }
 

@@ -8,9 +8,9 @@ import (
 
 // Default search paths for the license file, tried in order.
 var defaultPaths = []string{
-	"",        // $LATTICE_LICENSE_PATH
-	"",        // $LATTICE_LICENSE (env var containing JWT directly)
-	"",        // computed below
+	"", // $LATTICE_LICENSE_PATH
+	"", // $LATTICE_LICENSE (env var containing JWT directly)
+	"", // computed below
 }
 
 func init() {

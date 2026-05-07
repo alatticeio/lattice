@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+  latticed:
+    image: ghcr.io/alatticeio/latticed:latest
+    container_name: lattice-demo
+    ports:
+      - "8080:8080"
+      - "51820:51820/udp"
+    volumes:
+      - lattice-data:/data
+    environment:
+      - LATTICE_MODE=all-in-one
+      - LATTICE_DB_PATH=/data/lattice.db
+      - LATTICE_LOG_LEVEL=info
+    command:
+      - latticed
+      - start
+      - --dev
+
+volumes:
+  lattice-data:

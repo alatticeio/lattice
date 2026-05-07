@@ -107,6 +107,12 @@ func (s *Server) apiRouter() error {
 
 	s.aiRouter()
 
+	s.intentRouter()
+
+	s.snapshotRouter()
+
+	s.agentRouter()
+
 	s.platformRouter()
 
 	// Discovery — no auth required; returns NATS URL for agent auto-connect.

@@ -1,0 +1,213 @@
+name: Performance Benchmark
+
+# Runs the three-dimensional benchmark suite (TTFH / throughput / API p99)
+# and publishes results as Shields.io endpoint JSON to gh-pages.
+#
+# Trigger:
+#   - Weekly on Monday 02:00 UTC (low-traffic window)
+#   - Manual via workflow_dispatch (run before a release to verify SLAs)
+#
+# Outputs (committed to gh-pages branch):
+#   docs/benchmarks/handshake.json
+#   docs/benchmarks/throughput.json
+#   docs/benchmarks/api-p99.json
+
+on:
+  schedule:
+    - cron: '0 2 * * 1'   # every Monday 02:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write   # needed to push to gh-pages
+  packages: read
+
+env:
+  K3S_IMAGE:   ghcr.io/alatticeio/lattice-k3s:latest
+  AGENT_IMAGE: ghcr.io/alatticeio/lattice:latest
+  BENCH_IMAGE: bench-image:ci
+  AGENT_API:   http://localhost:8080
+
+jobs:
+  bench:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go (for hey)
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      # ── Start control plane ────────────────────────────────────────────────
+      - name: Start lattice-k3s
+        run: |
+          docker pull "$K3S_IMAGE"
+          docker run -d \
+            --name lattice-k3s \
+            --privileged \
+            -p 8080:8080 \
+            -p 4222:4222 \
+            "$K3S_IMAGE"
+
+      - name: Wait for lattice-k3s to be ready
+        run: |
+          echo "Waiting for K8s API..."
+          for i in $(seq 1 120); do
+            docker exec lattice-k3s kubectl get nodes >/dev/null 2>&1 && break || true
+            [ $i -eq 120 ] && { docker logs lattice-k3s | tail -20; exit 1; }
+            sleep 1
+          done
+          echo "Waiting for CRDs..."
+          for i in $(seq 1 60); do
+            docker exec lattice-k3s kubectl get crd latticepeers.alattice.io >/dev/null 2>&1 && break || true
+            [ $i -eq 60 ] && exit 1
+            sleep 1
+          done
+          echo "Waiting for Lattice API..."
+          for i in $(seq 1 60); do
+            CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/ || echo 000)
+            [ "$CODE" != "000" ] && break || true
+            [ $i -eq 60 ] && exit 1
+            sleep 1
+          done
+
+      # ── Create workspace + token ───────────────────────────────────────────
+      - name: Pull agent image
+        run: docker pull "$AGENT_IMAGE"
+
+      - name: Build bench image (lattice + iperf3)
+        run: |
+          docker build -t "$BENCH_IMAGE" -f hack/bench/Dockerfile.bench hack/bench/
+
+      - name: Create workspace and enrollment token
+        run: |
+          docker network create bench-net
+
+          # Login
+          ADMIN_TOKEN=$(curl -s -X POST http://localhost:8080/api/v1/users/login \
+            -H 'Content-Type: application/json' \
+            -d '{"username":"admin","password":"changeme"}' \
+            | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['data']['token'])")
+          echo "ADMIN_TOKEN=$ADMIN_TOKEN" >> $GITHUB_ENV
+
+          # Create workspace
+          WS=$(curl -s -X POST http://localhost:8080/api/v1/workspaces \
+            -H "Authorization: Bearer $ADMIN_TOKEN" \
+            -H 'Content-Type: application/json' \
+            -d '{"name":"bench","displayName":"Benchmark"}')
+          WS_ID=$(echo "$WS" | python3 -c "import sys,json; print(json.load(sys.stdin)['data']['id'])")
+          echo "WS_ID=$WS_ID" >> $GITHUB_ENV
+
+          # Create allow-all Network Policy BEFORE agents connect.
+          # Lattice applies default-deny: without at least one ALLOW policy the
+          # control plane will not push WireGuard peer config, so no handshake
+          # ever occurs even if agents register successfully.
+          docker run --rm --network host \
+            -e LATTICE_AUTH_TOKEN="$ADMIN_TOKEN" \
+            -e LATTICE_SERVER_URL="$AGENT_API" \
+            "$AGENT_IMAGE" \
+            policy allow-all -n bench
+          echo "allow-all policy created"
+
+          # Create enrollment token
+          TOKEN=$(curl -s -X POST "http://localhost:8080/api/v1/workspaces/$WS_ID/tokens" \
+            -H "Authorization: Bearer $ADMIN_TOKEN" \
+            -H 'Content-Type: application/json' \
+            -d '{"name":"bench-token","limit":10,"expiry":"1h"}' \
+            | python3 -c "import sys,json; print(json.load(sys.stdin)['data']['token'])")
+          echo "TOKEN=$TOKEN" >> $GITHUB_ENV
+
+      # ── Benchmark 1: Time-to-First-Handshake ──────────────────────────────
+      - name: Run handshake benchmark
+        run: |
+          chmod +x hack/bench/handshake_bench.sh
+          TOKEN="$TOKEN" \
+          AGENT_API="$AGENT_API" \
+          AGENT_IMAGE="$BENCH_IMAGE" \
+          RUNS=3 \
+          hack/bench/handshake_bench.sh
+
+      # ── Benchmark 2: Throughput ───────────────────────────────────────────
+      - name: Run throughput benchmark
+        run: |
+          chmod +x hack/bench/throughput_bench.sh
+          hack/bench/throughput_bench.sh
+
+      - name: Remove bench agent containers
+        run: |
+          docker rm -f bench-agent-a bench-agent-b 2>/dev/null || true
+          docker network rm bench-net 2>/dev/null || true
+
+      # ── Benchmark 3: API p99 latency ──────────────────────────────────────
+      - name: Run API benchmark
+        run: |
+          chmod +x hack/bench/api_bench.sh
+          ADMIN_TOKEN="$ADMIN_TOKEN" \
+          AGENT_API="$AGENT_API" \
+          hack/bench/api_bench.sh
+
+      # ── Publish results to gh-pages ───────────────────────────────────────
+      - name: Publish badge JSON to gh-pages
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Switch to gh-pages (create orphan branch on first run)
+          if git ls-remote --exit-code origin gh-pages >/dev/null 2>&1; then
+            git fetch origin gh-pages
+            git checkout gh-pages
+          else
+            git checkout --orphan gh-pages
+            git rm -rf . >/dev/null 2>&1 || true
+          fi
+
+          mkdir -p docs/benchmarks
+
+          # Overwrite badge endpoint files with latest values
+          cp hack/bench/results/handshake.json  docs/benchmarks/handshake.json
+          cp hack/bench/results/throughput.json docs/benchmarks/throughput.json
+          cp hack/bench/results/api-p99.json    docs/benchmarks/api-p99.json
+
+          # Append one entry to history.json (append-only, never truncated)
+          export HISTORY_FILE=docs/benchmarks/history.json
+          if [ ! -f "$HISTORY_FILE" ]; then
+            echo "[]" > "$HISTORY_FILE"
+          fi
+          export HANDSHAKE_MS=$(python3 -c "import json; d=json.load(open('hack/bench/results/handshake.json')); ms=round(float(d['message'].rstrip('s'))*1000); print(ms)")
+          export THROUGHPUT_MBPS=$(python3 -c "import json; d=json.load(open('hack/bench/results/throughput.json')); print(int(d['message'].split()[0]))")
+          export API_P99_MS=$(python3 -c "import json; d=json.load(open('hack/bench/results/api-p99.json')); print(int(float(d['message'].rstrip('ms'))))")
+          export TODAY=$(date -u +'%Y-%m-%d')
+          python3 - <<'PYEOF'
+import json, os
+history_file = os.environ.get('HISTORY_FILE', 'docs/benchmarks/history.json')
+with open(history_file) as f:
+    history = json.load(f)
+history.append({
+    "date": os.environ['TODAY'],
+    "handshake_ms": int(os.environ['HANDSHAKE_MS']),
+    "throughput_mbps": int(os.environ['THROUGHPUT_MBPS']),
+    "api_p99_ms": int(os.environ['API_P99_MS']),
+})
+with open(history_file, 'w') as f:
+    json.dump(history, f, indent=2)
+PYEOF
+
+          # Create minimal index if it doesn't exist
+          if [ ! -f index.html ]; then
+            echo "<html><body><p>Lattice benchmark results</p></body></html>" > index.html
+          fi
+
+          git add docs/benchmarks/ index.html
+          git diff --cached --quiet || git commit -m "bench: update benchmark results $(date -u +'%Y-%m-%d')"
+          git push origin gh-pages
+
+      # ── Cleanup ───────────────────────────────────────────────────────────
+      - name: Cleanup
+        if: always()
+        run: |
+          docker rm -f bench-agent-a bench-agent-b lattice-k3s 2>/dev/null || true
+          docker network rm bench-net 2>/dev/null || true

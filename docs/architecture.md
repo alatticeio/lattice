@@ -18,7 +18,7 @@ No peer is trusted by default. Access is granted based on **identity (Labels)** 
 
 ## Core Objects
 | Object (CRD)               | Scope      | Relationship | Core Responsibility                                                        |
-|:---------------------------|:-----------| :--- |:---------------------------------------------------------------------------|
+|---------------------------|------------|------|---------------------------------------------------------------------------|
 | **LatticeGlobalIPPool**    | Cluster    | 1 : N (Namespaces) | Defines the cluster IP Pool, All LatticeNetwork get CIDR from here.       |
 | **LatticeNetwork**        | Namespaced | 1 : N (Namespaces) | Defines then namespace Overlay CIDR, Global Routing ID, and MTU settings   |
 | **Namespace**              | Namespaced | 1 : 1 (Network) | Logical grouping. Linked to a Network via the label `lattice.io/network`. |
@@ -56,7 +56,7 @@ LatticePolicy is compiled into eBPF Maps rather than iptables rules:
     - Optimization: By removing K8s dependencies, the binary size is kept under 12MB.
 
 ### The "Join" Lifecycle
-- Register: User runs lattice join --network finance --token <T>.
+- Register: User runs `lattice join --network finance --token <T>`.
 - Auth: The Agent generates a KeyPair, uploads the PublicKey. The Server creates a LatticePeer resource in the designated Namespace.
 - Sync: The Server pushes the Peer list (only for that Network) to the Agent.
 - Connect: The Agent configures wg0 and establishes encrypted P2P tunnels.

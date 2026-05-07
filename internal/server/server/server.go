@@ -23,6 +23,7 @@ import (
 	"github.com/alatticeio/lattice/internal/agent/log"
 	"github.com/alatticeio/lattice/internal/agent/store"
 	"github.com/alatticeio/lattice/internal/db"
+	"github.com/alatticeio/lattice/internal/license"
 	"github.com/alatticeio/lattice/internal/monitor"
 	"github.com/alatticeio/lattice/internal/server/auth"
 	"github.com/alatticeio/lattice/internal/server/controller"
@@ -32,7 +33,6 @@ import (
 	"github.com/alatticeio/lattice/internal/server/resource"
 	"github.com/alatticeio/lattice/internal/server/server/middleware"
 	"github.com/alatticeio/lattice/internal/server/service"
-	"github.com/alatticeio/lattice/internal/license"
 	"github.com/alatticeio/lattice/pkg/utils"
 	"time"
 
@@ -73,18 +73,20 @@ type Server struct {
 	workflowController     controller.WorkflowController
 	platformController     controller.PlatformController
 
-	aiService      service.AIService
-	peeringService service.PeeringService
+	aiService          service.AIService
+	intentService      service.IntentService
+	peeringService     service.PeeringService
+	agentEnrollService service.AgentEnrollService
 
 	middleware      *middleware.Middleware
 	revocationList  *auth.RevocationList
 	auditService    service.AuditService
 	workflowService service.WorkflowService
 
-	store             store.Store
-	presence          *managementnats.NodePresenceStore
-	monitor           *monitor.Monitor
-	licenseVerifier   license.Verifier
+	store           store.Store
+	presence        *managementnats.NodePresenceStore
+	monitor         *monitor.Monitor
+	licenseVerifier license.Verifier
 }
 
 // ServerConfig is the server configuration.
@@ -164,12 +166,32 @@ func NewServer(ctx context.Context, serverConfig *ServerConfig) (*Server, error)
 
 	// ── 弱依赖③：AI 服务（APIKey 未配置时降级为 nil）──────────────────────
 	var aiSvc service.AIService
+	var intentSvc service.IntentService
 	if cfg.AI.Enabled && cfg.AI.APIKey != "" {
 		llmClient, aiErr := llm.NewClient(cfg.AI)
 		if aiErr != nil {
 			logger.Warn("AI init failed, AI features disabled", "err", aiErr)
 		} else {
-			aiSvc = service.NewAIService(llmClient, st, client, presence, cfg.AI.MaxToolCalls)
+			aiSvc = service.NewAIServiceWithWorkflow(
+				llmClient, st, client, presence,
+				cfg.AI.MaxToolCalls,
+				workflowSvc,
+				cfg.AI.Workflow.AutoApprove,
+			)
+			intentSvc = service.NewIntentService(llmClient, client, st)
+			service.SetIntentService(aiSvc, intentSvc)
+
+			// Time-Travel Debug: attach snapshot store to AI service
+			service.SetSnapStore(aiSvc, st.NetworkSnapshots())
+
+			// Register SnapshotController (CRD change → snapshot capture)
+			if mgr != nil && client != nil {
+				snapCtrl := controller.NewSnapshotController(mgr.GetClient(), st.NetworkSnapshots(), st.Workspaces())
+				if err := snapCtrl.SetupWithManager(mgr); err != nil {
+					logger.Warn("failed to setup snapshot controller", "err", err)
+				}
+			}
+
 			logger.Info("AI service initialized", "provider", cfg.AI.Provider)
 		}
 	} else {
@@ -237,7 +259,9 @@ func NewServer(ctx context.Context, serverConfig *ServerConfig) (*Server, error)
 		workflowService:        workflowSvc,
 		store:                  st,
 		aiService:              aiSvc,
+		intentService:          intentSvc,
 		peeringService:         service.NewPeeringService(client, st),
+		agentEnrollService:     service.NewAgentEnrollService(client),
 		licenseVerifier:        lv,
 		monitor:                mon,
 	}
@@ -251,6 +275,21 @@ func NewServer(ctx context.Context, serverConfig *ServerConfig) (*Server, error)
 
 	// Register workflow executors before starting the router.
 	s.registerPolicyExecutor()
+
+	// ── Snapshot retention: prune old snapshots daily ──────────────
+	go func() {
+		ticker := time.NewTicker(24 * time.Hour)
+		defer ticker.Stop()
+		for range ticker.C {
+			cutoff := time.Now().Add(-90 * 24 * time.Hour) // 90 days
+			n, rErr := st.NetworkSnapshots().DeleteOlderThan(context.Background(), cutoff)
+			if rErr != nil {
+				logger.Warn("snapshot pruning failed", "err", rErr)
+			} else if n > 0 {
+				logger.Info("pruned old snapshots", "count", n)
+			}
+		}
+	}()
 
 	if err = s.apiRouter(); err != nil {
 		return nil, err

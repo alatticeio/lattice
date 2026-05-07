@@ -131,9 +131,9 @@ func printDiagnostic(fields []configField, missing []string) {
 	}
 
 	// 3. 修复引导：直接给出 Copy-Paste 命令
-	fmt.Fprintln(w, "\n QUICK FIX:")                                                                             //nolint:errcheck
-	fmt.Fprintln(w, "   Run the following command to initialize:")                                               //nolint:errcheck
-	fmt.Fprintf(w, "   %s\n", "lattice up --server-url <API_URL> --token <TOKEN> --save")                       //nolint:errcheck
+	fmt.Fprintln(w, "\n QUICK FIX:")                                                      //nolint:errcheck
+	fmt.Fprintln(w, "   Run the following command to initialize:")                        //nolint:errcheck
+	fmt.Fprintf(w, "   %s\n", "lattice up --server-url <API_URL> --token <TOKEN> --save") //nolint:errcheck
 
 	// 4. 环境说明：简短的结语
 	fmt.Fprintln(w, "\n To use environment variables instead, check the documentation.") //nolint:errcheck

@@ -37,7 +37,7 @@ type ProbeFactory struct {
 	signal         infra.SignalService
 	getProvisioner func() provision.Provisioner
 	getOnMessage   func() func(context.Context, *infra.Message) error
-	getLrp        func() infra.Lrp
+	getLrp         func() infra.Lrp
 
 	log *log.Logger
 
@@ -53,7 +53,7 @@ type ProbeFactoryConfig struct {
 	Signal         infra.SignalService
 	GetOnMessage   func() func(context.Context, *infra.Message) error
 	PeerManager    *infra.PeerManager
-	GetLrp        func() infra.Lrp
+	GetLrp         func() infra.Lrp
 	FilteringMux   *infra.FilteringUDPMux
 	FilteringMux6  *infra.FilteringUDPMux
 	GetProvisioner func() provision.Provisioner
@@ -67,7 +67,7 @@ func NewProbeFactory(cfg *ProbeFactoryConfig) *ProbeFactory {
 		signal:         cfg.Signal,
 		probes:         make(map[string]*Probe),
 		peerManager:    cfg.PeerManager,
-		getLrp:        cfg.GetLrp,
+		getLrp:         cfg.GetLrp,
 		showLog:        cfg.ShowLog,
 		FilteringMux:   cfg.FilteringMux,
 		FilteringMux6:  cfg.FilteringMux6,
@@ -331,7 +331,7 @@ func (p *ProbeFactory) NewProbe(remoteId infra.PeerIdentity) (*Probe, error) {
 		return NewLrpDialer(&LrpDialerConfig{
 			LocalId:        p.localId,
 			RemoteId:       remoteId,
-			Lrp:           p.getLrp(),
+			Lrp:            p.getLrp(),
 			Sender:         p.signal.Send,
 			GetLocalPeer:   getLocalPeer,
 			OnPeerReceived: onPeerReceived,

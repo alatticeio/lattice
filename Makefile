@@ -69,6 +69,16 @@ BUILD_TAGS :=
 endif
 # ─────────────────────────────────────────────────────────────────────────────
 
+.PHONY: build-mcp
+build-mcp: ## 构建 lattice-mcp MCP 服务器
+	@echo "📦 Building lattice-mcp..."
+	@mkdir -p bin
+	CGO_ENABLED=0 go build \
+		-ldflags="-s -w $(LDFLAGS)" \
+		-o bin/lattice-mcp \
+		./cmd/lattice-mcp
+	@echo "✅ Built: bin/lattice-mcp"
+
 .PHONY: build-all
 build-all: ## 构建所有服务
 	@echo " Building all services..."
@@ -156,6 +166,18 @@ vet: ## Run go vet against code.
 test: manifests generate fmt vet setup-envtest ## Run tests.
 	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test $$(go list ./... | grep -v /e2e) -coverprofile cover.out
 
+# coverage gate — fail if coverage drops below threshold
+COVERAGE_THRESHOLD ?= 40
+.PHONY: test-coverage-gate
+test-coverage-gate:
+	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" \
+	go test $$(go list ./... | grep -v /e2e) -coverprofile cover.out
+	@coverage=$$(go tool cover -func cover.out | grep total | awk '{print $$3}' | sed 's/%//'); \
+	echo "Coverage: $$coverage%"; \
+	if [ "$$(awk 'BEGIN{print ('"$$coverage"' < $(COVERAGE_THRESHOLD)) ? 1 : 0}')" -eq 1 ]; then \
+		echo "Coverage $$coverage% below threshold $(COVERAGE_THRESHOLD)%"; \
+		exit 1; \
+	fi
 
 # ============ E2E 配置 ============
 MANAGE_URL          ?= http://localhost:8080
@@ -484,3 +506,12 @@ mv $(1) $(1)-$(3) ;\
 } ;\
 ln -sf $(1)-$(3) $(1)
 endef
+
+.PHONY: build-docs
+build-docs:
+	cd docs && pnpm install && pnpm docs:build
+
+.PHONY: test-docs
+test-docs:
+	cd docs && pnpm docs:build --outDir /tmp/lattice-docs-test
+	@echo "Docs build successful"

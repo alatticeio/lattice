@@ -25,12 +25,12 @@ import (
 type PeerState string
 
 const (
-	StateCreated   PeerState = "created"
-	StateProbing   PeerState = "probing"
-	StateICEReady  PeerState = "ice-ready"
+	StateCreated  PeerState = "created"
+	StateProbing  PeerState = "probing"
+	StateICEReady PeerState = "ice-ready"
 	StateLRPReady PeerState = "lrp-ready"
-	StateFailed    PeerState = "failed"
-	StateClosed    PeerState = "closed"
+	StateFailed   PeerState = "failed"
+	StateClosed   PeerState = "closed"
 )
 
 func (s PeerState) String() string { return string(s) }
@@ -41,11 +41,11 @@ var stateChangeCounter = victoriametrics.NewCounter(`lattice_transport_state_cha
 
 // allowedTransitions defines the legal state transitions.
 var allowedTransitions = map[PeerState][]PeerState{
-	StateCreated:   {StateProbing},
-	StateProbing:   {StateICEReady, StateLRPReady, StateFailed},
+	StateCreated:  {StateProbing},
+	StateProbing:  {StateICEReady, StateLRPReady, StateFailed},
 	StateLRPReady: {StateICEReady, StateFailed, StateClosed},
-	StateICEReady:  {StateFailed, StateClosed},
-	StateFailed:    {StateProbing, StateClosed},
+	StateICEReady: {StateFailed, StateClosed},
+	StateFailed:   {StateProbing, StateClosed},
 }
 
 // StateMachine guards connection lifecycle transitions.

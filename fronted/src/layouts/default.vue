@@ -15,7 +15,7 @@ import AppSidebar from '@/components/app-sidebar/AppSidebar.vue'
 import PageHeader from '@/components/PageHeader.vue'
 import SettingsPanel from '@/components/SettingsPanel.vue'
 import { useAppConfig } from '@/composables/useAppConfig'
-import { Search, Sun, Moon, Bell, User, LogOut, CreditCard, LifeBuoy, Settings, Check } from 'lucide-vue-next'
+import { Search, Sun, Moon, Bell, User, LogOut, CreditCard, LifeBuoy, Settings, Check, BookOpen } from 'lucide-vue-next'
 import { useUserStore } from '@/stores/user'
 import { setLocale } from '@/locales'
 import type { Locale } from '@/locales'
@@ -159,6 +159,12 @@ const pageDescription = computed(() => {
                 </DropdownMenuItem>
               </DropdownMenuGroup>
               <DropdownMenuSeparator />
+              <DropdownMenuItem as-child>
+                <a href="https://docs.alattice.io" target="_blank" rel="noopener noreferrer">
+                  <BookOpen class="mr-2 size-4" />
+                  <span>Documentation</span>
+                </a>
+              </DropdownMenuItem>
               <DropdownMenuItem>
                 <LifeBuoy class="mr-2 size-4" />
                 <span>Support</span>

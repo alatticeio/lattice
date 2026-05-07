@@ -92,9 +92,20 @@ func Start(ctx context.Context, flags *config.Config) error {
 		return msg, nil
 	}
 
+	// t0 is recorded immediately before Start so that TTFH includes
+	// WireGuard device bring-up and initial peer config application.
+	t0 := time.Now()
 	if err = c.Start(gCtx); err != nil {
 		return err
 	}
+
+	// WatchFirstHandshake measures Time-to-First-Handshake (TTFH): the elapsed
+	// time from process start to the first WireGuard handshake with any peer.
+	// Available in Community and Pro; Pro telemetry pipeline picks it up via
+	// lattice_peer_handshake_duration_seconds once the scraper is extended.
+	go wireguard.WatchFirstHandshake(gCtx, c.Name, t0, func(d time.Duration) {
+		logger.Info("first WireGuard handshake", "duration", d.Round(time.Millisecond))
+	})
 
 	// Start heartbeat so the management server can track online status.
 	go c.StartHeartbeat(gCtx)

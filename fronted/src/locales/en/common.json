@@ -19,7 +19,9 @@
     "back": "Back",
     "copy": "Copy",
     "invite": "Invite",
-    "publish": "Publish"
+    "publish": "Publish",
+    "clear": "Clear",
+    "retry": "Retry"
   },
   "status": {
     "loading": "Loading...",
@@ -95,6 +97,11 @@
       "settings": "Settings"
     },
     "ai": "AI Assistant",
+    "aiChat": "AI Chat",
+    "aiIntent": "Intent Engine",
+    "aiDebug": "Network Debug",
+    "aiCompliance": "Compliance Audit",
+    "aiTools": "MCP Tools",
     "dashboard": "Dashboard",
     "members": "Members",
     "policies": "Policies",
@@ -112,5 +119,65 @@
     "audit": "Audit Log",
     "relays": "Relays",
     "quickstart": "Quick Start"
+  },
+  "ai": {
+    "tools": {
+      "title": "MCP Tools",
+      "desc": "Browse and invoke AI tools",
+      "searchPlaceholder": "Search tools...",
+      "noTools": "No tools available",
+      "noMatch": "No tools match your search",
+      "invoke": "Invoke",
+      "execute": "Execute",
+      "result": "Result",
+      "noParams": "This tool has no parameters"
+    },
+    "compliance": {
+      "title": "Compliance Audit",
+      "desc": "Security compliance scanning and reporting",
+      "good": "Good",
+      "fair": "Fair",
+      "poor": "Poor",
+      "highRisk": "High Risk",
+      "mediumRisk": "Medium Risk",
+      "lowRisk": "Low Risk",
+      "severity": "Severity",
+      "rule": "Rule",
+      "resource": "Resource",
+      "description": "Description",
+      "suggestion": "Suggestion",
+      "noFindings": "No findings detected",
+      "error": "Failed to load audit report",
+      "proRequired": "Compliance Audit is a Pro feature. Upgrade to use it."
+    },
+    "debug": {
+      "title": "Network Debug",
+      "desc": "Time-travel network debugging",
+      "timeline": "Snapshot Timeline",
+      "noSnapshots": "No snapshots in this time range",
+      "compareSelected": "Compare Selected",
+      "askQuestion": "Describe the issue you want to debug",
+      "inputPlaceholder": "e.g. Why can't peer-b connect to api?",
+      "error": "Debug analysis failed"
+    },
+    "intent": {
+      "title": "Intent Engine",
+      "desc": "Describe network changes in natural language",
+      "inputTitle": "Describe your intent",
+      "inputDesc": "Describe the network change you want to make, and the AI will generate a plan.",
+      "placeholder": "e.g. allow frontend to access api on port 8080",
+      "generatePlan": "Generate Plan",
+      "planTitle": "Change Plan",
+      "planError": "Failed to generate plan",
+      "applySuccess": "Plan submitted for approval",
+      "applyError": "Failed to submit plan",
+      "submitApply": "Submit for Approval",
+      "risk": {
+        "low": "Low Risk",
+        "medium": "Medium Risk",
+        "high": "High Risk"
+      },
+      "proRequired": "Intent Engine is a Pro feature. Upgrade to use it."
+    }
   }
 }

@@ -78,6 +78,16 @@ spec:
               interfaceName:
                 description: Interface for the node
                 type: string
+              lrpQuicUrl:
+                description: |-
+                  LrpQuicUrl is the QUIC address of the LRP relay server.
+                  When set, nodes prefer QUIC over TCP for relay traffic.
+                type: string
+              lrpUrl:
+                description: |-
+                  LrpUrl is the TCP address of the LRP relay server assigned to this peer.
+                  Populated by the relay settings controller when a relay is bound to the peer's workspace.
+                type: string
               mtu:
                 type: integer
               network:
@@ -94,16 +104,6 @@ spec:
               privateKey:
                 type: string
               publicKey:
-                type: string
-              lrpQuicUrl:
-                description: |-
-                  LrpQuicUrl is the QUIC address of the LRP relay server.
-                  When set, nodes prefer QUIC over TCP for relay traffic.
-                type: string
-              lrpUrl:
-                description: |-
-                  LrpUrl is the TCP address of the LRP relay server assigned to this peer.
-                  Populated by the relay settings controller when a relay is bound to the peer's workspace.
                 type: string
             type: object
           status:

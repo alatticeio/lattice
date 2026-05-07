@@ -35,14 +35,14 @@ var (
 
 // Probe manages the connection lifecycle to a single remote peer.
 type Probe struct {
-	mu         sync.RWMutex
-	localId    infra.PeerIdentity
-	remoteId   infra.PeerIdentity
-	iceDialer  infra.Dialer
+	mu        sync.RWMutex
+	localId   infra.PeerIdentity
+	remoteId  infra.PeerIdentity
+	iceDialer infra.Dialer
 	lrpDialer infra.Dialer
-	iceState   ice.ConnectionState
-	signal     infra.SignalService
-	log        *log.Logger
+	iceState  ice.ConnectionState
+	signal    infra.SignalService
+	log       *log.Logger
 
 	// State machine guards lifecycle transitions.
 	sm *StateMachine
@@ -51,7 +51,7 @@ type Probe struct {
 	configurator ConnectionConfigurator
 
 	// Factory funcs for creating fresh dialers on restart.
-	newIceDialer  func() infra.Dialer
+	newIceDialer func() infra.Dialer
 	newLrpDialer func() infra.Dialer
 
 	// onBeforeRestart is called before rebuilding dialers to clean up

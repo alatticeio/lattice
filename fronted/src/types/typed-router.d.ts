@@ -41,6 +41,34 @@ declare module 'vue-router/auto-routes' {
       Record<never, never>,
       | never
     >,
+    '/ai/compliance': RouteRecordInfo<
+      '/ai/compliance',
+      '/ai/compliance',
+      Record<never, never>,
+      Record<never, never>,
+      | never
+    >,
+    '/ai/debug': RouteRecordInfo<
+      '/ai/debug',
+      '/ai/debug',
+      Record<never, never>,
+      Record<never, never>,
+      | never
+    >,
+    '/ai/intent': RouteRecordInfo<
+      '/ai/intent',
+      '/ai/intent',
+      Record<never, never>,
+      Record<never, never>,
+      | never
+    >,
+    '/ai/tools': RouteRecordInfo<
+      '/ai/tools',
+      '/ai/tools',
+      Record<never, never>,
+      Record<never, never>,
+      | never
+    >,
     '/alerts/': RouteRecordInfo<
       '/alerts/',
       '/alerts',
@@ -260,6 +288,30 @@ declare module 'vue-router/auto-routes' {
     'src/pages/ai/index.vue': {
       routes:
         | '/ai/'
+      views:
+        | never
+    }
+    'src/pages/ai/compliance.vue': {
+      routes:
+        | '/ai/compliance'
+      views:
+        | never
+    }
+    'src/pages/ai/debug.vue': {
+      routes:
+        | '/ai/debug'
+      views:
+        | never
+    }
+    'src/pages/ai/intent.vue': {
+      routes:
+        | '/ai/intent'
+      views:
+        | never
+    }
+    'src/pages/ai/tools.vue': {
+      routes:
+        | '/ai/tools'
       views:
         | never
     }

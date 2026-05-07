@@ -26,5 +26,7 @@ func migrate(db *gorm.DB) error {
 		&models.AlertSilence{},
 		&models.CustomMetric{},
 		&models.SystemConfig{},
+		&models.IntentPlan{},
+		&models.NetworkSnapshot{},
 	)
 }
