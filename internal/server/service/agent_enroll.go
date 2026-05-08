@@ -71,10 +71,15 @@ type agentEnrollService struct {
 }
 
 // NewAgentEnrollService creates an AgentEnrollService backed by the resource.Client.
+// If k8s is nil (no K8s available), the service is created but Enroll/Revoke return errors.
 func NewAgentEnrollService(k8s *resource.Client) AgentEnrollService {
+	var c client.Client
+	if k8s != nil {
+		c = k8s.GetClient()
+	}
 	return &agentEnrollService{
 		logger: log.GetLogger("agent-enroll"),
-		client: k8s.GetClient(),
+		client: c,
 	}
 }
 
@@ -87,6 +92,9 @@ func NewAgentEnrollServiceWithClient(c client.Client) AgentEnrollService {
 }
 
 func (s *agentEnrollService) Enroll(ctx context.Context, req AgentEnrollRequest) (*AgentEnrollResponse, error) {
+	if s.client == nil {
+		return nil, fmt.Errorf("agent enrollment requires Kubernetes — no K8s client available")
+	}
 	peerName := fmt.Sprintf("agent-%s", req.AgentName)
 
 	annotations := map[string]string{}
@@ -134,6 +142,9 @@ func (s *agentEnrollService) Enroll(ctx context.Context, req AgentEnrollRequest)
 }
 
 func (s *agentEnrollService) Revoke(ctx context.Context, namespace, peerName string) error {
+	if s.client == nil {
+		return fmt.Errorf("agent revocation requires Kubernetes — no K8s client available")
+	}
 	var peer v1alpha1.LatticePeer
 	if err := s.client.Get(ctx, client.ObjectKey{Namespace: namespace, Name: peerName}, &peer); err != nil {
 		return fmt.Errorf("peer not found: %w", err)

@@ -18,8 +18,6 @@ relay-quic-url: "relay.example.com:6267"
 | `relay-url` | No | TCP relay server address |
 | `relay-quic-url` | No | QUIC relay server address |
 
-> **Note:** `signaling-url` (NATS URL) is auto-discovered from `server-url` via `/api/v1/discovery`. You can still set it manually to override the discovered value.
-
 ## Server Config (`/etc/lattice/lattice.yaml`)
 
 The all-in-one server (`latticed`) configuration file.
@@ -42,12 +40,6 @@ app:
 jwt:
   secret: "random-32-byte-secret"  # JWT signing secret
   expire_hours: 24                  # Token lifetime
-```
-
-### Signaling
-
-```yaml
-signaling-url: "nats://localhost:4222"  # NATS server URL
 ```
 
 ### Database

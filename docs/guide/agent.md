@@ -10,7 +10,6 @@ lattice init
 
 This prompts for:
 - **Management server URL** — The HTTP API endpoint (e.g. `http://lattice.example.com:8080`)
-- **Signaling URL** — The NATS endpoint (e.g. `nats://lattice.example.com:4222`)
 - **Enrollment token** — A token from your workspace
 - **Relay URL** — (optional) TCP relay URL
 - **Relay QUIC URL** — (optional) QUIC relay URL

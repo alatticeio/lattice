@@ -11,13 +11,11 @@ docker run -d \
   --name lattice-k3s \
   --privileged \
   -p 8080:8080 \
-  -p 4222:4222 \
   ghcr.io/alatticeio/lattice-k3s:latest
 ```
 
 After ~30 seconds:
 - Dashboard / API: `http://localhost:8080`
-- NATS signaling: `nats://localhost:4222`
 
 ### Kubernetes (kustomize)
 
@@ -56,7 +54,6 @@ lattice init
 
 Follow the prompts:
 - Management server URL: `http://localhost:8080`
-- Signaling URL: `nats://localhost:4222`
 - Enrollment token: (create one via dashboard or CLI)
 
 ## 4. Connect

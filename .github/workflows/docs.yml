@@ -41,4 +41,4 @@ jobs:
           personal_token: ${{ secrets.DOCS_DEPLOY_TOKEN }}
           external_repository: alatticeio/alatticeio.github.io
           publish_dir: docs/.vitepress/dist
-          publish_branch: main
+          publish_branch: gh-pages

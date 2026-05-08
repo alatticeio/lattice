@@ -2,7 +2,7 @@
 
 # Lattice
 
-**Cloud-Native WireGuard Network Orchestration**
+**AI-Native WireGuard Overlay Networking**
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Go Report Card](https://goreportcard.com/badge/github.com/alatticeio/lattice)](https://goreportcard.com/report/github.com/alatticeio/lattice)
@@ -14,7 +14,7 @@
 [![Throughput](https://img.shields.io/endpoint?url=https://alatticeio.github.io/lattice/docs/benchmarks/throughput.json)](https://github.com/alatticeio/lattice/actions/workflows/bench.yml)
 [![API p99](https://img.shields.io/endpoint?url=https://alatticeio.github.io/lattice/docs/benchmarks/api-p99.json)](https://github.com/alatticeio/lattice/actions/workflows/bench.yml)
 
-Lattice is a self-hosted WireGuard orchestration platform that connects any device — laptops, servers, IoT, and Kubernetes pods — into a single encrypted overlay network, without touching firewalls or exposing public IPs.
+Lattice is a self-hosted WireGuard orchestration platform that connects any device — laptops, servers, IoT, Kubernetes pods, and AI agents — into a single encrypted overlay network, without touching firewalls or exposing public IPs. It is the only overlay mesh with a built-in AI-native networking stack: MCP server for AI assistant integration, zero-trust agent enrollment for AI workloads, and a natural-language network intent engine.
 
 [**Website**](https://lattice.run) · [**Documentation**](https://lattice.run/docs) · [**Issues**](https://github.com/alatticeio/lattice/issues)
 
@@ -24,17 +24,27 @@ Lattice is a self-hosted WireGuard orchestration platform that connects any devi
 
 ## Why Lattice?
 
-Most mesh VPNs make you choose: either a SaaS-controlled mesh (Tailscale) or a self-hosted mesh with limited management tools (Netbird / Headscale).
+Most overlay mesh solutions make you choose: either a SaaS-controlled mesh (Tailscale) or a self-hosted mesh with limited management tools (Netbird / Headscale). Neither treats AI workloads as a first-class citizen.
 
-**Lattice gives you both — a self-hosted control plane with a full management console, plus built-in AI-native networking capabilities that no other mesh VPN offers.**
+**Lattice gives you both — a self-hosted control plane with a full management console, plus the only built-in AI-native networking stack in the overlay mesh space.**
 
 Deploy the entire control plane on your infrastructure — bare metal, Docker, or Kubernetes — and manage your network through a web dashboard. No third-party coordination servers, no data leaving your network.
 
 - **Self-hosted dashboard** — Manage peers, policies, monitoring, and workspaces through a web UI, not just CLI
 - **K8s-native + device-native** — The same mesh works for Kubernetes clusters (via CRD operator) and personal devices (via `lattice up`)
 - **Full data sovereignty** — Your keys, your traffic, your infrastructure stays on your infrastructure
-- **AI-native networking** — Built-in MCP server, natural-language intent engine, zero-trust AI agent enrollment, and compliance-as-conversation — unique in the mesh VPN space
+- **AI-native networking** — MCP server for AI assistant management, zero-trust enrollment for AI agent fleets (TTL identities + kernel-level isolation), and a natural-language intent engine — none of which exist in competing products
 - **Open core** — Apache 2.0 community edition with optional Pro features (AI intent engine, eBPF policy, SSO, compliance reporting)
+
+### AI Feature Comparison
+
+| Capability | Lattice | Tailscale | Netbird | ZeroTier |
+|---|---|---|---|---|
+| MCP Server (AI assistant manages network via natural language) | ✅ Built-in | ❌ | ❌ | ❌ |
+| AI Agent Zero-Trust Enrollment (TTL + network isolation presets) | ✅ API + Python SDK | ❌ | ❌ | ❌ |
+| Network Intent Engine (natural language → CRD plan → apply) | ✅ (Pro) | ❌ | ❌ | ❌ |
+| Write-op approval workflow (human-in-the-loop for AI changes) | ✅ Built-in | N/A | N/A | N/A |
+| Compliance-as-Conversation | 🔜 (Pro) | ❌ | ❌ | ❌ |
 
 ---
 
@@ -45,6 +55,7 @@ Lattice is a WireGuard orchestration platform for Kubernetes and beyond. It auto
 - **Control Plane** — Kubernetes Operator (or all-in-one standalone mode) that declaratively manages network topology. Acts as the single source of truth for keys, IP allocation, and peer relationships.
 - **Data Plane** — Lightweight (~12 MB) agent deployed on any device — K8s pods, laptops, servers, or edge. Establishes encrypted WireGuard tunnels with automatic NAT traversal (ICE/STUN/TURN), even across symmetric NATs.
 - **Relay Plane** — Built-in LRP relay server as fallback when direct P2P is not possible.
+- **AI Plane** — MCP server for AI assistant (Claude, Cursor) network management; zero-trust enrollment API + Python SDK for AI agent fleets; natural-language intent engine that translates plain-English requests into CRD change plans.
 
 ## Architecture
 
@@ -63,14 +74,15 @@ Lattice is a WireGuard orchestration platform for Kubernetes and beyond. It auto
 | Web Dashboard | ✅ |
 | All-in-One deployment (embedded NATS + SQLite, no external deps) | ✅ |
 | Telemetry export (VictoriaMetrics push) | ✅ |
-| **MCP Server — AI assistant integration** | ✅ |
-| **AI Agent Zero-Trust Enrollment — TTL identities, network isolation presets** | ✅ |
-| **Python Agent SDK — `async with LatticeAgent(...)`** | ✅ |
-| **Network Intent Engine (Pro) — natural language → CRD change plans** | ✅ |
-| Compliance-as-Conversation (Pro) | 🔜 |
-| Time-Travel Network Debugging (Pro) | 🔜 |
 | Multi-region / multi-cloud bridging | 🔜 |
 | Smart DNS (internal service naming) | 🔜 |
+| **— AI-Native —** | |
+| **MCP Server — manage network via natural language (Claude Desktop, Cursor)** | ✅ |
+| **AI Agent Zero-Trust Enrollment — TTL identities, network isolation presets** | ✅ |
+| **Python Agent SDK — `async with LatticeAgent(...)`** | ✅ |
+| **Network Intent Engine (Pro) — natural language → CRD change plan → diff → apply** | ✅ |
+| **Compliance-as-Conversation (Pro)** | 🔜 |
+| **Time-Travel Network Debugging (Pro)** | 🔜 |
 
 ---
 
@@ -139,8 +151,9 @@ Before running, configure via `lattice init` (or pass flags directly: `up --serv
 Download pre-built binaries from [GitHub Releases](https://github.com/alatticeio/lattice/releases).
 
 ```bash
-# Linux amd64
-curl -sSL https://github.com/alatticeio/lattice/releases/latest/download/lattice_<version>_linux_amd64.tar.gz | tar xz
+# Linux amd64 — replace VERSION with the desired release tag (e.g. v0.5.0)
+VERSION=$(curl -s https://api.github.com/repos/alatticeio/lattice/releases/latest | grep tag_name | cut -d'"' -f4)
+curl -sSL "https://github.com/alatticeio/lattice/releases/download/${VERSION}/lattice_${VERSION}_linux_amd64.tar.gz" | tar xz
 sudo mv lattice /usr/local/bin/
 ```
 
@@ -155,13 +168,11 @@ docker run -d \
   --name lattice-k3s \
   --privileged \
   -p 8080:8080 \
-  -p 4222:4222 \
   ghcr.io/alatticeio/lattice-k3s:latest
 ```
 
 This starts a self-contained container with k3s (lightweight Kubernetes) and the Lattice control plane already deployed inside. After ~30 seconds:
 - Dashboard / API: `http://localhost:8080`
-- NATS signaling: `nats://localhost:4222`
 
 ### Existing Kubernetes cluster (kustomize)
 
@@ -526,43 +537,6 @@ curl -X DELETE "https://lattice.company.com/api/v1/agent-enroll/agent-executor-1
 
 ---
 
-## AI-Native Networking: Lattice vs Other Mesh VPNs
-
-Lattice is the only mesh VPN with a **built-in AI-native networking stack**. While competitors focus on basic connectivity, Lattice treats AI as a first-class citizen of the network.
-
-### AI Feature Comparison
-
-| Capability | Lattice | Tailscale | Netbird | ZeroTier | Netmaker |
-|---|---|---|---|---|---|
-| **MCP Server** — AI assistant manages your network via natural language | ✅ Built-in `lattice-mcp` | ❌ No native MCP; community adapters only | ❌ | ❌ | ❌ |
-| **AI Agent Zero-Trust Enrollment** — Programmatic agent onboarding with TTL + network isolation | ✅ API + Python SDK (`LatticeAgent`) | ❌ Manual ACLs only | ❌ | ❌ | ❌ |
-| **Policy Presets** — `sandboxed` / `coordinator` / `isolated` for AI workloads | ✅ Built-in | ❌ Only raw ACLs | ❌ | ❌ | ❌ |
-| **Network Intent Engine** — "allow frontend to reach api-gateway" → CRD plan → approval → execute | ✅ (Pro) | ❌ | ❌ | ❌ | ❌ |
-| **Compliance-as-Conversation** — "Run PCI-DSS audit" → automated evidence package | 🔜 (Pro) | ❌ | ❌ | ❌ | ❌ |
-| **Write Tool Approval Workflow** — All AI-driven changes require human-in-the-loop | ✅ Built-in | N/A (no AI) | N/A | N/A | N/A |
-| **Time-Travel Network Debugging** — "What changed between Tuesday and Wednesday?" | 🔜 (Pro) | ❌ | ❌ | ❌ | ❌ |
-
-### Why This Matters for AI Workloads
-
-Most AI security discussion focuses on **application-layer** guardrails (prompt injection filters, output validation). But if an AI agent is compromised, network-layer isolation is the last line of defense — and most mesh VPNs don't address this at all.
-
-Lattice's approach:
-- **L1 (MCP Server)** — Any AI assistant (Claude, Cursor, custom agents) can manage the network through natural language, with human approval for all write operations
-- **L2 (Zero-Trust AI Agent Enrollment)** — Each AI agent gets a unique WireGuard identity with TTL and network isolation enforced at kernel level. Even if compromised, lateral movement is impossible
-- **L3 (Network Intent Engine)** — DevOps teams describe desired network state in plain language; the AI generates CRD change plans with diff preview and risk assessment before any change touches the network
-- **L4-L5** — Coming soon: time-travel debugging and compliance-as-conversation for regulated environments
-
-### When to Choose Each
-
-| You should choose Lattice if... | You might prefer alternatives if... |
-|---|---|
-| You run AI agent fleets and need network-layer isolation | You need a simple point-to-point VPN (Tailscale Funnel) |
-| You want AI-assisted network management (MCP + Intent Engine) | You're fully invested in a specific SaaS mesh ecosystem |
-| You need self-hosted data sovereignty + AI capabilities | You only need basic site-to-site VPN |
-| You operate in regulated environments (compliance reporting coming) | You don't need policy enforcement or audit trails |
-
----
-
 ## Configuration Reference
 
 The control plane is configured via a YAML file (default: `/etc/lattice/lattice.yaml`):
@@ -580,8 +554,6 @@ jwt:
   secret: "replace-with-random-secret"   # ⚠ Use a 32-byte random value
   expire_hours: 24
 
-signaling-url: "nats://localhost:4222"   # Embedded NATS in all-in-one mode
-
 database:
   dsn: "data/lattice.db"                # SQLite (all-in-one)
   # dsn: "root:pass@tcp(mariadb:3306)/lattice?charset=utf8mb4&parseTime=True"  # MariaDB
@@ -593,7 +565,7 @@ database:
 
 ### Requirements
 
-- Go 1.24+
+- Go 1.25+
 - Docker 20.10+
 - k3d 5.x+ (for local cluster)
 - kubectl 1.20+
