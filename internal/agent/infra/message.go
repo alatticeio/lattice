@@ -27,14 +27,14 @@ import (
 
 // Message is the message which is sent to connected peers
 type Message struct {
-	EventType     EventType         `json:"eventType"`               //主事件类型
-	ConfigVersion string            `json:"configVersion"`           //版本号
-	Timestamp     int64             `json:"timestamp"`               //时间戳
-	Changes       *DetailsInfo      `json:"changes"`                 // 配置变化详情
-	Current       *Peer             `json:"peer"`                    //当前节点信息
-	Network       *Network          `json:"network"`                 //当前节点网络信息
-	Policies      []*Policy         `json:"policies,omitempty"`      //当前节点的策略
-	ComputedPeers []*Peer           `json:"computedpeers,omitempty"` //当前要连接的节点, 由controller计算完成返回给lattice
+	EventType     EventType         `json:"eventType"`               // main event type
+	ConfigVersion string            `json:"configVersion"`           // version number
+	Timestamp     int64             `json:"timestamp"`               // timestamp
+	Changes       *DetailsInfo      `json:"changes"`                 // config change details
+	Current       *Peer             `json:"peer"`                    // current node info
+	Network       *Network          `json:"network"`                 // current node network info
+	Policies      []*Policy         `json:"policies,omitempty"`      // current node's policies
+	ComputedPeers []*Peer           `json:"computedpeers,omitempty"` // peers to connect to, computed by controller and returned to lattice
 	ComputedRules *FirewallRule     `json:"computedrules,omitempty"`
 	Labels        map[string]string `json:"labels,omitempty"`
 }
@@ -74,28 +74,28 @@ type Entry struct {
 }
 
 type DetailsInfo struct {
-	//节点信息变化
-	AddressChanged  bool `json:"addressChanged,omitempty"`  //IP地址变化
-	KeyChanged      bool `json:"keyChanged,omitempty"`      //密钥变化
-	EndpointChanged bool `json:"endpointChanged,omitempty"` //远程地址变化
+	// Node info changes
+	AddressChanged  bool `json:"addressChanged,omitempty"`  // IP address change
+	KeyChanged      bool `json:"keyChanged,omitempty"`      // key change
+	EndpointChanged bool `json:"endpointChanged,omitempty"` // remote endpoint change
 
-	//网络拓扑变化
-	PeersAdded   []*Peer  `json:"peersAdded,omitempty"`   //节点添加的列表
-	PeersRemoved []*Peer  `json:"peersRemoved,omitempty"` //节点移除列表
-	PeersUpdated []string `json:"peersUpdated,omitempty"` // 节点更新列表
+	// Network topology changes
+	PeersAdded   []*Peer  `json:"peersAdded,omitempty"`   // list of added peers
+	PeersRemoved []*Peer  `json:"peersRemoved,omitempty"` // list of removed peers
+	PeersUpdated []string `json:"peersUpdated,omitempty"` // list of updated peers
 
-	//策略变化
+	// Policy changes
 	PoliciesAdded   []*Policy `json:"policiesAdded,omitempty"`
 	PoliciesRemoved []*Policy `json:"policiesRemoved,omitempty"`
 	PoliciesUpdated []*Policy `json:"policiesUpdated,omitempty"`
 
-	//网络配置变化
+	// Network config changes
 	NetworkJoined        []string `json:"networkJoined,omitempty"`
 	NetworkLeft          []string `json:"networkLeft,omitempty"`
 	NetworkConfigChanged bool     `json:"networkConfigChanged,omitempty"`
 
-	Reason       []*Entry `json:"reason,omitempty"`       //变更原因描述
-	TotalChanges int      `json:"totalChanges,omitempty"` // 变更总数
+	Reason       []*Entry `json:"reason,omitempty"`       // change reason description
+	TotalChanges int      `json:"totalChanges,omitempty"` // total change count
 }
 
 func (c *DetailsInfo) HasChanges() bool {
@@ -136,7 +136,7 @@ type Peer struct {
 	PublicKey           string            `json:"publicKey,omitempty"`
 	PeerID              uint64            `json:"peerId,omitempty"`
 	AllowedIPs          string            `json:"allowedIps,omitempty"`
-	ReplacePeers        bool              `json:"replacePeers,omitempty"` // whether to replace peers when updating node
+	ReplacePeers        bool              `json:"replacePeers,omitempty"` // whether to replace all peers when updating this node
 	Port                int               `json:"port"`
 	GroupName           string            `json:"groupName"`
 	Version             uint64            `json:"version"`
@@ -210,7 +210,7 @@ func (m *Message) WithPolicies(policies []*Policy) *Message {
 	return m
 }
 
-// FullConfig 全量配置
+// FullConfig returns the full configuration
 func (m *Message) FullConfig() string {
 
 	return ""

@@ -14,20 +14,20 @@ import (
 
 func AuthMiddleware(revocationList *auth.RevocationList) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// 1. 获取 Authorization Header (格式: Bearer <token>)
+		// 1. Get Authorization Header (format: Bearer <token>)
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" || !strings.HasPrefix(authHeader, "Bearer ") {
-			resp.Unauthorized(c, "未授权，请先登录")
-			c.Abort() // 停止执行后续的处理函数
+			resp.Unauthorized(c, "Unauthorized, please log in first")
+			c.Abort() // Stop executing subsequent handlers
 			return
 		}
 
-		tokenString := authHeader[7:] // 截取 "Bearer " 之后的部分
+		tokenString := authHeader[7:] // Extract everything after "Bearer "
 
-		// 2. 解析并验证 Token
-		claims, err := utils.ParseToken(tokenString) // 这里需要实现解析逻辑
+		// 2. Parse and validate the token
+		claims, err := utils.ParseToken(tokenString) // Parsing logic needs to be implemented here
 		if err != nil {
-			resp.Unauthorized(c, "无效的 Token")
+			resp.Unauthorized(c, "Invalid token")
 			c.Abort()
 			return
 		}
@@ -39,7 +39,7 @@ func AuthMiddleware(revocationList *auth.RevocationList) gin.HandlerFunc {
 			return
 		}
 
-		// 4. 将用户 ID 写入上下文，后续 Handler 可以通过 c.Get("userID") 拿到
+		// 4. Write user ID to context; subsequent handlers can retrieve it via c.Get("userID")
 		c.Set("user_id", claims.Subject)
 		c.Set("username", claims.Username)
 		c.Set("email", claims.Email)
@@ -47,8 +47,8 @@ func AuthMiddleware(revocationList *auth.RevocationList) gin.HandlerFunc {
 		c.Set("jti", claims.ID)
 		c.Set("exp", claims.ExpiresAt.Time)
 
-		// 进阶：如果你想让后面的 context.Context 也能拿到这个值
-		// 可以重写 Request 的 Context (可选，但在纯净的架构中很有用)
+		// Advanced: if you want the context.Context downstream to also carry this value,
+		// you can rewrite the Request's Context (optional, but useful in a clean architecture)
 		ctx := context.WithValue(c.Request.Context(), infra.UserIDKey, claims.Subject)
 		ctx = context.WithValue(ctx, infra.SystemRoleKey, claims.SystemRole)
 		ctx = context.WithValue(ctx, infra.UsernameKey, claims.Username)

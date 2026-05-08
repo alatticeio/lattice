@@ -20,32 +20,32 @@ type WorkflowRequest struct {
 	CreatedAt time.Time `gorm:"index"                       json:"createdAt"`
 	UpdatedAt time.Time `json:"updatedAt"`
 
-	// 所属工作空间（空 = 平台级）
+	// Parent workspace (empty = platform-level)
 	WorkspaceID string `gorm:"index;size:36" json:"workspaceId"`
 
-	// 申请人（写入时冗余，避免联表）
+	// Requester (redundant at write time to avoid joins)
 	RequestedBy      string `gorm:"index;size:36" json:"requestedBy"`
 	RequestedByName  string `gorm:"size:100"      json:"requestedByName"`
 	RequestedByEmail string `gorm:"size:254"      json:"requestedByEmail"`
 
-	// 操作描述
+	// Operation description
 	ResourceType string `gorm:"size:50;index" json:"resourceType"` // policy | member | relay | ...
 	ResourceName string `gorm:"size:200"      json:"resourceName"`
 	Action       string `gorm:"size:50;index" json:"action"` // create | update | delete
 
-	// 操作载体（JSON 快照），executor 读取后执行真实 K8s/DB 操作
+	// Operation payload (JSON snapshot); executor reads it and performs real K8s/DB operations
 	Payload string `gorm:"type:text" json:"payload"`
 
-	// 状态机
+	// State machine
 	Status WorkflowStatus `gorm:"size:20;index;default:'pending'" json:"status"`
 
-	// 审批信息
+	// Approval info
 	ReviewedBy     string     `gorm:"size:36"  json:"reviewedBy,omitempty"`
 	ReviewedByName string     `gorm:"size:100" json:"reviewedByName,omitempty"`
 	ReviewedAt     *time.Time `json:"reviewedAt,omitempty"`
 	ReviewNote     string     `gorm:"size:500" json:"reviewNote,omitempty"`
 
-	// 执行信息
+	// Execution info
 	ExecutedAt   *time.Time `json:"executedAt,omitempty"`
 	ErrorMessage string     `gorm:"size:1000" json:"errorMessage,omitempty"`
 }

@@ -53,10 +53,10 @@ func (r *ruleProvisioner) Name() string {
 }
 
 func (r *ruleProvisioner) Provision(rule *infra.FirewallRule) error {
-	// 1. 清理旧规则 (基于 Name 前缀)
+	// 1. Clean up old rules (based on Name prefix)
 	r.execPS("Remove-NetFirewallRule -DisplayName 'Lattice-*'")
 
-	// 2. 处理 Ingress
+	// 2. Process Ingress rules
 	for i, tr := range rule.Ingress {
 		ips := strings.Join(tr.Peers, ",")
 		cmd := fmt.Sprintf(
@@ -68,7 +68,7 @@ func (r *ruleProvisioner) Provision(rule *infra.FirewallRule) error {
 		}
 	}
 
-	// 3. 处理 Egress
+	// 3. Process Egress rules
 	for i, tr := range rule.Egress {
 		ips := strings.Join(tr.Peers, ",")
 		cmd := fmt.Sprintf(

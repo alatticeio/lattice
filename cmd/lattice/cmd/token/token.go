@@ -42,7 +42,7 @@ func tokenCreateCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "create <token-name>",
 		Short: "create a token",
-		Long: `create a token for peer to join network。
+		Long: `create a token for peer to join network.
     
 params description:
   token-name    token name`,

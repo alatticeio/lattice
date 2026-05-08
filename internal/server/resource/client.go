@@ -88,14 +88,14 @@ func NewClient(signal infra.SignalService, mgr manager.Manager) (*Client, error)
 	}
 
 	client.log.Info("CRD status monitor starting")
-	// 2. 获取 Informer 并注册事件处理器
+	// 2. Get Informer and register event handlers
 	informer, err := mgr.GetCache().GetInformer(ctx, &corev1.ConfigMap{})
 	if err != nil {
 		client.log.Error("failed to get informer for configMap", err)
 		return nil, err
 	}
 
-	// 3. 注册事件回调函数
+	// 3. Register event callbacks
 	_, err = informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			client.handleConfigMapEvent(ctx, obj, "ADD")
@@ -114,7 +114,7 @@ func NewClient(signal infra.SignalService, mgr manager.Manager) (*Client, error)
 	return client, nil
 }
 
-// 核心事件处理函数
+// handleConfigMapEvent is the core event handler
 func (c *Client) handleConfigMapEvent(ctx context.Context, obj interface{}, eventType string) {
 	cm, ok := obj.(*corev1.ConfigMap)
 	if !ok {
@@ -212,8 +212,8 @@ func (c *Client) computeMessageHash(msg *infra.Message) (string, error) {
 }
 
 func NewManager() (manager.Manager, error) {
-	// 1. 初始化 Manager (它是 Informer 和 Cache 的核心)
-	// 使用 GetConfig() 替代 GetConfigOrDie()，避免非 K8s 环境下进程直接 exit。
+	// 1. Initialize the Manager (it is the core of Informer and Cache)
+	// Use GetConfig() instead of GetConfigOrDie() to avoid the process exiting directly in non-K8s environments.
 	restConfig, err := ctrl.GetConfig()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get kubeconfig (not in K8s cluster?): %w", err)
@@ -222,8 +222,8 @@ func NewManager() (manager.Manager, error) {
 	mgr, err := manager.New(restConfig, manager.Options{
 		Scheme: scheme,
 		Cache: cache2.Options{
-			// 只对 ConfigMap 限定 label，避免 informer 缓存所有 ConfigMap。
-			// 其他 CRD 类型不做过滤，走完整缓存，对 API server 压力最小。
+			// Only filter ConfigMaps by label to avoid caching all ConfigMaps.
+			// Other CRD types are not filtered and use full caching, minimizing API server load.
 			ByObject: map[client.Object]cache2.ByObject{
 				&corev1.ConfigMap{}: {
 					Label: labels.SelectorFromSet(map[string]string{
@@ -243,7 +243,7 @@ func NewManager() (manager.Manager, error) {
 	}
 
 	ctx := context.Background()
-	// 注册索引： status.token
+	// Register index: status.token
 	if err = mgr.GetFieldIndexer().IndexField(ctx, &v1alpha1.LatticeEnrollmentToken{}, "status.token", func(rawObj client.Object) []string {
 		token, ok := rawObj.(*v1alpha1.LatticeEnrollmentToken)
 		if !ok {
@@ -257,14 +257,14 @@ func NewManager() (manager.Manager, error) {
 		return nil, err
 	}
 
-	// 注册索引： spec.token（兼容旧逻辑）
+	// Register index: spec.token (backward compatibility)
 	if err = mgr.GetFieldIndexer().IndexField(ctx, &v1alpha1.LatticeEnrollmentToken{}, "spec.token", func(rawObj client.Object) []string {
-		// 1. 断言对象类型
+		// 1. Assert the object type
 		token, ok := rawObj.(*v1alpha1.LatticeEnrollmentToken)
 		if !ok {
 			return nil
 		}
-		// 2. 返回需要索引的字段值
+		// 2. Return the field value to index
 		if token.Spec.Token == "" {
 			return nil
 		}
@@ -273,7 +273,7 @@ func NewManager() (manager.Manager, error) {
 		return nil, err
 	}
 
-	// 只要你调用了 GetInformer，Manager 就会在 Start 时去同步它
+	// As long as you call GetInformer, the Manager will sync it on Start
 	_, err = mgr.GetCache().GetInformer(ctx, &v1alpha1.LatticeEnrollmentToken{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to start informer: %w", err)

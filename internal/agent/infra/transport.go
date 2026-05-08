@@ -46,6 +46,6 @@ type Probe interface {
 
 	Handle(ctx context.Context, remoteId PeerIdentity, packet *grpc.SignalPacket) error
 
-	// 2. 健康检查：在链路 Connected 后，定时发送探测包
+	// 2. Health check: periodically send probe packets after the connection is established
 	Ping(ctx context.Context) error
 }

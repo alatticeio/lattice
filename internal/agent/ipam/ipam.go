@@ -93,13 +93,13 @@ func (m *IPAM) FindFirstFree(ctx context.Context, pool *v1alpha1.LatticeGlobalIP
 	// ip is the network base address (e.g. 10.0.0.0); normalise it with the mask.
 	startIP := ip.Mask(ipnet.Mask)
 
-	// 1. List all existing allocations from the Informer cache.
+	// 1. List all existing allocations from the Informer cache
 	var allAllocations v1alpha1.LatticeSubnetAllocationList
 	if err = m.client.List(ctx, &allAllocations); err != nil {
 		return nil, err
 	}
 
-	// 2. Build a set of occupied hex suffixes for O(1) lookup.
+	// 2. Build a set of occupied hex suffixes for O(1) lookup
 	used := make(map[string]struct{})
 	for _, a := range allAllocations.Items {
 		// Name format: subnet-<8-hex-digits>, e.g. subnet-0a0a0100
@@ -107,23 +107,23 @@ func (m *IPAM) FindFirstFree(ctx context.Context, pool *v1alpha1.LatticeGlobalIP
 		used[hexStr] = struct{}{}
 	}
 
-	// 3. Iterate subnets and return the first one not in the used set.
+	// 3. Iterate subnets and return the first one not in the used set
 	for curr := startIP; ipnet.Contains(curr); curr = nextSubnet(curr, pool.Spec.SubnetMask) {
 		if _, exists := used[ipToHex(curr)]; !exists {
-			return curr, nil // 找到了回收后的空洞或全新的网段
+			return curr, nil // found a reclaimed hole or a completely new subnet
 		}
 	}
 	return nil, fmt.Errorf("no available subnet in pool")
 }
 
 func (m *IPAM) AllocateIP(ctx context.Context, network *v1alpha1.LatticeNetwork, peer *v1alpha1.LatticePeer) (string, error) {
-	// 1. Parse the network's assigned CIDR (e.g. 10.10.1.0/24).
+	// 1. Parse the network's assigned CIDR (e.g. 10.10.1.0/24)
 	ip, ipnet, err := net.ParseCIDR(network.Status.ActiveCIDR)
 	if err != nil {
 		return "", fmt.Errorf("invalid network CIDR: %v", err)
 	}
 
-	// 2. List all occupied IP objects in the peer's namespace (tenant scope).
+	// 2. List all occupied IP objects in the peer's namespace (tenant scope)
 	var existing v1alpha1.LatticeEndpointList
 	if err := m.client.List(ctx, &existing, client.InNamespace(peer.Namespace)); err != nil {
 		return "", err
@@ -140,11 +140,11 @@ func (m *IPAM) AllocateIP(ctx context.Context, network *v1alpha1.LatticeNetwork,
 		used[a.Name] = struct{}{}
 	}
 
-	// 3. Find a free IP.
-	// Start at network base + 2 (skip .0 network address and .1 gateway).
+	// 3. Find a free IP
+	// Start at network base + 2 (skip .0 network address and .1 gateway)
 	startInt := ipToUint32(ip.Mask(ipnet.Mask)) + 2
 
-	// End at broadcast - 1.
+	// End at broadcast - 1
 	ones, bits := ipnet.Mask.Size()
 	totalIPs := uint32(1 << (bits - ones))
 	endInt := ipToUint32(ip.Mask(ipnet.Mask)) + totalIPs - 2
@@ -157,7 +157,7 @@ func (m *IPAM) AllocateIP(ctx context.Context, network *v1alpha1.LatticeNetwork,
 			continue // Already in use.
 		}
 
-		// 4. Atomically claim the IP by creating its LatticeEndpoint.
+		// 4. Atomically claim the IP by creating its LatticeEndpoint
 		endpoint := &v1alpha1.LatticeEndpoint{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      hexName,
@@ -210,7 +210,7 @@ func (m *IPAM) ReleaseIP(ctx context.Context, namespace, allocatedAddress string
 	return nil
 }
 
-// 辅助函数：计算下一个子网地址
+// Helper: compute the next subnet address
 func nextSubnet(ip net.IP, maskBits int) net.IP {
 	i := ipToUint32(ip)
 	i += 1 << (32 - uint32(maskBits))

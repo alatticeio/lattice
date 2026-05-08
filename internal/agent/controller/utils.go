@@ -48,7 +48,7 @@ const (
 	PeeringFinalizer = "alattice.io/peering-finalizer"
 )
 
-// 辅助函数
+// Helper functions
 func stringSet(list []string) map[string]struct{} {
 	set := make(map[string]struct{}, len(list))
 	for _, item := range list {
@@ -97,7 +97,7 @@ func setsToSlice(set map[string]struct{}) []string {
 	return slice
 }
 
-// SpecEqual 比较两个 Spec 是否相等
+// SpecEqual compares two Specs for equality
 //func SpecEqual(old, new *latticecontrollerv1alpha1.LatticePeerSpec) bool {
 //	if old.Address != new.Address {
 //		return false
@@ -105,7 +105,7 @@ func setsToSlice(set map[string]struct{}) []string {
 //	if !stringSliceEqual(old.LatticeNetwork, new.LatticeNetwork) {
 //		return false
 //	}
-//	// 根据需要添加其他字段比较
+//	// Add other field comparisons as needed
 //	return true
 //}
 

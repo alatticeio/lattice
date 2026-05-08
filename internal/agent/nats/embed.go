@@ -10,10 +10,10 @@ import (
 	"github.com/nats-io/nats-server/v2/server"
 )
 
-// RunEmbedded 在当前进程内启动一个嵌入式 NATS Server（含 JetStream）。
+// RunEmbedded starts an embedded NATS Server (with JetStream) within the current process.
 //
-// ready 在 Server 就绪后关闭，调用方可借此感知启动完成；传 nil 则忽略。
-// 函数会阻塞直到 ctx 被取消，随后执行优雅关闭。
+// ready is closed when the Server is ready, allowing callers to detect startup completion; pass nil to ignore.
+// The function blocks until ctx is cancelled, then performs a graceful shutdown.
 func RunEmbedded(ctx context.Context, port int, ready chan<- struct{}) error {
 	storeDir := os.Getenv("NATS_STORE_DIR")
 	if storeDir == "" {
@@ -26,16 +26,16 @@ func RunEmbedded(ctx context.Context, port int, ready chan<- struct{}) error {
 	opts := &server.Options{
 		Host:   "0.0.0.0",
 		Port:   port,
-		NoSigs: true, // 由外部 ctx 控制生命周期，禁止 NATS 自行捕获信号
-		NoLog:  true, // 嵌入模式下屏蔽 NATS 内部日志，避免刷屏
+		NoSigs: true, // lifecycle controlled by external ctx, prevent NATS from capturing signals
+		NoLog:  true, // suppress NATS internal logs in embedded mode to avoid noise
 
-		// JetStream 持久化
+		// JetStream persistence
 		JetStream: true,
 		StoreDir:  storeDir,
 
-		// 嵌入模式不启用认证，客户端匿名连接即可。
-		// 若需认证，通过 NATS_USERNAME / NATS_PASSWORD 环境变量注入，
-		// 并在此处配置 server.Options.Username / Password。
+		// Embedded mode does not enable authentication; clients connect anonymously.
+		// If authentication is needed, inject via NATS_USERNAME / NATS_PASSWORD environment variables,
+		// and configure server.Options.Username / Password here.
 	}
 
 	ns, err := server.NewServer(opts)

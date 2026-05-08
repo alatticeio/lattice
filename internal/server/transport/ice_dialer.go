@@ -390,9 +390,9 @@ func (i *iceDialer) getAgent(remoteId infra.PeerIdentity) (*ice.Agent, error) {
 	iceAgent, err := ice.NewAgentWithOptions(
 		ice.WithInterfaceFilter(func(name string) bool {
 			name = strings.ToLower(name)
-			// 过滤掉所有虚拟网卡以及 WireGuard TUN 接口（wf0）。
-			// wf0 不能作为 ICE candidate：若选中，WireGuard 会把对端 endpoint
-			// 配置为 wf0 地址，导致加密包再次经过 wf0 形成路由环路。
+			// Filter out all virtual network interfaces and WireGuard TUN interfaces (wf0).
+			// wf0 cannot be used as an ICE candidate: if selected, WireGuard would configure
+			// the peer endpoint to the wf0 address, causing encrypted packets to pass through wf0 again, forming a routing loop.
 			if strings.Contains(name, "docker") ||
 				strings.Contains(name, "veth") ||
 				strings.Contains(name, "br-") ||

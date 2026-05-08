@@ -1,8 +1,8 @@
 // hack/seed_metrics/main.go
 //
-// 开发工具：向 VictoriaMetrics 推送模拟指标，用于 Dashboard 本地调试。
+// Development utility: push mock metrics to VictoriaMetrics for local Dashboard testing.
 //
-// 用法:
+// Usage:
 //
 //	go run ./hack/seed_metrics \
 //	  --vm-url http://101.36.119.12:8428 \
@@ -10,8 +10,8 @@
 //	  --nodes 5 \
 //	  --interval 30s
 //
-// network-id 对应数据库中 t_workspace.namespace 字段。
-// 可通过以下 SQL 查询：SELECT namespace FROM t_workspace;
+// network-id corresponds to the t_workspace.namespace field in the database.
+// Query it with: SELECT namespace FROM t_workspace;
 
 package main
 
@@ -28,10 +28,10 @@ import (
 )
 
 var (
-	vmURL     = flag.String("vm-url", "http://101.36.119.12:8428", "VictoriaMetrics 地址")
-	networkID = flag.String("network-id", "", "workspace.Namespace (= network_id label), 必填")
-	nodeCount = flag.Int("nodes", 4, "模拟节点数量")
-	interval  = flag.Duration("interval", 30*time.Second, "推送间隔")
+	vmURL     = flag.String("vm-url", "http://101.36.119.12:8428", "VictoriaMetrics URL")
+	networkID = flag.String("network-id", "", "workspace.Namespace (= network_id label), required")
+	nodeCount = flag.Int("nodes", 4, "number of simulated nodes")
+	interval  = flag.Duration("interval", 30*time.Second, "push interval")
 )
 
 type nodeState struct {
@@ -47,23 +47,23 @@ type nodeState struct {
 func main() {
 	flag.Parse()
 	if *networkID == "" {
-		log.Fatal("--network-id 必填。运行前先查询 DB: SELECT namespace FROM t_workspace;")
+		log.Fatal("--network-id is required. Query the DB first: SELECT namespace FROM t_workspace;")
 	}
 
-	log.Printf("▶ seed_metrics 启动")
+	log.Printf("▶ seed_metrics starting")
 	log.Printf("  vm-url:     %s", *vmURL)
 	log.Printf("  network-id: %s", *networkID)
 	log.Printf("  nodes:      %d", *nodeCount)
 	log.Printf("  interval:   %s", *interval)
 	log.Println()
 
-	// 生成稳定的节点 ID 列表
+	// Generate a stable list of node IDs
 	nodes := make([]string, *nodeCount)
 	for i := range nodes {
 		nodes[i] = fmt.Sprintf("node-%02d", i+1)
 	}
 
-	// 每个节点维护独立的随机状态，模拟真实波动
+	// Each node maintains its own random state to simulate real fluctuations
 	states := make([]nodeState, *nodeCount)
 	for i := range states {
 		states[i].cpu = 20 + rand.Float64()*40
@@ -78,16 +78,16 @@ func main() {
 	tick := time.NewTicker(*interval)
 	defer tick.Stop()
 
-	// 立即推送一次
+	// Push once immediately
 	push(nodes, states, *vmURL, *networkID)
 
 	for range tick.C {
-		// 更新状态（模拟真实波动）
+		// Update state (simulate real fluctuations)
 		for i := range states {
 			s := &states[i]
 			s.cpu = clamp(s.cpu+jitter(10), 2, 98)
 			s.memMB = clamp(s.memMB+jitter(50), 64, 1024)
-			// 流量单调递增
+			// Traffic is monotonically increasing
 			txDelta := 1e6 + rand.Float64()*50e6
 			rxDelta := 5e5 + rand.Float64()*25e6
 			s.txBytes += txDelta

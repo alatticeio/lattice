@@ -1,27 +1,27 @@
 package dto
 
 type WorkspaceDto struct {
-	Slug string `json:"slug"` // URL标识，如 "tencent-rd"
+	Slug string `json:"slug"` // URL identifier, e.g. "tencent-rd"
 
-	// 物理命名空间：这是关键！对应 K8s metadata.name
-	// 必须符合 DNS-1123 规范（小写字母、数字、中划线）
+	// Physical namespace: this is key! Corresponds to K8s metadata.name
+	// Must comply with DNS-1123 format (lowercase letters, numbers, hyphens)
 	Namespace string `json:"namespace"`
 
-	// 显示名称：用户在 Vercel 风格界面看到的名称 (如 "我的私有云")
+	// Display name: the name users see in the Vercel-style UI (e.g. "My Private Cloud")
 	DisplayName string `json:"displayName"`
 
-	// 空间配额
+	// Workspace quota
 	MaxNodeCount int `json:"maxNodeCount"`
 }
 
-// WorkspaceRole 定义团队角色类型
+// WorkspaceRole defines team role types
 type WorkspaceRole string
 
 const (
-	RoleAdmin  WorkspaceRole = "admin"  // 对应 K8s: 管理员，可管理成员和资源
-	RoleEditor WorkspaceRole = "editor" // 对应 K8s: 编辑者，可操作资源但不能管理成员
+	RoleAdmin  WorkspaceRole = "admin"  // K8s equivalent: admin, can manage members and resources
+	RoleEditor WorkspaceRole = "editor" // K8s equivalent: editor, can operate resources but not manage members
 	RoleMember WorkspaceRole = "member"
-	RoleViewer WorkspaceRole = "viewer" // 对应 K8s: 观察者，仅只读权限
+	RoleViewer WorkspaceRole = "viewer" // K8s equivalent: viewer, read-only
 
 )
 

@@ -20,14 +20,14 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// 定义信令包类型
+// Define signaling packet types
 type PacketType int32
 
 const (
 	PacketType_UNKNOWN       PacketType = 0
-	PacketType_HANDSHAKE_SYN PacketType = 1 // 发起握手：你在吗？
-	PacketType_HANDSHAKE_ACK PacketType = 2 // 响应握手：我在，可以交换。
-	PacketType_OFFER         PacketType = 3 // 业务数据：Offer
+	PacketType_HANDSHAKE_SYN PacketType = 1 // Initiate handshake: are you there?
+	PacketType_HANDSHAKE_ACK PacketType = 2 // Respond handshake: I am here, ready to exchange.
+	PacketType_OFFER         PacketType = 3 // Business data: Offer
 	PacketType_ANSWER        PacketType = 4 //
 	PacketType_MESSAGE       PacketType = 5
 )

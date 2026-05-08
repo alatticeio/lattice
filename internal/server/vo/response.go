@@ -1,6 +1,6 @@
 package vo
 
-// Response 构建统一响应
+// Response builds a unified response
 type Response[T any] struct {
 	Code    int    `json:"code"`
 	Message string `json:"message"`

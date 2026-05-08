@@ -16,7 +16,7 @@ func ParseToken(tokenString string) (*models.LatticeClaims, error) {
 	claims := &models.LatticeClaims{}
 	token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, fmt.Errorf("意外的签名算法: %v", token.Header["alg"])
+			return nil, fmt.Errorf("unexpected signing algorithm: %v", token.Header["alg"])
 		}
 		return GetJWTSecret(), nil
 	})
@@ -26,7 +26,7 @@ func ParseToken(tokenString string) (*models.LatticeClaims, error) {
 	if token.Valid {
 		return claims, nil
 	}
-	return nil, errors.New("token 验证失败：无效的凭证")
+	return nil, errors.New("token verification failed: invalid credentials")
 }
 
 func GetJWTSecret() []byte {

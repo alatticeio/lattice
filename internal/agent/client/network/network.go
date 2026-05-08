@@ -118,19 +118,19 @@ func (n *networkManager) LeaveNetwork(ctx context.Context, opts *config.NetworkO
 	return nil
 }
 
-// 定义 ID 的字符集：大写字母 (A-Z) 和数字 (0-9)
+// Character set for IDs: lowercase letters (a-z) and digits (0-9)
 const baseCharset = "abcdefghijklmnopqrstuvwxyz0123456789"
 
-// 定义生成的 ID 长度
+// Length of generated IDs
 const idLength = 10
 
-// GenerateNetworkID 生成一个指定长度 (10位) 的随机网络 ID。
-// ID 仅包含大写字母和数字。
+// GenerateNetworkID generates a random network ID of the specified length (10 characters).
+// The ID contains only lowercase letters and digits.
 func GenerateNetworkID() string {
 	rand.New(rand.NewSource(time.Now().UnixNano()))
 	b := make([]byte, idLength)
 
-	// 1. 生成所有 10 位的基础字符 (a-z0-9)
+	// 1. Generate all 10 base characters (a-z0-9)
 	for i := range b {
 		b[i] = baseCharset[rand.Intn(len(baseCharset))]
 	}

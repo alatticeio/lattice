@@ -27,11 +27,11 @@ func (t TransportType) String() string {
 	}
 }
 
-// 定义传输层优先级常量
+// Transport priority constants
 const (
-	PriorityDirect uint8 = 100 // 比如 LAN 直连
-	PriorityICE    uint8 = 80  // P2P 穿透 (STUN)
-	PriorityRelay  uint8 = 50  // LRP 中转 (NATS/Server)
+	PriorityDirect uint8 = 100 // e.g. LAN direct connection
+	PriorityICE    uint8 = 80  // P2P NAT traversal (STUN)
+	PriorityRelay  uint8 = 50  // LRP relay (NATS/Server)
 )
 
 // Transport using from read/write data from/to wire

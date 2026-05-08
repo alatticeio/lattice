@@ -100,8 +100,8 @@ func NewServer(ctx context.Context, serverConfig *ServerConfig) (*Server, error)
 	logger := log.GetLogger("management")
 	cfg := serverConfig.Cfg
 
-	// ── 弱依赖①：NATS 信令服务（可选）──────────────────────────────
-	// 若 signaling-url 为空或连接失败，降级为 noop，主进程继续启动。
+	// ── Weak Dependency 1: NATS Signal Service (optional) ────────────
+	// If signaling-url is empty or connection fails, fall back to noop; main process continues.
 	var signal infra.SignalService
 	if cfg.SignalingURL == "" {
 		logger.Warn("signaling-url is empty, NATS signal service disabled")
@@ -116,8 +116,8 @@ func NewServer(ctx context.Context, serverConfig *ServerConfig) (*Server, error)
 		}
 	}
 
-	// ── 弱依赖②：K8s Manager（可选）────────────────────────────────
-	// 非 K8s 环境（本地开发、CI）下跳过，不影响 HTTP Server 启动。
+	// ── Weak Dependency 2: K8s Manager (optional) ────────────────────
+	// Skipped in non-K8s environments (local dev, CI); does not affect HTTP Server startup.
 	var mgr manager.Manager
 	var client *resource.Client
 	k8sMgr, err := resource.NewManager()
@@ -133,25 +133,25 @@ func NewServer(ctx context.Context, serverConfig *ServerConfig) (*Server, error)
 		}
 	}
 
-	// 注册一个 Runnable：等待 controller-runtime cache 同步完成后，
-	// 关闭 cacheReady 通知外部 HTTP Server 可以安全上线。
+	// Register a Runnable: wait for controller-runtime cache sync to complete,
+	// then close cacheReady to signal the HTTP Server it can safely go online.
 	var cacheReady chan struct{}
 	if mgr != nil {
 		cacheReady = make(chan struct{})
 		ch := cacheReady
 		_ = mgr.Add(manager.RunnableFunc(func(ctx context.Context) error {
-			// 等待所有 Informer Cache 同步完成
+			// Wait for all Informer Cache to sync
 			if !mgr.GetCache().WaitForCacheSync(ctx) {
 				return fmt.Errorf("failed to wait for cache sync")
 			}
-			// Cache 已同步，通知 HTTP Server 可以启动
+			// Cache synced, notify HTTP Server it can start
 			close(ch)
 			<-ctx.Done()
 			return nil
 		}))
 	}
 
-	// ── 强依赖：数据库（失败时返回错误，符合设计约束）───────────
+	// ── Hard Dependency: Database (returns error on failure, per design) ───
 	st, err := db.NewStore(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to init store: %w", err)
@@ -164,7 +164,7 @@ func NewServer(ctx context.Context, serverConfig *ServerConfig) (*Server, error)
 
 	workflowSvc := service.NewWorkflowService(st)
 
-	// ── 弱依赖③：AI 服务（APIKey 未配置时降级为 nil）──────────────────────
+	// ── Weak Dependency 3: AI Service (tools always available; Chat/Audit/Debug need LLM) ──
 	var aiSvc service.AIService
 	var intentSvc service.IntentService
 	if cfg.AI.Enabled && cfg.AI.APIKey != "" {
@@ -194,11 +194,14 @@ func NewServer(ctx context.Context, serverConfig *ServerConfig) (*Server, error)
 
 			logger.Info("AI service initialized", "provider", cfg.AI.Provider)
 		}
-	} else {
-		logger.Info("AI service disabled (set ai.enabled=true and ai.api-key to enable)")
+	}
+	// Always create tool-capable service even without LLM (Chat/Audit/Debug will return errors).
+	if aiSvc == nil {
+		aiSvc = service.NewAIServiceWithWorkflow(nil, st, client, presence, 0, workflowSvc, nil)
+		logger.Info("AI service in tools-only mode (Chat/Audit/Debug require api-key)")
 	}
 
-	// ── 许可验证（Pro 版验证 JWT，社区版返回 StatusNotFound）───────────
+	// ── License Verification (Pro validates JWT, Community returns StatusNotFound) ──
 	lv := license.NewVerifier()
 	lic, status, err := lv.Verify()
 	if err != nil {
@@ -208,7 +211,7 @@ func NewServer(ctx context.Context, serverConfig *ServerConfig) (*Server, error)
 			"expires", lic.ExpiresAt.Format(time.RFC3339), "features", lic.Features)
 	}
 
-	// ── 弱依赖④：Monitor（可选）────────────────────────────────────
+	// ── Weak Dependency 4: Monitor (optional) ────────────────────────
 	var mon *monitor.Monitor
 	var heartbeatDB *gorm.DB
 	if gs, ok := st.(interface{ DB() *gorm.DB }); ok {
@@ -266,7 +269,7 @@ func NewServer(ctx context.Context, serverConfig *ServerConfig) (*Server, error)
 		monitor:                mon,
 	}
 
-	// initAdmins：DB 已就绪后执行；失败只告警，不阻断启动。
+	// initAdmins: runs after DB is ready; only warns on failure, does not block startup.
 	if err = s.userController.InitAdmin(context.Background(), config.GlobalConfig.App.InitAdmins); err != nil {
 		s.logger.Warn("init admin failed (non-fatal, will retry on next startup)", "err", err)
 	} else {
@@ -300,12 +303,12 @@ func NewServer(ctx context.Context, serverConfig *ServerConfig) (*Server, error)
 
 func (s *Server) Start(ctx context.Context) error {
 	if s.manager == nil {
-		// K8s manager 不可用，阻塞直到 ctx 取消，保持 goroutine 正常退出。
+		// K8s manager unavailable: block until ctx is cancelled, letting the goroutine exit cleanly.
 		<-ctx.Done()
 		return nil
 	}
 
-	//注册nats service
+	// Register NATS service
 	routes := map[string]Handler{
 		// agent ↔ server (peer signaling) — keep these
 		"lattice.signals.peer.register":  s.Register,
@@ -319,7 +322,7 @@ func (s *Server) Start(ctx context.Context) error {
 		s.nats.Service(route, "lattice_queue", handler)
 	}
 
-	// 关键：确保订阅指令已经到达并被 NATS Server 处理
+	// Critical: ensure subscription commands have reached and been processed by the NATS Server
 	if err := s.nats.Flush(); err != nil {
 		s.logger.Error("NATS subscription sync failed", err)
 	}

@@ -8,21 +8,21 @@ import (
 	"github.com/prometheus/common/model"
 )
 
-// QuerySingleValue 封装官方 API，直接返回浮点数
+// QuerySingleValue wraps the official API and returns a float64 directly
 func QuerySingleValue(ctx context.Context, api v1.API, query string) (float64, error) {
-	// 执行查询，注意这里返回的是 model.Value 接口
+	// Execute the query — note this returns model.Value interface
 	result, _, err := api.Query(ctx, query, time.Now())
 	if err != nil {
 		return 0, err
 	}
 
-	// 转换结果类型：Prometheus 瞬时查询通常返回 Vector
+	// Type conversion: Prometheus instant queries usually return Vector
 	vector, ok := result.(model.Vector)
 	if !ok || len(vector) == 0 {
-		// 如果没查到数据，返回 0
+		// If no data found, return 0
 		return 0, nil
 	}
 
-	// 取 Vector 中的第一个样本值
+	// Take the first sample value from the Vector
 	return float64(vector[0].Value), nil
 }

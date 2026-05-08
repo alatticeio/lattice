@@ -64,16 +64,16 @@ func (r *routeProvisioner) ApplyIP(action, address, name string) error {
 func (r *ruleProvisioner) Name() string { return "pfctl" }
 
 func ensurePFReady(anchor string) error {
-	// 确保 pf 已启用
+	// Ensure pf is enabled
 	exec.Command("sudo", "pfctl", "-e").Run() //nolint:errcheck
 
-	// 检查 anchor 是否已在主 ruleset 中
+	// Check if anchor is already in the main ruleset
 	out, _ := exec.Command("sudo", "pfctl", "-sr").Output()
 	if strings.Contains(string(out), `anchor "`+anchor+`"`) {
 		return nil
 	}
 
-	// 将 anchor 追加到主 ruleset 并重载
+	// Append anchor to the main ruleset and reload
 	existing := strings.TrimRight(string(out), "\n")
 	merged := existing + fmt.Sprintf("\nanchor \"%s\"\n", anchor)
 	cmd := exec.Command("sudo", "pfctl", "-f", "-")
@@ -95,14 +95,14 @@ func (r *ruleProvisioner) Provision(rule *infra.FirewallRule) error {
 		return err
 	}
 
-	// 1. 默认拒绝 (零信任封口)
-	// 注意：PF 是 last-match-wins，block 必须写在 pass 之前作为兜底
+	// 1. Default deny (zero-trust catch-all)
+	// Note: PF is last-match-wins, block rules must be written before pass rules as a fallback
 	iface := r.interfaceName
 	fmt.Fprintf(&sb, "block in on %s all\n", iface)
 	fmt.Fprintf(&sb, "block out on %s all\n", iface)
 
-	// 2. 生成 PF 规则字符串
-	// 当 Protocol 或 Port 未指定（零值）时，省略 proto/port，允许该 IP 的所有流量。
+	// 2. Generate PF rule string
+	// When Protocol or Port is not specified (zero value), omit proto/port to allow all traffic from that IP.
 	// Ingress: pass in [proto tcp] from {IP1} [to any port 80]
 	for _, tr := range rule.Ingress {
 		ips := "{" + strings.Join(tr.Peers, ", ") + "}"
@@ -125,13 +125,13 @@ func (r *ruleProvisioner) Provision(rule *infra.FirewallRule) error {
 		}
 	}
 
-	// 3. 将规则写入临时文件并加载到 anchor
+	// 3. Write rules to a temp file and load into anchor
 	tmpFile := "/tmp/lattice.pf"
 	if err := os.WriteFile(tmpFile, []byte(sb.String()), 0644); err != nil {
 		return err
 	}
 
-	// 使用 pfctl 加载特定的 anchor，不影响系统其他规则
+	// Load into the specific anchor using pfctl, without affecting other system rules
 	cmd := exec.Command("sudo", "pfctl", "-a", anchor, "-f", tmpFile)
 	if output, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("pfctl command failed: %w\n%s", err, output)

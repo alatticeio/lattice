@@ -40,19 +40,19 @@ type monitorService struct {
 // ... existing code ...
 
 type MonitorServiceOptions struct {
-	// Address Prometheus / VictoriaMetrics PromQL API 地址
-	// 例："http://localhost:8428"
+	// Address Prometheus / VictoriaMetrics PromQL API address
+	// e.g. "http://localhost:8428"
 	Address string
 
-	// Timeout 单次查询超时；当 ctx 本身未设置 deadline 时生效
+	// Timeout single query timeout; applies when ctx itself has no deadline set
 	Timeout time.Duration
 
-	// Logger 可选：不传则使用默认 logger
+	// Logger optional: uses default logger if not provided
 	Logger *log.Logger
 }
 
 func NewMonitorService(address string) (MonitorService, error) {
-	// 兼容旧签名：内部转到 Options 版本
+	// Backward-compatible signature: internally delegates to Options version
 	return NewMonitorServiceWithOptions(MonitorServiceOptions{
 		Address: address,
 		Timeout: 5 * time.Second,
@@ -87,7 +87,7 @@ func NewMonitorServiceWithOptions(opts MonitorServiceOptions) (MonitorService, e
 
 // ... existing code ...
 
-//// ensureTimeout：如果 ctx 没有 deadline，则注入默认超时；否则原样返回
+//// ensureTimeout: if ctx has no deadline, inject the default timeout; otherwise return as-is
 //func (v *monitorService) ensureTimeout(ctx context.Context) (context.Context, context.CancelFunc) {
 //	if _, ok := ctx.Deadline(); ok {
 //		return ctx, func() {}
@@ -95,7 +95,7 @@ func NewMonitorServiceWithOptions(opts MonitorServiceOptions) (MonitorService, e
 //	return context.WithTimeout(ctx, v.timeout)
 //}
 //
-//// queryInstant 执行一次 PromQL Instant Query，并统一处理 warnings
+//// queryInstant executes a PromQL Instant Query and handles warnings uniformly
 //func (v *monitorService) queryInstant(ctx context.Context, promql string, ts time.Time) (model.Value, error) {
 //	ctx, cancel := v.ensureTimeout(ctx)
 //	defer cancel()
@@ -105,15 +105,15 @@ func NewMonitorServiceWithOptions(opts MonitorServiceOptions) (MonitorService, e
 //		return nil, err
 //	}
 //	for _, w := range warnings {
-//		// 避免 fmt.Printf，统一走 logger
+//		// Avoid fmt.Printf, use logger uniformly
 //		v.log.Warn("promql warning", "warning", w, "query", promql)
 //	}
 //	return val, nil
 //}
 
-// GetPeerStatus 获取所有 Peer 的拓扑状态
+// GetTopologySnapshot gets the topology status of all Peers
 func (v *monitorService) GetTopologySnapshot(ctx context.Context) ([]models.PeerSnapshot, error) {
-	// 1. 查询所有以 lattice_node_ 开头的指标
+	// 1. Query all metrics starting with lattice_node_
 	query := `last_over_time({__name__=~"lattice_node_.*"}[5m])`
 	vector, err := v.QueryByTime(ctx, query, time.Now())
 	if err != nil {
@@ -127,7 +127,7 @@ func (v *monitorService) GetTopologySnapshot(ctx context.Context) ([]models.Peer
 		metricName := string(s.Metric["__name__"])
 		val := float64(s.Value)
 
-		// 初始化节点
+		// Initialize node
 		if _, ok := nodeMap[nodeID]; !ok {
 			nodeMap[nodeID] = &models.PeerSnapshot{
 				ID:          nodeID,
@@ -139,12 +139,12 @@ func (v *monitorService) GetTopologySnapshot(ctx context.Context) ([]models.Peer
 			}
 		}
 
-		// 2. 自动格式化并存入 Map
-		// 我们去掉前缀 "lattice_node_" 让前端拿到的 Key 更简洁
+		// 2. Auto-format and store in Map
+		// We strip the "lattice_node_" prefix so keys exposed to the frontend are cleaner
 		shortName := strings.TrimPrefix(metricName, "lattice_node_")
 		nodeMap[nodeID].Metrics[shortName] = utils.AutoFormat(metricName, val)
 
-		// 3. 特殊逻辑：根据 CPU 自动判定健康度
+		// 3. Special logic: determine health level based on CPU
 		if shortName == "cpu_usage_percent" {
 			if val > 80 {
 				nodeMap[nodeID].HealthLevel = "warning"
@@ -155,7 +155,7 @@ func (v *monitorService) GetTopologySnapshot(ctx context.Context) ([]models.Peer
 		}
 	}
 
-	// 转为切片
+	// Convert to slice
 	var result []models.PeerSnapshot
 	for _, node := range nodeMap {
 		result = append(result, *node)
@@ -163,23 +163,23 @@ func (v *monitorService) GetTopologySnapshot(ctx context.Context) ([]models.Peer
 	return result, nil
 }
 
-// QueryByTime 执行瞬时查询 (Instant Query)
-// query: PromQL 语句，例如 `last_over_time(peer_status[5m])`
-// t: 目标时间点。传入 time.Now() 查当前，传入过去的时间戳则查历史。
+// QueryByTime executes an Instant Query
+// query: PromQL statement, e.g. `last_over_time(peer_status[5m])`
+// t: target time. Pass time.Now() for current, or a past timestamp for historical data.
 func (v *monitorService) QueryByTime(ctx context.Context, query string, t time.Time) (model.Vector, error) {
-	// 1. 调用底层的 v1.API。注意：Query 接口返回的是指定时间点 t 的“快照”
+	// 1. Call the underlying v1.API. Note: the Query interface returns a “snapshot” at time t
 	result, warnings, err := v.api.Query(ctx, query, t)
 	if err != nil {
 		return nil, fmt.Errorf("promql query error: %v", err)
 	}
 
-	// 2. 打印 VM 返回的潜在警告（如查询超时、数据部分缺失）
+	// 2. Print potential warnings returned by VM (e.g. query timeout, partial data)
 	for _, w := range warnings {
 		fmt.Printf("VM Warning: %v\n", w)
 	}
 
-	// 3. 类型断言。Instant Query 的结果通常是 Vector (瞬时向量)
-	// 如果你查的是一个不存在的指标，这里会返回一个空的 Vector 而不是 error
+	// 3. Type assertion. Instant Query results are typically a Vector
+	// If you query a non-existent metric, an empty Vector is returned rather than an error
 	vector, ok := result.(model.Vector)
 	if !ok {
 		return nil, fmt.Errorf("unexpected result type: %T, expected model.Vector", result)
@@ -188,14 +188,14 @@ func (v *monitorService) QueryByTime(ctx context.Context, query string, t time.T
 	return vector, nil
 }
 
-// GetNodeSnapshot 获取特定空间的节点快照
+// GetNodeSnapshot gets the node snapshot for a specific namespace
 func (s *monitorService) GetNodeSnapshot(ctx context.Context, namespace string) ([]models.NodeSnapshot, error) {
 	ctx, cancel := context.WithTimeout(ctx, s.timeout)
 	defer cancel()
 
 	query := fmt.Sprintf(`last_over_time({network_id="%s"}[5m])`, namespace)
 
-	// 执行即时查询 (Instant Query)
+	// Execute Instant Query
 	val, _, err := s.api.Query(ctx, query, time.Now())
 	if err != nil {
 		return nil, err
@@ -206,8 +206,8 @@ func (s *monitorService) GetNodeSnapshot(ctx context.Context, namespace string) 
 		return nil, fmt.Errorf("unexpected prometheus return type")
 	}
 
-	// 2. 转换数据结构
-	// 使用 Map 聚合同一节点的不同指标
+	// 2. Transform data structure
+	// Use Map to aggregate different metrics for the same node
 	nodeMap := make(map[string]*models.NodeSnapshot)
 
 	for _, sample := range vector {
@@ -226,11 +226,11 @@ func (s *monitorService) GetNodeSnapshot(ctx context.Context, namespace string) 
 		metricName := string(sample.Metric["__name__"])
 		value := float64(sample.Value)
 
-		// 3. 灵活填充指标
+		// 3. Flexibly fill in metrics
 		s.fillMetrics(nodeMap[nodeID], metricName, value)
 	}
 
-	// 转为 Slice 返回
+	// Convert to slice and return
 	result := make([]models.NodeSnapshot, 0, len(nodeMap))
 	for _, v := range nodeMap {
 		result = append(result, *v)
@@ -238,13 +238,13 @@ func (s *monitorService) GetNodeSnapshot(ctx context.Context, namespace string) 
 	return result, nil
 }
 
-// fillMetrics 负责将原始监控项映射到业务字段
+// fillMetrics maps raw monitoring items to business fields
 func (s *monitorService) fillMetrics(node *models.NodeSnapshot, name string, val float64) {
 	switch name {
 	case models.WIREWFLOW_NODE_CPU_USEAGE:
 		node.RawMetrics["cpu"] = val
 		node.Metrics["cpu"] = fmt.Sprintf("%.1f%%", val)
-		// 动态逻辑：CPU 超过 90% 标记为 error
+		// Dynamic logic: mark as error when CPU exceeds 90%
 		if val > 90 {
 			node.HealthLevel = "error"
 		}
@@ -258,16 +258,16 @@ func (s *monitorService) fillMetrics(node *models.NodeSnapshot, name string, val
 			node.Status = "offline"
 			node.HealthLevel = "error"
 		}
-	// 你可以在这里无限增加新的监控项，如 gpu_temp, mem_usage 等
+	// You can add unlimited new monitoring items here, such as gpu_temp, mem_usage, etc.
 	default:
 		node.RawMetrics[name] = val
 		node.Metrics[name] = fmt.Sprintf("%.2f", val)
 	}
 }
 
-// GetGlobalStats 获取全域聚合指标
+// GetGlobalStats gets globally aggregated metrics
 func (s *monitorService) GetGlobalStats(ctx context.Context, metricName string) (map[string]float64, error) {
-	// 使用 sum(...) by (workspace_id) 进行服务端聚合
+	// Use sum(...) by (workspace_id) for server-side aggregation
 	query := fmt.Sprintf(`sum(%s) by (workspace_id)`, metricName)
 
 	val, _, err := s.api.Query(ctx, query, time.Now())
@@ -296,19 +296,19 @@ func (s *monitorService) GetWorkspaceAggregatedMonitor(ctx context.Context, name
 		LiveStats:   make([]models.StatCard, 4),
 	}
 
-	// 1. 获取实时吞吐量 (TX)
+	// 1. Get real-time throughput (TX)
 	eg.Go(func() error {
 		resp.LiveStats[0] = s.fetchThroughput(ctx, namespace)
 		return nil
 	})
 
-	// 2. 获取平均延迟
+	// 2. Get average latency
 	eg.Go(func() error {
 		query := fmt.Sprintf(`avg(lattice_peer_latency_ms{network_id="%s"})`, namespace)
 		val, _, err := s.api.Query(ctx, query, time.Now())
 		if err == nil {
 			resp.LiveStats[1] = models.StatCard{
-				Label: "平均延迟",
+				Label: "Average Latency",
 				Value: s.formatVectorValue(val),
 				Unit:  "ms",
 				Color: "text-emerald-500",
@@ -317,13 +317,13 @@ func (s *monitorService) GetWorkspaceAggregatedMonitor(ctx context.Context, name
 		return err
 	})
 
-	// 3. 获取丢包率
+	// 3. Get packet loss rate
 	eg.Go(func() error {
 		query := fmt.Sprintf(`avg(lattice_peer_packet_loss_percent{network_id="%s"})`, namespace)
 		val, _, err := s.api.Query(ctx, query, time.Now())
 		if err == nil {
 			resp.LiveStats[2] = models.StatCard{
-				Label: "丢包率",
+				Label: "Packet Loss",
 				Value: s.formatVectorValue(val),
 				Unit:  "%",
 				Color: "text-emerald-500",
@@ -332,22 +332,22 @@ func (s *monitorService) GetWorkspaceAggregatedMonitor(ctx context.Context, name
 		return err
 	})
 
-	// 4. 活动隧道数：peer_status==1 的连接数 / 2（每条隧道两端各上报一次）
+	// 4. Active tunnels: peer_status==1 connections / 2 (each tunnel reports from both ends)
 	eg.Go(func() error {
 		query := fmt.Sprintf(`ceil(sum(lattice_peer_status{network_id="%s"} == 1) / 2)`, namespace)
 		val, _, err := s.api.Query(ctx, query, time.Now())
 		if err == nil {
 			resp.LiveStats[3] = models.StatCard{
-				Label: "活动隧道",
+				Label: "Active Tunnels",
 				Value: s.formatVectorValue(val),
-				Unit:  "条",
+				Unit:  "TUNNELS",
 				Color: "text-emerald-500",
 			}
 		}
 		return err
 	})
 
-	// 5. 吞吐趋势（过去 1h，2m 粒度，TX + RX）
+	// 5. Throughput trend (past 1h, 2m granularity, TX + RX)
 	eg.Go(func() error {
 		r := v1.Range{
 			Start: time.Now().Add(-1 * time.Hour),
@@ -364,7 +364,7 @@ func (s *monitorService) GetWorkspaceAggregatedMonitor(ctx context.Context, name
 		return err
 	})
 
-	// 6. 节点列表明细
+	// 6. Node list details
 	eg.Go(func() error {
 		query := fmt.Sprintf(`last_over_time(lattice_peer_status{network_id="%s"}[5m])`, namespace)
 		val, _, err := s.api.Query(ctx, query, time.Now())
@@ -380,17 +380,17 @@ func (s *monitorService) GetWorkspaceAggregatedMonitor(ctx context.Context, name
 	return resp, nil
 }
 
-// GetWorkspaceDashboard 工作空间维度 Dashboard：并发查询 VM，返回 4 个指标卡 + 吞吐趋势 + 节点 CPU + Top 节点。
-// namespace 对应 VictoriaMetrics 里 network_id label 的值（即 workspace.Namespace）。
+// GetWorkspaceDashboard workspace-scoped Dashboard: concurrently queries VM, returns 4 stat cards + throughput trend + node CPU + Top nodes.
+// namespace corresponds to the network_id label value in VictoriaMetrics (i.e. workspace.Namespace).
 func (s *monitorService) GetWorkspaceDashboard(ctx context.Context, namespace string) (*models.WorkspaceDashboardResponse, error) {
 	var (
 		eg    errgroup.Group
 		mu    sync.Mutex
-		cards = make([]models.WorkspaceStatCard, 4) // 0:节点 1:吞吐 2:延迟 3:丢包
+		cards = make([]models.WorkspaceStatCard, 4) // 0:nodes 1:throughput 2:latency 3:packet loss
 		resp  = &models.WorkspaceDashboardResponse{}
 	)
 
-	// 0. 在线节点数
+	// 0. Online node count
 	eg.Go(func() error {
 		q := fmt.Sprintf(`count(last_over_time(lattice_node_uptime_seconds{network_id="%s"}[5m]))`, namespace)
 		vec, _ := s.QueryByTime(ctx, q, time.Now())
@@ -399,13 +399,13 @@ func (s *monitorService) GetWorkspaceDashboard(ctx context.Context, namespace st
 			val = int(vec[0].Value)
 		}
 		cards[0] = models.WorkspaceStatCard{
-			Label: "在线节点", Value: strconv.Itoa(val), Unit: "台",
+			Label: "Online Nodes", Value: strconv.Itoa(val), Unit: "NODES",
 			Trend: "stable", Color: "text-emerald-500",
 		}
 		return nil
 	})
 
-	// 1. 实时吞吐 TX（Mbps）
+	// 1. Real-time throughput TX (Mbps)
 	eg.Go(func() error {
 		q := fmt.Sprintf(`sum(irate(lattice_node_traffic_bytes_total{network_id="%s",direction="tx"}[2m])) * 8 / 1e6`, namespace)
 		vec, _ := s.QueryByTime(ctx, q, time.Now())
@@ -414,13 +414,13 @@ func (s *monitorService) GetWorkspaceDashboard(ctx context.Context, namespace st
 			val = float64(vec[0].Value)
 		}
 		cards[1] = models.WorkspaceStatCard{
-			Label: "实时吞吐", Value: fmt.Sprintf("%.1f", val), Unit: "Mbps",
+			Label: "Real-time Throughput", Value: fmt.Sprintf("%.1f", val), Unit: "Mbps",
 			Trend: s.getTrend(namespace+"_tx", val), Color: "text-blue-500",
 		}
 		return nil
 	})
 
-	// 2. 平均延迟（ms）
+	// 2. Average latency (ms)
 	eg.Go(func() error {
 		q := fmt.Sprintf(`avg(lattice_peer_latency_ms{network_id="%s"})`, namespace)
 		vec, _ := s.QueryByTime(ctx, q, time.Now())
@@ -433,13 +433,13 @@ func (s *monitorService) GetWorkspaceDashboard(ctx context.Context, namespace st
 			trend = "up"
 		}
 		cards[2] = models.WorkspaceStatCard{
-			Label: "平均延迟", Value: fmt.Sprintf("%.1f", val), Unit: "ms",
+			Label: "Average Latency", Value: fmt.Sprintf("%.1f", val), Unit: "ms",
 			Trend: trend, Color: "text-amber-500",
 		}
 		return nil
 	})
 
-	// 3. 平均丢包率（%）
+	// 3. Average packet loss (%)
 	eg.Go(func() error {
 		q := fmt.Sprintf(`avg(lattice_peer_packet_loss_percent{network_id="%s"})`, namespace)
 		vec, _ := s.QueryByTime(ctx, q, time.Now())
@@ -452,13 +452,13 @@ func (s *monitorService) GetWorkspaceDashboard(ctx context.Context, namespace st
 			trend = "up"
 		}
 		cards[3] = models.WorkspaceStatCard{
-			Label: "丢包率", Value: fmt.Sprintf("%.2f", val), Unit: "%",
+			Label: "Packet Loss", Value: fmt.Sprintf("%.2f", val), Unit: "%",
 			Trend: trend, Color: "text-emerald-500",
 		}
 		return nil
 	})
 
-	// 4. 吞吐趋势（近 1h，2m 粒度，TX + RX，单位 Mbps）
+	// 4. Throughput trend (last 1h, 2m granularity, TX + RX, unit Mbps)
 	eg.Go(func() error {
 		r := v1.Range{
 			Start: time.Now().Add(-1 * time.Hour),
@@ -476,7 +476,7 @@ func (s *monitorService) GetWorkspaceDashboard(ctx context.Context, namespace st
 		return nil
 	})
 
-	// 5. 节点 CPU + Memory
+	// 5. Node CPU + Memory
 	eg.Go(func() error {
 		cpuQ := fmt.Sprintf(`last_over_time(lattice_node_cpu_usage_percent{network_id="%s"}[5m])`, namespace)
 		memQ := fmt.Sprintf(`last_over_time(lattice_node_memory_bytes{network_id="%s"}[5m])`, namespace)
@@ -504,7 +504,7 @@ func (s *monitorService) GetWorkspaceDashboard(ctx context.Context, namespace st
 		return nil
 	})
 
-	// 6. Top 10 节点（24h 流量）
+	// 6. Top 10 nodes (24h traffic)
 	eg.Go(func() error {
 		trafficQ := fmt.Sprintf(
 			`topk(10, sum by (peer_id)(increase(lattice_node_traffic_bytes_total{network_id="%s"}[24h])))`,
@@ -550,7 +550,7 @@ func (s *monitorService) GetWorkspaceDashboard(ctx context.Context, namespace st
 	return resp, nil
 }
 
-// 格式化标量值
+// formatVectorValue formats a scalar value
 func (s *monitorService) formatVectorValue(val model.Value) string {
 	vector, ok := val.(model.Vector)
 	if !ok || len(vector) == 0 {
@@ -559,13 +559,13 @@ func (s *monitorService) formatVectorValue(val model.Value) string {
 	return fmt.Sprintf("%.1f", float64(vector[0].Value))
 }
 
-// 将 Range Query 的 Matrix 转换为前端波形图格式
+// processMatrixToTrend converts a Range Query Matrix to frontend waveform format
 // nolint:unused
 func (s *monitorService) processMatrixToTrend(val model.Value) models.TrendData {
 	return s.processMatrixToTrendWithRX(val, nil)
 }
 
-// processMatrixToTrendWithRX 同时填充 TX 和 RX 趋势数据
+// processMatrixToTrendWithRX fills both TX and RX trend data
 func (s *monitorService) processMatrixToTrendWithRX(txVal model.Value, rxVal model.Value) models.TrendData {
 	trend := models.TrendData{
 		Timestamps: []string{},
@@ -591,8 +591,8 @@ func (s *monitorService) processMatrixToTrendWithRX(txVal model.Value, rxVal mod
 	return trend
 }
 
-// 将节点标签信息转换为明细列表
-// 数据来源：lattice_peer_status，labels: workspace_id, node_id, peer_id, endpoint, alias
+// convertVectorToNodes converts node label information to a detail list
+// Data source: lattice_peer_status, labels: workspace_id, node_id, peer_id, endpoint, alias
 func (s *monitorService) convertVectorToNodes(val model.Value) []models.NodeMonitorDetail {
 	vector, _ := val.(model.Vector)
 	nodes := make([]models.NodeMonitorDetail, 0)
@@ -611,16 +611,16 @@ func (s *monitorService) convertVectorToNodes(val model.Value) []models.NodeMoni
 func (s *monitorService) fetchThroughput(ctx context.Context, namespace string) models.StatCard {
 	query := fmt.Sprintf(`sum(irate(lattice_node_traffic_bytes_total{network_id="%s",direction="tx"}[2m])) * 8 / 1e6`, namespace)
 
-	// 2. 执行查询
+	// 2. Execute query
 	val, _, err := s.api.Query(ctx, query, time.Now())
 
 	if err != nil {
-		return models.StatCard{Label: "实时吞吐", Value: "0.0", Unit: "Mbps", Trend: "stable", Color: "text-blue-500"}
+		return models.StatCard{Label: "Real-time Throughput", Value: "0.0", Unit: "Mbps", Trend: "stable", Color: "text-blue-500"}
 	}
 
 	vec, _ := val.(model.Vector)
 	if len(vec) == 0 {
-		return models.StatCard{Label: "实时吞吐", Value: "0.0", Unit: "Mbps", Trend: "stable", Color: "text-blue-500"}
+		return models.StatCard{Label: "Real-time Throughput", Value: "0.0", Unit: "Mbps", Trend: "stable", Color: "text-blue-500"}
 	}
 
 	currentValue := float64(vec[0].Value)
@@ -630,7 +630,7 @@ func (s *monitorService) fetchThroughput(ctx context.Context, namespace string) 
 	}
 
 	return models.StatCard{
-		Label:   "实时吞吐",
+		Label:   "Real-time Throughput",
 		Value:   fmt.Sprintf("%.1f", currentValue),
 		Unit:    "Mbps",
 		Trend:   s.getTrend(namespace, currentValue),
@@ -648,14 +648,14 @@ func (s *monitorService) getTrend(wsID string, current float64) string {
 	}
 	if current > lastVal.(float64)*1.05 {
 		return "up"
-	} // 增长超过5%判定为上升
+	} // Growth exceeding 5% is considered an increase
 	if current < lastVal.(float64)*0.95 {
 		return "down"
-	} // 下降超过5%判定为下降
+	} // Drop exceeding 5% is considered a decrease
 	return "stable"
 }
 
-// GetGlobalDashboard 并发查询 VM，聚合全域 Dashboard 数据
+// GetGlobalDashboard concurrently queries VM, aggregates global Dashboard data
 func (s *monitorService) GetGlobalDashboard(ctx context.Context) (*models.DashboardResponse, error) {
 	var (
 		eg             errgroup.Group
@@ -670,7 +670,7 @@ func (s *monitorService) GetGlobalDashboard(ctx context.Context) (*models.Dashbo
 		topNodes       []models.NodeMonitorDetail
 	)
 
-	// 1. 活跃工作空间数（有数据上报的空间）
+	// 1. Active workspace count (workspaces with data reported)
 	eg.Go(func() error {
 		vec, err := s.QueryByTime(ctx, `count(count by (workspace_id) (lattice_peer_status{workspace_id!=""}))`, time.Now())
 		if err == nil && len(vec) > 0 {
@@ -679,7 +679,7 @@ func (s *monitorService) GetGlobalDashboard(ctx context.Context) (*models.Dashbo
 		return nil
 	})
 
-	// 2. 全网在线节点数（按 node_id 去重）
+	// 2. Total online nodes across all networks (deduplicated by node_id)
 	eg.Go(func() error {
 		vec, err := s.QueryByTime(ctx, `count(count by (peer_id) (lattice_peer_status == 1))`, time.Now())
 		if err == nil && len(vec) > 0 {
@@ -688,7 +688,7 @@ func (s *monitorService) GetGlobalDashboard(ctx context.Context) (*models.Dashbo
 		return nil
 	})
 
-	// 3. 全域总吞吐（Gbps）
+	// 3. Global total throughput (Gbps)
 	eg.Go(func() error {
 		vec, err := s.QueryByTime(ctx, `sum(irate(lattice_peer_traffic_bytes_total{direction="tx"}[2m])) * 8 / 1e9`, time.Now())
 		if err == nil && len(vec) > 0 {
@@ -697,7 +697,7 @@ func (s *monitorService) GetGlobalDashboard(ctx context.Context) (*models.Dashbo
 		return nil
 	})
 
-	// 4. 每个空间的在线节点数（按 network_id 分组）
+	// 4. Online node count per workspace (grouped by network_id)
 	eg.Go(func() error {
 		vec, err := s.QueryByTime(ctx, `count by (network_id) (last_over_time(lattice_node_uptime_seconds[5m]))`, time.Now())
 		if err != nil {
@@ -712,7 +712,7 @@ func (s *monitorService) GetGlobalDashboard(ctx context.Context) (*models.Dashbo
 		return nil
 	})
 
-	// 5. 每个空间 24h 发送流量（用节点级聚合，避免双倍计数）
+	// 5. 24h sent traffic per workspace (aggregated at node level to avoid double counting)
 	eg.Go(func() error {
 		vec, err := s.QueryByTime(ctx, `sum by (network_id) (increase(lattice_node_traffic_bytes_total{direction="tx"}[24h]))`, time.Now())
 		if err != nil {
@@ -727,7 +727,7 @@ func (s *monitorService) GetGlobalDashboard(ctx context.Context) (*models.Dashbo
 		return nil
 	})
 
-	// 6. 每个空间健康度（在线 peer 占比）
+	// 6. Health score per workspace (percentage of online peers)
 	eg.Go(func() error {
 		vec, err := s.QueryByTime(ctx, `avg by (network_id) (lattice_peer_status) * 100`, time.Now())
 		if err != nil {
@@ -742,7 +742,7 @@ func (s *monitorService) GetGlobalDashboard(ctx context.Context) (*models.Dashbo
 		return nil
 	})
 
-	// 7. 全域吞吐趋势（当天 0 点到现在，4h 粒度 → 最多 6 个点）
+	// 7. Global throughput trend (from midnight today to now, 4h granularity, up to 6 points)
 	eg.Go(func() error {
 		midnight := time.Now().Truncate(24 * time.Hour)
 		r := v1.Range{
@@ -761,7 +761,7 @@ func (s *monitorService) GetGlobalDashboard(ctx context.Context) (*models.Dashbo
 		return nil
 	})
 
-	// 8. Top 10 节点（24h 流量）+ CPU + 在线状态
+	// 8. Top 10 nodes (24h traffic) + CPU + online status
 	eg.Go(func() error {
 		trafficVec, err := s.QueryByTime(ctx,
 			`topk(10, sum by (peer_id, network_id) (increase(lattice_node_traffic_bytes_total[24h])))`,
@@ -819,19 +819,19 @@ func (s *monitorService) GetGlobalDashboard(ctx context.Context) (*models.Dashbo
 	resp := &models.DashboardResponse{
 		GlobalStats: []models.GlobalStatItem{
 			{
-				Label: "活跃工作空间", Value: strconv.Itoa(activeWs), Unit: "SETS",
+				Label: "Active Workspaces", Value: strconv.Itoa(activeWs), Unit: "SETS",
 				Trend: "+0", Color: "text-blue-500", BarWidth: calcProgress(activeWs, 20), TrendUp: true,
 			},
 			{
-				Label: "全网在线节点", Value: strconv.Itoa(onlineNodes), Unit: "NODE",
+				Label: "Global Online Nodes", Value: strconv.Itoa(onlineNodes), Unit: "NODE",
 				Trend: "Live", Color: "text-emerald-500", BarWidth: calcProgress(onlineNodes, 2000), TrendUp: true,
 			},
 			{
-				Label: "全域总吞吐", Value: fmt.Sprintf("%.1f", throughputGbps), Unit: "Gbps",
+				Label: "Global Total Throughput", Value: fmt.Sprintf("%.1f", throughputGbps), Unit: "Gbps",
 				Trend: "Gbps", Color: "text-primary", BarWidth: calcProgress(int(throughputGbps*10), 100), TrendUp: true,
 			},
 			{
-				Label: "未处理告警", Value: "00", Unit: "WARN",
+				Label: "Unhandled Alerts", Value: "00", Unit: "WARN",
 				Trend: "Healthy", Color: "text-error", BarWidth: "0%", TrendUp: false,
 			},
 		},
@@ -841,7 +841,7 @@ func (s *monitorService) GetGlobalDashboard(ctx context.Context) (*models.Dashbo
 	resp.GlobalTrend = globalTrend
 	resp.TopNodes = topNodes
 
-	// 合并 workspace 数据（以有流量或有节点的空间为准）
+	// Merge workspace data (based on workspaces with traffic or nodes)
 	wsIDs := make(map[string]struct{})
 	mu.Lock()
 	for id := range wsNodes {
@@ -862,7 +862,7 @@ func (s *monitorService) GetGlobalDashboard(ctx context.Context) (*models.Dashbo
 			status = "Warning"
 		}
 		resp.WorkspaceUsage = append(resp.WorkspaceUsage, models.WorkspaceUsageRow{
-			Name:    wsID, // TODO: 后续 join DB 换成 displayName
+			Name:    wsID, // TODO: later join DB to replace with displayName
 			Type:    "Production",
 			Nodes:   wsNodes[wsID],
 			Traffic: formatTrafficBytes(wsTraffic[wsID]),
@@ -874,7 +874,7 @@ func (s *monitorService) GetGlobalDashboard(ctx context.Context) (*models.Dashbo
 	return resp, nil
 }
 
-// calcProgress 将 value/max 映射为百分比字符串，如 "65%"
+// calcProgress maps value/max to a percentage string, e.g. "65%"
 func calcProgress(value, max int) string {
 	if max <= 0 || value <= 0 {
 		return "0%"
@@ -886,7 +886,7 @@ func calcProgress(value, max int) string {
 	return fmt.Sprintf("%d%%", pct)
 }
 
-// formatTrafficBytes 将字节数格式化为可读字符串
+// formatTrafficBytes formats byte counts into a human-readable string
 func formatTrafficBytes(b float64) string {
 	switch {
 	case b >= 1e12:

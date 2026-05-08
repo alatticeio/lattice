@@ -45,7 +45,7 @@ func apiPOST(url, token string, body any) (int, *resp.Response) {
 	}
 	httpClient := &http.Client{Timeout: 15 * time.Second}
 	httpResp, err := httpClient.Do(req)
-	Expect(err).NotTo(HaveOccurred(), "HTTP POST %s 失败", url)
+	Expect(err).NotTo(HaveOccurred(), "HTTP POST %s failed", url)
 	defer httpResp.Body.Close() //nolint:errcheck
 
 	var data resp.Response
@@ -57,53 +57,53 @@ func apiPOST(url, token string, body any) (int, *resp.Response) {
 
 // login returns the admin access token.
 func login(manageURL string) string {
-	By("登录 Manager 获取 Admin Token")
+	By("Login to Manager to obtain Admin Token")
 	statusCode, data := apiPOST(manageURL+"/api/v1/users/login", "", map[string]string{"username": "admin", "password": "123456"})
-	Expect(statusCode).To(Equal(http.StatusOK), "登录接口返回非 200")
+	Expect(statusCode).To(Equal(http.StatusOK), "login API returned non-200")
 
 	dataMap, ok := data.Data.(map[string]any)
-	Expect(ok).To(BeTrue(), "登录响应 Data 格式错误")
+	Expect(ok).To(BeTrue(), "login response Data format error")
 	token, ok := dataMap["token"].(string)
-	Expect(ok && token != "").To(BeTrue(), "登录响应中未找到 token")
+	Expect(ok && token != "").To(BeTrue(), "token not found in login response")
 	return token
 }
 
 // createWorkspace creates a workspace and returns the workspace ID.
 func createWorkspace(manageURL, accessToken, nsName string) string {
 	wsName := fmt.Sprintf("e2e-%d", time.Now().UnixMilli())
-	By("创建 Workspace: " + wsName)
+	By("Create Workspace: " + wsName)
 	statusCode, data := apiPOST(manageURL+"/api/v1/workspaces/add", accessToken, dto.WorkspaceDto{
 		Namespace:   nsName,
 		DisplayName: wsName,
 		Slug:        wsName,
 	})
-	Expect(statusCode).To(Equal(http.StatusOK), "创建 Workspace 失败: %+v", data)
+	Expect(statusCode).To(Equal(http.StatusOK), "create Workspace failed: %+v", data)
 
 	dataMap, ok := data.Data.(map[string]any)
-	Expect(ok).To(BeTrue(), "Workspace 响应 Data 格式错误")
+	Expect(ok).To(BeTrue(), "Workspace response Data format error")
 	workspaceID, ok := dataMap["id"].(string)
-	Expect(ok && workspaceID != "").To(BeTrue(), "Workspace 响应中未找到 id")
+	Expect(ok && workspaceID != "").To(BeTrue(), "workspace id not found in Workspace response")
 	return workspaceID
 }
 
 // generateJoinToken generates an agent join token for the given workspace.
 func generateJoinToken(manageURL, accessToken, workspaceID string) string {
-	By("生成 Agent Join Token")
+	By("Generate Agent Join Token")
 	req, _ := http.NewRequestWithContext(context.Background(), http.MethodPost, manageURL+"/api/v1/token/generate", nil)
 	req.Header.Set("Authorization", "Bearer "+accessToken)
 	req.Header.Set("X-workspace-id", workspaceID)
 	httpClient := &http.Client{Timeout: 15 * time.Second}
 	httpResp, err := httpClient.Do(req)
-	Expect(err).NotTo(HaveOccurred(), "生成 Token 请求失败")
+	Expect(err).NotTo(HaveOccurred(), "generate Token request failed")
 	defer httpResp.Body.Close() //nolint:errcheck
 
 	var data resp.Response
 	Expect(json.NewDecoder(httpResp.Body).Decode(&data)).To(Succeed())
 
 	tkMap, ok := data.Data.(map[string]any)
-	Expect(ok).To(BeTrue(), "Token 响应 Data 格式错误")
+	Expect(ok).To(BeTrue(), "Token response Data format error")
 	token, ok := tkMap["token"].(string)
-	Expect(ok && token != "").To(BeTrue(), "Token 响应中未找到 token")
+	Expect(ok && token != "").To(BeTrue(), "token not found in Token response")
 	return token
 }
 
@@ -112,7 +112,7 @@ func generateJoinToken(manageURL, accessToken, workspaceID string) string {
 // hostAliasesForNATS discovers the NATS service ClusterIP for hostAliases.
 func hostAliasesForNATS(clientset *kubernetes.Clientset) []corev1.HostAlias {
 	svc, err := clientset.CoreV1().Services("lattice-system").Get(context.Background(), "lattice-nats-service", metav1.GetOptions{})
-	Expect(err).NotTo(HaveOccurred(), "未找到 lattice-nats-service")
+	Expect(err).NotTo(HaveOccurred(), "lattice-nats-service not found")
 	return []corev1.HostAlias{{
 		IP:        svc.Spec.ClusterIP,
 		Hostnames: []string{"signaling.alattice.io"},
@@ -192,7 +192,7 @@ func deployAgentDeployment(clientset *kubernetes.Clientset, ns, name, agentImage
 		},
 	}, metav1.CreateOptions{})
 
-	Expect(err).NotTo(HaveOccurred(), "创建 Deployment %s 失败", name)
+	Expect(err).NotTo(HaveOccurred(), "failed to create Deployment %s", name)
 }
 
 // waitForPodRunningReady waits until a pod matching the role label is Running and all containers Ready.
@@ -206,7 +206,7 @@ func waitForPodRunningReady(clientset *kubernetes.Clientset, ns, role string, ti
 			return err
 		}
 		if len(pods.Items) == 0 {
-			return fmt.Errorf("等待 %s 的 Pod 被调度", role)
+			return fmt.Errorf("waiting for Pod %s to be scheduled", role)
 		}
 		var pod *corev1.Pod
 		for i := range pods.Items {
@@ -216,19 +216,19 @@ func waitForPodRunningReady(clientset *kubernetes.Clientset, ns, role string, ti
 			}
 		}
 		if pod == nil {
-			return fmt.Errorf("等待 %s 的 Pod：当前 Pod 均处于 Terminating 状态", role)
+			return fmt.Errorf("waiting for Pod %s: all current Pods are in Terminating state", role)
 		}
 		if pod.Status.Phase != corev1.PodRunning {
-			return fmt.Errorf("pod %s 阶段为 %s，期望 Running", pod.Name, pod.Status.Phase)
+			return fmt.Errorf("pod %s phase is %s, expected Running", pod.Name, pod.Status.Phase)
 		}
 		for _, cs := range pod.Status.ContainerStatuses {
 			if !cs.Ready {
-				return fmt.Errorf("pod %s 容器 %s 尚未 Ready (restarts=%d)", pod.Name, cs.Name, cs.RestartCount)
+				return fmt.Errorf("pod %s container %s not Ready yet (restarts=%d)", pod.Name, cs.Name, cs.RestartCount)
 			}
 		}
 		podName = pod.Name
 		return nil
-	}, timeout, "3s").Should(Succeed(), "Deployment %s 的 Pod 未能进入 Running+Ready 状态", role)
+	}, timeout, "3s").Should(Succeed(), "Deployment %s Pod failed to reach Running+Ready status", role)
 	return podName
 }
 
@@ -239,17 +239,17 @@ func waitForWGIP(latticeClient sigclient.Client, ns, peerName string, timeout st
 	Eventually(func() error {
 		peer := &latticev1.LatticePeer{}
 		if err := latticeClient.Get(context.Background(), sigclient.ObjectKey{Namespace: ns, Name: peerName}, peer); err != nil {
-			return fmt.Errorf("LatticePeer %s 尚未创建: %w", peerName, err)
+			return fmt.Errorf("LatticePeer %s not yet created: %w", peerName, err)
 		}
 		if peer.Status.AllocatedAddress == nil || *peer.Status.AllocatedAddress == "" {
-			return fmt.Errorf("LatticePeer %s 已创建，控制面尚未分配地址", peerName)
+			return fmt.Errorf("LatticePeer %s created but control plane has not assigned address yet", peerName)
 		}
 		ip = *peer.Status.AllocatedAddress
 		if idx := strings.Index(ip, "/"); idx != -1 {
 			ip = ip[:idx]
 		}
 		return nil
-	}, timeout, "3s").Should(Succeed(), "超时未能获取 %s 的 WireGuard IP", peerName)
+	}, timeout, "3s").Should(Succeed(), "timed out waiting for WireGuard IP of %s", peerName)
 	return ip
 }
 
@@ -289,7 +289,7 @@ func createAllowAllPolicy(latticeClient sigclient.Client, ns, policyName, networ
 			},
 		},
 	}
-	Expect(latticeClient.Create(context.Background(), policy)).To(Succeed(), "创建 LatticePolicy %s 失败", policyName)
+	Expect(latticeClient.Create(context.Background(), policy)).To(Succeed(), "failed to create LatticePolicy %s", policyName)
 }
 
 // ---- Connectivity helpers ----
@@ -299,13 +299,13 @@ func pingWithRetry(clientset *kubernetes.Clientset, config *rest.Config, ns, src
 	Eventually(func() error {
 		output, err := execInPod(clientset, config, ns, srcPod, []string{"ping", "-c", "3", "-W", "2", targetIP})
 		if err != nil {
-			return fmt.Errorf("ping 执行失败: %w", err)
+			return fmt.Errorf("ping execution failed: %w", err)
 		}
 		if !strings.Contains(output, "0% packet loss") {
-			return fmt.Errorf("ping 存在丢包: %s", output)
+			return fmt.Errorf("ping has packet loss: %s", output)
 		}
 		return nil
-	}, timeout, "5s").Should(Succeed(), "从 %s ping %s 失败", srcPod, targetIP)
+	}, timeout, "5s").Should(Succeed(), "ping from %s to %s failed", srcPod, targetIP)
 }
 
 // assertPingBlocked verifies that ping from srcPod to targetIP is blocked (no 0% packet loss).
@@ -320,8 +320,8 @@ func assertPingBlocked(clientset *kubernetes.Clientset, config *rest.Config, ns,
 			// ping ran but got no replies — blocked
 			return nil
 		}
-		return fmt.Errorf("ping 应该被阻断但成功了: %s", out)
-	}, timeout, "2s").Should(Succeed(), "ping 应被阻断但未生效")
+		return fmt.Errorf("ping should have been blocked but succeeded: %s", out)
+	}, timeout, "2s").Should(Succeed(), "ping should be blocked but was not")
 }
 
 // ---- Workspace lifecycle helpers ----
@@ -333,7 +333,7 @@ func cleanupWorkspace(clientset *kubernetes.Clientset, ns string) {
 	if ns == "" {
 		return
 	}
-	By("清理 Namespace: " + ns)
+	By("Cleanup Namespace: " + ns)
 
 	ctx := context.Background()
 
@@ -381,7 +381,7 @@ func cleanupWorkspace(clientset *kubernetes.Clientset, ns string) {
 	deletePolicy := metav1.DeletePropagationBackground
 	if err := clientset.CoreV1().Namespaces().Delete(ctx, ns, metav1.DeleteOptions{PropagationPolicy: &deletePolicy}); err != nil {
 		if !k8serrors.IsNotFound(err) {
-			fmt.Fprintf(GinkgoWriter, "[WARN] 清理 Namespace %s 失败: %v\n", ns, err) //nolint:errcheck
+			fmt.Fprintf(GinkgoWriter, "[WARN] failed to clean up Namespace %s: %v\n", ns, err) //nolint:errcheck
 		}
 		return
 	}
@@ -392,10 +392,10 @@ func cleanupWorkspace(clientset *kubernetes.Clientset, ns string) {
 			return
 		}
 	}
-	fmt.Fprintf(GinkgoWriter, "[WARN] Namespace %s 删除超时（已跳过）\n", ns) //nolint:errcheck
+	fmt.Fprintf(GinkgoWriter, "[WARN] Namespace %s deletion timed out (skipped)\n", ns) //nolint:errcheck
 }
 
-// execInPod 通过 SPDY 在指定 Pod 内执行命令并返回 stdout 输出
+// execInPod executes a command inside a specified Pod via SPDY and returns stdout output
 func execInPod(c *kubernetes.Clientset, config *rest.Config, namespace, podName string, command []string) (string, error) {
 	req := c.CoreV1().RESTClient().Post().
 		Resource("pods").Name(podName).Namespace(namespace).SubResource("exec")
@@ -407,7 +407,7 @@ func execInPod(c *kubernetes.Clientset, config *rest.Config, namespace, podName 
 
 	exec, err := remotecommand.NewSPDYExecutor(config, "POST", req.URL())
 	if err != nil {
-		return "", fmt.Errorf("创建 SPDY executor 失败: %w", err)
+		return "", fmt.Errorf("failed to create SPDY executor: %w", err)
 	}
 
 	var stdout, stderr bytes.Buffer
@@ -415,7 +415,7 @@ func execInPod(c *kubernetes.Clientset, config *rest.Config, namespace, podName 
 		Stdout: &stdout,
 		Stderr: &stderr,
 	}); err != nil {
-		return "", fmt.Errorf("执行命令失败 [%v]: stderr=%s", err, stderr.String())
+		return "", fmt.Errorf("command execution failed [%v]: stderr=%s", err, stderr.String())
 	}
 	return stdout.String(), nil
 }

@@ -37,7 +37,7 @@ type WorkspaceMemberService interface {
 	Delete(ctx context.Context, workspace *models.WorkspaceMember) error
 	List(ctx context.Context, workspaceID string) ([]*models.WorkspaceMember, error)
 
-	// GetMemberRole 获取用户在特定工作区中的角色
+	// GetMemberRole returns the user's role in a specific workspace
 	GetMemberRole(ctx context.Context, workspaceNamespace string, userID string) (dto.WorkspaceRole, error)
 }
 
@@ -49,13 +49,13 @@ type workspaceService struct {
 }
 
 func (w *workspaceService) DeleteWorkspace(ctx context.Context, id string) error {
-	// 先查出 namespace，再删 K8s 资源，最后删 DB 记录
+	// First query namespace, then delete K8s resources, finally delete DB records
 	ws, err := w.store.Workspaces().GetByID(ctx, id)
 	if err != nil {
 		return err
 	}
 
-	// 删除 K8s Namespace（级联删除其中所有资源：Peer、Network、Policy 等）
+	// Delete K8s Namespace (cascading delete of all resources within: Peer, Network, Policy, etc.)
 	if ws.Namespace != "" {
 		ns := &corev1.Namespace{}
 		ns.Name = ws.Namespace
@@ -118,21 +118,21 @@ func (w *workspaceService) ListWorkspaces(ctx context.Context, request *dto.Page
 				UpdatedAt:   ws.UpdatedAt.Format("2006-01-02T15:04:05Z"),
 			}
 
-			// 首先检查Namespace是否存在
+			// First check if the Namespace exists
 			ns := &corev1.Namespace{}
 			nsKey := client.ObjectKey{Name: ws.Namespace}
 
 			if err := w.client.GetAPIReader().Get(gCtx, nsKey, ns); err != nil {
-				// Namespace不存在，workspace未初始化
+				// Namespace does not exist, workspace is not initialized
 				v.Status = "inactive"
 				v.NodeCount = 0
 				v.QuotaUsage = 0
 			} else {
-				// Namespace存在，尝试获取ResourceQuota
+				// Namespace exists, try to get ResourceQuota
 				quota := &corev1.ResourceQuota{}
 				quotaKey := client.ObjectKey{Name: "workspace-quota", Namespace: ws.Namespace}
 
-				// 使用 GetAPIReader 确保获取最新数据
+				// Use GetAPIReader to ensure the latest data is fetched
 				if err := w.client.GetAPIReader().Get(gCtx, quotaKey, quota); err == nil {
 					nodeRes := corev1.ResourceName("count/nodes.alattice.io")
 					if hard, ok := quota.Status.Hard[nodeRes]; ok {
@@ -142,17 +142,17 @@ func (w *workspaceService) ListWorkspaces(ctx context.Context, request *dto.Page
 						v.QuotaUsage = used.Value()
 					}
 				} else {
-					// ResourceQuota可能不存在或未就绪，但Namespace存在，所以workspace是active的
+					// ResourceQuota may not exist or not be ready, but Namespace exists so workspace is active
 					v.NodeCount = 0
 					v.QuotaUsage = 0
 				}
 
-				// 查询默认网络信息 - 使用 GetAPIReader 确保获取最新数据
+				// Query default network info - use GetAPIReader to ensure the latest data is fetched
 				network := &v1alpha1.LatticeNetwork{}
 				networkKey := client.ObjectKey{Name: "lattice-default-net", Namespace: ws.Namespace}
 				if err := w.client.GetAPIReader().Get(gCtx, networkKey, network); err == nil {
 					v.NetworkName = network.Spec.Name
-					// 优先使用 Status.ActiveCIDR（Controller 实际分配的），如果没有则使用 Spec.CIDR
+					// Prefer Status.ActiveCIDR (actual allocation by Controller), fall back to Spec.CIDR
 					if network.Status.ActiveCIDR != "" {
 						v.NetworkCIDR = network.Status.ActiveCIDR
 					} else {
@@ -161,7 +161,7 @@ func (w *workspaceService) ListWorkspaces(ctx context.Context, request *dto.Page
 					v.NetworkStatus = string(network.Status.Phase)
 				}
 
-				// 统计 EnrollmentToken 数量
+				// Count EnrollmentToken
 				var tokenList v1alpha1.LatticeEnrollmentTokenList
 				if err := w.client.GetAPIReader().List(gCtx, &tokenList, client.InNamespace(ws.Namespace)); err == nil {
 					v.TokenCount = int64(len(tokenList.Items))
@@ -177,7 +177,7 @@ func (w *workspaceService) ListWorkspaces(ctx context.Context, request *dto.Page
 		return nil, fmt.Errorf("k8s data aggregation failed: %v", err)
 	}
 
-	// 按状态过滤（status 由 k8s 动态计算，只能在丰富化后过滤）
+	// Filter by status (status is dynamically computed by k8s, can only be filtered after enrichment)
 	if request.Status != "" {
 		filtered := result[:0]
 		for _, v := range result {
@@ -261,7 +261,7 @@ func (w *workspaceService) AddWorkspace(ctx context.Context, dto *dto.WorkspaceD
 	userID, _ := ctx.Value(infra.UserIDKey).(string)
 	slug := utils.GenerateSlug(dto.Slug)
 
-	// 同一用户下不允许重名（跨用户允许）
+	// Duplicate names are not allowed under the same user (allowed across users)
 	if userID != "" {
 		exists, err := w.store.Workspaces().ExistsByUserAndSlug(ctx, userID, slug)
 		if err != nil {
@@ -280,27 +280,27 @@ func (w *workspaceService) AddWorkspace(ctx context.Context, dto *dto.WorkspaceD
 			Slug:        slug,
 			DisplayName: dto.DisplayName,
 			CreatedBy:   username,
-			// 先不设置 Namespace，等创建后再更新
+			// Do not set Namespace yet, update after creation
 		}
 		if err := s.Workspaces().Create(ctx, newWs); err != nil {
 			return err
 		}
 
-		// 生成实际的 Namespace 名称
+		// Generate the actual Namespace name
 		nsName := fmt.Sprintf("wf-%s", newWs.ID)
 		newWs.Namespace = nsName
 
-		// 更新数据库中的 Namespace 字段
+		// Update the Namespace field in the database
 		if err := s.Workspaces().Update(ctx, newWs); err != nil {
 			return err
 		}
 
-		// 初始化 K8s 资源
+		// Initialize K8s resources
 		if err := w.InitNewNamespace(ctx, newWs.ID); err != nil {
 			return err
 		}
 
-		// 将创建者加为 admin 成员，使后续重名校验（join t_workspaces_member）能正确生效
+		// Add the creator as an admin member so that subsequent duplicate name checks (join t_workspaces_member) work correctly
 		if userID != "" {
 			now := time.Now()
 			if err := s.WorkspaceMembers().AddMember(ctx, &models.WorkspaceMember{
@@ -359,7 +359,7 @@ func (w *workspaceService) InitNewNamespace(ctx context.Context, workspaceId str
 func (w *workspaceService) InitializeTenant(ctx context.Context, wsID, role string) error {
 	nsName := fmt.Sprintf("wf-%s", wsID)
 
-	// 1. 创建Namespace
+	// 1. Create Namespace
 	ns := &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:   nsName,
@@ -370,7 +370,7 @@ func (w *workspaceService) InitializeTenant(ctx context.Context, wsID, role stri
 		return err
 	}
 
-	// 2. 创建ResourceQuota
+	// 2. Create ResourceQuota
 	quota := &corev1.ResourceQuota{
 		ObjectMeta: metav1.ObjectMeta{Name: "workspace-quota", Namespace: nsName},
 		Spec: corev1.ResourceQuotaSpec{
@@ -384,19 +384,19 @@ func (w *workspaceService) InitializeTenant(ctx context.Context, wsID, role stri
 		return fmt.Errorf("failed to create quota: %v", err)
 	}
 
-	// 3. 创建RoleBinding
+	// 3. Create RoleBinding
 	for _, r := range []string{"admin", "editor", "member", "viewer"} {
 		if err := w.createRoleBinding(ctx, nsName, wsID, r); err != nil {
 			return fmt.Errorf("failed to create role binding: %v", err)
 		}
 	}
 
-	// 4. 创建默认网络
+	// 4. Create default network
 	if err := w.createDefaultNetwork(ctx, nsName); err != nil {
 		return fmt.Errorf("failed to create default network: %v", err)
 	}
 
-	// 5. 创建默认策略 (deny-all)
+	// 5. Create default policy (deny-all)
 	if err := w.createDefaultPolicy(ctx, nsName); err != nil {
 		return fmt.Errorf("failed to create default policy: %v", err)
 	}
@@ -448,8 +448,8 @@ func (w *workspaceService) createDefaultNetwork(ctx context.Context, nsName stri
 					Labels:    map[string]string{"app.kubernetes.io/managed-by": "lattice-controller"},
 				},
 				Spec: v1alpha1.LatticeNetworkSpec{
-					Name: "lattice-default-net", // 使用固定的默认名称
-					CIDR: "100.64.0.0/16",       // 设置默认 CIDR，使用 CGNAT 地址段
+					Name: "lattice-default-net", // Use a fixed default name
+					CIDR: "100.64.0.0/16",       // Set default CIDR, using the CGNAT address range
 				},
 			}
 

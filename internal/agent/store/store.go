@@ -1,6 +1,6 @@
-// Package store 定义数据库操作的纯接口层。
-// 具体实现（SQLite / MariaDB）在 internal/db/gormstore 中，
-// 通过 internal/db.NewStore 工厂函数按配置选择。
+// Package store defines the pure interface layer for database operations.
+// Concrete implementations (SQLite / MariaDB) live in internal/db/gormstore,
+// selected by configuration via the internal/db.NewStore factory function.
 package store
 
 import (
@@ -12,9 +12,9 @@ import (
 	"github.com/alatticeio/lattice/internal/server/vo"
 )
 
-// Store 是顶层存储抽象，聚合所有子 Repository。
-// 调用方只依赖本接口，不感知底层数据库类型。
-// Peer 和 Token 数据已迁移到 K8s etcd（LatticePeer CRD / LatticeEnrollmentToken CRD）。
+// Store is the top-level storage abstraction that aggregates all sub-Repository interfaces.
+// Callers depend only on this interface without knowledge of the underlying database type.
+// Peer and Token data have been migrated to K8s etcd (LatticePeer CRD / LatticeEnrollmentToken CRD).
 type Store interface {
 	Users() UserRepository
 	Workspaces() WorkspaceRepository
@@ -26,7 +26,7 @@ type Store interface {
 	WorkflowRequests() WorkflowRepository
 	Policies() PolicyRepository
 
-	// Tx 在同一个数据库事务中执行 fn，fn 内通过参数 s 访问所有 Repository。
+	// Tx executes fn within the same database transaction; fn accesses all Repository interfaces through parameter s.
 	Tx(ctx context.Context, fn func(s Store) error) error
 
 	Alerts() AlertRepository
@@ -38,7 +38,7 @@ type Store interface {
 	Close() error
 }
 
-// UserRepository 定义用户相关数据操作。
+// UserRepository defines user-related data operations.
 type UserRepository interface {
 	GetByID(ctx context.Context, id string) (*models.User, error)
 	GetByUsername(ctx context.Context, username string) (*models.User, error)
@@ -53,7 +53,7 @@ type UserRepository interface {
 	Count(ctx context.Context) (int64, error)
 }
 
-// WorkspaceRepository 定义工作空间相关数据操作。
+// WorkspaceRepository defines workspace-related data operations.
 type WorkspaceRepository interface {
 	GetByID(ctx context.Context, id string) (*models.Workspace, error)
 	GetByNamespace(ctx context.Context, namespace string) (*models.Workspace, error)
@@ -61,13 +61,13 @@ type WorkspaceRepository interface {
 	Update(ctx context.Context, workspace *models.Workspace) error
 	Delete(ctx context.Context, id string) error
 	ListByUser(ctx context.Context, userID string) ([]*models.Workspace, error)
-	// List 按关键字分页列举工作空间，返回结果列表和总数。
+	// List paginates workspaces by keyword, returning the result list and total count.
 	List(ctx context.Context, keyword string, page, pageSize int) ([]*models.Workspace, int64, error)
-	// ExistsByUserAndSlug 检查指定用户是否已拥有同名（slug）工作空间。
+	// ExistsByUserAndSlug checks whether the specified user already owns a workspace with the given slug.
 	ExistsByUserAndSlug(ctx context.Context, userID, slug string) (bool, error)
 }
 
-// WorkspaceMemberRepository 定义工作空间成员关系数据操作。
+// WorkspaceMemberRepository defines workspace membership data operations.
 type WorkspaceMemberRepository interface {
 	GetMembership(ctx context.Context, workspaceID, userID string) (*models.WorkspaceMember, error)
 	AddMember(ctx context.Context, member *models.WorkspaceMember) error
@@ -79,7 +79,7 @@ type WorkspaceMemberRepository interface {
 	UpdateRole(ctx context.Context, workspaceID, userID string, role dto.WorkspaceRole) error
 }
 
-// ProfileRepository 定义用户扩展资料数据操作。
+// ProfileRepository defines user profile data operations.
 type ProfileRepository interface {
 	Get(ctx context.Context, userID string) (*models.UserProfile, error)
 	Upsert(ctx context.Context, profile *models.UserProfile) error

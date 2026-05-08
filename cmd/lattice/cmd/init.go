@@ -42,7 +42,7 @@ func runInit(cmd *cobra.Command) error {
 	cfgPath := config.GetConfigFilePath()
 	scanner := bufio.NewScanner(os.Stdin)
 
-	// 如果配置文件已存在，询问是否覆盖
+	// If the config file already exists, ask whether to overwrite it
 	if _, err := os.Stat(cfgPath); err == nil {
 		fmt.Printf("Config file already exists at %s\n", cfgPath)
 		fmt.Print("Overwrite existing config? [y/N]: ")
@@ -56,15 +56,15 @@ func runInit(cmd *cobra.Command) error {
 
 	v := cfgManager.Viper()
 
-	// 必填项
+	// Required fields
 	serverURL := prompt(scanner, "Management server URL (--server-url)", v.GetString("server-url"))
 	token := prompt(scanner, "Enrollment token (--token)", v.GetString("token"))
 
-	// 可选项
+	// Optional fields
 	relayURL := promptOptional(scanner, "Relay TCP URL (--relay-url, optional)")
 	relayQuicURL := promptOptional(scanner, "Relay QUIC URL (--relay-quic-url, optional)")
 
-	// 写入 Viper 并保存
+	// Write to Viper and save
 	v.Set("server-url", serverURL)
 	v.Set("token", token)
 	if relayURL != "" {
@@ -85,7 +85,7 @@ func runInit(cmd *cobra.Command) error {
 	return nil
 }
 
-// prompt 打印提示并读取输入；若用户直接回车则返回 defaultVal。
+// prompt prints the prompt and reads input; returns defaultVal if the user presses Enter.
 func prompt(scanner *bufio.Scanner, label, defaultVal string) string {
 	if defaultVal != "" {
 		fmt.Printf("? %s [%s]: ", label, defaultVal)
@@ -100,7 +100,7 @@ func prompt(scanner *bufio.Scanner, label, defaultVal string) string {
 	return val
 }
 
-// promptOptional 打印可选提示；用户直接回车返回空字符串。
+// promptOptional prints an optional prompt; returns an empty string if the user presses Enter.
 func promptOptional(scanner *bufio.Scanner, label string) string {
 	fmt.Printf("? %s (press Enter to skip): ", label)
 	scanner.Scan()

@@ -34,10 +34,10 @@ func newControllerCmd() *cobra.Command {
 		SilenceUsage: true,
 		Long:         `lattice core controller for CRDs reconcile`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// 1. 检查用户是否传了 --save
+			// 1. Check whether the user passed --save
 			save, _ := cmd.Flags().GetBool("save")
 			if save {
-				// 2. 执行保存
+				// 2. Execute save
 				fmt.Println("Saving configuration...")
 
 				if err := cfgManager.Save(); err != nil {

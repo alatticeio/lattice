@@ -23,7 +23,7 @@ import (
 
 type Task func(ctx context.Context) error
 
-// TaskLoop 顺序执行任务
+// TaskLoop executes tasks sequentially
 type TaskLoop struct {
 	tasks chan Task
 	mu    sync.Mutex
@@ -33,10 +33,10 @@ type TaskLoop struct {
 	doneCh  chan struct{}
 }
 
-// NewTaskLoop 创建一个新的 TaskLoop，可以指定队列大小
+// NewTaskLoop creates a new TaskLoop with an optional queue size
 func NewTaskLoop(queueSize int) *TaskLoop {
 	if queueSize <= 0 {
-		queueSize = 100 // 默认队列大小
+		queueSize = 100 // default queue size
 	}
 	l := &TaskLoop{
 		tasks:  make(chan Task, queueSize),
@@ -74,18 +74,18 @@ func (l *TaskLoop) Start(ctx context.Context) {
 		for {
 			select {
 			case <-l.stopCh:
-				// 处理剩余任务
+				// Process remaining tasks
 				l.drainTasksOnStop(ctx)
 				return
 			case <-ctx.Done():
-				// 处理剩余任务
+				// Process remaining tasks
 				l.drainTasksOnStop(ctx)
 				return
 			case task, ok := <-l.tasks:
 				if !ok {
 					return
 				}
-				// 执行任务，忽略错误
+				// Execute the task, ignoring errors
 				_ = task(ctx)
 			}
 		}
@@ -93,32 +93,32 @@ func (l *TaskLoop) Start(ctx context.Context) {
 
 }
 
-// drainTasksOnStop 在停止时处理剩余的任务
+// drainTasksOnStop processes remaining tasks when stopping
 func (l *TaskLoop) drainTasksOnStop(ctx context.Context) {
-	// 创建一个1秒超时的上下文来处理剩余任务
+	// Create a 1-second timeout context for processing remaining tasks
 	drainCtx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 
-	// 尝试处理剩余的任务
+	// Attempt to process remaining tasks
 	for {
 		select {
 		case <-drainCtx.Done():
-			// 超时，放弃剩余任务
+			// Timeout, abandon remaining tasks
 			return
 		case task, ok := <-l.tasks:
 			if !ok {
 				return
 			}
-			// 尝试执行剩余任务
+			// Attempt to execute remaining tasks
 			_ = task(ctx)
 		default:
-			// 没有更多任务
+			// No more tasks
 			return
 		}
 	}
 }
 
-// Stop 停止任务循环，并等待所有正在处理的任务完成
+// Stop stops the task loop and waits for all in-flight tasks to complete
 func (l *TaskLoop) Stop() {
 	l.mu.Lock()
 	if !l.running {
@@ -129,10 +129,10 @@ func (l *TaskLoop) Stop() {
 	close(l.stopCh)
 	l.mu.Unlock()
 
-	<-l.doneCh // 等待处理完成
+	<-l.doneCh // Wait for processing to complete
 }
 
-// TryAddTask 尝试添加任务，如果队列满则立即返回错误
+// TryAddTask attempts to add a task, returning immediately if the queue is full
 func (l *TaskLoop) TryAddTask(task Task) error {
 	select {
 	case <-l.stopCh:
@@ -140,18 +140,18 @@ func (l *TaskLoop) TryAddTask(task Task) error {
 	case l.tasks <- task:
 		return nil
 	default:
-		return errors.New("任务队列已满")
+		return errors.New("task queue is full")
 	}
 }
 
-// IsRunning 返回循环是否正在运行
+// IsRunning returns whether the loop is running
 func (l *TaskLoop) IsRunning() bool {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	return l.running
 }
 
-// QueuedTasksCount 返回当前队列中等待的任务数量
+// QueuedTasksCount returns the number of tasks currently queued
 func (l *TaskLoop) QueuedTasksCount() int {
 	return len(l.tasks)
 }

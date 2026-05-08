@@ -25,17 +25,17 @@ type LatticeInvitationSpec struct {
 	// join to special namespace
 	TargetNamespace string `json:"targetNamespace"`
 
-	// 预设给新 Peer 的标签（例如 role: developer）
+	// Preset labels for new peers (e.g., role: developer)
 	PeerLabels map[string]string `json:"peerLabels,omitempty"`
 
 	ExpiresAt metav1.Time `json:"expiresAt"`
 }
 
 type LatticeInvitationStatus struct {
-	// 生成给客户端的token
+	// Token generated for the client
 	Token string `json:"token"`
 
-	// 已使用的次数
+	// Number of times used
 	UsedCount int `json:"usedCount"`
 
 	UsedPeers []string `json:"usedPeers"`

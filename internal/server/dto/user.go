@@ -1,19 +1,19 @@
 package dto
 
-// UserSettingsResponse 返回给前端的聚合对象
+// UserSettingsResponse is the aggregate object returned to the frontend
 type UserSettingsResponse struct {
-	Name        string `json:"name"`        // 对应 User.Username
-	Email       string `json:"email"`       // 对应 User.Email
-	AvatarURL   string `json:"avatarUrl"`   // 对应 User.AvatarURL
-	Title       string `json:"title"`       // 对应 UserProfile.Title
-	Company     string `json:"company"`     // 对应 UserProfile.Company
-	Bio         string `json:"bio"`         // 对应 UserProfile.Bio
-	Timezone    string `json:"timezone"`    // 对应 UserProfile.Timezone
-	Language    string `json:"language"`    // 对应 UserProfile.Language
-	EmailNotify bool   `json:"emailNotify"` // 对应 UserProfile.EmailNotify
+	Name        string `json:"name"`        // Maps to User.Username
+	Email       string `json:"email"`       // Maps to User.Email
+	AvatarURL   string `json:"avatarUrl"`   // Maps to User.AvatarURL
+	Title       string `json:"title"`       // Maps to UserProfile.Title
+	Company     string `json:"company"`     // Maps to UserProfile.Company
+	Bio         string `json:"bio"`         // Maps to UserProfile.Bio
+	Timezone    string `json:"timezone"`    // Maps to UserProfile.Timezone
+	Language    string `json:"language"`    // Maps to UserProfile.Language
+	EmailNotify bool   `json:"emailNotify"` // Maps to UserProfile.EmailNotify
 }
 
-// UpdateSettingsRequest 接收前端修改的结构体
+// UpdateSettingsRequest receives the update structure from the frontend
 type UpdateSettingsRequest struct {
 	Name      string `json:"name" binding:"required,min=2"`
 	Email     string `json:"email"`

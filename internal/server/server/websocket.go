@@ -12,15 +12,15 @@ package server
 //	}
 //	defer conn.Close()
 //
-//	// 订阅 NATS (Agent 的反馈)
-//	// 假设你已经初始化了 natsConn
+//	// Subscribe to NATS (Agent feedback)
+//	// Assuming you have already initialized natsConn
 //	sub, _ := natsConn.Subscribe("feedback.firewall", func(m *nats.Msg) {
-//		// 当 Agent 有更新时，立即推给 Vue 前端
+//		// When the Agent has updates, push them immediately to the Vue frontend
 //		conn.WriteMessage(websocket.TextMessage, m.Data)
 //	})
 //	defer sub.Unsubscribe()
 //
-//	// 阻塞直到前端断开连接
+//	// Block until the frontend disconnects
 //	for {
 //		if _, _, err := conn.ReadMessage(); err != nil {
 //			break

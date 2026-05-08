@@ -1,6 +1,6 @@
 package models
 
-// TopologyResponse 拓扑视图响应
+// TopologyResponse topology view response
 type TopologyResponse struct {
 	Nodes []TopoNode `json:"nodes"`
 	Links []TopoLink `json:"links"`

@@ -20,7 +20,7 @@ import (
 	"github.com/alatticeio/lattice/internal/server/dto"
 )
 
-// 指定网络里添加节点
+// Add or remove nodes from a specified network
 func (n *networkManager) AddOrRmNode(ctx context.Context, networkId, action string, nodeIds []string) error {
 	params := &dto.NetworkDto{
 		Name: networkId,

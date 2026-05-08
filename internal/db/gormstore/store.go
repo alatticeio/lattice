@@ -1,7 +1,7 @@
-// Package gormstore 提供基于 GORM 的 Store 统一实现，
-// 同时支持 SQLite（开源默认）和 MySQL/MariaDB（生产环境）。
-// 两者使用同一套 CRUD 逻辑，仅 GORM dialect 不同，
-// dialect 的选择在上层工厂 internal/db.NewStore 中完成。
+// Package gormstore provides a unified Store implementation based on GORM,
+// supporting both SQLite (open-source default) and MySQL/MariaDB (production).
+// Both use the same CRUD logic, differing only in the GORM dialect,
+// which is selected in the upper-level factory internal/db.NewStore.
 package gormstore
 
 import (
@@ -12,8 +12,8 @@ import (
 	"gorm.io/gorm"
 )
 
-// GormStore 实现 store.Store 接口。
-// Peer 和 Token 已迁移至 K8s etcd，不再由此 store 管理。
+// GormStore implements the store.Store interface.
+// Peer and Token have been migrated to K8s etcd and are no longer managed by this store.
 type GormStore struct {
 	db                   *gorm.DB
 	users                store.UserRepository
@@ -32,7 +32,7 @@ type GormStore struct {
 	networkSnapshots     store.NetworkSnapshotRepository
 }
 
-// New 创建 gormStore：先执行 AutoMigrate，再初始化各子 Repository。
+// New creates the gormStore: first runs AutoMigrate, then initializes each sub-Repository.
 func New(db *gorm.DB) (store.Store, error) {
 	if err := migrate(db); err != nil {
 		return nil, err
@@ -76,7 +76,7 @@ func (s *GormStore) SystemConfig() store.SystemConfigRepository        { return 
 func (s *GormStore) IntentPlans() store.IntentPlanRepository           { return s.intentPlans }
 func (s *GormStore) NetworkSnapshots() store.NetworkSnapshotRepository { return s.networkSnapshots }
 
-// Tx 在数据库事务中执行 fn，fn 内通过临时 Store 访问所有 Repository。
+// Tx executes fn within a database transaction, providing a temporary Store for all Repository access.
 func (s *GormStore) Tx(ctx context.Context, fn func(store.Store) error) error {
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		return fn(newStore(tx))

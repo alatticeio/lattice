@@ -32,7 +32,7 @@ import (
 const embeddedNATSPort = 4222
 
 func runLatticed(flags *config.Config) error {
-	// 1. 创建全局上下文，响应系统信号（Ctrl+C）
+	// 1. Create a global context that responds to system signals (Ctrl+C)
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
@@ -40,27 +40,27 @@ func runLatticed(flags *config.Config) error {
 
 	fmt.Println("Latticed is starting all-in-one mode...")
 
-	// 2. 启动嵌入式 NATS (基础设施)；natsReady 在 NATS 就绪后关闭
+	// 2. Start the embedded NATS (infrastructure); natsReady closes after NATS is ready
 	natsReady := make(chan struct{})
 	g.Go(func() error {
 		fmt.Println("Starting embedded NATS server...")
 		return internalnats.RunEmbedded(ctx, embeddedNATSPort, natsReady)
 	})
 
-	// 3. 初始化数据库（SQLite 开源默认，MariaDB 生产环境）
+	// 3. Initialize the database (SQLite open-source default, MariaDB for production)
 	fmt.Println("Initializing storage...")
 	_, err := db.NewStore(flags)
 	if err != nil {
 		return fmt.Errorf("failed to init db: %w", err)
 	}
 
-	// 4. 启动 K8s 控制器和业务管理器 (逻辑层)
+	// 4. Start the K8s controller and business manager (logic layer)
 	g.Go(func() error {
 		fmt.Println("Starting Lattice Controllers...")
 		return controller.Start(flags)
 	})
 
-	// 5. 等待 NATS 就绪后再启动 management
+	// 5. Wait for NATS to be ready before starting management
 	g.Go(func() error {
 		select {
 		case <-natsReady:
@@ -68,14 +68,14 @@ func runLatticed(flags *config.Config) error {
 			return ctx.Err()
 		}
 		fmt.Println("Starting Lattice Manager...")
-		// all-in-one 模式下，若用户未配置 signaling-url，则使用内嵌 NATS 地址
+		// In all-in-one mode, if the user has not configured signaling-url, use the embedded NATS address
 		if flags.SignalingURL == "" {
 			flags.SignalingURL = fmt.Sprintf("nats://localhost:%d", embeddedNATSPort)
 		}
 		return management.Start(flags)
 	})
 
-	// 5. 等待所有组件运行，或者其中一个报错退出
+	// 6. Wait for all components to run, or exit if one of them reports an error
 	fmt.Println("All systems go! Latticed is ready.")
 
 	if err := g.Wait(); err != nil {

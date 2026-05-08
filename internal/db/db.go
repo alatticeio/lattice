@@ -1,13 +1,13 @@
-// Package db 提供数据库 Store 的工厂函数。
-// 根据 DatabaseConfig.Driver 自动选择底层驱动：
+// Package db provides the factory function for the database Store.
+// It automatically selects the underlying driver based on DatabaseConfig.Driver:
 //
-//   - "sqlite"（或空值）→ SQLite，默认文件路径 lattice.db，DSN 即文件路径。
-//     适合开源自部署场景，零额外依赖，开箱即用。
-//   - "mysql" / "mariadb"    → MySQL/MariaDB，DSN 为标准连接字符串。
-//     适合生产环境，支持高并发与集群部署。
+//   - "sqlite" (or empty)  → SQLite, default file path lattice.db, DSN is the file path.
+//     Suitable for open-source self-deployment, zero extra dependencies, ready to use.
+//   - "mysql" / "mariadb"  → MySQL/MariaDB, DSN is the standard connection string.
+//     Suitable for production environments, supports high concurrency and cluster deployment.
 //
-// 两种实现共用同一套 GORM CRUD 逻辑（internal/db/gormstore），
-// 切换数据库只需修改配置，无需改动业务代码。
+// Both implementations share the same GORM CRUD logic (internal/db/gormstore).
+// Switching databases only requires changing the configuration, no business code changes needed.
 package db
 
 import (
@@ -24,9 +24,9 @@ import (
 	"gorm.io/gorm/logger"
 )
 
-// NewStore 根据 cfg.Database.Driver 创建对应的 Store 实现。
-// MySQL/MariaDB 模式下内置重试机制（最多 5 次，间隔 5 秒），
-// 以应对 K8s 环境中数据库容器尚未就绪的情况。
+// NewStore creates the corresponding Store implementation based on cfg.Database.Driver.
+// MySQL/MariaDB mode has a built-in retry mechanism (up to 5 attempts, 5-second interval)
+// to handle the case where the database container is not yet ready in a K8s environment.
 func NewStore(cfg *config.Config) (store.Store, error) {
 	driver := cfg.Database.Driver
 	dsn := cfg.Database.DSN
@@ -53,7 +53,7 @@ func NewStore(cfg *config.Config) (store.Store, error) {
 		}
 
 	default:
-		// 开源默认：SQLite。DSN 为文件路径，空时使用 lattice.db。
+		// Open-source default: SQLite. DSN is the file path, defaults to lattice.db when empty.
 		if dsn == "" {
 			dsn = "lattice.db"
 		}
@@ -61,7 +61,7 @@ func NewStore(cfg *config.Config) (store.Store, error) {
 		if err != nil {
 			return nil, fmt.Errorf("db: open sqlite failed (path=%s): %w", dsn, err)
 		}
-		// SQLite 不支持并发写，限制为单连接。
+		// SQLite does not support concurrent writes, limited to a single connection.
 		if sqlDB, e := db.DB(); e == nil {
 			sqlDB.SetMaxOpenConns(1)
 		}
@@ -70,7 +70,7 @@ func NewStore(cfg *config.Config) (store.Store, error) {
 	return gormstore.New(db)
 }
 
-// openWithRetry 尝试最多 5 次打开数据库连接，每次间隔 5 秒。
+// openWithRetry attempts to open the database connection up to 5 times, with a 5-second interval between attempts.
 func openWithRetry(open func() (*gorm.DB, error)) (*gorm.DB, error) {
 	var (
 		db  *gorm.DB
@@ -81,7 +81,7 @@ func openWithRetry(open func() (*gorm.DB, error)) (*gorm.DB, error) {
 		if err == nil {
 			return db, nil
 		}
-		log.Printf("[db] 连接失败，重试 %d/5: %v", i, err)
+		log.Printf("[db] connection failed, retry %d/5: %v", i, err)
 		time.Sleep(5 * time.Second)
 	}
 	return nil, err

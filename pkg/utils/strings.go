@@ -26,7 +26,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/mozillazg/go-pinyin" // 处理中文转拼音，对国内企业很友好
+	"github.com/mozillazg/go-pinyin" // handles Chinese transliteration to pinyin
 )
 
 func Splits(ids string, sep string) ([]uint64, error) {
@@ -72,13 +72,13 @@ func StringFormatter(a string) string {
 	return strings.ToLower(a)
 }
 
-// generateAppId 生成一个唯一的程序 ID
-// 格式类似于: wire-20260116-a3f2
+// GenerateAppId generates a unique application ID
+// Format is similar to: lattice-20260116-a3f2
 func GenerateAppId() string {
-	// 1. 取得日期部分
+	// 1. Get the date part
 	date := time.Now().Format("20060102")
 
-	// 2. 生成 2 字节（4位十六进制）的随机数
+	// 2. Generate 2 bytes (4 hex digits) of random data
 	b := make([]byte, 2)
 	_, err := rand.Read(b)
 	if err != nil {
@@ -91,7 +91,7 @@ func GenerateAppId() string {
 }
 
 func GenerateSlug(input string) string {
-	// 1. 如果有中文，转成拼音（可选，如果不转中文会被正则滤掉）
+	// 1. If there is Chinese, convert to pinyin (optional — Chinese chars would be filtered by regex otherwise)
 	args := pinyin.NewArgs()
 	p := pinyin.Pinyin(input, args)
 	if len(p) > 0 {
@@ -102,14 +102,14 @@ func GenerateSlug(input string) string {
 		input = strings.Join(s, "-")
 	}
 
-	// 2. 统一转小写
+	// 2. Convert to lowercase
 	slug := strings.ToLower(input)
 
-	// 3. 正则清洗：只保留字母、数字和中划线
+	// 3. Regex sanitization: keep only letters, digits, and hyphens
 	reg, _ := regexp.Compile(`[^a-z0-9]+`)
 	slug = reg.ReplaceAllString(slug, "-")
 
-	// 4. 去除首尾的多余中划线
+	// 4. Trim leading/trailing hyphens
 	slug = strings.Trim(slug, "-")
 
 	return slug

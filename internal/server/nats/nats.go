@@ -34,7 +34,7 @@ var (
 	_ infra.SignalService = (*noopSignalService)(nil)
 )
 
-// noopSignalService 是 NATS 不可用时的降级实现，所有操作静默忽略。
+// noopSignalService is a degraded implementation when NATS is unavailable; all operations are silently ignored.
 type noopSignalService struct {
 	log *log.Logger
 }
@@ -57,7 +57,7 @@ func (n *noopSignalService) Service(_, _ string, _ func([]byte) ([]byte, error))
 
 func (n *noopSignalService) Close() error { return nil }
 
-// NewNoopSignalService 返回一个无操作的 SignalService，用于 NATS 不可用时的降级。
+// NewNoopSignalService returns a no-op SignalService for degraded mode when NATS is unavailable.
 func NewNoopSignalService() infra.SignalService {
 	return &noopSignalService{log: log.GetLogger("nats-noop")}
 }
@@ -72,12 +72,12 @@ type NatsSignalService struct {
 
 func NewNatsService(ctx context.Context, name, role, url string) (*NatsSignalService, error) {
 	clientName := fmt.Sprintf("lattice-%s-%s-%d", role, name, time.Now().UnixNano())
-	// 1. 使用更稳健的连接配置
+	// 1. Use more robust connection configuration
 	opts := []natsgo.Option{
 		natsgo.Name(clientName),
-		natsgo.MaxReconnects(-1), // 无限重连，防止网络抖动导致服务彻底挂掉
+		natsgo.MaxReconnects(-1), // Unlimited reconnects to prevent network fluctuations from permanently killing the service
 		natsgo.ReconnectWait(2 * time.Second),
-		// 关键：增加断开连接后的报错回调，便于排查你提到的 Hold 住问题
+		// Key: add disconnect error callback to help diagnose the "hang" issue you mentioned
 		natsgo.DisconnectErrHandler(func(nc *natsgo.Conn, err error) {
 			fmt.Printf("NATS disconnected: %v\n", err)
 		}),
@@ -91,8 +91,8 @@ func NewNatsService(ctx context.Context, name, role, url string) (*NatsSignalSer
 		return nil, fmt.Errorf("nats connect: %w", err)
 	}
 
-	// 3. 必须执行 Flush！
-	// 这一步会同步等待握手完成。如果你连到了 Telnet 端口，Flush 会立刻报错。
+	// 3. Flush is required!
+	// This synchronously waits for the handshake to complete. If you connected to a Telnet port, Flush will error immediately.
 	if err = nc.Flush(); err != nil {
 		nc.Close()
 		return nil, fmt.Errorf("nats handshake failed (check if protocol is correct): %w", err)
@@ -103,14 +103,14 @@ func NewNatsService(ctx context.Context, name, role, url string) (*NatsSignalSer
 	}
 	s.log = logger
 
-	// JetStream 初始化逻辑
+	// JetStream initialization logic
 	js, err := jetstream.New(nc)
 	if err != nil {
-		nc.Close() // 初始化失败记得关掉连接
+		nc.Close() // Remember to close the connection on initialization failure
 		return nil, err
 	}
 
-	// 建议：将 Stream 的创建/检查逻辑封装成一个内部方法，保持 New 函数整洁
+	// Suggestion: encapsulate Stream creation/check logic into an internal method to keep the New function clean
 	if err := s.ensureStream(ctx, js); err != nil {
 		nc.Close()
 		return nil, err

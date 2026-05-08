@@ -7,7 +7,7 @@ import (
 	"github.com/alatticeio/lattice/internal/server/models"
 )
 
-// ProfileService 定义个人信息业务接口
+// ProfileService defines the profile business interface
 type ProfileService interface {
 	GetProfile(ctx context.Context, userID string) (*dto.UserSettingsResponse, error)
 	UpdateProfile(ctx context.Context, userID string, req dto.UpdateSettingsRequest) error
@@ -29,7 +29,7 @@ func (s *profileService) GetProfile(ctx context.Context, userID string) (*dto.Us
 
 	profile, err := s.store.Profiles().Get(ctx, userID)
 	if err != nil {
-		// 不存在时返回空 profile，不阻断请求
+		// Return empty profile if not found, do not block the request
 		profile = &models.UserProfile{}
 	}
 

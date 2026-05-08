@@ -59,7 +59,7 @@ func Start(ctx context.Context, flags *config.Config) error {
 		Flags:         flags,
 	}
 
-	// 写 PID 文件，让 lattice stop 能发 SIGTERM
+	// Write PID file so that lattice stop can send SIGTERM
 	pidPath := pidFilePath(flags.InterfaceName)
 	if err := writePIDFile(pidPath); err != nil {
 		logger.Warn("failed to write PID file", "err", err)

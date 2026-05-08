@@ -53,15 +53,15 @@ func WithIdentity(role string) func(db *gorm.DB) *gorm.DB {
 	}
 }
 
-// Paginate 这是一个通用的分页 Scope
+// Paginate is a generic pagination Scope
 func Paginate(page, pageSize int) func(db *gorm.DB) *gorm.DB {
 	return func(db *gorm.DB) *gorm.DB {
-		// 1. 处理默认值：如果 page <= 0，默认显示第 1 页
+		// 1. Handle defaults: if page <= 0, default to page 1
 		if page <= 0 {
 			page = 1
 		}
 
-		// 2. 处理 pageSize：设置默认值及上限，防止一次拉取过多数据撑爆内存
+		// 2. Handle pageSize: set defaults and upper limit to prevent pulling too much data and exhausting memory
 		switch {
 		case pageSize > 100:
 			pageSize = 100
@@ -69,7 +69,7 @@ func Paginate(page, pageSize int) func(db *gorm.DB) *gorm.DB {
 			pageSize = 10
 		}
 
-		// 3. 计算偏移量
+		// 3. Calculate offset
 		offset := (page - 1) * pageSize
 		return db.Offset(offset).Limit(pageSize)
 	}

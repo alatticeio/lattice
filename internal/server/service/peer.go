@@ -362,7 +362,7 @@ func (p *peerService) checkToken(ctx context.Context, tokenStr string) (bool, *v
 		return false, nil, fmt.Errorf("get token failed: %v", err)
 	}
 	if len(list.Items) == 0 {
-		// 兼容旧数据：回退到 spec.token
+		// Backward compatibility with old data: fall back to spec.token
 		err = p.client.List(ctx, &list, client.MatchingFields{"spec.token": tokenStr})
 		if err != nil {
 			return false, nil, fmt.Errorf("get token failed: %v", err)

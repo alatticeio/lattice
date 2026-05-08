@@ -28,8 +28,8 @@ type LatticeGlobalIPPoolList struct {
 
 // LatticeGlobalIPPoolSpec define global ip pool
 type LatticeGlobalIPPoolSpec struct {
-	CIDR       string `json:"cidr"`       // 例如 "10.0.0.0/8"
-	SubnetMask int    `json:"subnetMask"` // 每个 Network 分配多大，例如 24
+	CIDR       string `json:"cidr"`       // e.g. "10.0.0.0/8"
+	SubnetMask int    `json:"subnetMask"` // How much each Network gets, e.g. 24
 }
 
 // LatticeGlobalIPPoolStatus =
@@ -54,7 +54,7 @@ type LatticeGlobalIPPoolStatus struct {
 // +kubebuilder:resource:shortName=wfsubnet
 
 // LatticeSubnetAllocation for store / search a network's cidr
-// 它的 Name 格式定为: subnet-<hex-ip> (例如 subnet-0a0a0100)
+// Its Name format is: subnet-<hex-ip> (e.g. subnet-0a0a0100)
 // +kubebuilder:resource:scope=Cluster,shortName=wfsubnet
 type LatticeSubnetAllocation struct {
 	metav1.TypeMeta   `json:",inline"`
@@ -71,8 +71,8 @@ type LatticeSubnetAllocationList struct {
 }
 
 type LatticeSubnetAllocationSpec struct {
-	NetworkName string `json:"networkName"` // 归属于哪个 Network
-	CIDR        string `json:"cidr"`        // 实际分配的段，如 10.10.1.0/24
+	NetworkName string `json:"networkName"` // Which Network it belongs to
+	CIDR        string `json:"cidr"`        // Actual allocated prefix, e.g. 10.10.1.0/24
 }
 
 func init() {

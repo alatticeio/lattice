@@ -6,14 +6,14 @@ import (
 
 type AccessPolicyVo struct {
 	ID          uint64    `json:"id"`
-	Name        string    `json:"name"`                  // 策略名称
-	GroupID     uint64    `json:"group_id"`              // 所属分组
-	Priority    int       `json:"priority"`              // 策略优先级（数字越大优先级越高）
-	Effect      string    `json:"effect"`                // 效果：allow/deny
-	Description string    `json:"description,omitempty"` // 策略描述
+	Name        string    `json:"name"`                  // Policy name
+	GroupID     uint64    `json:"group_id"`              // Group ID
+	Priority    int       `json:"priority"`              // Policy priority (higher number = higher priority)
+	Effect      string    `json:"effect"`                // Effect: allow/deny
+	Description string    `json:"description,omitempty"` // Policy description
 	CreatedAt   time.Time `json:"createdAt"`
 	UpdatedAt   time.Time `json:"updatedAt"`
-	CreatedBy   string    `json:"createdBy"` // 创建者
+	CreatedBy   string    `json:"createdBy"` // Creator
 	UpdatedBy   string    `json:"updatedBy"`
 	DeletedAt   time.Time `json:"deletedAt"`
 
@@ -22,15 +22,15 @@ type AccessPolicyVo struct {
 
 type AccessRuleVo struct {
 	ID         uint64    `json:"id"`
-	Name       string    `json:"name"`                 // 规则名称
-	PolicyID   uint64    `json:"policyId"`             // 所属策略ID
-	SourceType string    `json:"sourceType"`           // 源类型：node/tag/all
-	SourceID   string    `json:"sourceId"`             // 源标识（节点ID或标签）
-	TargetType string    `json:"targetType"`           // 目标类型：node/tag/all
-	TargetID   string    `json:"targetId"`             // 目标标识（节点ID或标签）
-	Actions    string    `json:"actions"`              // 允许的操作列表
-	TimeType   string    `json:"timeType"`             // 时间类型
-	Conditions string    `json:"conditions,omitempty"` // 额外条件（如时间限制、带宽限制等）
+	Name       string    `json:"name"`                 // Rule name
+	PolicyID   uint64    `json:"policyId"`             // Parent policy ID
+	SourceType string    `json:"sourceType"`           // Source type: node/tag/all
+	SourceID   string    `json:"sourceId"`             // Source identifier (node ID or tag)
+	TargetType string    `json:"targetType"`           // Target type: node/tag/all
+	TargetID   string    `json:"targetId"`             // Target identifier (node ID or tag)
+	Actions    string    `json:"actions"`              // Allowed actions list
+	TimeType   string    `json:"timeType"`             // Time type
+	Conditions string    `json:"conditions,omitempty"` // Additional conditions (e.g. time limits, bandwidth limits)
 	CreatedAt  time.Time `json:"createdAt"`
 	UpdatedAt  time.Time `json:"updatedAt"`
 	CreatedBy  string    `json:"createdBy"`

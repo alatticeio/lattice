@@ -32,7 +32,7 @@ func (s *Server) userRouter() {
 	}
 }
 
-// 用户注册
+// RegisterUser handles user registration.
 func (s *Server) RegisterUser(c *gin.Context) {
 	var req dto.UserDto
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -49,7 +49,7 @@ func (s *Server) RegisterUser(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "注册成功"})
+	c.JSON(http.StatusOK, gin.H{"message": "Registration successful"})
 }
 
 func (s *Server) login(c *gin.Context) {
@@ -82,7 +82,7 @@ func (s *Server) login(c *gin.Context) {
 		return
 	}
 
-	// 返回给前端
+	// Return to frontend
 	resp.OK(c, map[string]interface{}{
 		"user":  user.Username,
 		"token": businessToken,

@@ -54,7 +54,7 @@ func NewGenerator(client client.Client) *Generator {
 	}
 }
 
-// DetectNodeChanges 检测 Peer 的所有变化
+// DetectNodeChanges detects all changes to a Peer
 //func (d *Generator) DetectNodeChanges(
 //	ctx context.Context,
 //	oldPeerSnapshot *PeerStateSnapshot,
@@ -68,13 +68,13 @@ func NewGenerator(client client.Client) *Generator {
 //		TotalChanges: 0,
 //	}
 //
-//	//1. 检测节点本身的变化
+//	//1. Detect node-level changes
 //	d.detectNodeConfigChanges(ctx, changes, oldPeerSnapshot, oldPeer, newPeer, req)
 //
-//	// 2. 检测网络拓扑变化（peers）
+//	// 2. Detect network topology changes (peers)
 //	d.detectNetworkChanges(ctx, changes, oldPeerSnapshot, oldNetwork, newNetwork, req)
 //
-//	//3. 检测网络策略的变化
+//	//3. Detect network policy changes
 //	d.detectPolicyChanges(ctx, changes, oldPolicies, newPolicies, req)
 //
 //	return changes
@@ -85,9 +85,9 @@ func NewGenerator(client client.Client) *Generator {
 //	if oldNode == nil {
 //		newCreated = true
 //	}
-//	// 1. 检测节点自身变化
+//	// 1. Detect node's own changes
 //	if !newCreated {
-//		// IP 地址变化
+//		// IP address change
 //		if !reflect.DeepEqual(oldNode.Status.AllocatedAddress, newNode.Status.AllocatedAddress) {
 //			changes.AddressChanged = true
 //			changes.TotalChanges++
@@ -96,7 +96,7 @@ func NewGenerator(client client.Client) *Generator {
 //			})
 //		}
 //
-//		// 密钥变化
+//		// Key change
 //		if oldNode.Spec.PublicKey != newNode.Spec.PublicKey {
 //			changes.KeyChanged = true
 //			changes.TotalChanges++
@@ -110,7 +110,7 @@ func NewGenerator(client client.Client) *Generator {
 //			changes.TotalChanges++
 //		}
 //
-//		// 网络归属变化
+//		// Network membership change
 //		oldNet, newNet := oldNode.Spec.Network, newNode.Spec.Network
 //		if newNet != nil {
 //			if oldNet == nil {
@@ -130,7 +130,7 @@ func NewGenerator(client client.Client) *Generator {
 //			}
 //		}
 //
-//		// labels变化
+//		// Labels change
 //		oldLables, newLables := oldNode.Labels, newNode.Labels
 //		if !reflect.DeepEqual(oldLables, newLables) {
 //			changes.TotalChanges++
@@ -142,7 +142,7 @@ func NewGenerator(client client.Client) *Generator {
 //		return changes
 //	}
 //
-//	// 新节点
+//	// New node
 //	changes.TotalChanges++
 //
 //	return changes
@@ -296,9 +296,9 @@ const (
 
 func (d *Generator) generate(ctx context.Context, current *v1alpha1.LatticePeer, snapshot *PeerStateSnapshot, version string) (*infra.Message, error) {
 	var err error
-	// 生成配置版本号
+	// Generate config version number
 	msg := &infra.Message{
-		EventType:     infra.EventTypeNodeUpdate, // 统一使用 ConfigUpdate
+		EventType:     infra.EventTypeNodeUpdate, // consistently use ConfigUpdate
 		ConfigVersion: version,
 		Timestamp:     time.Now().Unix(),
 		Current:       transferToPeer(current),
@@ -309,12 +309,12 @@ func (d *Generator) generate(ctx context.Context, current *v1alpha1.LatticePeer,
 
 	msg.Current.Labels = snapshot.Labels
 
-	// 填充网络信息
+	// Populate network info
 	if snapshot.Network != nil {
 		msg.Network.NetworkId = snapshot.Network.Name
 		msg.Network.NetworkName = snapshot.Network.Spec.Name
 
-		// 填充 peers，按 Name 排序保证 hash 稳定
+		// Populate peers, sort by Name for stable hashing
 		for _, p := range snapshot.Peers {
 			if p.Status.AllocatedAddress == nil {
 				continue
@@ -356,7 +356,7 @@ func (d *Generator) generate(ctx context.Context, current *v1alpha1.LatticePeer,
 //	return m
 //}
 
-// generateConfigVersion 生成配置版本号
+// generateConfigVersion generates a config version string
 func (d *Generator) generateConfigVersion() string {
 	d.versionMu.Lock()
 	defer d.versionMu.Unlock()
@@ -440,8 +440,8 @@ func (d *Generator) buildPolicy(ctx context.Context, src *v1alpha1.LatticePolicy
 	return policy
 }
 
-// getPeerNamesByLabels 按 label 选择器查找 peer，只返回 name 列表。
-// 使用 UID 去重，避免多个选择器命中同一 peer 时重复；按 Name 排序保证 hash 稳定。
+// getPeerNamesByLabels finds peers by label selector, returning only the name list.
+// Uses UID for deduplication to avoid duplicates when multiple selectors match the same peer; sorts by Name for stable hashing.
 func (d *Generator) getPeerNamesByLabels(ctx context.Context, namespace, networkName string, rules []v1alpha1.PeerSelection) ([]string, error) {
 	found := make(map[types.UID]string) // UID → Name
 

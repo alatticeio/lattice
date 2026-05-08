@@ -18,15 +18,15 @@ import (
 	"golang.org/x/oauth2"
 )
 
-// 1. OIDC 配置
+// 1. OIDC configuration
 var endpoint = oauth2.Endpoint{
 	AuthURL:  "http://lattice-dex.lattice-system.svc.cluster.local:5556/dex/auth",
 	TokenURL: "http://lattice-dex.lattice-system.svc.cluster.local:5556/dex/token",
 }
 
 var oauth2Config = oauth2.Config{
-	ClientID:     "lattice-server",     // 必须对应 dex-oauth2Config.yaml
-	ClientSecret: "lattice-secret-key", // 必须对应 dex-oauth2Config.yaml
+	ClientID:     "lattice-server",     // Must match dex-oauth2Config.yaml
+	ClientSecret: "lattice-secret-key", // Must match dex-oauth2Config.yaml
 	Endpoint:     endpoint,
 	RedirectURL:  "http://localhost:8080/auth/callback",
 	Scopes:       []string{oidc.ScopeOpenID, "profile", "email"},
@@ -51,33 +51,33 @@ func NewDex(userService service.UserService) (*Dex, error) {
 	}, nil
 }
 
-// 2. 登录 Handler
+// 2. Login handler
 func (d *Dex) Login(c *gin.Context) {
 	ctx := c.Request.Context()
 
-	// 1. 获取授权码
+	// 1. Get the authorization code
 	code := c.Query("code")
 	if code == "" {
 		resp.BadRequest(c, "Missing code")
 		return
 	}
 
-	// 2. 使用 OAuth2 配置向 Dex 兑换 Token
-	// oauth2Config 是你初始化时定义的变量
+	// 2. Use OAuth2 config to exchange the token with Dex
+	// oauth2Config is the variable you initialized earlier
 	oauth2Token, err := d.oauth2Config.Exchange(ctx, code)
 	if err != nil {
 		resp.Error(c, fmt.Sprintf("Failed to exchange token: %v", err))
 		return
 	}
 
-	// 3. 解析 ID Token (这是 Dex 返回的用户身份信息)
+	// 3. Parse the ID Token (this is the user identity information returned by Dex)
 	rawIDToken, ok := oauth2Token.Extra("id_token").(string)
 	if !ok {
 		resp.Error(c, "No id_token in response")
 		return
 	}
 
-	// 4. 验证 Token 并提取 Claims
+	// 4. Verify the token and extract claims
 	idToken, err := d.verifier.Verify(ctx, rawIDToken)
 	if err != nil {
 		resp.Error(c, fmt.Sprintf("Failed to verify ID Token: %v ", err))
@@ -91,8 +91,8 @@ func (d *Dex) Login(c *gin.Context) {
 		return
 	}
 
-	//// 5. 【核心】同步到你的数据库并初始化 K8s 基础设施
-	//// 这调用的是我们最初写的 OnboardExternalUser 函数
+	//// 5. [Core] Sync to your database and initialize K8s infrastructure
+	//// This calls the OnboardExternalUser function we initially wrote
 	//user, err := d.workspaceService.OnboardExternalUser(ctx, dexClaims.Subject, dexClaims.Name)
 	//if err != nil {
 	//	c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to onboard user"})
@@ -105,25 +105,25 @@ func (d *Dex) Login(c *gin.Context) {
 		return
 	}
 
-	// 6. 签发你自己的业务 JWT (给前端后续请求使用)
+	// 6. Issue your own business JWT (for subsequent frontend requests)
 	businessToken, _ := utils.GenerateBusinessJWT(user.ID, user.Email, user.Username, string(user.SystemRole))
 
-	// 7. 返回结果或重定向
-	// 私有云部署通常直接重定向回前端 Dashboard，带上 Token
+	// 7. Return result or redirect
+	// Private cloud deployments typically redirect directly to the frontend Dashboard with the token
 	c.Redirect(http.StatusFound, "http://localhost:5173/login/success?token="+businessToken)
 }
 
 func InitVerifier() (*oidc.IDTokenVerifier, error) {
 	ctx := context.Background()
 
-	// 1. 创建一个 Provider，它会自动去 http://localhost:5556/dex/.well-known/openid-configuration 获取公钥
+	// 1. Create a Provider, which will automatically fetch the public key from http://localhost:5556/dex/.well-known/openid-configuration
 	provider, err := oidc.NewProvider(ctx, config.GlobalConfig.Dex.ProviderUrl)
 	if err != nil {
 		return nil, err
 	}
 
-	// 2. 创建 Verifier 配置
-	// 它会检查 Token 的发行者是否是 Dex，以及接收者（Audience）是否是你的 lattice-server
+	// 2. Create Verifier configuration
+	// It checks whether the Token's issuer is Dex and whether the audience is your lattice-server
 	cfg := &oidc.Config{
 		ClientID: "lattice-server",
 	}

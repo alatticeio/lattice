@@ -67,9 +67,9 @@ func (l *LinkDNS) handleDNSRequest(w dns.ResponseWriter, r *dns.Msg) {
 	for _, q := range r.Question {
 		switch q.Qtype {
 		case dns.TypeA:
-			log.Printf("查询域名: %s", q.Name)
+			log.Printf("query domain: %s", q.Name)
 
-			// 使用读锁读取配置
+			// use read lock to read config
 			//configLock.RLock()
 			//ip, exists := config.Records[q.Name]
 			//upstream := config.UpstreamDNS
@@ -79,10 +79,10 @@ func (l *LinkDNS) handleDNSRequest(w dns.ResponseWriter, r *dns.Msg) {
 			//	rr, err := dns.NewRR(fmt.Sprintf("%s A %s", q.Name, ip))
 			//	if err == nil {
 			//		m.Answer = append(m.Answer, rr)
-			//		log.Printf("本地解析 %s -> %s", q.Name, ip)
+			//		log.Printf("local resolution %s -> %s", q.Name, ip)
 			//	}
 			//} else if l.upstreamDNS != "" {
-			// 转发到上游服务器
+			// forward to upstream server
 			upstreamMsg := new(dns.Msg)
 			upstreamMsg.SetQuestion(q.Name, q.Qtype)
 			upstreamMsg.RecursionDesired = true
@@ -92,9 +92,9 @@ func (l *LinkDNS) handleDNSRequest(w dns.ResponseWriter, r *dns.Msg) {
 
 			if err == nil && response != nil {
 				m.Answer = append(m.Answer, response.Answer...)
-				log.Printf("从上游服务器解析: %s", q.Name)
+				log.Printf("resolve from upstream server: %s", q.Name)
 			} else {
-				log.Printf("上游 DNS 查询失败: %v", err)
+				log.Printf("upstream DNS query failed: %v", err)
 			}
 			//	}
 		}
@@ -108,47 +108,47 @@ func (l *LinkDNS) handleDNSRequest(w dns.ResponseWriter, r *dns.Msg) {
 
 func startServer(net, addr string) {
 	server := &dns.Server{Addr: addr, Net: net}
-	log.Printf("启动 DNS 服务器在 %s (%s)", addr, net)
+	log.Printf("starting DNS server at %s (%s)", addr, net)
 
 	if err := server.ListenAndServe(); err != nil {
-		log.Fatalf("无法启动 %s 服务器: %s", net, err.Error())
+		log.Fatalf("unable to start %s server: %s", net, err.Error())
 	}
 }
 
 // nolint:all
 func watchConfigFile(filename string) {
-	// 这里可以添加代码来监视配置文件变化
-	// 为简单起见，这里省略了该功能
+	// Code to watch for config file changes can be added here
+	// simplified, omitted for brevity
 }
 
 func (l *LinkDNS) Start() error {
 	//if len(os.Args) < 2 {
-	//	log.Fatalf("用法: %s config.json", os.Args[0])
+	//	log.Fatalf("usage: %s config.json", os.Args[0])
 	//}
 	//
 	//configFile := os.Args[1]
 	//if err := loadConfig(configFile); err != nil {
-	//	log.Fatalf("加载配置失败: %v", err)
+	//	log.Fatalf("failed to load config: %v", err)
 	//}
 	//
 	//go watchConfigFile(configFile)
 
 	dns.HandleFunc(".", l.handleDNSRequest)
 
-	// 默认监听地址
+	// default listen address
 	//listenAddr := ":53"
 	//if config.ListenAddress != "" {
 	//	listenAddr = config.ListenAddress
 	//}
 
-	// 启动服务器
+	// start server
 	go startServer("udp", l.listenAddr)
 	go startServer("tcp", l.listenAddr)
 
 	return nil
-	//// 等待退出信号
+	//// Wait for exit signal
 	//sig := make(chan os.Signal, 1)
 	//signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
 	//<-sig
-	//log.Println("DNS 服务器关闭")
+	//log.Println("DNS server closed")
 }

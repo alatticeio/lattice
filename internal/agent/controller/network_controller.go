@@ -74,7 +74,7 @@ func (r *NetworkReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, err
 	}
 
-	// 更新Phase为Creating
+	// Update phase to Creating
 	if network.Status.Phase == "" {
 		if _, err = r.updateStatus(ctx, &network, func(network *v1alpha1.LatticeNetwork) error {
 			network.Status.Phase = v1alpha1.NetworkPhaseCreating
@@ -82,8 +82,8 @@ func (r *NetworkReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		}); err != nil {
 			return ctrl.Result{}, err
 		}
-		// 不提前返回：由于使用 GenerationChangedPredicate，status-only 的变更不会触发新的 reconcile，
-		// 必须在同一次 reconcile 中继续完成 ActiveCIDR 分配。
+		// Do not return early: because GenerationChangedPredicate is used, status-only changes will not trigger a new reconcile,
+		// so ActiveCIDR allocation must be completed in the same reconcile.
 	}
 
 	if network.Status.ActiveCIDR == "" {
@@ -104,7 +104,7 @@ func (r *NetworkReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 			return ctrl.Result{RequeueAfter: time.Second * 10}, err
 		}
 
-		//更新status
+		// Update status
 		updated, err = r.updateStatus(ctx, &network, func(network *v1alpha1.LatticeNetwork) error {
 			network.Status.ActiveCIDR = cidr
 			network.Status.Phase = v1alpha1.NetworkPhaseReady
@@ -150,41 +150,41 @@ func (r *NetworkReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 //	return currentNodes
 //}
 
-// reconcileSpec 检查并修正 LatticeNetwork.Spec 字段。
-// 如果 Spec 被修改并成功写入，返回 (true, nil)，调用者应立即退出 Reconcile。
-// 否则返回 (false, nil) 或 (false, error)。
+// reconcileSpec checks and corrects LatticeNetwork.Spec fields.
+// If the Spec was modified and written successfully, returns (true, nil); the caller should exit Reconcile immediately.
+// Otherwise returns (false, nil) or (false, error).
 // nolint:all
 func (r *NetworkReconciler) updateSpec(ctx context.Context, network *v1alpha1.LatticeNetwork, updateFunc func(node *v1alpha1.LatticeNetwork)) (bool, error) {
 	log := logf.FromContext(ctx)
 	networkCopy := network.DeepCopy()
 
-	// 添加network spec
+	// Apply the update function to the network copy
 	updateFunc(networkCopy)
 
-	// 使用 Patch 发送差异。client.MergeFrom 会自动检查 networkCopy 和 node 之间的差异。
+	// Use Patch to send the diff. client.MergeFrom automatically checks differences between networkCopy and node.
 	if err := r.Patch(ctx, networkCopy, client.MergeFrom(network)); err != nil {
 		if errors.IsConflict(err) {
-			// 遇到并发冲突 (409)，不返回错误，让 Manager 自动通过新的事件重试。
+			// Encountered a conflict (409), do not return error, let Manager retry via a new event.
 			log.Info("Conflict detected during LatticeNetwork Spec patch, will retry on next reconcile.")
 			return false, nil
 		}
-		// 其他写入错误（例如权限不足）
+		// Other write errors (e.g., insufficient permissions)
 		log.Error(err, "Failed to patch LatticeNetwork Spec")
 		return false, err
 	}
 
-	// 如果原始资源和当前资源在 Metadata/Spec/Annotation 上没有差异，说明 Patch 只是空操作。
-	// 注意：判断 Patch 是否执行写入，最简单的方法是比较原始和当前的 Labels/Annotations/Spec 字段。
+	// If the original and current resources have no differences in Metadata/Spec/Annotation, the Patch is a no-op.
+	// Note: the simplest way to determine whether Patch performed a write is to compare the original and current Labels/Annotations/Spec fields.
 	if !reflect.DeepEqual(networkCopy.Spec, network.Spec) ||
 		!reflect.DeepEqual(networkCopy.Labels, network.Labels) ||
 		!reflect.DeepEqual(networkCopy.Annotations, network.Annotations) {
 
 		log.Info("LatticeNetwork Metadata/Spec successfully patched. Returning to trigger next reconcile.")
-		// Spec 或 Metadata 被修改并成功写入 API Server
+		// Spec or Metadata was modified and written to API Server successfully
 		return true, nil
 	}
 
-	// Spec 未发生修改
+	// Spec was not modified
 	return false, nil
 }
 
@@ -195,14 +195,14 @@ func (r *NetworkReconciler) updateStatus(ctx context.Context, network *v1alpha1.
 		return false, err
 	}
 
-	// 使用 Patch 发送差异。client.MergeFrom 会自动检查 nodeCopy 和 node 之间的差异。
+	// Use Patch to send the diff. client.MergeFrom automatically checks differences between nodeCopy and node.
 	if err := r.Status().Patch(ctx, networkCopy, client.MergeFrom(network)); err != nil {
 		if errors.IsConflict(err) {
-			// 遇到并发冲突 (409)，不返回错误，让 Manager 自动通过新的事件重试。
+			// Encountered a conflict (409), do not return error, let Manager retry via a new event.
 			log.Info("Conflict detected during LatticeNetwork Spec patch, will retry on next reconcile.")
 			return false, nil
 		}
-		// 其他写入错误（例如权限不足）
+		// Other write errors (e.g., insufficient permissions)
 		log.Error(err, "Failed to patch LatticeNetwork Spec")
 		return false, err
 	}
@@ -210,15 +210,15 @@ func (r *NetworkReconciler) updateStatus(ctx context.Context, network *v1alpha1.
 	if !reflect.DeepEqual(networkCopy.Status, network.Status) {
 
 		log.Info("LatticeNetwork Metadata/Spec successfully patched. Returning to trigger next reconcile.")
-		// Spec 或 Metadata 被修改并成功写入 API Server
+		// Spec or Metadata was modified and written to API Server successfully
 		return true, nil
 	}
 
-	// Spec 未发生修改
+	// Spec was not modified
 	return false, nil
 }
 
-// 查询所有的node， 然后更新Network的Spec
+// Query all nodes, then update the Network's Spec
 func (r *NetworkReconciler) findNodesByLabels(ctx context.Context, network *v1alpha1.LatticeNetwork) (v1alpha1.LatticePeerList, error) {
 	labels := fmt.Sprintf("alattice.io/network-%s", network.Name)
 	var nodes v1alpha1.LatticePeerList
@@ -230,16 +230,16 @@ func (r *NetworkReconciler) findNodesByLabels(ctx context.Context, network *v1al
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *NetworkReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	// 启动时 informer 全量加载会产生 Create 事件；用 onlyUpdatePredicate 过滤掉，
-	// 避免冷启动时每个 Peer 的 Create 都触发 Network reconcile。
-	// 同时用 GenerationChangedPredicate 确保只有 Peer spec 真正变化（加入/离开网络）才触发，
-	// 过滤掉 Status.CurrentHash 等 status-only 更新。
+	// Full informer load at startup generates Create events; filter them out with onlyUpdatePredicate
+	// to avoid triggering Network reconcile for every Peer Create during cold start.
+	// Also use GenerationChangedPredicate to ensure only real Peer spec changes (join/leave network) trigger,
+	// filtering out status-only updates like Status.CurrentHash.
 	peerChangedPredicate := predicate.And(
 		predicate.Funcs{CreateFunc: func(e event.CreateEvent) bool { return false }},
 		predicate.GenerationChangedPredicate{},
 	)
 	return ctrl.NewControllerManagedBy(mgr).
-		// GenerationChangedPredicate 过滤 status 子资源更新，避免 NetworkReconciler 被自己的 status patch 反复触发
+		// GenerationChangedPredicate filters status subresource updates, preventing NetworkReconciler from being re-triggered by its own status patch
 		For(&v1alpha1.LatticeNetwork{}, builder.WithPredicates(predicate.GenerationChangedPredicate{})).
 		Watches(&v1alpha1.LatticePeer{}, handler.EnqueueRequestsFromMapFunc(r.mapNodeForNetworks),
 			builder.WithPredicates(peerChangedPredicate)).
@@ -252,11 +252,11 @@ func (r *NetworkReconciler) mapNodeForNetworks(ctx context.Context, obj client.O
 	node := obj.(*v1alpha1.LatticePeer)
 
 	var networkToUpdate []string
-	//// 1. 获取node的spec包含network
+	//// 1. Get the node's spec which includes the network
 	if node.Spec.Network != nil {
 		networkToUpdate = append(networkToUpdate, *node.Spec.Network)
 	}
-	//通过node的label获取
+	// Also get from node's labels
 	labels := node.GetLabels()
 	for key, value := range labels {
 		if strings.HasPrefix(key, "alattice.io/network-") && value == "true" {
@@ -270,11 +270,11 @@ func (r *NetworkReconciler) mapNodeForNetworks(ctx context.Context, obj client.O
 
 	var requests []reconcile.Request
 	for _, networkName := range networkToUpdate {
-		// 2. 为每个 LatticeNetwork 返回一个 Reconcile Request
+		// 2. Return a Reconcile Request for each LatticeNetwork
 		requests = append(requests, reconcile.Request{
 			NamespacedName: types.NamespacedName{
 				Namespace: node.Namespace,
-				Name:      networkName, // LatticeNetwork 资源是非命名空间的
+				Name:      networkName, // LatticeNetwork resources are cluster-scoped (non-namespaced)
 			},
 		})
 	}
@@ -282,7 +282,7 @@ func (r *NetworkReconciler) mapNodeForNetworks(ctx context.Context, obj client.O
 }
 
 //
-//// allocateIPsForNode 为节点在其所属的网络中分配 IP
+//// allocateIPsForNode allocates IPs for a node in its network
 //func (r *NetworkReconciler) allocateIPsForNode(ctx context.Context, node *v1alpha1.LatticePeer) (string, error) {
 //	log := logf.FromContext(ctx)
 //	var err error
@@ -290,31 +290,31 @@ func (r *NetworkReconciler) mapNodeForNetworks(ctx context.Context, obj client.O
 //
 //	var network v1alpha1.LatticeNetwork
 //	if primaryNetwork != nil {
-//		// 获取 LatticeNetwork 资源
+//		// Get the LatticeNetwork resource
 //		if err = r.Get(ctx, types.NamespacedName{Name: fmt.Sprintf("%s/%s", node.Namespace, *primaryNetwork)}, &network); err != nil {
 //			return "", err
 //		}
 //	}
 //
-//	// 如果节点已经有 IP 地址,跳过
+//	// If the node already has an IP address, skip
 //	currentAddress := node.Status.AllocatedAddress
 //	if currentAddress != nil {
-//		//校验ip是否是network合法ip
+//		// validate if the IP is a valid network IP
 //		if err = r.Allocator.ValidateIP(network.Spec.CIDR, *currentAddress); err == nil {
 //			log.Info("LatticePeer already has IP address", "address", currentAddress)
 //			return *currentAddress, nil
 //		}
 //	}
 //
-//	// 检查节点是否已经在该网络中有 IP 分配
+//	// Check if the node already has an IP allocation in this network
 //	existingIP := r.Allocator.GetNodeIP(&network, node.Name)
 //	if existingIP != "" {
-//		//校验ip是否是network合法ip
+//		// validate if the IP is a valid network IP
 //		klog.Infof("LatticePeer %s already has IP %s in network %s", node.Name, existingIP, network.Name)
 //		return existingIP, nil
 //	}
 //
-//	// 分配新的 IP
+//	// Allocate a new IP
 //	return r.allocate(ctx, &network, node)
 //}
 //
@@ -334,7 +334,7 @@ func (r *NetworkReconciler) mapNodeForNetworks(ctx context.Context, obj client.O
 //	return allocatedIP, nil
 //}
 //
-//// updateNetworkIPAllocation 更新网络的 IP 分配记录
+//// updateNetworkIPAllocation updates the network's IP allocation records
 //func (r *NetworkReconciler) updateNetworkIPAllocation(ctx context.Context, network *v1alpha1.LatticeNetwork, ip, nodeName string) error {
 //
 //	allocations := make(map[string]v1alpha1.IPAllocation)
@@ -345,7 +345,7 @@ func (r *NetworkReconciler) mapNodeForNetworks(ctx context.Context, obj client.O
 //	if _, ok := allocations[nodeName]; ok {
 //		return nil
 //	}
-//	// 添加 IP 分配记录
+//	// Add IP allocation record
 //	allocation := v1alpha1.IPAllocation{
 //		IP:          ip,
 //		Peer:        nodeName,
@@ -354,7 +354,7 @@ func (r *NetworkReconciler) mapNodeForNetworks(ctx context.Context, obj client.O
 //
 //	network.Status.AllocatedIPs = append(network.Status.AllocatedIPs, allocation)
 //
-//	// 更新可用 IP 数量
+//	// Update available IP count
 //	availableIPs, err := r.Allocator.CountAvailableIPs(network)
 //	if err != nil {
 //		klog.Errorf("Failed to count available IPs: %v", err)

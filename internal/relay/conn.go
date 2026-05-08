@@ -19,7 +19,7 @@ import (
 	"net"
 )
 
-// ReadWriterConn wrapper for missed data when hijack occur， for using Read/Write fn
+// ReadWriterConn wrapper for missed data when hijack occurs, for using Read/Write fn
 type ReadWriterConn struct {
 	net.Conn
 	*bufio.ReadWriter
@@ -34,6 +34,6 @@ func (c *ReadWriterConn) Write(p []byte) (int, error) {
 	if err != nil {
 		return n, err
 	}
-	// 确保数据立即发出，而不是留在 bufio 的写缓存里
+	// ensure data is sent immediately, not left in bufio's write buffer
 	return n, c.Flush()
 }

@@ -43,20 +43,20 @@ func (r *UserRepository) List(ctx context.Context, req *dto.PageRequest) (*dto.P
 	var total int64
 	var userVos []vo.UserVo
 
-	// 1. 初始化 db 句柄
+	// 1. Initialize db handle
 	query := r.db.WithContext(ctx).Model(&models.User{})
 
-	// 2. 如果有搜索条件（例如按用户名搜索）
+	// 2. If there are search conditions (e.g. search by username)
 	if req.Keyword != "" {
 		query = query.Where("username LIKE ? OR email LIKE ?", "%"+req.Keyword+"%", "%"+req.Keyword+"%")
 	}
 
-	// 3. 统计总数（注意：Count 必须在 Limit/Offset 之前执行）
+	// 3. Count total (note: Count must be called before Limit/Offset)
 	if err := query.Count(&total).Error; err != nil {
 		return nil, err
 	}
 
-	// 4. 执行分页
+	// 4. Execute pagination
 	err := query.Debug().
 		Limit(req.PageSize).
 		Offset((req.Page - 1) * req.PageSize).
@@ -67,7 +67,7 @@ func (r *UserRepository) List(ctx context.Context, req *dto.PageRequest) (*dto.P
 		return nil, err
 	}
 
-	// 5. 转换为 VO (Value Object)
+	// 5. Convert to VO (Value Object)
 	for _, user := range users {
 		userVo := vo.UserVo{
 			ID:       user.ID,
@@ -80,7 +80,7 @@ func (r *UserRepository) List(ctx context.Context, req *dto.PageRequest) (*dto.P
 		userVos = append(userVos, userVo)
 	}
 
-	// 6. 返回标准分页结果
+	// 6. Return standard paginated result
 	return &dto.PageResult[vo.UserVo]{
 		List:     userVos,
 		Total:    total,

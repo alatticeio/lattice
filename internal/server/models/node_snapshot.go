@@ -1,7 +1,7 @@
 package models
 
 const (
-	// 节点
+	// Nodes
 	LATTICE_PEER_STATUS              = "lattice_peer_status"
 	LATTICE_PEER_LATENCY_MS          = "lattice_peer_latency_ms"
 	LATTICE_PEER_PACKET_LOSS_PERCENT = "lattice_peer_packet_loss_percent"
@@ -14,18 +14,18 @@ const (
 	LATTICE_PEER_HANDSHAKE_TIME_MS = "lattice_peer_handshake_time_ms"
 )
 
-// NodeSnapshot 对应前端实体
+// NodeSnapshot corresponds to the frontend entity
 type NodeSnapshot struct {
 	ID          string `json:"id" gorm:"primaryKey"`
 	Name        string `json:"name"`
 	IP          string `json:"ip"`
 	Status      string `json:"status"`       // "online" | "offline"
 	HealthLevel string `json:"health_level"` // "success" | "warning" | "error"
-	// Metrics 存放格式化后的字符串 (如 "5%")
+	// Metrics stores formatted strings (e.g. "5%")
 	Metrics map[string]string `json:"metrics" gorm:"serializer:json"`
-	// RawMetrics 存放原始数值 (用于前端绘图)
+	// RawMetrics stores raw numeric values (for frontend charting)
 	RawMetrics  map[string]float64 `json:"raw_metrics" gorm:"serializer:json"`
 	X           float64            `json:"x"`
 	Y           float64            `json:"y"`
-	WorkspaceID string             `json:"-"` // 租户隔离
+	WorkspaceID string             `json:"-"` // Tenant isolation
 }

@@ -115,20 +115,20 @@ const (
 const (
 	NodeConditionInitialized = "Initialized"
 
-	// NodeConditionProvisioned 节点是否就绪
+	// NodeConditionProvisioned indicates whether the node is ready
 	NodeConditionProvisioned = "Provisioned"
 
 	NodeConditionJoiningNetwork = "JoiningNetwork"
 
-	// NodeConditionNetworkConfigured 网络配置是否完成
+	// NodeConditionNetworkConfigured indicates whether network configuration is complete
 	NodeConditionNetworkConfigured = "NetworkConfigured"
 
-	// NodeConditionIPAllocated IP 是否已分配
+	// NodeConditionIPAllocated indicates whether an IP has been allocated
 	NodeConditionIPAllocated = "IPAllocated"
 
 	NodeConditionPolicyUpdating = "PolicyUpdating"
 
-	// NodeConditionPolicyApplied 策略是否已应用
+	// NodeConditionPolicyApplied indicates whether the policy has been applied
 	NodeConditionPolicyApplied = "PolicyApplied"
 )
 

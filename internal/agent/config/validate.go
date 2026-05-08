@@ -21,7 +21,7 @@ import (
 	"strings"
 )
 
-// configField 描述单个配置项的校验状态。
+// configField describes the validation state of a single configuration item.
 type configField struct {
 	name       string
 	value      string
@@ -29,20 +29,21 @@ type configField struct {
 	suggestion string
 }
 
-// ValidateAndReport 是具备"环境感知"能力的启动前校验函数。
+// ValidateAndReport is an environment-aware pre-start validation function.
 //
-// isServer=true（latticed 服务端）：
-//   - SignalingURL 为空时自动设为 nats://127.0.0.1:4222 并打印 Info 日志。
-//   - DatabaseDSN 为空时明确退化为当前目录的 lattice.db (SQLite)。
-//   - 忽略 ServerUrl / Token 校验，始终返回 nil。
+// isServer=true (latticed server mode):
+//   - If SignalingURL is empty, it is automatically set to nats://127.0.0.1:4222 and an Info log is printed.
+//   - If DatabaseDSN is empty, it gracefully falls back to lattice.db (SQLite) in the current directory.
+//   - Skips ServerUrl / Token validation, always returns nil.
 //
-// isServer=false（lattice agent 客户端）：
-//   - 严格校验 ServerUrl、Token 均非空。
-//   - TTY 环境：向 stderr 输出美化诊断报告后返回错误。
-//   - 非 TTY（Docker/K8s/CI）：直接返回简洁错误字符串。
+// isServer=false (lattice agent client mode):
+//   - Strictly validates that ServerUrl and Token are both non-empty.
+//   - TTY environment: prints a formatted diagnostic report to stderr before returning an error.
+//   - Non-TTY (Docker/K8s/CI): returns a concise error string directly.
 //
-// 建议在各子命令的 RunE 阶段显式调用，而非 PersistentPreRunE，
-// 避免对 --help / --version / completion 等只读子命令产生干扰。
+// It is recommended to call this explicitly at the RunE stage of each subcommand,
+// rather than in PersistentPreRunE, to avoid interfering with read-only subcommands
+// such as --help, --version, or completion.
 func ValidateAndReport(cfg *Config, isServer bool) error {
 	if isServer {
 		return applyServerDefaults(cfg)
@@ -50,7 +51,7 @@ func ValidateAndReport(cfg *Config, isServer bool) error {
 	return runClientValidation(cfg)
 }
 
-// applyServerDefaults 为服务端（All-in-One）模式补全缺失配置，始终返回 nil。
+// applyServerDefaults fills in missing configuration for server (All-in-One) mode, always returns nil.
 func applyServerDefaults(cfg *Config) error {
 	if cfg.SignalingURL == "" {
 		cfg.SignalingURL = "nats://127.0.0.1:4222"
@@ -65,7 +66,7 @@ func applyServerDefaults(cfg *Config) error {
 	return nil
 }
 
-// runClientValidation 对 agent 模式执行严格的字段校验。
+// runClientValidation performs strict field validation for agent mode.
 func runClientValidation(cfg *Config) error {
 	fields := []configField{
 		{name: "server-url", value: cfg.ServerUrl, suggestion: "--server-url http://<HOST>:8080"},
@@ -107,34 +108,34 @@ func isStderrTTY() bool {
 // ─── Pretty Print ──────────────────────────────────────────────────────────────
 
 // nolint:unused
-const boxWidth = 80 // 框内字符宽度（不含两侧 ║）
+const boxWidth = 80 // box character width (excluding the ║ borders on each side)
 
-// printDiagnostic 采用更简洁的分段式布局，移除冗余边框。
+// printDiagnostic uses a cleaner section-based layout and removes redundant borders.
 func printDiagnostic(fields []configField, missing []string) {
 	w := os.Stderr
 
-	// 1. 标题头：使用加粗或简单的分隔符
+	// 1. Title: using a bold or simple separator
 	fmt.Fprintln(w, "\n--- LATTICE SETUP ASSISTANT (Agent Mode) ---")                                 //nolint:errcheck
 	fmt.Fprintf(w, "Error: Required configuration is missing. [Config: %s]\n\n", GetConfigFilePath()) //nolint:errcheck
 
-	// 2. 配置状态表：简单的列对齐
+	// 2. Config status table: simple column alignment
 	fmt.Fprintf(w, "%-20s %-12s %s\n", "COMPONENT", "STATUS", "SUGGESTION") //nolint:errcheck
 	fmt.Fprintln(w, strings.Repeat("-", 60))                                //nolint:errcheck
 
 	for _, f := range fields {
 		statusStr := f.status
-		// 如果是 MISSING，可以加个提示符号
+		// For MISSING status, attach a visual indicator
 		if f.status == "MISSING" {
 			statusStr = "[MISSING]"
 		}
 		fmt.Fprintf(w, "%-20s %-12s %s\n", f.name, statusStr, f.suggestion) //nolint:errcheck
 	}
 
-	// 3. 修复引导：直接给出 Copy-Paste 命令
+	// 3. Quick fix: directly provide a copy-paste command
 	fmt.Fprintln(w, "\n QUICK FIX:")                                                      //nolint:errcheck
 	fmt.Fprintln(w, "   Run the following command to initialize:")                        //nolint:errcheck
 	fmt.Fprintf(w, "   %s\n", "lattice up --server-url <API_URL> --token <TOKEN> --save") //nolint:errcheck
 
-	// 4. 环境说明：简短的结语
+	// 4. Environment note: concise closing message
 	fmt.Fprintln(w, "\n To use environment variables instead, check the documentation.") //nolint:errcheck
 }

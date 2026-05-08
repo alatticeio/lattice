@@ -1,16 +1,16 @@
 // hack/verify_metrics/main.go
 //
-// 验证工具：检查 lattice 节点的指标是否已正确上报到 VictoriaMetrics。
+// Verification tool: check whether Lattice node metrics are correctly reported to VictoriaMetrics.
 //
-// 用法:
+// Usage:
 //
 //	go run ./hack/verify_metrics \
 //	  --vm-url http://your-vm:8428 \
 //	  --network-id <workspace namespace>
 //
-// --watch 模式会每 30s 刷新一次，方便实时观察节点上线过程。
+// --watch mode refreshes every 30s, useful for observing nodes coming online in real time.
 //
-// network-id 对应数据库中 t_workspace.namespace 字段:
+// network-id corresponds to the t_workspace.namespace field in the database:
 //
 //	SELECT namespace FROM t_workspace WHERE name = '<your workspace name>';
 package main
@@ -29,9 +29,9 @@ import (
 )
 
 var (
-	vmURL     = flag.String("vm-url", "http://localhost:8428", "VictoriaMetrics 地址")
-	networkID = flag.String("network-id", "", "workspace.namespace 字段值 (= network_id label)")
-	watch     = flag.Bool("watch", false, "每 30s 刷新一次")
+	vmURL     = flag.String("vm-url", "http://localhost:8428", "VictoriaMetrics URL")
+	networkID = flag.String("network-id", "", "workspace.namespace field value (= network_id label)")
+	watch     = flag.Bool("watch", false, "refresh every 30s")
 )
 
 // ── VM query ──────────────────────────────────────────────────────────────────
@@ -164,56 +164,56 @@ type check struct {
 
 var checks = []check{
 	{
-		name:   "节点心跳 (uptime)",
+		name:   "Node heartbeat (uptime)",
 		metric: "lattice_node_uptime_seconds",
 		promql: func(ns string) string {
 			return fmt.Sprintf(`count(last_over_time(lattice_node_uptime_seconds{network_id="%s"}[5m]))`, ns)
 		},
 	},
 	{
-		name:   "CPU 使用率",
+		name:   "CPU usage",
 		metric: "lattice_node_cpu_usage_percent",
 		promql: func(ns string) string {
 			return fmt.Sprintf(`count(last_over_time(lattice_node_cpu_usage_percent{network_id="%s"}[5m]))`, ns)
 		},
 	},
 	{
-		name:   "内存用量",
+		name:   "Memory usage",
 		metric: "lattice_node_memory_bytes",
 		promql: func(ns string) string {
 			return fmt.Sprintf(`count(last_over_time(lattice_node_memory_bytes{network_id="%s"}[5m]))`, ns)
 		},
 	},
 	{
-		name:   "流量计数器 TX",
+		name:   "Traffic counter TX",
 		metric: "lattice_node_traffic_bytes_total{direction=tx}",
 		promql: func(ns string) string {
 			return fmt.Sprintf(`count(last_over_time(lattice_node_traffic_bytes_total{network_id="%s",direction="tx"}[5m]))`, ns)
 		},
 	},
 	{
-		name:   "流量计数器 RX",
+		name:   "Traffic counter RX",
 		metric: "lattice_node_traffic_bytes_total{direction=rx}",
 		promql: func(ns string) string {
 			return fmt.Sprintf(`count(last_over_time(lattice_node_traffic_bytes_total{network_id="%s",direction="rx"}[5m]))`, ns)
 		},
 	},
 	{
-		name:   "Peer 握手状态",
+		name:   "Peer handshake status",
 		metric: "lattice_peer_status",
 		promql: func(ns string) string {
 			return fmt.Sprintf(`count(last_over_time(lattice_peer_status{network_id="%s"}[5m]))`, ns)
 		},
 	},
 	{
-		name:   "ICMP 延迟",
+		name:   "ICMP latency",
 		metric: "lattice_peer_latency_ms",
 		promql: func(ns string) string {
 			return fmt.Sprintf(`count(last_over_time(lattice_peer_latency_ms{network_id="%s"}[5m]))`, ns)
 		},
 	},
 	{
-		name:   "丢包率",
+		name:   "Packet loss rate",
 		metric: "lattice_peer_packet_loss_percent",
 		promql: func(ns string) string {
 			return fmt.Sprintf(`count(last_over_time(lattice_peer_packet_loss_percent{network_id="%s"}[5m]))`, ns)

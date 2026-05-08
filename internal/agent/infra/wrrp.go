@@ -89,15 +89,15 @@ func RemoteIdFromLrpFakeAddr(addr netip.Addr) uint64 {
 	return binary.BigEndian.Uint64(b[8:])
 }
 
-// 1. 自定义一个极简的 Endpoint
+// 1. Define a minimal custom Endpoint
 type LRPEndpoint struct {
-	// 物理层信息 (用于标准 UDP/ICE)
+	// Physical layer info (for standard UDP/ICE)
 	Addr netip.AddrPort
 
-	// 协议层信息 (用于 LRP)
+	// Protocol layer info (for LRP)
 	RemoteId uint64
 
-	// 标志位：当前该走哪条路
+	// Flag: which path to use currently
 	TransportType TransportType
 }
 
@@ -125,15 +125,15 @@ func (e *LRPEndpoint) DstToBytes() []byte {
 		binary.BigEndian.PutUint64(b, e.RemoteId)
 		return b
 	}
-	// 标准 UDP 模式下，AddrPort 转换为字节
+	// In standard UDP mode, convert AddrPort to bytes
 	b, _ := e.Addr.MarshalBinary()
 	return b
 }
 
 func (e *LRPEndpoint) DstIP() netip.Addr {
 	if e.TransportType == LRP {
-		// LRP 路由完全由 RemoteId 决定，不走 UDP 路径，
-		// 返回 loopback 供 WireGuard 内部速率限制使用。
+		// LRP routing is entirely determined by RemoteId, does not use UDP path,
+		// return loopback for WireGuard internal rate limiting.
 		return netip.IPv4Unspecified()
 	}
 	return e.Addr.Addr()

@@ -1,8 +1,8 @@
 package models
 
-// 对应空间级别的返回响应
+// Workspace-level response
 
-// WorkspaceStats 对应顶部的四个核心指标卡片
+// WorkspaceStats corresponds to the four core metric cards at the top
 type WorkspaceStats struct {
 	Throughput  float64 `json:"throughput"` // Mbps
 	Latency     int64   `json:"latency"`    // ms
@@ -10,7 +10,7 @@ type WorkspaceStats struct {
 	ActiveLinks int     `json:"active_links"`
 }
 
-// NodeMonitorDetail 对应中间的表格明细
+// NodeMonitorDetail corresponds to the table detail in the middle
 type NodeMonitorDetail struct {
 	ID             string  `json:"id"`
 	Name           string  `json:"name"`
@@ -26,38 +26,38 @@ type NodeMonitorDetail struct {
 	Memory         float64 `json:"memory"`
 }
 
-// AggregatedMonitorResponse 最终返回给前端的单一对象
+// AggregatedMonitorResponse is the final response object returned to the frontend
 type AggregatedMonitorResponse struct {
 	WorkspaceID string              `json:"workspace_id"`
 	LiveStats   []StatCard          `json:"live_stats"`
 	Nodes       []NodeMonitorDetail `json:"nodes"`
 	Events      []EventLog          `json:"events"`
-	Trend       TrendData           `json:"trend"` // 用于面积波形图
+	Trend       TrendData           `json:"trend"` // For area waveform chart
 }
 
-// StatCard 对应前端顶部的四个小卡片
+// StatCard corresponds to the four small cards at the top of the frontend
 type StatCard struct {
-	Label   string `json:"label"`   // 例如: "实时吞吐"
-	Value   string `json:"value"`   // 例如: "124.8"
-	Unit    string `json:"unit"`    // 例如: "Mbps"
+	Label   string `json:"label"`   // e.g. "Real-time Throughput"
+	Value   string `json:"value"`   // e.g. "124.8"
+	Unit    string `json:"unit"`    // e.g. "Mbps"
 	Trend   string `json:"trend"`   // "up", "down", "stable"
-	Color   string `json:"color"`   // 例如: "text-blue-500"
-	Percent int    `json:"percent"` // 进度条百分比
+	Color   string `json:"color"`   // e.g. "text-blue-500"
+	Percent int    `json:"percent"` // Progress bar percentage
 }
 
-// EventLog 对应底部的事件流/审计日志
+// EventLog corresponds to the event stream / audit log at the bottom
 type EventLog struct {
-	Time   string `json:"time"`  // 格式化后的时间: "14:20:01"
+	Time   string `json:"time"`  // Formatted time: "14:20:01"
 	Level  string `json:"level"` // "info", "warn", "error"
-	Msg    string `json:"msg"`   // 日志内容
-	WSName string `json:"ws"`    // 所属工作空间名称 (全局模式下有用)
-	Tone   string `json:"tone"`  // 对应前端颜色: "emerald", "amber", "blue"
+	Msg    string `json:"msg"`   // Log message content
+	WSName string `json:"ws"`    // Associated workspace name (useful in global mode)
+	Tone   string `json:"tone"`  // Corresponds to frontend color: "emerald", "amber", "blue"
 }
 
-// TrendData 对应中间的面积波形图
-// 为了绘图，后端需要返回一组时间序列数据
+// TrendData corresponds to the area waveform chart in the middle
+// For charting, the backend needs to return a set of time-series data
 type TrendData struct {
-	Timestamps []string  `json:"timestamps"` // X轴：["10:00", "10:05", ...]
-	TXData     []float64 `json:"tx_data"`    // Y轴1：发送速率
-	RXData     []float64 `json:"rx_data"`    // Y轴2：接收速率
+	Timestamps []string  `json:"timestamps"` // X-axis: ["10:00", "10:05", ...]
+	TXData     []float64 `json:"tx_data"`    // Y-axis 1: transmit rate
+	RXData     []float64 `json:"rx_data"`    // Y-axis 2: receive rate
 }

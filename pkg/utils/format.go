@@ -7,30 +7,30 @@ import (
 
 // AutoFormat using for monitor
 func AutoFormat(metricName string, val float64) string {
-	// 逻辑：根据指标名的后缀，自动匹配转换函数
+	// Logic: auto-match conversion function based on the metric name suffix
 	switch {
 	case strings.HasSuffix(metricName, "_percent"):
 		return fmt.Sprintf("%.1f%%", val)
 
 	case strings.HasSuffix(metricName, "_bytes"):
-		// 自动转换 B, KB, MB, GB
+		// Auto-convert B, KB, MB, GB
 		return formatBytes(val)
 
 	case strings.HasSuffix(metricName, "_seconds"):
-		// 自动转换 1h 20m 3s
+		// Auto-convert to 1h 20m 3s format
 		return formatDuration(int64(val))
 
 	case strings.HasSuffix(metricName, "_count"):
-		// 比如重连次数，直接转整数
+		// For example, reconnection count — convert directly to integer
 		return fmt.Sprintf("%d", int64(val))
 
 	default:
-		// 兜底：保留两位小数
+		// Fallback: keep two decimal places
 		return fmt.Sprintf("%.2f", val)
 	}
 }
 
-// formatBytes 将字节数转换为可读的单位 (GB, MB, KB)
+// formatBytes converts bytes to human-readable units (GB, MB, KB)
 func formatBytes(b float64) string {
 	const unit = 1024
 	if b < unit {
@@ -44,7 +44,7 @@ func formatBytes(b float64) string {
 	return fmt.Sprintf("%.2f %cB", b/float64(div), "KMGTPE"[exp])
 }
 
-// formatDuration 将秒数转换为 1d 2h 3m 这种格式
+// formatDuration converts seconds to format like 1d 2h 3m
 func formatDuration(seconds int64) string {
 	if seconds <= 0 {
 		return "Starting..."

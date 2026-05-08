@@ -53,19 +53,19 @@ var _ = Describe("Policy CRUD Lifecycle", Ordered, func() {
 		By(fmt.Sprintf("Pod ready: name=%s, ip=%s, network=%s", podName, podWGIP, netName))
 	})
 
-	It("创建一个 ALLOW 策略并验证 CRD 创建成功", func() {
-		By("创建 e2e-pc-allow 策略")
+	It("Create an ALLOW policy and verify CRD creation succeeds", func() {
+		By("Create e2e-pc-allow policy")
 		createAllowAllPolicy(latticeClient, testNS, policyChangePol1, netName)
 
-		By("验证策略存在于 CRD 中")
+		By("Verify policy exists in CRD")
 		found := &latticev1.LatticePolicy{}
 		Expect(latticeClient.Get(ctxPC, sigclient.ObjectKey{Namespace: testNS, Name: policyChangePol1}, found)).To(Succeed())
 		Expect(found.Spec.Action).To(Equal("ALLOW"))
 		Expect(found.Spec.Network).To(Equal(netName))
 	})
 
-	It("列出工作空间下的所有策略，应包含新创建的策略", func() {
-		By("列出 Namespace " + testNS + " 下的所有 LatticePolicy")
+	It("List all policies under the workspace, should include the newly created policy", func() {
+		By("List all LatticePolicies in Namespace " + testNS)
 		policyList := &latticev1.LatticePolicyList{}
 		Expect(latticeClient.List(ctxPC, policyList, sigclient.InNamespace(testNS))).To(Succeed())
 
@@ -76,11 +76,11 @@ var _ = Describe("Policy CRUD Lifecycle", Ordered, func() {
 				break
 			}
 		}
-		Expect(found).To(BeTrue(), "列表应包含 %s", policyChangePol1)
+		Expect(found).To(BeTrue(), "list should contain %s", policyChangePol1)
 	})
 
-	It("创建第二个 DENY 策略并验证两条策略共存", func() {
-		By("创建第二个策略: " + policyChangePol2)
+	It("Create a second DENY policy and verify both policies coexist", func() {
+		By("Create second policy: " + policyChangePol2)
 		netLabel := fmt.Sprintf("alattice.io/network-%s", netName)
 		selector := metav1.LabelSelector{
 			MatchLabels: map[string]string{netLabel: "true"},
@@ -102,56 +102,56 @@ var _ = Describe("Policy CRUD Lifecycle", Ordered, func() {
 				},
 			},
 		}
-		Expect(latticeClient.Create(ctxPC, denyPolicy)).To(Succeed(), "创建 DENY 策略失败")
+		Expect(latticeClient.Create(ctxPC, denyPolicy)).To(Succeed(), "failed to create DENY policy")
 
-		By("验证 iptables 规则已更新为两条策略的组合效果")
+		By("Verify iptables rules updated to combined effect of both policies")
 		Eventually(func() error {
 			out, err := execInPod(clientset, restConfig, testNS, podName, []string{"iptables", "-L", "LATTICE-EGRESS", "-n"})
 			if err != nil {
 				return err
 			}
-			// 至少应存在 iptables 规则链
+			// Should at least have an iptables rule chain
 			if !strings.Contains(out, "LATTICE-EGRESS") {
-				return fmt.Errorf("LATTICE-EGRESS 链未找到:\n%s", out)
+				return fmt.Errorf("LATTICE-EGRESS chain not found:\n%s", out)
 			}
 			return nil
-		}, "15s", "2s").Should(Succeed(), "iptables 应包含策略规则")
+		}, "15s", "2s").Should(Succeed(), "iptables should contain policy rules")
 	})
 
-	It("删除第一个策略后，第二个策略仍应生效", func() {
-		By("删除策略: " + policyChangePol1)
+	It("After deleting the first policy, the second policy should still be effective", func() {
+		By("Delete policy: " + policyChangePol1)
 		pol := &latticev1.LatticePolicy{ObjectMeta: metav1.ObjectMeta{Name: policyChangePol1, Namespace: testNS}}
 		Expect(latticeClient.Delete(ctxPC, pol)).To(Succeed())
 
-		By("验证策略已从 CRD 中移除")
+		By("Verify policy has been removed from CRD")
 		gone := &latticev1.LatticePolicy{}
 		err := latticeClient.Get(ctxPC, sigclient.ObjectKey{Namespace: testNS, Name: policyChangePol1}, gone)
-		Expect(err).To(HaveOccurred(), "已删除的策略不应存在")
-		Expect(apierrors.IsNotFound(err)).To(BeTrue(), "错误应为 NotFound")
+		Expect(err).To(HaveOccurred(), "deleted policy should not exist")
+		Expect(apierrors.IsNotFound(err)).To(BeTrue(), "error should be NotFound")
 
-		By("验证第二个策略仍然存在")
+		By("Verify the second policy still exists")
 		remaining := &latticev1.LatticePolicy{}
 		Expect(latticeClient.Get(ctxPC, sigclient.ObjectKey{Namespace: testNS, Name: policyChangePol2}, remaining)).To(Succeed())
 		Expect(remaining.Spec.Action).To(Equal("DENY"))
 
-		By("验证 iptables 规则链仍然存在（残留策略的规则）")
+		By("Verify iptables rule chain still exists (remaining policy rule)")
 		Eventually(func() error {
 			out, err := execInPod(clientset, restConfig, testNS, podName, []string{"iptables", "-L", "LATTICE-EGRESS", "-n"})
 			if err != nil {
 				return err
 			}
 			if !strings.Contains(out, "LATTICE-EGRESS") {
-				return fmt.Errorf("删除一个策略后 LATTICE-EGRESS 链不应被清空:\n%s", out)
+				return fmt.Errorf("LATTICE-EGRESS chain should not be emptied after deleting one policy:\n%s", out)
 			}
 			return nil
-		}, "15s", "2s").Should(Succeed(), "iptables 规则链应保留")
+		}, "15s", "2s").Should(Succeed(), "iptables rule chain should be preserved")
 	})
 
 	AfterAll(func() {
 		if CurrentSpecReport().Failed() {
 			collectDiagnostics(ctxPC, testNS)
 		}
-		// 清理所有策略
+		// Clean up all policies
 		for _, p := range []string{policyChangePol1, policyChangePol2} {
 			pol := &latticev1.LatticePolicy{ObjectMeta: metav1.ObjectMeta{Name: p, Namespace: testNS}}
 			_ = latticeClient.Delete(ctxPC, pol)

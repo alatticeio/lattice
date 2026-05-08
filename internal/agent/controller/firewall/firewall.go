@@ -6,20 +6,20 @@ import (
 	"strings"
 )
 
-// Rule 定义了抽象的过滤规则
+// Rule defines an abstract firewall rule
 type Rule struct {
 	RemoteIP string
 	Port     int
 	Protocol string // "tcp" or "udp"
 }
 
-// GenerateCommands 根据操作系统生成对应的防火墙脚本
+// GenerateCommands generates firewall commands for the current operating system
 func GenerateCommands(rules []Rule) ([]string, error) {
 	var cmds []string
 
 	switch runtime.GOOS {
 	case "linux":
-		// 使用 nftables，建议先创建一个独立的 table 以便管理
+		// Use nftables; it is recommended to create a separate table for management
 		cmds = append(cmds, "nft add table inet lattice")
 		cmds = append(cmds, "nft add chain inet lattice ingress { type filter hook input priority 0; policy drop; }")
 		for _, r := range rules {
@@ -30,7 +30,7 @@ func GenerateCommands(rules []Rule) ([]string, error) {
 		}
 
 	case "darwin": // macOS
-		// macOS 使用 pfctl。注意：PF 通常需要先写入配置文件再 load
+		// macOS uses pfctl. Note: PF typically requires writing a config file first, then loading
 		for _, r := range rules {
 			cmds = append(cmds, fmt.Sprintf(
 				"echo 'pass in proto %s from %s to any port %d' | sudo pfctl -ef -",
@@ -39,7 +39,7 @@ func GenerateCommands(rules []Rule) ([]string, error) {
 		}
 
 	case "windows":
-		// Windows 使用 PowerShell 的 New-NetFirewallRule
+		// Windows uses PowerShell's New-NetFirewallRule
 		for i, r := range rules {
 			cmds = append(cmds, fmt.Sprintf(
 				"New-NetFirewallRule -DisplayName 'Lattice-%d' -Direction Inbound -Protocol %s -LocalPort %d -RemoteAddress %s -Action Allow",

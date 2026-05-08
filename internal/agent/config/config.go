@@ -12,17 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package config 实现统一的配置中心，采用"洋葱模型"加载优先级：
+// Package config implements a unified configuration center using an "onion model" load priority:
 //
-//	默认值 < lattice.yaml < lattice.{env}.yaml < 环境变量(LATTICE_*) < 命令行参数
-//	                                               < K8s 服务发现兜底（仅空值生效）
+//	Defaults < lattice.yaml < lattice.{env}.yaml < Environment variables (LATTICE_*) < CLI arguments
+//	                                               < K8s service discovery fallback (only for empty values)
 //
-// 推荐调用方式（在 cmd 的 PersistentPreRunE 中）：
+// Recommended usage (in cmd's PersistentPreRunE):
 //
 //	if err := config.GetManager().Load(cmd); err != nil { return err }
 //
-// 加载完成后通过 config.GlobalConfig 或 config.Conf 访问（指向同一对象）。
-// 在需要校验关键连接地址的服务入口，额外调用 config.ValidateAndReport(config.GlobalConfig, isServer)。
+// After loading, access via config.GlobalConfig or config.Conf (both point to the same object).
+// At service entry points that require validation of critical connection addresses, additionally call config.ValidateAndReport(config.GlobalConfig, isServer).
 package config
 
 import (
@@ -42,7 +42,7 @@ var log = wflog.GetLogger("config")
 
 // ─────────────────────────────────────────────
 //
-//	全局单例
+//	Global singleton
 //
 // ─────────────────────────────────────────────
 
@@ -50,13 +50,13 @@ var (
 	managerOnce   sync.Once
 	globalManager *ConfigManager
 
-	// GlobalConfig / Conf 指向同一个 Config 对象，加载后即为唯一真理来源。
-	// 服务端组件推荐使用 GlobalConfig；既有扁平字段调用方直接用 Conf。
+	// GlobalConfig / Conf point to the same Config object, serving as the single source of truth after loading.
+	// Server-side components should use GlobalConfig; existing flat-field callers may use Conf directly.
 	GlobalConfig = &Config{}
 	Conf         = GlobalConfig
 )
 
-// GetManager 返回全局唯一的 ConfigManager（线程安全）。
+// GetManager returns the global singleton ConfigManager (thread-safe).
 func GetManager() *ConfigManager {
 	managerOnce.Do(func() {
 		globalManager = &ConfigManager{v: viper.New()}
@@ -64,7 +64,7 @@ func GetManager() *ConfigManager {
 	return globalManager
 }
 
-// NewConfigManager 是 GetManager 的向后兼容别名。
+// NewConfigManager is a backward-compatible alias for GetManager.
 func NewConfigManager() *ConfigManager { return GetManager() }
 
 // ─────────────────────────────────────────────
@@ -73,37 +73,37 @@ func NewConfigManager() *ConfigManager { return GetManager() }
 //
 // ─────────────────────────────────────────────
 
-// ConfigManager 封装 Viper 实例，提供多环境加载能力。
+// ConfigManager wraps a Viper instance and provides multi-environment loading capability.
 type ConfigManager struct {
 	v    *viper.Viper
 	once sync.Once
-	dir  string // 解析后的配置目录（由 --config-dir / LATTICE_CONFIG_DIR / 默认值决定）
+	dir  string // resolved config directory (determined by --config-dir / LATTICE_CONFIG_DIR / default)
 }
 
-// Viper 暴露底层实例，供需要精细控制的调用方使用。
+// Viper exposes the underlying instance for callers that need fine-grained control.
 func (cm *ConfigManager) Viper() *viper.Viper { return cm.v }
 
-// Load 按"洋葱模型"加载配置，只执行一次（幂等）。
+// Load loads configuration using the "onion model", executing only once (idempotent).
 //
-//  1. 硬编码默认值
-//  2. lattice.yaml（基础配置）
-//  3. lattice.{env}.yaml（环境差异配置，MergeInConfig）
-//  4. 环境变量（LATTICE_ 前缀）
-//  5. 命令行参数（BindPFlags，最高优先级）
-//  6. K8s 服务发现兜底（仅对仍为空的字段生效）
-//  7. 数据库驱动推断
+//  1. Hard-coded defaults
+//  2. lattice.yaml (base config)
+//  3. lattice.{env}.yaml (environment-specific config, MergeInConfig)
+//  4. Environment variables (LATTICE_ prefix)
+//  5. CLI arguments (BindPFlags, highest priority)
+//  6. K8s service discovery fallback (only for fields that remain empty)
+//  7. Database driver inference
 //
-// --save：将本次命令行显式指定的参数合并持久化到配置文件（不覆盖其他已有项）。
+// --save: merges explicitly specified CLI arguments into the config file (without overwriting other existing entries).
 func (cm *ConfigManager) Load(cmd *cobra.Command) error {
 	var err error
 	cm.once.Do(func() { err = cm.load(cmd) })
 	return err
 }
 
-// LoadConf 是 Load 的别名，保持向后兼容。
+// LoadConf is an alias for Load, kept for backward compatibility.
 func (cm *ConfigManager) LoadConf(cmd *cobra.Command) error { return cm.Load(cmd) }
 
-// Save 将当前内存配置（含所有层的合并结果）写回配置文件。
+// Save writes the current in-memory configuration (including merged results from all layers) back to the config file.
 func (cm *ConfigManager) Save() error {
 	path := cm.dir + "/lattice.yaml"
 	if err := cm.v.WriteConfig(); err != nil {
@@ -112,18 +112,18 @@ func (cm *ConfigManager) Save() error {
 	return nil
 }
 
-// SaveChangedFlags 仅将本次命令行显式指定（Changed）的 flag 合并写入配置文件，
-// 不覆盖文件中已有的其他配置项，也不写入未被用户显式设置的默认值。
+// SaveChangedFlags only writes flags explicitly changed on the command line to the config file,
+// without overwriting other existing entries or writing default values that were not explicitly set by the user.
 //
-// 对比 Save()：Save() 写入 Viper 全部已知键（含默认值）；
-// SaveChangedFlags() 只写入本次 --xxx 参数中实际使用的键。
+// Compare with Save(): Save() writes all known Viper keys (including defaults);
+// SaveChangedFlags() only writes keys actually used in this run's --xxx arguments.
 func (cm *ConfigManager) SaveChangedFlags(cmd *cobra.Command) error {
 	path := cm.dir + "/lattice.yaml"
 	if err := os.MkdirAll(cm.dir, 0o755); err != nil {
 		return fmt.Errorf("create config dir: %w", err)
 	}
 
-	// 将命令行显式指定的 flag 注入 Viper（跳过 --save 本身）
+	// Inject explicitly specified CLI flags into Viper (skip --save itself)
 	cmd.Flags().Visit(func(f *pflag.Flag) {
 		if f.Name == "save" {
 			return
@@ -131,8 +131,8 @@ func (cm *ConfigManager) SaveChangedFlags(cmd *cobra.Command) error {
 		cm.v.Set(f.Name, cm.v.Get(f.Name))
 	})
 
-	// WriteConfig 写入 Viper 当前已 Set 的键（含从配置文件读取的已有项），
-	// 不写入仅通过 SetDefault 设置但未被任何层覆盖的默认值。
+	// WriteConfig writes Viper's currently Set keys (including entries read from the config file),
+	// without writing defaults that were only set via SetDefault and not overridden by any layer.
 	if err := cm.v.WriteConfig(); err != nil {
 		return cm.v.WriteConfigAs(path)
 	}
@@ -143,16 +143,16 @@ func (cm *ConfigManager) load(cmd *cobra.Command) error {
 	v := cm.v
 	v.SetConfigType("yaml")
 
-	// ── 第一层：默认值 ────────────────────────────────────────────
+	// ── Layer 1: defaults ──────────────────────────────────────────
 	setDefaults(v)
 
-	// ── 确定配置目录（提前 peek）────────────────────────────────
+	// ── Determine config directory (peek early) ──────────────────
 	cm.dir = peekConfigDir(cmd)
 
-	// ── 确定运行环境（提前 peek，不依赖完整加载）────────────────
+	// ── Determine runtime environment (peek early, does not require full load) ──
 	env := peekEnv(cmd)
 
-	// ── 第二层：lattice.yaml ─────────────────────────────────────
+	// ── Layer 2: lattice.yaml ─────────────────────────────────────
 	baseFile := cm.dir + "/lattice.yaml"
 	v.SetConfigFile(baseFile)
 	if _, err := os.Stat(baseFile); os.IsNotExist(err) {
@@ -168,7 +168,7 @@ func (cm *ConfigManager) load(cmd *cobra.Command) error {
 		log.Warn("failed to read config file, ignoring", "err", err)
 	}
 
-	// ── 第三层：lattice.{env}.yaml ──────────────────────────────
+	// ── Layer 3: lattice.{env}.yaml ────────────────────────────────
 	envFile := fmt.Sprintf("%s/lattice.%s.yaml", cm.dir, env)
 	v.SetConfigFile(envFile)
 	if _, err := os.Stat(envFile); err == nil {
@@ -178,42 +178,42 @@ func (cm *ConfigManager) load(cmd *cobra.Command) error {
 			log.Info("env config loaded", "file", envFile)
 		}
 	}
-	// 重置回 baseFile，确保后续 WriteConfig / Save 写入正确路径
+	// Reset to baseFile so subsequent WriteConfig / Save writes to the correct path
 	v.SetConfigFile(baseFile)
 
-	// ── 第四层：环境变量（LATTICE_APP_LISTEN, LATTICE_SIGNALING_URL …）
+	// ── Layer 4: environment variables (LATTICE_APP_LISTEN, LATTICE_SIGNALING_URL, ...)
 	v.SetEnvPrefix("LATTICE")
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_", "-", "_"))
 	v.AutomaticEnv()
 
-	// ── 第五层：命令行参数（BindPFlags 自动全量绑定）────────────
+	// ── Layer 5: CLI arguments (BindPFlags auto-binds all flags) ────
 	if err := v.BindPFlags(cmd.Flags()); err != nil {
-		return fmt.Errorf("[config] BindPFlags 失败: %w", err)
+		return fmt.Errorf("[config] BindPFlags failed: %w", err)
 	}
 
-	// ── Unmarshal：GlobalConfig 与 Conf 共享同一指针 ─────────────
+	// ── Unmarshal: GlobalConfig and Conf share the same pointer ────
 	if err := v.Unmarshal(GlobalConfig); err != nil {
-		return fmt.Errorf("[config] Unmarshal 失败: %w", err)
+		return fmt.Errorf("[config] Unmarshal failed: %w", err)
 	}
 	Conf = GlobalConfig
 
-	// ── 兼容旧版 vm-endpoint key（kebab-case → vmEndpoint）──────
+	// ── Compatibility: old vm-endpoint key (kebab-case → vmEndpoint) ──
 	if GlobalConfig.Telemetry.VMEndpoint == "" {
 		if oldEp := v.GetString("vm-endpoint"); oldEp != "" {
 			GlobalConfig.Telemetry.VMEndpoint = oldEp
 		}
 	}
 
-	// ── 第六层：K8s 服务发现兜底（仅对仍为空的字段生效）─────────
+	// ── Layer 6: K8s service discovery fallback (only for fields that remain empty) ──
 	applyK8sFallbacks(GlobalConfig)
 
-	// ── 数据库驱动推断（从 DSN 格式自动识别驱动类型）────────────
+	// ── Database driver inference (auto-detect driver from DSN format) ────
 	inferDatabaseDriver(GlobalConfig)
 
 	log.Debug("config loaded", "env", env, "listen", GlobalConfig.Listen, "driver", GlobalConfig.Database.Driver)
 
-	// ── --save：把本次命令行显式指定的参数持久化回配置文件 ───────
-	// 典型用法：lattice up --server-url http://y --save
+	// ── --save: persist CLI flags explicitly specified this run ────
+	// Typical usage: lattice up --server-url http://y --save
 	if f := cmd.Flags().Lookup("save"); f != nil && f.Value.String() == "true" {
 		if err := cm.SaveChangedFlags(cmd); err != nil {
 			log.Warn("failed to save config", "err", err)
@@ -226,38 +226,38 @@ func (cm *ConfigManager) load(cmd *cobra.Command) error {
 
 // ─────────────────────────────────────────────
 //
-//	Config：唯一的配置结构体
+//	Config: the single configuration struct
 //
 // ─────────────────────────────────────────────
 
-// Config 是整个项目的统一配置结构体。
+// Config is the unified configuration struct for the entire project.
 //
-// 顶层扁平字段对应 CLI flag 名（BindPFlags 直接映射）；
-// 嵌套子结构体对应 YAML 中的块（也可通过 LATTICE_APP_NAME 等环境变量覆盖）。
+// Top-level flat fields correspond to CLI flag names (directly mapped by BindPFlags);
+// Nested sub-structs correspond to YAML blocks (also overridable via environment variables such as LATTICE_APP_NAME).
 //
-// 关键连接字段：
-//   - SignalingURL（NATS 信令）：由 server-url 的 /api/v1/discovery 自动发现；可通过 LATTICE_SIGNALING_URL / NATS_SERVICE_HOST 手动覆盖
-//   - ServerUrl  （Manager API）：--server-url / LATTICE_SERVER_URL / LATTICE_MANAGER_SERVICE_HOST（必填）
-//   - Database.DSN：缺省时自动退化为本地 SQLite（lattice.db），无需额外配置
+// Key connection fields:
+//   - SignalingURL (NATS signaling): auto-discovered via /api/v1/discovery from server-url; can be manually overridden with LATTICE_SIGNALING_URL / NATS_SERVICE_HOST
+//   - ServerUrl (Manager API): --server-url / LATTICE_SERVER_URL / LATTICE_MANAGER_SERVICE_HOST (required)
+//   - Database.DSN: falls back to local SQLite (lattice.db) by default, no extra config needed
 //
-// 多子服务端口分配约定（All-in-One 模式）：
-//   - Management API  → Listen      (默认 :8080)
-//   - Relay (TCP)     → RelayURL    (默认 :6266)
-//   - Relay (QUIC)    → RelayQuicURL (默认空)
-//   - TURN server     → Port        (默认 3478)
-//   - Metrics/Probe   → MetricsAddr (默认 :8443)
+// Multi-service port allocation convention (All-in-One mode):
+//   - Management API  → Listen      (default :8080)
+//   - Relay (TCP)     → RelayURL    (default :6266)
+//   - Relay (QUIC)    → RelayQuicURL (default empty)
+//   - TURN server     → Port        (default 3478)
+//   - Metrics/Probe   → MetricsAddr (default :8443)
 type Config struct {
-	// ── 基础 / 运行时 ─────────────────────────────────────────────
-	Listen        string `mapstructure:"listen"` // HTTP 监听地址，默认 :8080
-	Level         string `mapstructure:"level"`  // 日志级别
-	Env           string `mapstructure:"env"`    // 运行环境：dev / prod
+	// ── Base / Runtime ───────────────────────────────────────────
+	Listen        string `mapstructure:"listen"` // HTTP listen address, default :8080
+	Level         string `mapstructure:"level"`  // log level
+	Env           string `mapstructure:"env"`    // runtime environment: dev / prod
 	Debug         bool   `mapstructure:"debug"`
 	Auth          string `mapstructure:"auth"`
 	AppId         string `mapstructure:"app-id"`
 	Token         string `mapstructure:"token"`
-	InterfaceName string `mapstructure:"interface-name"` // WireGuard 接口名
+	InterfaceName string `mapstructure:"interface-name"` // WireGuard interface name
 
-	// ── 网络 / 地址 ───────────────────────────────────────────────
+	// ── Network / Address ─────────────────────────────────────────
 
 	// SignalingURL is the NATS signaling server URL for server-side components.
 	// Agent runtime: use GetSignalingURL()/SetSignalingURL() which check the
@@ -271,18 +271,18 @@ type Config struct {
 	// AuthToken is the JWT stored after 'lattice login'. Used by CLI management commands.
 	AuthToken string `mapstructure:"auth-token"`
 
-	// ServerUrl 是 Manager API 地址（对应需求中的 manager_api_url）。
-	// agent 用于注册、获取 Token、上报状态等控制面操作。
-	// K8s 场景：由 LATTICE_MANAGER_SERVICE_HOST 等环境变量自动补全。
+	// ServerUrl is the Manager API address.
+	// The agent uses it for registration, token retrieval, status reporting, and other control-plane operations.
+	// In K8s scenarios: auto-populated by environment variables like LATTICE_MANAGER_SERVICE_HOST.
 	ServerUrl     string `mapstructure:"server-url"`
-	RelayURL      string `mapstructure:"relay-url"`      // TCP relay 连接地址，默认 :6266
-	RelayQuicURL  string `mapstructure:"relay-quic-url"` // QUIC relay 连接地址，空=禁用
-	TurnServerURL string `mapstructure:"stun-url"`       // TURN/STUN 地址
+	RelayURL      string `mapstructure:"relay-url"`      // TCP relay connection address, default :6266
+	RelayQuicURL  string `mapstructure:"relay-quic-url"` // QUIC relay connection address, empty=disabled
+	TurnServerURL string `mapstructure:"stun-url"`       // TURN/STUN address
 	PublicIP      string `mapstructure:"public-ip"`
-	Port          int    `mapstructure:"port"`    // TURN 业务端口，默认 3478
-	WgPort        int    `mapstructure:"wg-port"` // WireGuard/ICE UDP 监听端口，默认 51820
+	Port          int    `mapstructure:"port"`    // TURN service port, default 3478
+	WgPort        int    `mapstructure:"wg-port"` // WireGuard/ICE UDP listen port, default 51820
 
-	// ── 功能开关 ──────────────────────────────────────────────────
+	// ── Feature flags ─────────────────────────────────────────────
 	EnableLrp    bool `mapstructure:"enable-lrp"`
 	EnableTLS    bool `mapstructure:"enable-tls"`
 	EnableMetric bool `mapstructure:"enable-metric"`
@@ -290,7 +290,7 @@ type Config struct {
 	EnableSysLog bool `mapstructure:"enable-sys-log"`
 	EnableDaemon bool `mapstructure:"enable-daemon"`
 
-	// ── Controller（Kubernetes operator）──────────────────────────
+	// ── Controller (Kubernetes operator) ──────────────────────────
 	MetricsAddr          string `mapstructure:"metrics-addr"`
 	ProbeAddr            string `mapstructure:"health-probe-bind-address"`
 	EnableLeaderElection bool   `mapstructure:"leader-elect"`
@@ -303,7 +303,7 @@ type Config struct {
 	MetricsCertName      string `mapstructure:"metrics-cert-name"`
 	MetricsCertKey       string `mapstructure:"metrics-cert-key"`
 
-	// ── 服务端嵌套配置（YAML 块，环境变量 LATTICE_APP_*/LATTICE_DATABASE_* 覆盖）
+	// ── Server-side nested config (YAML blocks, overridable via LATTICE_APP_*/LATTICE_DATABASE_* env vars)
 	App       AppConfig       `mapstructure:"app"`
 	Database  DatabaseConfig  `mapstructure:"database"`
 	Monitor   MonitorConfig   `mapstructure:"monitor"`
@@ -338,45 +338,45 @@ type AIWorkflowConfig struct {
 	AutoApprove map[string]bool `mapstructure:"auto_approve"`
 }
 
-// AIConfig 聚合 AI 功能相关配置。
-// AI 功能为弱依赖：Enabled=false 或 APIKey 为空时所有 /api/v1/ai/* 接口返回 503。
+// AIConfig aggregates AI feature configuration.
+// AI is a soft dependency: when Enabled=false or APIKey is empty, all /api/v1/ai/* endpoints return 503.
 type AIConfig struct {
-	// Enabled 是否启用 AI 功能，默认 false。
-	// 对应环境变量: LATTICE_AI_ENABLED
+	// Enabled controls whether AI features are enabled, default false.
+	// Corresponding env var: LATTICE_AI_ENABLED
 	Enabled bool `mapstructure:"enabled"`
 
-	// Provider 指定 LLM 服务商：anthropic（默认）、deepseek、openai，
-	// 或配合 base-url 使用任意 OpenAI 兼容服务。
-	// 对应环境变量: LATTICE_AI_PROVIDER
+	// Provider specifies the LLM provider: anthropic (default), deepseek, openai,
+	// or any OpenAI-compatible service when used with base-url.
+	// Corresponding env var: LATTICE_AI_PROVIDER
 	Provider string `mapstructure:"provider"`
 
-	// APIKey 服务商 API Key。
-	// 对应环境变量: LATTICE_AI_API_KEY
+	// APIKey is the provider's API key.
+	// Corresponding env var: LATTICE_AI_API_KEY
 	APIKey string `mapstructure:"api-key"`
 
-	// Model 指定模型名称，留空时各 Provider 使用内置默认值。
-	// 对应环境变量: LATTICE_AI_MODEL
+	// Model specifies the model name; when empty, each Provider uses its built-in default.
+	// Corresponding env var: LATTICE_AI_MODEL
 	Model string `mapstructure:"model"`
 
-	// BaseURL 自定义 API 端点，用于 DeepSeek、私有部署或 API 中转代理。
-	// 对应环境变量: LATTICE_AI_BASE_URL
+	// BaseURL is a custom API endpoint for DeepSeek, self-hosted deployments, or API proxy.
+	// Corresponding env var: LATTICE_AI_BASE_URL
 	BaseURL string `mapstructure:"base-url"`
 
-	// MaxToolCalls 单轮对话最大工具调用次数，默认 5。
+	// MaxToolCalls is the maximum number of tool calls per conversation turn, default 5.
 	MaxToolCalls int `mapstructure:"max-tool-calls"`
 
-	// AuditSchedule 安全审计定时任务 cron 表达式，默认 "0 2 * * *"（每日凌晨 2 点）。
-	// 留空时禁用定时审计。
+	// AuditSchedule is the cron expression for security audit scheduling, default "0 2 * * *" (2 AM daily).
+	// When empty, scheduled auditing is disabled.
 	AuditSchedule string `mapstructure:"audit-schedule"`
 
 	// Workflow controls write-tool approval behaviour.
 	Workflow AIWorkflowConfig `mapstructure:"workflow"`
 }
 
-// AppConfig 聚合应用层服务端配置（不含 CLI 覆盖字段）。
+// AppConfig aggregates application-layer server-side configuration (excluding CLI override fields).
 type AppConfig struct {
 	Name       string        `mapstructure:"name"`
-	InitAdmins []AdminConfig `mapstructure:"initAdmins"` // 首次启动时初始化的管理员列表
+	InitAdmins []AdminConfig `mapstructure:"initAdmins"` // list of admins initialized on first startup
 }
 
 type AdminConfig struct {
@@ -384,12 +384,12 @@ type AdminConfig struct {
 	Password string `yaml:"password" mapstructure:"password"`
 }
 
-// DatabaseConfig 数据库连接配置。
+// DatabaseConfig holds database connection configuration.
 //
-// 多环境 DSN 策略（对应需求中的 database_dsn 逻辑）：
-//   - DSN 为空（默认）→ Driver 自动设为 "sqlite"，db.NewStore 使用 lattice.db；适合开发/开源场景。
-//   - DSN 含 @tcp( / mysql:// / mariadb:// → Driver 自动推断为 "mariadb"，兼容 MySQL 协议。
-//   - 可通过 LATTICE_DATABASE_DSN / LATTICE_DATABASE_DRIVER 环境变量显式覆盖。
+// Multi-environment DSN strategy:
+//   - DSN is empty (default) → Driver automatically set to "sqlite", db.NewStore uses lattice.db; suitable for development/open-source.
+//   - DSN contains @tcp( / mysql:// / mariadb:// → Driver auto-detected as "mariadb", MySQL-compatible protocol.
+//   - Can be explicitly overridden via LATTICE_DATABASE_DSN / LATTICE_DATABASE_DRIVER environment variables.
 type DatabaseConfig struct {
 	Driver string `mapstructure:"driver"`
 	DSN    string `mapstructure:"dsn"`
@@ -421,10 +421,10 @@ type JWTConfig struct {
 type DexConfig struct {
 	Issur       string   `mapstructure:"issur"`
 	ProviderUrl string   `mapstructure:"providerUrl"`
-	AdminEmails []string `mapstructure:"adminEmails"` // Dex 登录用户中自动授予 platform_admin 的邮箱白名单
+	AdminEmails []string `mapstructure:"adminEmails"` // email allowlist for auto-granting platform_admin role to Dex login users
 }
 
-// NetworkOptions 用于网络操作的选项参数。
+// NetworkOptions holds option parameters for network operations.
 type NetworkOptions struct {
 	AppId      string
 	Identifier string
@@ -435,7 +435,7 @@ type NetworkOptions struct {
 
 // ─────────────────────────────────────────────
 //
-//	Pre-flight 校验
+//	Pre-flight validation
 //
 // ─────────────────────────────────────────────
 
@@ -447,24 +447,24 @@ func ValidateConfig(cfg *Config) error {
 
 // ─────────────────────────────────────────────
 //
-//	K8s 服务发现 & 数据库驱动推断
+//	K8s service discovery & database driver inference
 //
 // ─────────────────────────────────────────────
 
-// applyK8sFallbacks 在 Unmarshal 之后，对仍为空的关键字段尝试通过
-// K8s 标准服务环境变量（*_SERVICE_HOST / *_SERVICE_PORT）自动补全。
+// applyK8sFallbacks attempts to auto-populate key fields that are still empty after Unmarshal
+// using K8s standard service environment variables (*_SERVICE_HOST / *_SERVICE_PORT).
 //
-// 优先级低于所有"洋葱模型"层次，仅作最后兜底。
+// Its priority is below all "onion model" layers, serving only as a last resort.
 //
-// K8s 服务发现原理：部署 Service 时，K8s 会向同命名空间的 Pod 注入：
+// K8s service discovery principle: when a Service is deployed, K8s injects into Pods in the same namespace:
 //
 //	<SERVICE_NAME>_SERVICE_HOST=<ClusterIP>
 //	<SERVICE_NAME>_SERVICE_PORT=<Port>
 //
-// 其中 Service 名中的 "-" 替换为 "_" 并全部大写。
-// 例如：Service "nats" → NATS_SERVICE_HOST；Service "lattice-manager" → LATTICE_MANAGER_SERVICE_HOST。
+// Dashes in the Service name are replaced with underscores and the entire name is uppercased.
+// For example: Service "nats" → NATS_SERVICE_HOST; Service "lattice-manager" → LATTICE_MANAGER_SERVICE_HOST.
 func applyK8sFallbacks(cfg *Config) {
-	// ── Manager API 地址：依次检测常见 Service 名对应的环境变量 ──
+	// ── Manager API address: check env vars for common Service names in order ──
 	if cfg.ServerUrl == "" {
 		for _, prefix := range []string{
 			"LATTICE_MANAGER", // Service: lattice-manager
@@ -484,29 +484,29 @@ func applyK8sFallbacks(cfg *Config) {
 	}
 }
 
-// inferDatabaseDriver 根据 DSN 内容推断数据库驱动，处理用户未显式指定 driver 的场景。
+// inferDatabaseDriver infers the database driver from the DSN content, for cases where the user has not explicitly specified a driver.
 //
-// 推断规则：
-//   - DSN 为空 → driver="sqlite"（db.NewStore 自动使用 lattice.db，零额外依赖）
-//   - DSN 含 @tcp( 或前缀 mysql:// / mariadb:// → driver="mariadb"（MySQL 兼容协议）
-//   - 其他 DSN 格式（file:、*.db 路径等）→ driver="sqlite"
+// Inference rules:
+//   - DSN is empty → driver="sqlite" (db.NewStore automatically uses lattice.db, zero extra dependencies)
+//   - DSN contains @tcp( or prefix mysql:// / mariadb:// → driver="mariadb" (MySQL-compatible protocol)
+//   - Other DSN formats (file:, *.db paths, etc.) → driver="sqlite"
 //
-// 若 driver 已被用户显式设置为非 sqlite 的值，则跳过推断，尊重用户意图。
+// If the driver has been explicitly set by the user to a non-sqlite value, inference is skipped and the user's intent is respected.
 func inferDatabaseDriver(cfg *Config) {
 	db := &cfg.Database
 
 	if db.DSN == "" {
-		// 无 DSN → 开源/开发默认：SQLite，db.NewStore 使用 "lattice.db"
+		// No DSN → open-source/dev default: SQLite, db.NewStore uses "lattice.db"
 		db.Driver = "sqlite"
 		return
 	}
 
-	// driver 已被用户显式设置为其他驱动 → 尊重，不覆盖
+	// driver was explicitly set by user to a different value → respect it, do not override
 	if db.Driver != "" && db.Driver != "sqlite" {
 		return
 	}
 
-	// 从 DSN 格式推断驱动
+	// Infer driver from DSN format
 	dsn := db.DSN
 	switch {
 	case strings.Contains(dsn, "@tcp("),
@@ -521,14 +521,14 @@ func inferDatabaseDriver(cfg *Config) {
 
 // ─────────────────────────────────────────────
 //
-//	路径辅助
+//	Path helpers
 //
 // ─────────────────────────────────────────────
 
-// GetConfigFilePath 返回主配置文件路径（向后兼容）。
+// GetConfigFilePath returns the main config file path (backward compatible).
 func GetConfigFilePath() string { return GetManager().dir + "/lattice.yaml" }
 
-// peekConfigDir 在完整加载之前提前获取配置目录，优先级：
+// peekConfigDir retrieves the config directory early, before full loading, with priority:
 // --config-dir > LATTICE_CONFIG_DIR > ~/.lattice
 func peekConfigDir(cmd *cobra.Command) string {
 	if f := cmd.Flags().Lookup("config-dir"); f != nil && f.Changed {
@@ -546,24 +546,25 @@ func peekConfigDir(cmd *cobra.Command) string {
 
 // ─────────────────────────────────────────────
 //
-//	内部辅助
+//	Internal helpers
 //
 // ─────────────────────────────────────────────
 
-// setDefaults 设置各配置项的硬编码默认值（洋葱模型最底层）。
+// setDefaults sets hard-coded default values for configuration items (the bottom layer of the onion model).
 //
-// 设计原则：
-//   - 有通用合理值的字段（listen、level、端口号等）→ 设置具体默认值。
-//   - 与具体环境强相关的连接地址 → 默认为空，强制用户显式配置或通过 K8s 服务发现自动注入。
-//     这样可避免"用错环境"的隐患（如误连到生产 K8s 集群的 MariaDB）。
+// Design principles:
+//   - Fields with universally reasonable values (listen, level, port numbers, etc.) → set concrete defaults.
+//   - Connection addresses that are strongly environment-dependent → default to empty, forcing the user to
+//     explicitly configure them or rely on K8s service discovery auto-injection.
+//     This avoids the risk of "using the wrong environment" (e.g., accidentally connecting to a production MariaDB).
 func setDefaults(v *viper.Viper) {
 	v.SetDefault("listen", ":8080")
 	v.SetDefault("level", "info")
 	v.SetDefault("env", "dev")
 
-	// 关键连接地址：不设硬编码默认值，空值即"未配置"语义：
-	//   server-url    = ""  → Manager API 未知（agent 端 ValidateConfig 报错）
-	//   database.dsn  = ""  → 自动退化为本地 SQLite lattice.db（inferDatabaseDriver 处理）
+	// Critical connection addresses: no hard-coded defaults, empty means "not configured":
+	//   server-url    = ""  → Manager API unknown (agent-side ValidateConfig reports error)
+	//   database.dsn  = ""  → auto-falls back to local SQLite lattice.db (handled by inferDatabaseDriver)
 	v.SetDefault("auth-token", "")
 	v.SetDefault("server-url", "")
 
@@ -573,12 +574,12 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("port", 3478)
 	v.SetDefault("wg-port", 51820)
 
-	// database.driver 默认 sqlite，与 database.dsn="" 配合实现开箱即用的本地存储。
-	// 若用户提供了 MySQL/MariaDB DSN，inferDatabaseDriver() 会自动将 driver 修正为 "mariadb"。
+	// database.driver defaults to sqlite, which together with database.dsn="" provides out-of-the-box local storage.
+	// If the user provides a MySQL/MariaDB DSN, inferDatabaseDriver() automatically corrects the driver to "mariadb".
 	v.SetDefault("database.driver", "sqlite")
 	v.SetDefault("database.dsn", "")
 
-	v.SetDefault("dex.providerUrl", "") // 空 = 禁用 Dex OIDC
+	v.SetDefault("dex.providerUrl", "") // empty = disable Dex OIDC
 	v.SetDefault("monitor.address", "")
 
 	v.SetDefault("metrics-addr", ":8443")
@@ -596,7 +597,7 @@ func setDefaults(v *viper.Viper) {
 	})
 }
 
-// peekEnv 在完整加载之前提前获取 env，用于选择环境配置文件。
+// peekEnv retrieves the environment early, before full loading, for selecting the environment config file.
 func peekEnv(cmd *cobra.Command) string {
 	if f := cmd.Flags().Lookup("env"); f != nil && f.Changed {
 		return f.Value.String()

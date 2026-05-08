@@ -87,6 +87,6 @@ func (s *Server) handleIntentApply() gin.HandlerFunc {
 			resp.Error(c, err.Error())
 			return
 		}
-		resp.OK(c, gin.H{"workflowIds": workflowIDs, "message": "计划已提交审批，审批通过后自动执行"})
+		resp.OK(c, gin.H{"workflowIds": workflowIDs, "message": "Plan has been submitted for approval; it will be executed automatically upon approval"})
 	}
 }

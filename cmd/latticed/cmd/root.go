@@ -39,7 +39,7 @@ var rootCmd = &cobra.Command{
 			fmt.Println("latticed version: dev")
 			return nil
 		}
-		// pre-flight: 服务端模式——自动补全 signaling-url / database.dsn，不报错中断
+		// pre-flight: server mode — auto-fill signaling-url / database.dsn, do not abort on error
 		if err := config.ValidateAndReport(config.GlobalConfig, true); err != nil {
 			return err
 		}

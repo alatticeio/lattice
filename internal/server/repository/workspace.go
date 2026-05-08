@@ -17,22 +17,22 @@ type WorkspaceRepository struct {
 //	var workspaces []model.Workspace
 //	var total int64
 //
-//	// 1. 构建初始查询对象（关联 Context）
+//	// 1. Build initial query object (with Context)
 //	query := t.db.WithContext(ctx).Model(&model.Workspace{})
 //
-//	// 2. 添加过滤条件 (假设 request 中有 Keyword 字段)
+//	// 2. Add filter conditions (assuming request has Keyword field)
 //	if request.Keyword != "" {
-//		// 模糊搜索 DisplayName 或 Slug
+//		// Fuzzy search DisplayName or Slug
 //		query = query.Where("display_name LIKE ? OR slug LIKE ?",
 //			"%"+request.Keyword+"%", "%"+request.Keyword+"%")
 //	}
 //
-//	// 3. 执行 Count（必须在 Offset/Limit 之前执行，否则查的是当前页条数）
+//	// 3. Execute Count (must be called before Offset/Limit, otherwise it counts the current page)
 //	if err := query.Count(&total).Error; err != nil {
 //		return nil, 0, fmt.Errorf("failed to count workspace: %v", err)
 //	}
 //
-//	// 4. 执行分页查询
+//	// 4. Execute paginated query
 //	offset := (request.Page - 1) * request.PageSize
 //	if err := query.Offset(offset).Limit(request.PageSize).Find(&workspaces).Error; err != nil {
 //		return nil, 0, fmt.Errorf("failed to query workspace: %v", err)
@@ -64,21 +64,21 @@ func (r *WorkspaceMemberRepository) GetMemberRole(ctx context.Context, workspace
 //		return nil, 0, errors.New("unauthorized: user_id not found in context")
 //	}
 //
-//	// 2. 从数据库分页查询用户所属的工作区及其角色
+//	// 2. Paginated query from DB for user's workspaces and their roles
 //	var members []model.WorkspaceMember
 //	var total int64
 //
-//	// 基础查询：关联 Workspace 表
+//	// Base query: join Workspace table
 //	query := r.db.WithContext(ctx).Model(&model.WorkspaceMember{}).
 //		Preload("Workspace").
 //		Where("user_id = ?", userID)
 //
-//	// 执行总数统计
+//	// Execute total count
 //	if err := query.Count(&total).Error; err != nil {
 //		return nil, 0, fmt.Errorf("failed to count workspaces: %v", err)
 //	}
 //
-//	// 执行分页查询
+//	// Execute paginated query
 //	if err := query.Offset((request.Page - 1) * request.PageSize).
 //		Limit(request.PageSize).
 //		Find(&members).Error; err != nil {
@@ -89,7 +89,7 @@ func (r *WorkspaceMemberRepository) GetMemberRole(ctx context.Context, workspace
 //}
 
 func (t *WorkspaceRepository) CheckPermission(ctx context.Context, userID, teamID string) (bool, error) {
-	// 3. 数据库查询：校验 WorkspaceMember 关系
+	// 3. Database query: validate WorkspaceMember relationship
 	var member models.WorkspaceMember
 	err := t.db.Where("user_id = ? AND team_id = ? AND status = ?", userID, teamID, "active").First(&member).Error
 

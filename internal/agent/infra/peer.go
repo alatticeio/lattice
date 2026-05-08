@@ -46,8 +46,8 @@ func (id PeerID) String() string {
 	return fmt.Sprintf("%d", id.ToUint64())
 }
 
-// PeerIdentity 统一了逻辑身份（AppID）和加密身份（WireGuard 公钥）。
-// 管理层通过 AppID 查找，传输层通过 PublicKey 配置 WireGuard，两层通过这个结构互转。
+// PeerIdentity unifies the logical identity (AppID) and cryptographic identity (WireGuard public key).
+// The management layer looks up by AppID, the transport layer configures WireGuard by PublicKey, and the two layers convert via this struct.
 type PeerIdentity struct {
 	AppID     string
 	PublicKey wgtypes.Key
@@ -57,12 +57,12 @@ func NewPeerIdentity(appId string, pubKey wgtypes.Key) PeerIdentity {
 	return PeerIdentity{AppID: appId, PublicKey: pubKey}
 }
 
-// ID 返回用于 NATS 路由的紧凑 PeerID。
+// ID returns the compact PeerID used for NATS routing.
 func (p PeerIdentity) ID() PeerID {
 	return FromKey(p.PublicKey)
 }
 
-// String 返回与 PeerID 一致的字符串，用于 NATS subject 拼接。
+// String returns a string consistent with PeerID, used for NATS subject construction.
 func (p PeerIdentity) String() string {
 	return p.ID().String()
 }

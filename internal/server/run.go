@@ -33,9 +33,9 @@ func Start(flags *config.Config) error {
 	defer stop()
 	logger := log.GetLogger("management")
 
-	// 2. 创建 errgroup
+	// 2. Create errgroup
 	g, ctx := errgroup.WithContext(ctx)
-	// GlobalConfig 已在 PersistentPreRunE 中由 config.GetManager().Load(cmd) 填充。
+	// GlobalConfig is populated in PersistentPreRunE by config.GetManager().Load(cmd).
 	hs, err := server.NewServer(ctx, &server.ServerConfig{
 		Cfg: config.GlobalConfig,
 	})
@@ -43,14 +43,14 @@ func Start(flags *config.Config) error {
 		return err
 	}
 
-	// 任务 A: 启动 Manager (控制器逻辑)
+	// Task A: Start Manager (controller logic)
 	g.Go(func() error {
 		logger.Info("management server starting")
-		// hs.Start 内部应该封装了 mgr.Start(ctx)
+		// hs.Start should internally encapsulate mgr.Start(ctx)
 		return hs.Start(ctx)
 	})
 
-	// 任务 B: 等待缓存同步（若 K8s 可用）后启动 HTTP Server
+	// Task B: Wait for cache sync (if K8s is available) then start HTTP Server
 	g.Go(func() error {
 		if ch := hs.CacheReady(); ch != nil {
 			logger.Info("waiting for informer cache sync")
@@ -66,10 +66,10 @@ func Start(flags *config.Config) error {
 
 		srv := &http.Server{
 			Addr:    ":8080",
-			Handler: hs, // 你的 gin.Engine
+			Handler: hs, // Your gin.Engine
 		}
 
-		// 独立协程负责监听 ctx.Done 并执行 Shutdown
+		// Separate goroutine to listen for ctx.Done and execute Shutdown
 		go func() {
 			<-ctx.Done()
 			logger.Info("API server shutting down")
@@ -78,14 +78,14 @@ func Start(flags *config.Config) error {
 			_ = srv.Shutdown(shutdownCtx)
 		}()
 
-		// 使用 ListenAndServe 而非 hs.Run，因为优雅退出逻辑已在上面 go func 中处理
+		// Use ListenAndServe instead of hs.Run because graceful shutdown is already handled in the go func above
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			return err
 		}
 		return nil
 	})
 
-	// 3. 阻塞等待所有任务
+	// 3. Block and wait for all tasks
 	if err := g.Wait(); err != nil {
 		logger.Error("management server exited with error", err)
 		return err

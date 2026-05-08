@@ -63,7 +63,7 @@ func (r *routeProvisioner) ApplyRoute(action, address, name string) error {
 func (r *routeProvisioner) ApplyIP(action, address, name string) error {
 	switch action {
 	case "add":
-		// ip address replace 要求 CIDR 格式；若管理服务下发裸 IP（无前缀）则补 /32。
+		// ip address replace requires CIDR format; append /32 if the management service sends a bare IP (no prefix).
 		if !strings.Contains(address, "/") {
 			address = address + "/32"
 		}
@@ -91,11 +91,11 @@ func (r *ruleProvisioner) Provision(rule *infra.FirewallRule) error {
 		"egressRules", len(rule.Egress),
 	)
 
-	// 1. 初始化链
+	// 1. Initialize chains
 	r.initChain(inChain, "INPUT", "-i")
 	r.initChain(outChain, "OUTPUT", "-o")
 
-	// 2. 清空旧规则 (Flush)
+	// 2. Flush old rules
 	r.logger.Debug("flushing iptables chains", "ingress", inChain, "egress", outChain)
 	if err := exec.Command("iptables", "-F", inChain).Run(); err != nil {
 		r.logger.Error("failed to flush ingress chain", err, "chain", inChain)
@@ -107,7 +107,7 @@ func (r *ruleProvisioner) Provision(rule *infra.FirewallRule) error {
 		return err
 	}
 
-	// 3. 基础规则：允许 Established 流量（零信任回包保障）
+	// 3. Base rule: allow Established traffic (zero-trust return traffic guarantee)
 	if err := exec.Command("iptables", "-A", inChain, "-m", "conntrack", "--ctstate", "ESTABLISHED,RELATED", "-j", "ACCEPT").Run(); err != nil {
 		return err
 	}
@@ -116,7 +116,7 @@ func (r *ruleProvisioner) Provision(rule *infra.FirewallRule) error {
 		return err
 	}
 
-	// 4. 应用 Ingress (源地址匹配 -s)
+	// 4. Apply Ingress rules (source address match -s)
 	for _, tr := range rule.Ingress {
 		for _, ip := range tr.Peers {
 			r.logger.Debug("adding ingress rule", "chain", inChain, "src", ip, "protocol", tr.Protocol, "port", tr.Port, "action", tr.Action)
@@ -127,7 +127,7 @@ func (r *ruleProvisioner) Provision(rule *infra.FirewallRule) error {
 		}
 	}
 
-	// 5. 应用 Egress (目的地址匹配 -d)
+	// 5. Apply Egress rules (destination address match -d)
 	for _, tr := range rule.Egress {
 		for _, ip := range tr.Peers {
 			r.logger.Debug("adding egress rule", "chain", outChain, "dst", ip, "protocol", tr.Protocol, "port", tr.Port, "action", tr.Action)
@@ -138,7 +138,7 @@ func (r *ruleProvisioner) Provision(rule *infra.FirewallRule) error {
 		}
 	}
 
-	// 6. 终极封口 (DROP)
+	// 6. Ultimate default deny (DROP)
 	if err := exec.Command("iptables", "-A", inChain, "-j", "DROP").Run(); err != nil {
 		return err
 	}
@@ -151,30 +151,30 @@ func (r *ruleProvisioner) Provision(rule *infra.FirewallRule) error {
 	return nil
 }
 
-// 内部辅助：确保链存在并挂载
+// Internal helper: ensure chain exists and is attached
 func (p *ruleProvisioner) initChain(chain, parent, flag string) {
-	// 1. 创建链：使用 -w 避免锁竞争
-	// 技巧：先检查链是否存在，或者直接运行并捕获错误
+	// 1. Create chain: use -w to avoid lock contention
+	// Tip: either check if chain exists first, or run directly and catch the error
 	cmd := exec.Command("iptables", "-w", "5", "-N", chain)
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 
 	if err := cmd.Run(); err != nil {
-		// 如果错误信息包含 "already exists"，说明链是好的，可以继续
+		// If the error contains "already exists", the chain is fine, we can proceed
 		if strings.Contains(stderr.String(), "already exists") {
 			p.logger.Debug("iptables chain already exists, skipping creation", "chain", chain)
 		} else {
 			p.logger.Error("init iptables failed", err, "stderr", stderr.String())
-			// 如果不是因为已存在而失败，才 return
+			// Only return if the failure is not due to "already exists"
 			return
 		}
 	}
 
-	// 2. 检查是否已挂载到父链 (-C 是 Check)
-	// 同样加上 -w 5
+	// 2. Check if already attached to parent chain (-C is Check)
+	// Also add -w 5
 	checkCmd := exec.Command("iptables", "-w", "5", "-C", parent, flag, p.interfaceName, "-j", chain)
 	if err := checkCmd.Run(); err != nil {
-		// 如果 Check 失败（说明没挂载），则执行插入 (-I)
+		// If Check fails (not attached), perform insert (-I)
 		insertCmd := exec.Command("iptables", "-w", "5", "-I", parent, "1", flag, p.interfaceName, "-j", chain)
 		if err := insertCmd.Run(); err != nil {
 			p.logger.Error("failed to bind chain to parent", err, "parent", parent)
@@ -182,8 +182,8 @@ func (p *ruleProvisioner) initChain(chain, parent, flag string) {
 	}
 }
 
-// 内部辅助：添加单条规则。
-// 当 Protocol 或 Port 未指定（零值）时，省略 -p/--dport，允许该 IP 的所有流量。
+// Internal helper: add a single rule.
+// When Protocol or Port is not specified (zero value), omit -p/--dport to allow all traffic from that IP.
 func (p *ruleProvisioner) addRule(chain, dir, ip string, tr infra.TrafficRule) error {
 	target := tr.Action
 	if target == "" {
@@ -204,7 +204,7 @@ func (p *ruleProvisioner) addRule(chain, dir, ip string, tr infra.TrafficRule) e
 }
 
 func (p *ruleProvisioner) Cleanup() error {
-	// 逻辑：删除挂载点 -> 清空链 -> 删除链
+	// Logic: remove attachment points -> flush chains -> delete chains
 	return nil
 }
 
@@ -244,7 +244,7 @@ func (r *ruleProvisioner) SetupNAT(interfaceName string) error {
 		return nil
 	}
 
-	// 每条规则先用 -C 检查是否已存在，避免重连时重复追加。
+	// Check each rule with -C first to avoid duplicate appends on reconnection.
 	type natRule struct {
 		check string
 		add   string
@@ -268,7 +268,7 @@ func (r *ruleProvisioner) SetupNAT(interfaceName string) error {
 	defer iptablesMu.Unlock()
 	for _, r := range rules {
 		if err := infra.ExecCommand("/bin/sh", "-c", r.check); err != nil {
-			// 规则不存在，添加
+			// Rule does not exist, add it
 			if err := infra.ExecCommand("/bin/sh", "-c", r.add); err != nil {
 				return err
 			}

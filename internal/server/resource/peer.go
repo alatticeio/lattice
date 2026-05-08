@@ -62,7 +62,7 @@ func (c *Client) Register(ctx context.Context, namespace string, e *dto.PeerDto)
 	peerId = infra.FromKey(key.PublicKey())
 
 	log.Info("Updating default net...")
-	// 使用SSA模式
+	// Use SSA mode
 	manager := client.FieldOwner("lattice-controller-manager")
 
 	defaultNet := "lattice-default-net"
@@ -168,15 +168,15 @@ func (c *Client) GetNetworkMap(ctx context.Context, tokenStr, name string) (*inf
 		return nil, err
 	}
 
-	//从network获取
+	// Get from network
 	var nodeConfig corev1.ConfigMap
 	if err = c.Get(ctx, types.NamespacedName{
 		Namespace: node.Namespace,
 		Name:      fmt.Sprintf("%s-config", node.Name),
 	}, &nodeConfig); err != nil {
 		if errors.IsNotFound(err) {
-			// ConfigMap 尚未被 controller 创建（节点首次启动时的正常情况）。
-			// 返回空 Message，agent 以空配置启动，后续通过 NATS 推送接收完整配置。
+			// ConfigMap has not been created by the controller yet (normal on first node startup).
+			// Return an empty Message; the agent starts with an empty config and receives the full config later via NATS push.
 			logger.Info("ConfigMap not found yet, returning empty network map", "namespace", node.Namespace, "name", node.Name)
 			return &infra.Message{}, nil
 		}
@@ -206,7 +206,7 @@ func (c *Client) CreateNetwork(ctx context.Context, networkId, cidr string) (*v1
 	}, &network)
 
 	if err != nil && errors.IsNotFound(err) {
-		// 使用SSA模式
+		// Use SSA mode
 		manager := client.FieldOwner("lattice-controller-manager")
 
 		if err = c.Patch(ctx, &v1alpha1.LatticeNetwork{

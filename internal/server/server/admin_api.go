@@ -8,7 +8,7 @@ import (
 
 // nolint:all
 func (s *Server) adminRouter() {
-	// 只有【系统管理员】才能访问的路由
+	// Routes accessible only by [System Administrators]
 	adminGroup := s.Group("/api/v1/admin")
 	adminGroup.Use(middleware.AuthMiddleware(s.revocationList), s.middleware.PlatformAdminOnly())
 	{
@@ -16,7 +16,7 @@ func (s *Server) adminRouter() {
 		adminGroup.POST("/create-user", handleCreateUser())
 	}
 
-	// 【空间管理员】访问的路由
+	// Routes accessible by [Workspace Administrators]
 	nsGroup := s.Group("/api/v1/ns/:ns_id")
 	nsGroup.Use(middleware.AuthMiddleware(s.revocationList), s.middleware.AdminOnly())
 	{

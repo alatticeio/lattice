@@ -1,6 +1,10 @@
 package server
 
 import (
+	"context"
+	"fmt"
+	"strings"
+
 	"github.com/alatticeio/lattice/internal/agent/infra"
 	"github.com/alatticeio/lattice/internal/server/dex"
 	"github.com/alatticeio/lattice/internal/server/dto"
@@ -9,19 +13,18 @@ import (
 	"github.com/alatticeio/lattice/internal/server/service"
 	"github.com/alatticeio/lattice/internal/web"
 	"github.com/alatticeio/lattice/pkg/utils/resp"
-	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 func (s *Server) apiRouter() error {
-	// 跨域处理（对接 Vite 开发环境）
+	// CORS handling (for Vite dev environment)
 	s.Use(middleware.CORSMiddleware())
-	// 审计中间件：记录所有非 GET 写操作
+	// Audit middleware: records all non-GET write operations
 	s.Use(middleware.AuditMiddleware(s.auditService))
 
-	// Dex OIDC 为可选依赖：providerUrl 为空时跳过初始化，注册降级 handler。
+	// Dex OIDC is optional: skips initialization when providerUrl is empty, registers a degraded handler.
 	if s.cfg.Dex.ProviderUrl != "" {
 		dexSvc, err := dex.NewDex(service.NewUserService(s.store))
 		if err != nil {
@@ -38,17 +41,17 @@ func (s *Server) apiRouter() error {
 			c.JSON(503, gin.H{"error": "Dex OIDC is not configured"})
 		})
 	}
-	//加入监控
+	// Attach monitoring
 	s.GET("/metrics", gin.WrapH(promhttp.Handler()))
 	api := s.Group("/api/v1")
 	{
-		// 网络管理 (Namespace) — workspace-scoped, requires membership
+		// Network management (Namespace) — workspace-scoped, requires membership
 		netApi := api.Group("")
 		netApi.Use(s.middleware.WorkspaceAuthMiddleware(dto.RoleViewer))
 		{
-			netApi.POST("/networks", CreateNetwork)   // 创建新网络
-			netApi.GET("/networks", s.ListNetworks)   // 获取网络列表
-			netApi.GET("/networks/peers", s.GetPeers) // 获取该网络下的所有机器
+			netApi.POST("/networks", CreateNetwork)   // Create a new network
+			netApi.GET("/networks", s.ListNetworks)   // Get network list
+			netApi.GET("/networks/peers", s.GetPeers) // Get all machines under this network
 		}
 	}
 
@@ -118,7 +121,7 @@ func (s *Server) apiRouter() error {
 	// Discovery — no auth required; returns NATS URL for agent auto-connect.
 	api.GET("/discovery", s.handleDiscovery())
 
-	// SPA 静态资源：必须最后注册，通过 NoRoute 捕获所有未匹配路径
+	// SPA static resources: must be registered last, catch all unmatched paths via NoRoute
 	s.logger.Info("Registering SPA static files")
 	web.RegisterHandlers(s.Engine)
 
@@ -194,7 +197,7 @@ func CreateNetwork(c *gin.Context) {
 	}
 
 	resp.OK(c, gin.H{
-		"message": "网络创建成功",
+		"message": "Network created successfully",
 		"id":      req.Name,
 	})
 }
@@ -236,6 +239,18 @@ func (s *Server) updatePeer(c *gin.Context) {
 func (s *Server) peerNamespace(c *gin.Context) (string, error) {
 	ctx := c.Request.Context()
 	wsID, _ := ctx.Value(infra.WorkspaceKey).(string)
+	ws, err := s.store.Workspaces().GetByID(ctx, wsID)
+	if err != nil {
+		return "", err
+	}
+	return ws.Namespace, nil
+}
+
+// resolveWorkspaceNamespace resolves a workspace ID to its K8s namespace name.
+func (s *Server) resolveWorkspaceNamespace(ctx context.Context, wsID string) (string, error) {
+	if wsID == "" {
+		return "", fmt.Errorf("workspaceId is required")
+	}
 	ws, err := s.store.Workspaces().GetByID(ctx, wsID)
 	if err != nil {
 		return "", err

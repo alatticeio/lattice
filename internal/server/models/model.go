@@ -30,7 +30,7 @@ func (m *Model) BeforeCreate(tx *gorm.DB) (err error) {
 		m.ID = uuid.New().String()
 	}
 
-	// 如果当前对象实现了设置 Namespace 的接口，自动同步
+	// If the current object implements the Namespace-setting interface, auto-sync
 	if nsTarget, ok := tx.Statement.Dest.(NamespaceAware); ok {
 		nsTarget.SetNamespace("wf-" + m.ID)
 	}

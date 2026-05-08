@@ -23,39 +23,39 @@ import (
 
 func TestTaskLoop(t *testing.T) {
 	t.Run("test", func(t *testing.T) {
-		// 创建一个队列大小为 50 的任务循环
+		// Create a task loop with queue size 50
 		taskLoop := NewTaskLoop(50)
 
-		// 创建上下文
+		// Create a context
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 
-		// 启动循环
+		// Start the loop
 		taskLoop.Start(ctx)
 
-		// 不断添加任务
+		// Continuously add tasks
 		for i := 0; i < 100; i++ {
-			taskID := i // 捕获变量
+			taskID := i // capture loop variable
 
-			// 添加任务到队列
+			// Add task to the queue
 			err := taskLoop.AddTask(ctx, func(ctx context.Context) error {
-				fmt.Printf("执行任务 %d\n", taskID)
+				fmt.Printf("Executing task %d\n", taskID)
 				time.Sleep(100 * time.Millisecond)
 				return nil
 			})
 
 			if err != nil {
-				fmt.Printf("添加任务 %d 失败: %v\n", i, err)
+				fmt.Printf("Failed to add task %d: %v\n", i, err)
 			}
 
-			// 模拟任务到达的间隔
+			// Simulate interval between task arrivals
 			time.Sleep(50 * time.Millisecond)
 		}
 
-		// 检查队列状态
-		fmt.Printf("当前队列中等待的任务: %d\n", taskLoop.QueuedTasksCount())
+		// Check queue status
+		fmt.Printf("Tasks currently queued: %d\n", taskLoop.QueuedTasksCount())
 
-		// 停止循环
+		// Stop the loop
 		taskLoop.Stop()
 
 	})

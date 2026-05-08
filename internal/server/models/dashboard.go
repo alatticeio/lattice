@@ -1,6 +1,6 @@
 package models
 
-// WorkspaceDashboardResponse 工作空间维度 Dashboard 数据
+// WorkspaceDashboardResponse workspace-scoped Dashboard data
 type WorkspaceDashboardResponse struct {
 	StatCards       []WorkspaceStatCard `json:"stat_cards"`
 	ThroughputTrend TrendData           `json:"throughput_trend"`
@@ -8,7 +8,7 @@ type WorkspaceDashboardResponse struct {
 	TopNodes        []NodeMonitorDetail `json:"top_nodes"`
 }
 
-// WorkspaceStatCard 工作空间顶部指标卡片
+// WorkspaceStatCard workspace top-level metric card
 type WorkspaceStatCard struct {
 	Label    string `json:"label"`
 	Value    string `json:"value"`
@@ -18,7 +18,7 @@ type WorkspaceStatCard struct {
 	Color    string `json:"color"`     // Tailwind class, e.g. "text-emerald-500"
 }
 
-// NodeCPUItem 节点 CPU/Memory 明细，用于 Node Load 柱状图
+// NodeCPUItem node CPU/Memory detail, used for Node Load bar chart
 type NodeCPUItem struct {
 	PeerID   string  `json:"peer_id"`
 	Name     string  `json:"name"`
@@ -26,13 +26,13 @@ type NodeCPUItem struct {
 	MemoryMB float64 `json:"memory_mb"` // megabytes
 }
 
-// DashboardResponse 全域视角返回数据
+// DashboardResponse global perspective return data
 type DashboardResponse struct {
 	GlobalStats    []GlobalStatItem    `json:"global_stats"`
 	WorkspaceUsage []WorkspaceUsageRow `json:"workspace_usage"`
 	GlobalEvents   []GlobalEventItem   `json:"global_events"`
-	GlobalTrend    TrendData           `json:"global_trend"` // 24h 吞吐趋势（4h 粒度）
-	TopNodes       []NodeMonitorDetail `json:"top_nodes"`    // Top 10 节点（按 24h 流量）
+	GlobalTrend    TrendData           `json:"global_trend"` // 24h throughput trend (4h granularity)
+	TopNodes       []NodeMonitorDetail `json:"top_nodes"`    // Top 10 nodes (by 24h traffic)
 }
 
 type GlobalStatItem struct {
@@ -59,5 +59,5 @@ type GlobalEventItem struct {
 	WS      string `json:"ws"`
 	Type    string `json:"type"`
 	Content string `json:"content"`
-	Tone    string `json:"tone"` // 映射前端色值类
+	Tone    string `json:"tone"` // Maps to frontend color class
 }

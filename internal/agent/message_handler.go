@@ -45,7 +45,7 @@ func NewMessageHandler(e infra.NodeInterface, logger *log.Logger, provisioner pr
 type HandlerFunc func(ctx context.Context, msg *infra.Message) error
 
 func (h *MessageHandler) HandleEvent(ctx context.Context, msg *infra.Message) error {
-	// 1. 基础合法性检查
+	// 1. Basic validity check
 	if msg == nil || msg.Current == nil {
 		h.logger.Warn("dropping config update: nil or missing current peer")
 		return nil
@@ -55,15 +55,15 @@ func (h *MessageHandler) HandleEvent(ctx context.Context, msg *infra.Message) er
 		"version", msg.ConfigVersion,
 		"incremental", msg.Changes != nil)
 
-	// 2. 增量处理逻辑 (Fast Path)
-	// 只有当 Changes 不为 nil 且确实有变化时，才执行精细化的设备操作
+	// 2. Incremental processing logic (Fast Path)
+	// Only perform granular device operations when Changes is non-nil and actually has changes
 	if msg.Changes != nil && msg.Changes.HasChanges() {
 		h.logger.Debug("applying incremental changes", "summary", msg.Changes.Summary())
 
-		// --- 地址与网络变更 ---
+		// --- Address and network changes ---
 		if msg.Changes.AddressChanged {
 			if msg.Current.Address == nil {
-				// 情况 A: 节点失去了分配的 IP，执行清理
+				// Case A: node lost its assigned IP, perform cleanup
 				if len(msg.Changes.NetworkLeft) > 0 {
 					h.logger.Warn("node left network, clearing IP and peer table")
 					if err := h.provisioner.ApplyIP("remove", "", h.deviceManager.GetDeviceName()); err != nil {
@@ -72,33 +72,33 @@ func (h *MessageHandler) HandleEvent(ctx context.Context, msg *infra.Message) er
 					h.deviceManager.RemoveAllPeers()
 				}
 			} else {
-				// 情况 B: 分配了新地址，强制更新掩码为 /32 (WireGuard 标准做法)
+				// Case B: new address assigned, force netmask to /32 (WireGuard standard)
 				msg.Current.AllowedIPs = fmt.Sprintf("%s/32", *msg.Current.Address)
 			}
 		}
 
-		// --- 密钥变更（预留逻辑） ---
+		// --- Key rotation (reserved logic) ---
 		if msg.Changes.KeyChanged {
 			h.logger.Info("WireGuard key rotation detected", "pub_key", msg.Current.PublicKey)
-			// 这里可以触发本地密钥重生成或更新逻辑
+			// Trigger local key regeneration or update logic here
 		}
 
-		// --- Peer 新增 ---
+		// --- Peer additions ---
 		if len(msg.Changes.PeersAdded) > 0 {
 			for _, peer := range msg.Changes.PeersAdded {
-				// 严格过滤掉自身，防止回环或配置冲突
+				// Strictly filter out self to prevent loopback or config conflicts
 				if peer.PublicKey == msg.Current.PublicKey {
 					continue
 				}
 				h.logger.Debug("adding peer", "peer_id", peer.PeerID, "endpoint", peer.Endpoint)
 				if err := h.deviceManager.AddPeer(peer); err != nil {
-					// 记录错误但不中断，尝试处理后续 Peer
+					// Log error but do not abort; continue processing subsequent peers
 					h.logger.Error("failed to add peer", err, "peer_id", peer.PeerID)
 				}
 			}
 		}
 
-		// --- Peer 移除 ---
+		// --- Peer removals ---
 		if len(msg.Changes.PeersRemoved) > 0 {
 			for _, peer := range msg.Changes.PeersRemoved {
 				h.logger.Debug("removing peer", "peer_id", peer.PeerID)
@@ -108,13 +108,13 @@ func (h *MessageHandler) HandleEvent(ctx context.Context, msg *infra.Message) er
 			}
 		}
 	} else {
-		// 如果 Changes == nil，说明这是一次全量快照分发（Snapshot）
+		// If Changes == nil, this is a full snapshot distribution
 		h.logger.Debug("no incremental changes, falling back to full reconciliation")
 	}
 
-	// 3. 核心出口：最终一致性对齐 (Safe Path)
-	// 无论有没有增量，最后都调用 ApplyFullConfig。
-	// 该函数内部应实现“幂等性”：即如果内核状态已与 msg.Current 一致，则不执行任何写操作。
+	// 3. Core exit: eventual consistency reconciliation (Safe Path)
+	// Regardless of whether there were incremental changes, always call ApplyFullConfig.
+	// This function should be idempotent: if kernel state already matches msg.Current, no writes are performed.
 	if err := h.ApplyFullConfig(ctx, msg); err != nil {
 		return fmt.Errorf("failed to apply full configuration: %w", err)
 	}
@@ -128,14 +128,14 @@ func (h *MessageHandler) ApplyFullConfig(ctx context.Context, msg *infra.Message
 	h.logger.Debug("reconciling full config", "version", msg.ConfigVersion)
 	var err error
 
-	// 设置本机IP（注册时 ConfigMap 可能尚未就绪，依赖后续推送补齐地址）
+	// Set local IP (ConfigMap may not be ready at registration; address will be filled in by subsequent push)
 	if msg.Current != nil && msg.Current.Address != nil {
 		if err = h.provisioner.ApplyIP("add", *msg.Current.Address, h.deviceManager.GetDeviceName()); err != nil {
 			h.logger.Error("failed to apply local IP", err, "addr", *msg.Current.Address)
 			return err
 		}
-		// 将 msg.Current（含服务端分配的 AllowedIPs）回写到 peerManager，
-		// 确保后续 ICE offer 的 Current 字段携带正确的 AllowedIPs。
+		// Write msg.Current (including server-assigned AllowedIPs) back to peerManager,
+		// ensuring subsequent ICE offers carry the correct AllowedIPs in the Current field.
 		if msg.Current.AllowedIPs == "" {
 			msg.Current.AllowedIPs = fmt.Sprintf("%s/32", *msg.Current.Address)
 		}
@@ -145,7 +145,7 @@ func (h *MessageHandler) ApplyFullConfig(ctx context.Context, msg *infra.Message
 		}
 	}
 
-	//设置Peers
+	// Apply remote peers
 	if err = h.applyRemotePeers(ctx, msg); err != nil {
 		h.logger.Error("failed to sync remote peers", err)
 		return err

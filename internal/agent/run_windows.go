@@ -58,7 +58,7 @@ func Start(ctx context.Context, flags *config.Config) error {
 		env := os.Environ()
 		env = append(env, "LATTICE_DAEMON=true")
 		if os.Getenv("LATTICE_DAEMON") == "" {
-			// 确保日志目录存在
+			// Ensure log directory exists
 			var logDir string
 			switch runtime.GOOS {
 			case "darwin":
@@ -71,7 +71,7 @@ func Start(ctx context.Context, flags *config.Config) error {
 			}
 
 			if _, err = os.Stat(logDir); err != nil {
-				// 如果目录不存在或不是目录，则创建目录
+				// If directory does not exist or is not a directory, create it
 				if err = os.MkdirAll(logDir, 0755); err != nil {
 					fmt.Printf("Failed to create log directory: %v\n", err)
 					os.Exit(1)
@@ -80,7 +80,7 @@ func Start(ctx context.Context, flags *config.Config) error {
 				fmt.Printf("Log directory already exists: %s\n", logDir)
 			}
 
-			// 打开日志文件
+			// Open log file
 			logFile, err = os.OpenFile(
 				filepath.Join(logDir, "lattice.log"),
 				os.O_CREATE|os.O_WRONLY|os.O_APPEND,
@@ -220,7 +220,7 @@ func Stop(flags *config.Config) error {
 
 		interfaceName = ifaces[0].Name
 	}
-	// 如果 UAPI 失败，尝试通过 PID 文件停止进程
+	// If UAPI fails, try to stop the process via PID file
 	return stopViaPIDFile(interfaceName)
 
 }
@@ -244,7 +244,7 @@ func stopViaPIDFile(interfaceName string) error {
 		return fmt.Errorf("lattice sock connect failed: %v", err)
 	}
 	defer conn.Close()
-	// 发送消息到服务器
+	// Send message to server
 	_, err = conn.Write([]byte("stop\n"))
 	if err != nil {
 		return fmt.Errorf("send stop failed: %v", err)

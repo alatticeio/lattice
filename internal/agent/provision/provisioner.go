@@ -57,13 +57,13 @@ type RouteProvisioner interface {
 }
 
 type PolicyEnforcer interface {
-	// Name 返回执行器的名称（如 "iptables", "nftables", "windows-fw"）
+	// Name returns the enforcer name (e.g. "iptables", "nftables", "windows-fw")
 	Name() string
 
-	// Provision 接收结构化规则并应用到系统中
+	// Provision receives structured rules and applies them to the system
 	Provision(rule *infra.FirewallRule) error
 
-	// Cleanup 清理所有由该执行器创建的规则
+	// Cleanup removes all rules created by this enforcer
 	Cleanup() error
 
 	// for docker setup nat and other iptables rules

@@ -47,7 +47,7 @@ Quick start:
 	Run: func(cmd *cobra.Command, args []string) {
 		isVersion, _ := cmd.Flags().GetBool("version")
 		if isVersion {
-			err := runVersion() // 在这里调用你联网获取 Server 版本的逻辑
+			err := runVersion() // calls the server version logic
 			if err != nil {
 				fmt.Println(err)
 			}

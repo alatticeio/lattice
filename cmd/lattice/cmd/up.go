@@ -55,7 +55,7 @@ First time? Run "lattice init" to set up your config interactively.`,
 			ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 			defer stop()
 
-			// pre-flight: 严格校验客户端必须配置项（server-url / token）
+			// pre-flight: strictly validate required client config (server-url / token)
 			if err := config.ValidateAndReport(config.Conf, false); err != nil {
 				return err
 			}
@@ -79,7 +79,7 @@ First time? Run "lattice init" to set up your config interactively.`,
 				log.Info("AppId saved to config file", "app-id", newId)
 			}
 
-			// 1. 检查用户是否传了 --save
+			// 1. Check whether the user passed --save
 			save, _ := cmd.Flags().GetBool("save")
 			if save {
 				if err := cfgManager.Save(); err != nil {

@@ -55,7 +55,7 @@ func TestMCPServer_Initialize(t *testing.T) {
 func TestMCPServer_ToolsList(t *testing.T) {
 	g := NewWithT(t)
 	mockTools := []map[string]interface{}{
-		{"name": "list_peers", "description": "列出 Peers", "inputSchema": map[string]interface{}{"type": "object"}},
+		{"name": "list_peers", "description": "List Peers", "inputSchema": map[string]interface{}{"type": "object"}},
 	}
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/api/v1/ai/tools" {
@@ -85,7 +85,7 @@ func TestMCPServer_ToolsCall(t *testing.T) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/api/v1/ai/tools/call" {
 			_ = json.NewEncoder(w).Encode(map[string]interface{}{
-				"data": map[string]string{"result": "共 2 个 Peer"},
+				"data": map[string]string{"result": "Total 2 Peers"},
 			})
 		}
 	}))
@@ -109,7 +109,7 @@ func TestMCPServer_ToolsCall(t *testing.T) {
 	_ = json.NewDecoder(out).Decode(&resp)
 	g.Expect(resp.Result.IsError).To(BeFalse())
 	g.Expect(resp.Result.Content).To(HaveLen(1))
-	g.Expect(resp.Result.Content[0].Text).To(Equal("共 2 个 Peer"))
+	g.Expect(resp.Result.Content[0].Text).To(Equal("Total 2 Peers"))
 }
 
 func TestMCPServer_UnknownMethod(t *testing.T) {

@@ -28,7 +28,7 @@ const (
 	podB = "pod-b"
 )
 
-var _ = Describe("Lattice 核心连通性 E2E", Ordered, func() {
+var _ = Describe("Lattice Core Connectivity E2E", Ordered, func() {
 	var (
 		accessToken string
 		workspaceId string
@@ -37,32 +37,32 @@ var _ = Describe("Lattice 核心连通性 E2E", Ordered, func() {
 		ctx         = context.Background()
 	)
 
-	// 失败时收集诊断日志，帮助排查问题
+	// Collect diagnostic logs on failure to aid troubleshooting
 	AfterAll(func() {
 		if CurrentSpecReport().Failed() {
 			collectDiagnostics(ctx, ns)
 		}
 	})
 
-	It("全链路：登录 → 建 Workspace → 生成 Token → 拉起 Pod → 验证隧道互通", func() {
+	It("Full chain: Login -> Create Workspace -> Generate Token -> Deploy Pod -> Verify tunnel connectivity", func() {
 
-		By("步骤 1: 登录 Manager，获取 Admin Access Token")
+		By("Step 1: Login to Manager, obtain Admin Access Token")
 		loginBody, _ := json.Marshal(map[string]string{"username": "admin", "password": "123456"})
 		respLogin, err := httpClient.Post(manageUrl+"/api/v1/users/login", "application/json", bytes.NewBuffer(loginBody))
-		Expect(err).NotTo(HaveOccurred(), "登录请求失败")
+		Expect(err).NotTo(HaveOccurred(), "login request failed")
 		defer respLogin.Body.Close() //nolint:errcheck
 
 		var loginData resp.Response
 		Expect(json.NewDecoder(respLogin.Body).Decode(&loginData)).To(Succeed())
-		Expect(respLogin.StatusCode).To(Equal(http.StatusOK), "登录接口返回非 200")
+		Expect(respLogin.StatusCode).To(Equal(http.StatusOK), "login API returned non-200")
 
 		dataMap, ok := loginData.Data.(map[string]any)
-		Expect(ok).To(BeTrue(), "登录响应 Data 格式错误")
+		Expect(ok).To(BeTrue(), "login response Data format error")
 		accessToken, ok = dataMap["token"].(string)
-		Expect(ok && accessToken != "").To(BeTrue(), "登录响应中未找到 token")
+		Expect(ok && accessToken != "").To(BeTrue(), "token not found in login response")
 
 		wsName := fmt.Sprintf("e2e-%d", time.Now().UnixMilli())
-		By("步骤 2: 创建 Workspace (Namespace: " + ns + ", Name: " + wsName + ")")
+		By("Step 2: Create Workspace (Namespace: " + ns + ", Name: " + wsName + ")")
 		wsBody, _ := json.Marshal(dto.WorkspaceDto{
 			Namespace:   ns,
 			DisplayName: wsName,
@@ -73,39 +73,39 @@ var _ = Describe("Lattice 核心连通性 E2E", Ordered, func() {
 		reqWs.Header.Set("Content-Type", "application/json")
 
 		respWs, err := httpClient.Do(reqWs)
-		Expect(err).NotTo(HaveOccurred(), "创建 Workspace 请求失败")
+		Expect(err).NotTo(HaveOccurred(), "create Workspace request failed")
 		defer respWs.Body.Close() //nolint:errcheck
 
 		var wsData resp.Response
 		Expect(json.NewDecoder(respWs.Body).Decode(&wsData)).To(Succeed())
 
 		wsMap, ok := wsData.Data.(map[string]any)
-		Expect(ok).To(BeTrue(), "Workspace 响应 Data 格式错误")
+		Expect(ok).To(BeTrue(), "Workspace response Data format error")
 		workspaceId, ok = wsMap["id"].(string)
-		Expect(ok && workspaceId != "").To(BeTrue(), "Workspace 响应中未找到 id")
+		Expect(ok && workspaceId != "").To(BeTrue(), "workspace id not found in Workspace response")
 
 		ns = fmt.Sprintf("wf-%s", workspaceId)
 
-		By("步骤 3: 为 Workspace 生成 Agent Join Token")
+		By("Step 3: Generate Agent Join Token for Workspace")
 		reqTk, _ := http.NewRequestWithContext(ctx, http.MethodPost, manageUrl+"/api/v1/token/generate", nil)
 		reqTk.Header.Set("Authorization", "Bearer "+accessToken)
 		reqTk.Header.Set("X-workspace-id", workspaceId)
 
 		respTk, err := httpClient.Do(reqTk)
-		Expect(err).NotTo(HaveOccurred(), "生成 Token 请求失败")
+		Expect(err).NotTo(HaveOccurred(), "generate Token request failed")
 		defer respTk.Body.Close() //nolint:errcheck
 
 		var tkData resp.Response
 		Expect(json.NewDecoder(respTk.Body).Decode(&tkData)).To(Succeed())
 
 		tkMap, ok := tkData.Data.(map[string]any)
-		Expect(ok).To(BeTrue(), "Token 响应 Data 格式错误")
+		Expect(ok).To(BeTrue(), "Token response Data format error")
 		joinToken, ok = tkMap["token"].(string)
-		Expect(ok && joinToken != "").To(BeTrue(), "Token 响应中未找到 token")
+		Expect(ok && joinToken != "").To(BeTrue(), "token not found in Token response")
 
-		By("步骤 4: 查找 NATS Service ClusterIP 并创建具备特权和内核模块挂载的测试 Deployment")
+		By("Step 4: Find NATS Service ClusterIP and create test Deployment with privileged access and kernel module mounts")
 		svc, err := clientset.CoreV1().Services("lattice-system").Get(ctx, "lattice-nats-service", metav1.GetOptions{})
-		Expect(err).NotTo(HaveOccurred(), "未找到 lattice-nats-service")
+		Expect(err).NotTo(HaveOccurred(), "lattice-nats-service not found")
 
 		hostAliases := []corev1.HostAlias{{
 			IP:        svc.Spec.ClusterIP,
@@ -194,10 +194,10 @@ var _ = Describe("Lattice 核心连通性 E2E", Ordered, func() {
 				},
 			}, metav1.CreateOptions{})
 
-			Expect(err).NotTo(HaveOccurred(), "创建 Deployment %s 失败", name)
+			Expect(err).NotTo(HaveOccurred(), "failed to create Deployment %s", name)
 		}
 
-		By("步骤 5: 等待两个 Deployment 的 Pod 进入 Running 且容器全部 Ready (最长 180s)")
+		By("Step 5: Wait for both Deployment Pods to be Running and all containers Ready (max 180s)")
 		for _, role := range []string{podA, podB} {
 			Eventually(func() error {
 				pods, err := clientset.CoreV1().Pods(ns).List(ctx, metav1.ListOptions{
@@ -207,57 +207,57 @@ var _ = Describe("Lattice 核心连通性 E2E", Ordered, func() {
 					return err
 				}
 				if len(pods.Items) == 0 {
-					return fmt.Errorf("等待 %s 的 Pod 被调度", role)
+					return fmt.Errorf("waiting for Pod %s to be scheduled", role)
 				}
 				pod := pods.Items[0]
 				if pod.Status.Phase != corev1.PodRunning {
-					return fmt.Errorf("Pod %s 阶段为 %s，期望 Running", pod.Name, pod.Status.Phase)
+					return fmt.Errorf("Pod %s phase is %s, expected Running", pod.Name, pod.Status.Phase)
 				}
 				for _, cs := range pod.Status.ContainerStatuses {
 					if !cs.Ready {
-						return fmt.Errorf("Pod %s 容器 %s 尚未 Ready (restarts=%d)", pod.Name, cs.Name, cs.RestartCount)
+						return fmt.Errorf("Pod %s container %s not Ready yet (restarts=%d)", pod.Name, cs.Name, cs.RestartCount)
 					}
 				}
 				return nil
-			}, "180s", "3s").Should(Succeed(), "Deployment %s 的 Pod 未能进入 Running+Ready 状态", role)
+			}, "180s", "3s").Should(Succeed(), "Deployment %s Pod failed to reach Running+Ready status", role)
 		}
 
-		// 获取两个 Deployment 实际的 Pod 名称，供后续步骤使用
+		// Get the actual Pod names for both Deployments for use in subsequent steps
 		getPodName := func(role string) string {
 			pods, err := clientset.CoreV1().Pods(ns).List(ctx, metav1.ListOptions{
 				LabelSelector: "wf-role=" + role,
 			})
-			Expect(err).NotTo(HaveOccurred(), "列出 %s 的 Pod 失败", role)
-			Expect(pods.Items).NotTo(BeEmpty(), "未找到 %s 的 Pod", role)
+			Expect(err).NotTo(HaveOccurred(), "failed to list Pods for %s", role)
+			Expect(pods.Items).NotTo(BeEmpty(), "Pod not found for %s", role)
 			return pods.Items[0].Name
 		}
 		podAName := getPodName(podA)
 		podBName := getPodName(podB)
 
-		By("步骤 6: 等待控制面为 " + podA + " 和 " + podB + " 分配 WireGuard 虚拟 IP (LatticePeer CRD)")
+		By("Step 6: Wait for control plane to assign WireGuard virtual IP for " + podA + " and " + podB + " (LatticePeer CRD)")
 		var podBWGIP string
 		for _, peerName := range []string{podA, podB} {
 			name := peerName
 			Eventually(func() error {
 				peer := &v1alpha1.LatticePeer{}
 				if err := latticeClient.Get(ctx, sigclient.ObjectKey{Namespace: ns, Name: name}, peer); err != nil {
-					return fmt.Errorf("LatticePeer %s 尚未创建: %w", name, err)
+					return fmt.Errorf("LatticePeer %s not yet created: %w", name, err)
 				}
 				if peer.Status.AllocatedAddress == nil || *peer.Status.AllocatedAddress == "" {
-					return fmt.Errorf("LatticePeer %s 已创建，控制面尚未分配地址", name)
+					return fmt.Errorf("LatticePeer %s created but control plane has not assigned address yet", name)
 				}
 				if name == podB {
 					podBWGIP = *peer.Status.AllocatedAddress
-					// 地址可能包含 CIDR 前缀 (e.g. "10.0.0.2/24")，ping 只需要 IP 部分
+					// The address may contain a CIDR prefix (e.g. "10.0.0.2/24"), ping only needs the IP part
 					if idx := strings.Index(podBWGIP, "/"); idx != -1 {
 						podBWGIP = podBWGIP[:idx]
 					}
 				}
 				return nil
-			}, "90s", "3s").Should(Succeed(), "超时未能获取 %s 的 WireGuard IP", name)
+			}, "90s", "3s").Should(Succeed(), "timed out waiting for WireGuard IP of %s", name)
 		}
 
-		By("步骤 7: 创建 LatticePolicy 允许 pod-a ↔ pod-b 互通")
+		By("Step 7: Create LatticePolicy allowing pod-a ↔ pod-b communication")
 		peerB := &v1alpha1.LatticePeer{}
 		Expect(latticeClient.Get(ctx, sigclient.ObjectKey{Namespace: ns, Name: podB}, peerB)).To(Succeed())
 
@@ -267,7 +267,7 @@ var _ = Describe("Lattice 核心连通性 E2E", Ordered, func() {
 		} else if peerB.Status.ActiveNetwork != nil {
 			networkName = *peerB.Status.ActiveNetwork
 		}
-		Expect(networkName).NotTo(BeEmpty(), "无法从 LatticePeer 获取网络名称")
+		Expect(networkName).NotTo(BeEmpty(), "failed to get network name from LatticePeer")
 
 		networkLabel := fmt.Sprintf("alattice.io/network-%s", networkName)
 		peerNetSelector := metav1.LabelSelector{
@@ -290,24 +290,24 @@ var _ = Describe("Lattice 核心连通性 E2E", Ordered, func() {
 				},
 			},
 		}
-		Expect(latticeClient.Create(ctx, allowPolicy)).To(Succeed(), "创建 LatticePolicy 失败")
+		Expect(latticeClient.Create(ctx, allowPolicy)).To(Succeed(), "failed to create LatticePolicy")
 
-		By(fmt.Sprintf("步骤 8: 验证隧道连通性 (%s → %s @ %s)", podAName, podBName, podBWGIP))
+		By(fmt.Sprintf("Step 8: Verify tunnel connectivity (%s → %s @ %s)", podAName, podBName, podBWGIP))
 		Eventually(func() error {
 			output, err := execInPod(clientset, restConfig, ns, podAName, []string{"ping", "-c", "3", "-W", "2", podBWGIP})
 			if err != nil {
-				return fmt.Errorf("ping 执行失败: %w", err)
+				return fmt.Errorf("ping execution failed: %w", err)
 			}
 			if !strings.Contains(output, "0% packet loss") {
-				return fmt.Errorf("ping 存在丢包: %s", output)
+				return fmt.Errorf("ping has packet loss: %s", output)
 			}
 			return nil
-		}, "60s", "5s").Should(Succeed(), "隧道连通性验证失败")
+		}, "60s", "5s").Should(Succeed(), "tunnel connectivity verification failed")
 	})
 
-	It("ACL 规则验证：DENY 阻断 + 端口级控制 + default-deny", func() {
-		// 复用步骤 6 中获取的变量（需在同一 Describe 作用域内）
-		// 重新获取必要的数据
+	It("ACL rule verification: DENY blocking + port-level control + default-deny", func() {
+		// Reuse variables from step 6 (within the same Describe scope)
+		// Re-fetch necessary data
 		peerA := &v1alpha1.LatticePeer{}
 		Expect(latticeClient.Get(ctx, sigclient.ObjectKey{Namespace: ns, Name: podA}, peerA)).To(Succeed())
 		peerB := &v1alpha1.LatticePeer{}
@@ -326,8 +326,8 @@ var _ = Describe("Lattice 核心连通性 E2E", Ordered, func() {
 				podBIP = podBIP[:idx]
 			}
 		}
-		Expect(podAIP).NotTo(BeEmpty(), "无法获取 pod-a 的 WireGuard IP")
-		Expect(podBIP).NotTo(BeEmpty(), "无法获取 pod-b 的 WireGuard IP")
+		Expect(podAIP).NotTo(BeEmpty(), "failed to get WireGuard IP of pod-a")
+		Expect(podBIP).NotTo(BeEmpty(), "failed to get WireGuard IP of pod-b")
 
 		var networkName string
 		if peerB.Spec.Network != nil && *peerB.Spec.Network != "" {
@@ -335,7 +335,7 @@ var _ = Describe("Lattice 核心连通性 E2E", Ordered, func() {
 		} else if peerB.Status.ActiveNetwork != nil {
 			networkName = *peerB.Status.ActiveNetwork
 		}
-		Expect(networkName).NotTo(BeEmpty(), "无法从 LatticePeer 获取网络名称")
+		Expect(networkName).NotTo(BeEmpty(), "failed to get network name from LatticePeer")
 
 		networkLabel := fmt.Sprintf("alattice.io/network-%s", networkName)
 		peerNetSelector := metav1.LabelSelector{
@@ -346,27 +346,27 @@ var _ = Describe("Lattice 核心连通性 E2E", Ordered, func() {
 			pods, err := clientset.CoreV1().Pods(ns).List(ctx, metav1.ListOptions{
 				LabelSelector: "wf-role=" + role,
 			})
-			Expect(err).NotTo(HaveOccurred(), "列出 %s 的 Pod 失败", role)
-			Expect(pods.Items).NotTo(BeEmpty(), "未找到 %s 的 Pod", role)
+			Expect(err).NotTo(HaveOccurred(), "failed to list Pods for %s", role)
+			Expect(pods.Items).NotTo(BeEmpty(), "Pod not found for %s", role)
 			return pods.Items[0].Name
 		}
 		podAName := getPodName(podA)
 		podBName := getPodName(podB)
 
-		By("ACL-1: 验证 e2e-allow-all 策略下 ping 通（基线确认）")
+		By("ACL-1: Verify ping works under e2e-allow-all policy (baseline)")
 		output, err := execInPod(clientset, restConfig, ns, podAName, []string{"ping", "-c", "3", "-W", "2", podBIP})
-		Expect(err).NotTo(HaveOccurred(), "基线 ping 失败")
-		Expect(strings.Contains(output, "0% packet loss")).To(BeTrue(), "基线 ping 存在丢包: %s", output)
+		Expect(err).NotTo(HaveOccurred(), "baseline ping failed")
+		Expect(strings.Contains(output, "0% packet loss")).To(BeTrue(), "baseline ping has packet loss: %s", output)
 
-		By("ACL-2: 更新策略为 DENY，验证 pod-a → pod-b 被阻断")
+		By("ACL-2: Update policy to DENY, verify pod-a → pod-b is blocked")
 		allowPolicy := &v1alpha1.LatticePolicy{}
 		Expect(latticeClient.Get(ctx, sigclient.ObjectKey{Namespace: ns, Name: "e2e-allow-all"}, allowPolicy)).To(Succeed())
 
-		// 修改策略为 DENY（保持 PeerSelector 和规则不变）
+		// Modify the policy to DENY (keep PeerSelector and rules unchanged)
 		allowPolicy.Spec.Action = "DENY"
-		Expect(latticeClient.Update(ctx, allowPolicy)).To(Succeed(), "更新 LatticePolicy 为 DENY 失败")
+		Expect(latticeClient.Update(ctx, allowPolicy)).To(Succeed(), "failed to update LatticePolicy to DENY")
 
-		// 等待策略生效（agent 通过 NATS 接收更新并刷新 iptables）
+		// Wait for policy to take effect (agent receives updates via NATS and refreshes iptables)
 		Eventually(func() error {
 			out, execErr := execInPod(clientset, restConfig, ns, podAName, []string{"ping", "-c", "3", "-W", "2", podBIP})
 			if execErr != nil {
@@ -374,12 +374,12 @@ var _ = Describe("Lattice 核心连通性 E2E", Ordered, func() {
 				return nil
 			}
 			if strings.Contains(out, "0% packet loss") {
-				return fmt.Errorf("DENY 策略未生效，ping 仍然通: %s", out)
+				return fmt.Errorf("DENY policy not effective, ping still works: %s", out)
 			}
 			return nil
-		}, "30s", "2s").Should(Succeed(), "DENY 策略应在 30s 内阻断 ping")
+		}, "30s", "2s").Should(Succeed(), "DENY policy should block ping within 30s")
 
-		By("ACL-3: 恢复 ALLOW + 端口级规则，仅允许 TCP 8080")
+		By("ACL-3: Restore ALLOW + port-level rules, only allow TCP 8080")
 		allowPolicy.Spec.Action = "ALLOW"
 		allowPolicy.Spec.Ingress = []v1alpha1.IngressRule{
 			{
@@ -397,9 +397,9 @@ var _ = Describe("Lattice 核心连通性 E2E", Ordered, func() {
 				},
 			},
 		}
-		Expect(latticeClient.Update(ctx, allowPolicy)).To(Succeed(), "更新端口级策略失败")
+		Expect(latticeClient.Update(ctx, allowPolicy)).To(Succeed(), "failed to update port-level policy")
 
-		// 等待策略生效
+		// Wait for the policy to take effect
 		Eventually(func() error {
 			out, execErr := execInPod(clientset, restConfig, ns, podAName, []string{"ping", "-c", "3", "-W", "2", podBIP})
 			if execErr != nil {
@@ -410,34 +410,34 @@ var _ = Describe("Lattice 核心连通性 E2E", Ordered, func() {
 				// ping succeeded but got no replies — policy blocked ICMP
 				return nil
 			}
-			return fmt.Errorf("端口级策略下 ping 仍应被阻断: %s", out)
-		}, "30s", "2s").Should(Succeed(), "端口级策略应阻断 ICMP")
+			return fmt.Errorf("ping should still be blocked under port-level policy: %s", out)
+		}, "30s", "2s").Should(Succeed(), "port-level policy should block ICMP")
 
-		By("ACL-4: 验证 iptables 规则已放行 TCP 8080（在 LATTICE-EGRESS chain 中）")
+		By("ACL-4: Verify iptables rules allow TCP 8080 (in LATTICE-EGRESS chain)")
 		Eventually(func() error {
 			out, execErr := execInPod(clientset, restConfig, ns, podAName, []string{"iptables", "-L", "LATTICE-EGRESS", "-n"})
 			if execErr != nil {
 				return execErr
 			}
 			if !strings.Contains(out, "tcp dpt:8080") {
-				return fmt.Errorf("LATTICE-EGRESS 未包含 TCP 8080 规则:\n%s", out)
+				return fmt.Errorf("LATTICE-EGRESS does not contain TCP 8080 rule:\n%s", out)
 			}
 			return nil
-		}, "15s", "2s").Should(Succeed(), "iptables 应包含 TCP 8080 放行规则")
+		}, "15s", "2s").Should(Succeed(), "iptables should contain TCP 8080 allow rule")
 
-		By("ACL-5: 验证 iptables 没有 TCP 9999 的规则")
+		By("ACL-5: Verify iptables does not have TCP 9999 rule")
 		out, err := execInPod(clientset, restConfig, ns, podAName, []string{"sh", "-c", "iptables -L LATTICE-EGRESS -n 2>/dev/null | grep 9999 || true"})
 		Expect(err).NotTo(HaveOccurred())
-		Expect(out).To(BeEmpty(), "不应存在 TCP 9999 的 iptables 规则")
+		Expect(out).To(BeEmpty(), "should not have TCP 9999 iptables rule")
 
-		By("ACL-6: 验证 IPBlock CIDR 规则 — 仅允许 pod-b 的精确 CIDR")
-		// 复用已有 allowPolicy，原地更新为 CIDR 规则（避免 delete+create 的竞态）
+		By("ACL-6: Verify IPBlock CIDR rule — only allow pod-b's exact CIDR")
+		// Reuse the existing allowPolicy, update in-place with CIDR rules (avoiding delete+create race)
 		Expect(latticeClient.Get(ctx, sigclient.ObjectKey{Namespace: ns, Name: "e2e-allow-all"}, allowPolicy)).To(Succeed())
 		podBCIDR := podBIP + "/32"
 		podACIDR := podAIP + "/32"
 		allowPolicy.Spec.Action = "ALLOW"
-		// 需要同时包含两个方向的 CIDR：ingress 允许来自双方的 IP，egress 允许到双方的 IP
-		// 这样策略应用到 pod-a/pod-b 时各自都能匹配到对方的 IP
+		// Need to include CIDRs for both directions: ingress allows IPs from both sides, egress allows IPs to both sides
+		// This way the policy applied to pod-a/pod-b can each match the other's IP
 		allowPolicy.Spec.Ingress = []v1alpha1.IngressRule{
 			{From: []v1alpha1.PeerSelection{
 				{IPBlock: &v1alpha1.IPBlock{CIDR: podACIDR}},
@@ -450,53 +450,53 @@ var _ = Describe("Lattice 核心连通性 E2E", Ordered, func() {
 				{IPBlock: &v1alpha1.IPBlock{CIDR: podBCIDR}},
 			}},
 		}
-		Expect(latticeClient.Update(ctx, allowPolicy)).To(Succeed(), "更新 CIDR 策略失败")
+		Expect(latticeClient.Update(ctx, allowPolicy)).To(Succeed(), "failed to update CIDR policy")
 
-		// 先验证 iptables 规则已被更新为 CIDR（分离「策略未生效」和「策略生效但 ping 不通」）
+		// First verify that iptables rules have been updated to CIDR (separate "policy not effective" from "policy effective but ping fails")
 		Eventually(func() error {
 			out, execErr := execInPod(clientset, restConfig, ns, podAName, []string{"iptables", "-L", "LATTICE-EGRESS", "-n"})
 			if execErr != nil {
 				return execErr
 			}
-			// iptables 不显示 /32 后缀，所以用 podBIP（不带 /32）做匹配
+			// iptables does not show /32 suffix, so use podBIP (without /32) for matching
 			if !strings.Contains(out, podBIP) {
-				return fmt.Errorf("LATTICE-EGRESS 未包含 %s 的 CIDR 放行规则:\n%s", podBIP, out)
+				return fmt.Errorf("LATTICE-EGRESS does not contain CIDR allow rule for %s:\n%s", podBIP, out)
 			}
 			return nil
-		}, "15s", "2s").Should(Succeed(), "iptables 应包含 CIDR 放行规则")
+		}, "15s", "2s").Should(Succeed(), "iptables should contain CIDR allow rule")
 
-		By("ACL-6: 验证 WireGuard 握手已建立（确保隧道未中断）")
+		By("ACL-6: Verify WireGuard handshake established (ensure tunnel is not interrupted)")
 		Eventually(func() error {
 			out, err := execInPod(clientset, restConfig, ns, podAName, []string{"wg", "show"})
 			if err != nil {
 				return err
 			}
 			if !strings.Contains(out, "latest handshake") {
-				return fmt.Errorf("WireGuard 尚未完成握手:\n%s", out)
+				return fmt.Errorf("WireGuard handshake not yet completed:\n%s", out)
 			}
 			return nil
-		}, "15s", "2s").Should(Succeed(), "CIDR 策略下 WG 应已完成握手")
+		}, "15s", "2s").Should(Succeed(), "WG handshake should have completed under CIDR policy")
 
 		Eventually(func() error {
 			out, execErr := execInPod(clientset, restConfig, ns, podAName, []string{"ping", "-c", "3", "-W", "2", podBIP})
 			if execErr != nil {
 				diag := collectBothPodsDiagnostics(clientset, restConfig, ns, podAName, podBName, podBIP)
-				return fmt.Errorf("ping 执行失败: %w\n诊断摘要: %s", execErr, diag)
+				return fmt.Errorf("ping execution failed: %w\nDiagnostic summary: %s", execErr, diag)
 			}
 			if !strings.Contains(out, "0% packet loss") {
-				return fmt.Errorf("CIDR 规则下 ping 应通: %s", out)
+				return fmt.Errorf("ping should work under CIDR rule: %s", out)
 			}
 			return nil
-		}, "30s", "2s").Should(Succeed(), "CIDR 策略应放行 pod-b 的 IP")
+		}, "30s", "2s").Should(Succeed(), "CIDR policy should allow pod-b's IP")
 
-		By("ACL-7: 替换 CIDR 为不匹配的网段，验证流量被阻断")
+		By("ACL-7: Replace CIDR with non-matching subnet, verify traffic is blocked")
 		wrongCIDR := "192.168.99.0/24"
-		// 重新 Get 避免 resourceVersion 冲突
+		// Re-get to avoid resourceVersion conflict
 		Expect(latticeClient.Get(ctx, sigclient.ObjectKey{Namespace: ns, Name: "e2e-allow-all"}, allowPolicy)).To(Succeed())
 		allowPolicy.Spec.Egress = []v1alpha1.EgressRule{
 			{To: []v1alpha1.PeerSelection{{IPBlock: &v1alpha1.IPBlock{CIDR: wrongCIDR}}}},
 		}
-		Expect(latticeClient.Update(ctx, allowPolicy)).To(Succeed(), "更新 CIDR 策略失败")
+		Expect(latticeClient.Update(ctx, allowPolicy)).To(Succeed(), "failed to update CIDR policy")
 
 		Eventually(func() error {
 			out, execErr := execInPod(clientset, restConfig, ns, podAName, []string{"ping", "-c", "3", "-W", "2", podBIP})
@@ -505,28 +505,28 @@ var _ = Describe("Lattice 核心连通性 E2E", Ordered, func() {
 				return nil
 			}
 			if strings.Contains(out, "0% packet loss") {
-				return fmt.Errorf("错误 CIDR 下 ping 仍应被阻断: %s", out)
+				return fmt.Errorf("ping should still be blocked under wrong CIDR: %s", out)
 			}
 			return nil
-		}, "30s", "2s").Should(Succeed(), "不匹配的 CIDR 应阻断流量")
+		}, "30s", "2s").Should(Succeed(), "non-matching CIDR should block traffic")
 
-		By("ACL 测试完成，清理策略")
+		By("ACL test completed, cleaning up policy")
 		_ = latticeClient.Delete(ctx, allowPolicy)
 	})
 })
 
-// collectDiagnostics 在测试失败时打印关键日志，方便 CI 排查
+// collectDiagnostics prints key logs on test failure to aid CI debugging
 func collectDiagnostics(ctx context.Context, namespace string) {
 	w := GinkgoWriter
 	fprintf := func(format string, args ...any) { fmt.Fprintf(w, format, args...) } //nolint:errcheck
 
-	fprintf("\n========== E2E 诊断日志 [ns=%s] ==========\n", namespace)
+	fprintf("\n========== E2E Diagnostic Logs [ns=%s] ==========\n", namespace)
 
-	// ── 1. LatticePeer CRD 状态 ──────────────────────────────────────────
-	fprintf("\n[LatticePeer 状态]\n")
+	// ── 1. LatticePeer CRD status ────────────────────────────────────────
+	fprintf("\n[LatticePeer Status]\n")
 	var peerList v1alpha1.LatticePeerList
 	if err := latticeClient.List(ctx, &peerList, sigclient.InNamespace(namespace)); err != nil {
-		fprintf("  [WARN] 无法列出 LatticePeer: %v\n", err)
+		fprintf("  [WARN] failed to list LatticePeer: %v\n", err)
 	} else {
 		for _, p := range peerList.Items {
 			addr := "<nil>"
@@ -546,11 +546,11 @@ func collectDiagnostics(ctx context.Context, namespace string) {
 		}
 	}
 
-	// ── 2. LatticeNetwork 状态 ───────────────────────────────────────────
-	fprintf("\n[LatticeNetwork 状态]\n")
+	// ── 2. LatticeNetwork status ─────────────────────────────────────────
+	fprintf("\n[LatticeNetwork Status]\n")
 	var netList v1alpha1.LatticeNetworkList
 	if err := latticeClient.List(ctx, &netList, sigclient.InNamespace(namespace)); err != nil {
-		fprintf("  [WARN] 无法列出 LatticeNetwork: %v\n", err)
+		fprintf("  [WARN] failed to list LatticeNetwork: %v\n", err)
 	} else {
 		for _, n := range netList.Items {
 			fprintf("  %-30s  phase=%-10s  activeCIDR=%-20s  allocatedCount=%d\n",
@@ -558,13 +558,13 @@ func collectDiagnostics(ctx context.Context, namespace string) {
 		}
 	}
 
-	// ── 3. ConfigMap 内容（agent 配置） ───────────────────────────────────
-	fprintf("\n[ConfigMap 内容]\n")
+	// ── 3. ConfigMap contents (agent config) ─────────────────────────────
+	fprintf("\n[ConfigMap Contents]\n")
 	cms, err := clientset.CoreV1().ConfigMaps(namespace).List(ctx, metav1.ListOptions{
 		LabelSelector: "app.kubernetes.io/managed-by=lattice-controller",
 	})
 	if err != nil {
-		fprintf("  [WARN] 无法列出 ConfigMap: %v\n", err)
+		fprintf("  [WARN] failed to list ConfigMap: %v\n", err)
 	} else {
 		for _, cm := range cms.Items {
 			fprintf("\n  --- ConfigMap: %s ---\n", cm.Name)
@@ -574,11 +574,11 @@ func collectDiagnostics(ctx context.Context, namespace string) {
 		}
 	}
 
-	// ── 4. Pod 日志 + WireGuard / 网络状态 ───────────────────────────────
-	fprintf("\n[Pod 日志及网络状态]\n")
+	// ── 4. Pod logs + WireGuard / Network status ─────────────────────────
+	fprintf("\n[Pod Logs and Network Status]\n")
 	pods, err := clientset.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{})
 	if err != nil {
-		fprintf("  [WARN] 无法列出 Pod: %v\n", err)
+		fprintf("  [WARN] failed to list Pod: %v\n", err)
 	} else {
 		for _, pod := range pods.Items {
 			fprintf("\n--- Pod: %s  Phase: %s ---\n", pod.Name, pod.Status.Phase)
@@ -587,39 +587,39 @@ func collectDiagnostics(ctx context.Context, namespace string) {
 			}
 
 			if pod.Status.Phase == corev1.PodRunning {
-				// lattice status：WireGuard 隧道连接状态（对端握手、流量）
+				// lattice status: WireGuard tunnel connection status (peer handshake, traffic)
 				if out, err := execInPod(clientset, restConfig, namespace, pod.Name,
 					[]string{"/app/lattice", "status"}); err != nil {
-					fprintf("  [lattice status] 执行失败: %v\n", err)
+					fprintf("  [lattice status] execution failed: %v\n", err)
 				} else {
 					fprintf("  [lattice status]\n%s\n", out)
 				}
 
-				// ip addr：确认 wf0 接口是否存在及 IP
+				// ip addr: confirm wf0 interface exists and its IP
 				if out, err := execInPod(clientset, restConfig, namespace, pod.Name,
 					[]string{"ip", "addr", "show"}); err != nil {
-					fprintf("  [ip addr] 执行失败: %v\n", err)
+					fprintf("  [ip addr] execution failed: %v\n", err)
 				} else {
 					fprintf("  [ip addr]\n%s\n", out)
 				}
 
-				// ip route：路由表
+				// ip route: routing table
 				if out, err := execInPod(clientset, restConfig, namespace, pod.Name,
 					[]string{"ip", "route", "show"}); err != nil {
-					fprintf("  [ip route] 执行失败: %v\n", err)
+					fprintf("  [ip route] execution failed: %v\n", err)
 				} else {
 					fprintf("  [ip route]\n%s\n", out)
 				}
 			}
 
-			// 容器日志（最近 150 行）
+			// Container logs (last 150 lines)
 			tailLines := int64(150)
 			logReq := clientset.CoreV1().Pods(namespace).GetLogs(pod.Name, &corev1.PodLogOptions{
 				TailLines: &tailLines,
 			})
 			logStream, err := logReq.Stream(ctx)
 			if err != nil {
-				fprintf("  [WARN] 无法获取日志: %v\n", err)
+				fprintf("  [WARN] failed to get logs: %v\n", err)
 				continue
 			}
 			var buf bytes.Buffer
@@ -632,7 +632,7 @@ func collectDiagnostics(ctx context.Context, namespace string) {
 	fprintf("===========================================\n")
 }
 
-// collectPodDiagnostics 收集 pod 上的 iptables、wg 和路由信息，用于调试
+// collectPodDiagnostics collects iptables, wg, and routing info from a pod for debugging
 func collectPodDiagnostics(c *kubernetes.Clientset, config *rest.Config, namespace, podName, targetIP string) string {
 	var buf bytes.Buffer
 	cmds := []struct {
@@ -657,7 +657,7 @@ func collectPodDiagnostics(c *kubernetes.Clientset, config *rest.Config, namespa
 		}
 	}
 
-	// 收集 agent 容器日志（最近 50 行）
+	// Collect agent container logs (last 50 lines)
 	tailLines := int64(50)
 	logReq := c.CoreV1().Pods(namespace).GetLogs(podName, &corev1.PodLogOptions{
 		TailLines: &tailLines,

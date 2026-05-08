@@ -24,8 +24,9 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 )
 
-// PeerResolver 根据network与policies来计算当前node的最后要连接peers
-// PeerResolver 只关注要连接的对象， 更细粒度的防火墙规则由FileWallResolver来实现
+// PeerResolver computes the final set of peers the current node should connect to,
+// based on the network and policies.
+// PeerResolver only cares about connectivity targets; finer-grained firewall rules are handled by FileWallResolver.
 type PeerResolver interface {
 	ResolvePeers(ctx context.Context, network *infra.Message, policies []*v1alpha1.LatticePolicy) ([]*infra.Peer, error)
 }
@@ -92,7 +93,7 @@ func GetComputedPeers(current *infra.Peer, network *infra.Network, policies []*v
 		}
 	}
 
-	// 转换为 Slice 返回，按 Name 排序保证 hash 稳定
+	// Convert to slice, sort by Name for stable hashing
 	result := make([]*infra.Peer, 0, len(finalPeersMap))
 	for _, p := range finalPeersMap {
 		result = append(result, p)
@@ -106,7 +107,7 @@ func GetComputedPeers(current *infra.Peer, network *infra.Network, policies []*v
 
 func matchLabels(current *infra.Peer, peerSelector *metav1.LabelSelector) bool {
 	selector, _ := metav1.LabelSelectorAsSelector(peerSelector)
-	// 1. 检查当前 Policy 是否适用于当前节点 (Selector 匹配)
+	// 1. Check whether the current Policy applies to the current node (Selector match)
 	if !selector.Matches(labels.Set(current.Labels)) {
 		return false
 	}
@@ -114,11 +115,11 @@ func matchLabels(current *infra.Peer, peerSelector *metav1.LabelSelector) bool {
 	return true
 }
 
-// resolveSelectionToPeers 是核心：根据选择器规则（Labels 等）在全量池中查找
+// resolveSelectionToPeers is the core: searches the full pool by selector rules (Labels, etc.)
 func resolveSelectionToPeers(selection v1alpha1.PeerSelection, allPeers []*infra.Peer) []*infra.Peer {
 	var result []*infra.Peer
 	for _, p := range allPeers {
-		// 这里是关键逻辑：判断节点的 Labels 是否匹配选择器定义
+		// Key logic: determine whether the node's Labels match the selector definition
 		selector, _ := metav1.LabelSelectorAsSelector(selection.PeerSelector)
 		if selector.Matches(labels.Set(p.Labels)) {
 			result = append(result, p)

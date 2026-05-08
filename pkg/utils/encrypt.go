@@ -35,13 +35,13 @@ func ComparePassword(hashedPassword, password string) error {
 }
 
 func GenerateSecureToken() (string, error) {
-	// 定义 Token 可能包含的字符（去掉了容易混淆的字符如 0, O, I, l）
+	// Define characters for the token (removing easily confused ones like 0, O, I, l)
 	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ123456789"
 	length := 16
 	result := make([]byte, length)
 
 	for i := 0; i < length; i++ {
-		// 生成一个随机索引
+		// Generate a random index
 		num, err := rand.Int(rand.Reader, big.NewInt(int64(len(charset))))
 		if err != nil {
 			return "", err

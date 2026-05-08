@@ -51,7 +51,7 @@ func (m *Middleware) WorkspaceAuthMiddleware(requiredRole dto.WorkspaceRole) gin
 		// 1. Parse JWT from Authorization header.
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" || !strings.HasPrefix(authHeader, "Bearer ") {
-			resp.Unauthorized(c, "未授权，请先登录")
+			resp.Unauthorized(c, "Unauthorized, please log in first")
 			c.Abort()
 			return
 		}
@@ -59,7 +59,7 @@ func (m *Middleware) WorkspaceAuthMiddleware(requiredRole dto.WorkspaceRole) gin
 
 		claims, err := utils.ParseToken(tokenString)
 		if err != nil {
-			resp.Unauthorized(c, "无效的 Token")
+			resp.Unauthorized(c, "Invalid token")
 			c.Abort()
 			return
 		}
@@ -112,7 +112,7 @@ func (m *Middleware) WorkspaceAuthMiddleware(requiredRole dto.WorkspaceRole) gin
 		// 6. Check membership and role.
 		member, err := m.checker.RequireWorkspaceRole(c.Request.Context(), wsID, userID, requiredRole)
 		if err != nil {
-			resp.Forbidden(c, "权限不足")
+			resp.Forbidden(c, "Insufficient permissions")
 			c.Abort()
 			return
 		}

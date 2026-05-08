@@ -4,7 +4,7 @@ import (
 	"testing"
 )
 
-// MockProvisioner 用于测试逻辑流，不执行真实命令
+// MockProvisioner is used for testing logic flows without executing real commands
 type MockProvisioner struct {
 	LastRule FirewallRule
 	Applied  bool
@@ -19,7 +19,7 @@ func (m *MockProvisioner) Provision(rule FirewallRule) error {
 func (m *MockProvisioner) Cleanup() error { return nil }
 
 func TestAgent_ProvisioningLogic(t *testing.T) {
-	// 1. 准备模拟数据 (来自 Controller 的结构体)
+	// 1. Prepare mock data (from Controller structs)
 	fakeRule := FirewallRule{
 		PolicyName: "test-policy",
 		Ingress: []TrafficRule{
@@ -27,17 +27,17 @@ func TestAgent_ProvisioningLogic(t *testing.T) {
 		},
 	}
 
-	// 2. 使用 Mock 执行器
+	// 2. Use mock executor
 	mock := &MockProvisioner{}
 
-	// 3. 执行
+	// 3. Execute
 	err := mock.Provision(fakeRule)
 
-	// 4. 断言
+	// 4. Assert
 	if err != nil {
-		t.Fatalf("应该执行成功，但是报错了: %v", err)
+		t.Fatalf("expected success, but got error: %v", err)
 	}
 	if mock.LastRule.Ingress[0].Port != 80 {
-		t.Errorf("端口转换错误，期望 80，实际 %d", mock.LastRule.Ingress[0].Port)
+		t.Errorf("port conversion error, expected 80, got %d", mock.LastRule.Ingress[0].Port)
 	}
 }

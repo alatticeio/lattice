@@ -18,7 +18,7 @@ import "sync"
 
 var payloadPool = sync.Pool{
 	New: func() interface{} {
-		// 申请一个足够大的缓冲区（比如符合 MTU 的 1600 字节）
+		// allocate a large enough buffer (e.g. 1600 bytes to fit MTU)
 		b := make([]byte, 2048)
 		return &b
 	},
@@ -34,9 +34,9 @@ func PutPayloadBuffer(buf *[]byte) {
 
 var headerPool = sync.Pool{
 	New: func() interface{} {
-		//申请header pool size, 每次Marshal / UnMarshal时使用
+		// allocate header pool buffer, used each time Marshal/Unmarshal is called
 		b := make([]byte, HeaderSize)
-		//返回指针，防止发生内存逃逸
+		// return pointer to prevent memory escape to heap
 		return &b
 	},
 }

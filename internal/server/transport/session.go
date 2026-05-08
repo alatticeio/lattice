@@ -14,13 +14,13 @@ type SessionManager struct {
 	keyToId sync.Map // map[[32]byte]uint64
 }
 
-// 注册新会话（通常在 NATS 协商完成后调用）
+// Add registers a new session (typically called after NATS negotiation completes)
 func (m *SessionManager) Add(pubKey [32]byte, sid uint64) {
 	m.idToKey.Store(sid, pubKey)
 	m.keyToId.Store(pubKey, sid)
 }
 
-// 删除会话
+// Remove deletes a session
 func (m *SessionManager) Remove(pubKey [32]byte, sid uint64) {
 	m.idToKey.Delete(sid)
 	m.keyToId.Delete(pubKey)
@@ -28,11 +28,11 @@ func (m *SessionManager) Remove(pubKey [32]byte, sid uint64) {
 
 func GenerateSessionID() (uint64, error) {
 	var b [8]byte
-	// Read 会从系统加密安全随机源填充 b
+	// Read fills b from the system's cryptographically secure random source
 	_, err := rand.Read(b[:])
 	if err != nil {
 		return 0, fmt.Errorf("failed to generate random session id: %w", err)
 	}
-	// 将 8 字节转换为 uint64
+	// Convert 8 bytes to uint64
 	return binary.BigEndian.Uint64(b[:]), nil
 }

@@ -54,7 +54,7 @@ type LatticeNetworkStatus struct {
 	// +optional
 	AllocatedCount int `json:"allocatedCount,omitempty"`
 
-	// 可用 IP 数量
+	// Available IP count
 	AvailableIPs int `json:"availableIPs,omitempty"`
 
 	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
@@ -68,7 +68,7 @@ const (
 	NetworkPhaseFailed   LatticeNetworkPhase = "Failed"
 )
 
-// IPAllocation IP 分配记录
+// IPAllocation records an IP allocation
 type IPAllocation struct {
 	IP          string      `json:"ip"`
 	Node        string      `json:"node"`

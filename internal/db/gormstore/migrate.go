@@ -6,9 +6,10 @@ import (
 	"gorm.io/gorm"
 )
 
-// migrate 在启动时自动同步所有表结构。
-// GORM AutoMigrate 仅做增量变更（新增列/索引），不会删除列，对存量数据安全。
-// Token 和 Peer 数据已迁移至 K8s etcd，不再在此处管理。
+// migrate automatically synchronizes all table structures on startup.
+// GORM AutoMigrate only performs incremental changes (new columns/indexes), never drops columns,
+// and is safe for existing data.
+// Token and Peer data has been migrated to K8s etcd and is no longer managed here.
 func migrate(db *gorm.DB) error {
 	return db.AutoMigrate(
 		&models.User{},

@@ -63,7 +63,7 @@ func (r *TokenReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 		return ctrl.Result{}, nil
 	}
 
-	// 2. 计算过期剩余时间
+	// 2. Calculate remaining time until expiry
 	remaining := time.Until(token.Spec.Expiry.Time)
 
 	if remaining <= 0 {
@@ -120,7 +120,7 @@ func (r *TokenReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 		}
 	}
 
-	// 4. 时间没到，设置定时器，到期后 K8s 会自动再次触发这个 Reconcile
+	// 4. Time has not elapsed yet, set a timer; K8s will automatically trigger this Reconcile again when it expires
 	return ctrl.Result{RequeueAfter: remaining}, nil
 
 }
@@ -128,25 +128,25 @@ func (r *TokenReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 func (r *TokenReconciler) updateStatus(ctx context.Context, token *v1alpha1.LatticeEnrollmentToken, updateFunc func(token *v1alpha1.LatticeEnrollmentToken) error) (bool, error) {
 	log := logf.FromContext(ctx)
 
-	// 1. 深度拷贝原始对象，避免副作用
+	// 1. Deep copy the original object to avoid side effects
 	tokenCopy := token.DeepCopy()
 
-	// 2. 执行业务逻辑修改
+	// 2. Execute business logic modifications
 	if err := updateFunc(tokenCopy); err != nil {
 		return false, err
 	}
 
-	// 3. 检查是否真的有变化，如果没有变化则无需请求 API Server
+	// 3. Check whether there are actual changes; if none, no need to request API Server
 	if reflect.DeepEqual(token.Status, tokenCopy.Status) {
 		return false, nil
 	}
 
-	// 4. 执行 Status Patch (使用 MergeFrom 模式)
-	// client.MergeFrom 会计算 token 与 tokenCopy 之间的 diff 仅发送增量
+	// 4. Execute Status Patch (using MergeFrom mode)
+	// client.MergeFrom calculates the diff between token and tokenCopy, sending only the delta
 	if err := r.Status().Patch(ctx, tokenCopy, client.MergeFrom(token)); err != nil {
 		if errors.IsConflict(err) {
 			log.Info("Conflict detected during status patch, will retry on next reconcile.")
-			return false, nil // 冲突时让 Controller 重新 Reconcile 即可
+			return false, nil // on conflict, let the Controller re-Reconcile
 		}
 		log.Error(err, "Failed to patch LatticeEnrollmentToken status")
 		return false, err

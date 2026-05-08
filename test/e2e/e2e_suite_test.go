@@ -47,7 +47,7 @@ func TestE2E(t *testing.T) {
 }
 
 var _ = BeforeSuite(func() {
-	By("初始化测试环境")
+	By("Initializing test environment")
 
 	kubecfgPath := kubeconfig
 	if kubecfgPath == "" {
@@ -56,30 +56,30 @@ var _ = BeforeSuite(func() {
 
 	var err error
 	restConfig, err = clientcmd.BuildConfigFromFlags("", kubecfgPath)
-	Expect(err).NotTo(HaveOccurred(), "无法加载 kubeconfig: %s", kubecfgPath)
+	Expect(err).NotTo(HaveOccurred(), "failed to load kubeconfig: %s", kubecfgPath)
 
 	clientset, err = kubernetes.NewForConfig(restConfig)
-	Expect(err).NotTo(HaveOccurred(), "无法创建 Clientset")
+	Expect(err).NotTo(HaveOccurred(), "failed to create Clientset")
 
 	s := scheme.Scheme
 	err = latticev1.AddToScheme(s)
-	Expect(err).NotTo(HaveOccurred(), "无法注册 LatticePeer Scheme")
+	Expect(err).NotTo(HaveOccurred(), "failed to register LatticePeer Scheme")
 
 	latticeClient, err = client.New(restConfig, client.Options{Scheme: s})
-	Expect(err).NotTo(HaveOccurred(), "无法创建 CRD Client")
+	Expect(err).NotTo(HaveOccurred(), "failed to create CRD Client")
 
-	By("登录并配置 NATS URL（agent pod 通过 discovery 获取正确的 NATS 地址）")
+	By("Logging in and configuring NATS URL (agent pod discovers the correct NATS address via discovery)")
 	loginBody, _ := json.Marshal(map[string]string{"username": "admin", "password": "123456"})
 	loginResp, err := http.Post(manageUrl+"/api/v1/users/login", "application/json", bytes.NewBuffer(loginBody))
-	Expect(err).NotTo(HaveOccurred(), "登录失败")
+	Expect(err).NotTo(HaveOccurred(), "login failed")
 	defer loginResp.Body.Close() //nolint:errcheck
 
 	var loginData resp.Response
 	Expect(json.NewDecoder(loginResp.Body).Decode(&loginData)).To(Succeed())
 	dataMap, ok := loginData.Data.(map[string]any)
-	Expect(ok).To(BeTrue(), "登录响应格式错误")
+	Expect(ok).To(BeTrue(), "login response format error")
 	token, ok := dataMap["token"].(string)
-	Expect(ok && token != "").To(BeTrue(), "未找到 token")
+	Expect(ok && token != "").To(BeTrue(), "token not found")
 
 	natsSvcDNS := "nats://lattice-nats-service.lattice-system.svc.cluster.local:4222"
 	settingsBody, _ := json.Marshal(map[string]string{"nats_url": natsSvcDNS})
@@ -87,14 +87,14 @@ var _ = BeforeSuite(func() {
 	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("Content-Type", "application/json")
 	settingsResp, err := http.DefaultClient.Do(req)
-	Expect(err).NotTo(HaveOccurred(), "写入 settings 失败")
-	Expect(settingsResp.StatusCode).To(Equal(http.StatusOK), "settings API 返回非 200")
+	Expect(err).NotTo(HaveOccurred(), "failed to write settings")
+	Expect(settingsResp.StatusCode).To(Equal(http.StatusOK), "settings API returned non-200")
 	settingsResp.Body.Close() //nolint:errcheck
 
-	By("测试环境就绪，Namespace: " + ns)
+	By("Test environment ready, Namespace: " + ns)
 })
 
-// ReportAfterSuite 是 Ginkgo v2 中获取套件整体通过/失败状态的正确方式
+// ReportAfterSuite is the correct way in Ginkgo v2 to obtain the overall suite pass/fail status
 var _ = ReportAfterSuite("e2e cleanup", func(report Report) {
 	if clientset == nil || ns == "" {
 		return
@@ -103,24 +103,24 @@ var _ = ReportAfterSuite("e2e cleanup", func(report Report) {
 	ctx := context.Background()
 
 	if report.SuiteSucceeded {
-		By("测试全部通过，清理 Namespace: " + ns)
+		By("All tests passed, cleaning up Namespace: " + ns)
 
 		deletePolicy := metav1.DeletePropagationBackground
 		err := clientset.CoreV1().Namespaces().Delete(ctx, ns, metav1.DeleteOptions{
 			PropagationPolicy: &deletePolicy,
 		})
 		if err != nil && !errors.IsNotFound(err) {
-			fmt.Printf("[WARN] 清理 Namespace 失败: %v\n", err)
+			fmt.Printf("[WARN] failed to clean up Namespace: %v\n", err)
 			return
 		}
 
 		Eventually(func() bool {
 			_, err := clientset.CoreV1().Namespaces().Get(ctx, ns, metav1.GetOptions{})
 			return errors.IsNotFound(err)
-		}, "120s", "3s").Should(BeTrue(), "Namespace 删除超时: %s", ns)
+		}, "120s", "3s").Should(BeTrue(), "Namespace deletion timed out: %s", ns)
 
-		By("资源清理完成")
+		By("Resource cleanup completed")
 	} else {
-		fmt.Printf("\n[E2E FAILED] 保留现场以供排查。\n  kubectl get pods -n %s\n  kubectl delete ns %s\n\n", ns, ns)
+		fmt.Printf("\n[E2E FAILED] Preserving state for investigation.\n  kubectl get pods -n %s\n  kubectl delete ns %s\n\n", ns, ns)
 	}
 })

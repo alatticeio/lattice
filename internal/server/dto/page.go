@@ -1,18 +1,18 @@
 package dto
 
-// PageRequest 通用的分页请求参数
+// PageRequest generic pagination request parameters
 type PageRequest struct {
-	Page      int    `form:"page" json:"page"`           // 页码
-	PageSize  int    `form:"pageSize" json:"pageSize"`   // 每页条数
-	Keyword   string `form:"search" json:"search"`       // 搜索关键词
-	Namespace string `form:"namespace" json:"namespace"` // 命名空间/隔离字段
-	Status    string `form:"status" json:"status"`       // 状态过滤
+	Page      int    `form:"page" json:"page"`           // Page number
+	PageSize  int    `form:"pageSize" json:"pageSize"`   // Items per page
+	Keyword   string `form:"search" json:"search"`       // Search keyword
+	Namespace string `form:"namespace" json:"namespace"` // Namespace/isolation field
+	Status    string `form:"status" json:"status"`       // Status filter
 }
 
-// PageResult 通用的分页返回容器（使用泛型 T）
+// PageResult generic paginated response container (uses generic type T)
 type PageResult[T any] struct {
-	Total    int64 `json:"total"`    // 总条数
-	Page     int   `json:"page"`     // 当前页码
-	PageSize int   `json:"pageSize"` // 每页条数
-	List     []T   `json:"list"`     // 数据列表，改为 List 比 Data 更语义化
+	Total    int64 `json:"total"`    // Total count
+	Page     int   `json:"page"`     // Current page number
+	PageSize int   `json:"pageSize"` // Items per page
+	List     []T   `json:"list"`     // Data list, renamed to List for better semantics than Data
 }

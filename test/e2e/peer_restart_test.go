@@ -20,7 +20,7 @@ const (
 	restartPol   = "e2e-restart-allow"
 )
 
-var _ = Describe("多 Peer 重启韧性", Ordered, func() {
+var _ = Describe("Multi-Peer Restart Resilience", Ordered, func() {
 	var (
 		testNS      string
 		podNames    map[string]string
@@ -40,7 +40,7 @@ var _ = Describe("多 Peer 重启韧性", Ordered, func() {
 		joinToken := generateJoinToken(manageUrl, accessToken, workspaceID)
 		hostAliases := hostAliasesForNATS(clientset)
 
-		// 部署两个 peer
+		// Deploy two peers
 		for _, role := range []string{restartPeerA, restartPeerB} {
 			deployAgentDeployment(clientset, testNS, role, agentImage, joinToken, hostAliases)
 		}
@@ -52,60 +52,60 @@ var _ = Describe("多 Peer 重启韧性", Ordered, func() {
 			podIPs[role] = waitForWGIP(latticeClient, testNS, role, "90s")
 		}
 
-		// 获取网络名称并创建 ALLOW 策略
+		// Get network name and create ALLOW policy
 		peer := &latticev1.LatticePeer{}
 		Expect(latticeClient.Get(ctxRS, sigclient.ObjectKey{Namespace: testNS, Name: restartPeerA}, peer)).To(Succeed())
 		netName = getNetworkName(peer)
 		Expect(netName).NotTo(BeEmpty())
 		createAllowAllPolicy(latticeClient, testNS, restartPol, netName)
 
-		By(fmt.Sprintf("全部就绪: A=%s(%s), B=%s(%s), network=%s",
+		By(fmt.Sprintf("All ready: A=%s(%s), B=%s(%s), network=%s",
 			podNames[restartPeerA], podIPs[restartPeerA],
 			podNames[restartPeerB], podIPs[restartPeerB], netName))
 	})
 
-	It("基线: 两个 Peer 之间连通性正常", func() {
+	It("Baseline: Connectivity between two peers is normal", func() {
 		pingWithRetry(clientset, restConfig, testNS, podNames[restartPeerA], podIPs[restartPeerB], "60s")
 		pingWithRetry(clientset, restConfig, testNS, podNames[restartPeerB], podIPs[restartPeerA], "60s")
 
-		By("双向 ping 均成功")
+		By("Bidirectional ping both succeeded")
 	})
 
-	It("重启 restart-a: Pod 删除后重建，隧道应恢复", func() {
-		By("删除 restart-a 的 Pod，触发 Deployment 重建")
+	It("Restart restart-a: Pod deleted and recreated, tunnel should recover", func() {
+		By("Delete restart-a Pod, trigger Deployment rebuild")
 		err := clientset.CoreV1().Pods(testNS).Delete(ctxRS, podNames[restartPeerA], metav1.DeleteOptions{})
-		Expect(err).NotTo(HaveOccurred(), "删除 Pod 失败")
+		Expect(err).NotTo(HaveOccurred(), "failed to delete Pod")
 
-		By("等待 restart-a 新 Pod 就绪")
+		By("Wait for restart-a new Pod to be ready")
 		podNames[restartPeerA] = waitForPodRunningReady(clientset, testNS, restartPeerA, "120s")
 
-		By("等待 WireGuard IP 重新确认")
+		By("Wait for WireGuard IP re-confirmation")
 		podIPs[restartPeerA] = waitForWGIP(latticeClient, testNS, restartPeerA, "90s")
 
-		By("验证 WG 接口已重建")
+		By("Verify WG interface has been rebuilt")
 		Eventually(func() error {
 			out, err := execInPod(clientset, restConfig, testNS, podNames[restartPeerA], []string{"wg", "show"})
 			if err != nil {
-				return fmt.Errorf("wg show 失败: %w", err)
+				return fmt.Errorf("wg show failed: %w", err)
 			}
 			if !strings.Contains(out, "interface:") {
-				return fmt.Errorf("WireGuard 接口未重建:\n%s", out)
+				return fmt.Errorf("WireGuard interface not rebuilt:\n%s", out)
 			}
 			return nil
-		}, "45s", "2s").Should(Succeed(), "WG 接口应在重启后重建")
+		}, "45s", "2s").Should(Succeed(), "WG interface should be rebuilt after restart")
 
-		By("验证重启后 restart-a 到 restart-b 的连通性")
+		By("Verify connectivity from restart-a to restart-b after restart")
 		pingWithRetry(clientset, restConfig, testNS, podNames[restartPeerA], podIPs[restartPeerB], "60s")
 	})
 
-	It("同时重启两个 Peer: 双方均重建后隧道仍能恢复", func() {
-		By("同时删除两个 Peer 的 Pod")
+	It("Restart both Peers simultaneously: tunnel recovers after both rebuild", func() {
+		By("Delete both Peer Pods simultaneously")
 		for _, role := range []string{restartPeerA, restartPeerB} {
 			err := clientset.CoreV1().Pods(testNS).Delete(ctxRS, podNames[role], metav1.DeleteOptions{})
-			Expect(err).NotTo(HaveOccurred(), "删除 %s 的 Pod 失败", role)
+			Expect(err).NotTo(HaveOccurred(), "failed to delete Pod %s", role)
 		}
 
-		By("等待两个 Peer 的新 Pod 就绪")
+		By("Wait for new Pods for both Peers to be ready")
 		for _, role := range []string{restartPeerA, restartPeerB} {
 			podNames[role] = waitForPodRunningReady(clientset, testNS, role, "120s")
 			podIPs[role] = waitForWGIP(latticeClient, testNS, role, "90s")
@@ -113,16 +113,16 @@ var _ = Describe("多 Peer 重启韧性", Ordered, func() {
 			Eventually(func() error {
 				out, err := execInPod(clientset, restConfig, testNS, podNames[role], []string{"wg", "show"})
 				if err != nil {
-					return fmt.Errorf("wg show 失败: %w", err)
+					return fmt.Errorf("wg show failed: %w", err)
 				}
 				if !strings.Contains(out, "interface:") {
-					return fmt.Errorf("WireGuard 接口未重建 [%s]:\n%s", role, out)
+					return fmt.Errorf("WireGuard interface not rebuilt [%s]:\n%s", role, out)
 				}
 				return nil
-			}, "45s", "2s").Should(Succeed(), "%s 的 WG 接口应在重启后重建", role)
+			}, "45s", "2s").Should(Succeed(), "WG interface should be rebuilt after restart for %s", role)
 		}
 
-		By("验证双向连通性已恢复")
+		By("Verify bidirectional connectivity has been restored")
 		pingWithRetry(clientset, restConfig, testNS, podNames[restartPeerA], podIPs[restartPeerB], "90s")
 		pingWithRetry(clientset, restConfig, testNS, podNames[restartPeerB], podIPs[restartPeerA], "90s")
 	})
@@ -131,7 +131,7 @@ var _ = Describe("多 Peer 重启韧性", Ordered, func() {
 		if CurrentSpecReport().Failed() {
 			collectDiagnostics(ctxRS, testNS)
 		}
-		// 清理
+		// Cleanup
 		pol := &latticev1.LatticePolicy{ObjectMeta: metav1.ObjectMeta{Name: restartPol, Namespace: testNS}}
 		_ = latticeClient.Delete(ctxRS, pol)
 		cleanupWorkspace(clientset, testNS)

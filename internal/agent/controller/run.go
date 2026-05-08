@@ -50,8 +50,8 @@ func Start(flags *config.Config) error {
 	//flag.Parse()
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
 	logs.InitLogs()
-	ctrl.SetLogger(klog.Background()) // 使用 klog 的 Background logr 实例
-	defer logs.FlushLogs()            // 确保在程序退出时日志被刷新
+	ctrl.SetLogger(klog.Background()) // use klog's Background logr instance
+	defer logs.FlushLogs()            // ensure logs are flushed on program exit
 
 	// if the enable-http2 flag is false (the default), http/2 should be disabled
 	// due to its vulnerabilities. More specifically, disabling http/2 will

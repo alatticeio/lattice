@@ -12,12 +12,12 @@ import (
 // internal/platform/k8s/impersonator.go
 
 type IdentityImpersonator struct {
-	baseConfig *rest.Config // 基础高权限配置
+	baseConfig *rest.Config // Base high-privilege config
 	scheme     *runtime.Scheme
 }
 
 func NewIdentityImpersonator() (*IdentityImpersonator, error) {
-	// 类似于 ctrl.GetConfigOrDie()，但这里我们处理错误
+	// Similar to ctrl.GetConfigOrDie(), but here we handle errors
 	cfg, err := ctrl.GetConfig()
 	if err != nil {
 		return nil, err
@@ -29,27 +29,27 @@ func NewIdentityImpersonator() (*IdentityImpersonator, error) {
 	}, nil
 }
 
-// NamespaceAccessor 为特定工作区和用户生成受限的 K8s 客户端
-// wsID: 工作区 ID
-// userID: 调用者的用户 ID（用于审计和 RBAC group 绑定）
-// role: 业务角色 (admin, editor, member, viewer)
+// NamespaceAccessor generates a restricted K8s client for a specific workspace and user
+// wsID: workspace ID
+// userID: caller's user ID (used for audit and RBAC group binding)
+// role: business role (admin, editor, member, viewer)
 func (i *IdentityImpersonator) NamespaceAccessor(wsID, userID, role string) (client.Client, error) {
-	// 1. 深度拷贝原始的 rest.Config，避免修改全局配置
+	// 1. Deep copy the original rest.Config to avoid modifying the global config
 	config := rest.CopyConfig(i.baseConfig)
 
-	// 2. 构造身份面具 (Impersonation)
-	// 用户名：用于审计日志，wf-user-<userID>
-	// 组：这是 RBAC 校验的关键，wf-group-<wsID>-<role>
+	// 2. Construct identity impersonation
+	// Username: used for audit logs, wf-user-<userID>
+	// Group: this is key for RBAC validation, wf-group-<wsID>-<role>
 	config.Impersonate = rest.ImpersonationConfig{
 		UserName: fmt.Sprintf("wf-user-%s", userID),
 		Groups:   []string{fmt.Sprintf("wf-group-%s-%s", wsID, role)},
 	}
 
-	// 3. 创建客户端
-	// 注意：这里我们使用 client.New 而不是 i.client
-	// 因为 i.client 通常是带 Cache 的，而模拟访问必须是 Direct Client (直接请求 API Server)
+	// 3. Create the client
+	// Note: we use client.New here instead of i.client
+	// because i.client typically has Cache, and impersonated access must be a Direct Client (requests API Server directly)
 	scopedClient, err := client.New(config, client.Options{
-		Scheme: i.scheme, // 必须传入 Scheme，否则无法解析原生资源或 CRD
+		Scheme: i.scheme, // Scheme is required to parse native resources or CRDs
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create scoped k8s client: %w", err)

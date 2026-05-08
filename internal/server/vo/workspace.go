@@ -17,13 +17,13 @@ type MemberVo struct {
 type WorkspaceVo struct {
 	ID string `json:"id"`
 
-	// slug对应前端输入的想要的空间
-	Slug string `json:"slug"` // URL标识，如 "tencent-rd"
+	// slug corresponds to the workspace name entered in the frontend
+	Slug string `json:"slug"` // URL identifier, e.g. "tencent-rd"
 
-	//对应k8s的 namespace
+	// Corresponds to the K8s namespace
 	Namespace string `json:"namespace"`
 
-	// 显示名称：用户在 Vercel 风格界面看到的名称 (如 "我的私有云")
+	// Display name: the name users see in the Vercel-style UI (e.g. "My Private Cloud")
 	DisplayName string `json:"displayName"`
 
 	TokenCount int64 `json:"tokenCount"`
@@ -32,20 +32,20 @@ type WorkspaceVo struct {
 
 	NodeCount int64 `json:"nodeCount"`
 
-	// 状态
+	// Status
 	Status string `json:"status"` // active, terminating, frozen
 
-	// 创建时间
+	// Creation time
 	CreatedAt string `json:"createdAt,omitempty"`
 
-	// 创建人
+	// Creator
 	CreatedBy string `json:"createdBy,omitempty"`
 
-	// 最后修改人和修改时间
+	// Last modifier and modification time
 	UpdatedBy string `json:"updatedBy,omitempty"`
 	UpdatedAt string `json:"updatedAt,omitempty"`
 
-	// 网络信息
+	// Network info
 	NetworkName   string `json:"networkName,omitempty"`
 	NetworkCIDR   string `json:"networkCIDR,omitempty"`
 	NetworkStatus string `json:"networkStatus,omitempty"`
