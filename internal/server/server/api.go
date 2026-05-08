@@ -247,6 +247,7 @@ func (s *Server) peerNamespace(c *gin.Context) (string, error) {
 }
 
 // resolveWorkspaceNamespace resolves a workspace ID to its K8s namespace name.
+// nolint:unused
 func (s *Server) resolveWorkspaceNamespace(ctx context.Context, wsID string) (string, error) {
 	if wsID == "" {
 		return "", fmt.Errorf("workspaceId is required")

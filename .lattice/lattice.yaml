@@ -1,0 +1,30 @@
+ai:
+    audit-schedule: 0 2 * * *
+    enabled: false
+    max-tool-calls: 5
+    model: ""
+    provider: anthropic
+app:
+    initadmins:
+        - password: "123456"
+          username: admin
+    name: Lattice
+auth-token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJsYXR0aWNlLWJmZiIsInN1YiI6ImNmNDk0ODRkLWQxZjEtNDQ4YS1hMDJjLTk5NTNhYjVmODRmZSIsImV4cCI6MTc3ODI1MTQxMCwiaWF0IjoxNzc4MjA4MjEwLCJqdGkiOiI5ODViNDBmNi0wZjMzLTRlNmYtYjNkZC1jZmE2NDVmZDEwMmEiLCJlbWFpbCI6IiIsInVzZXJuYW1lIjoiYWRtaW4iLCJzeXN0ZW1fcm9sZSI6InBsYXRmb3JtX2FkbWluIn0.vMRme82-zN0t6K7CcJ7KCgpnJzIRCUcxocGEcIObOVY
+database:
+    driver: sqlite
+    dsn: ""
+dex:
+    providerurl: ""
+env: dev
+health-probe-bind-address: :8081
+level: info
+listen: :8080
+metrics-addr: :8443
+monitor:
+    address: ""
+port: 3478
+relay-quic-url: ""
+relay-url: :6266
+server-url: ""
+stun-url: stun.alattice.io:3478
+wg-port: 51820

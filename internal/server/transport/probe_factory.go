@@ -81,11 +81,11 @@ func (f *ProbeFactory) Register(remoteId infra.PeerIdentity, probe *Probe) {
 }
 
 func (f *ProbeFactory) Get(remoteId infra.PeerIdentity) (*Probe, error) {
-	// Fast path: probe already exists, read lock is sufficient.
+	// Fast path: probe already exists and is not permanently closed.
 	f.mu.RLock()
 	probe := f.probes[remoteId.AppID]
 	f.mu.RUnlock()
-	if probe != nil {
+	if probe != nil && probe.sm.Current() != StateClosed {
 		return probe, nil
 	}
 
@@ -93,9 +93,13 @@ func (f *ProbeFactory) Get(remoteId infra.PeerIdentity) (*Probe, error) {
 	// Double-check after acquiring the lock in case another goroutine raced here.
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	if probe = f.probes[remoteId.AppID]; probe != nil {
+	probe = f.probes[remoteId.AppID]
+	if probe != nil && probe.sm.Current() != StateClosed {
 		return probe, nil
 	}
+	// Probe is nil or permanently closed — create a fresh one.
+	// A closed probe already had its WG state cleaned up (RemovePeer called on
+	// StateClosed transition), so it is safe to replace without further teardown.
 	return f.NewProbe(remoteId)
 }
 
@@ -357,6 +361,7 @@ func (p *ProbeFactory) NewProbe(remoteId infra.PeerIdentity) (*Probe, error) {
 			OnPeerReceived: onPeerReceived,
 			FilteringMux:   p.FilteringMux,
 			ShowLog:        p.showLog,
+			OnRestart:      func() { probe.restart() },
 		})
 	}
 	probe.newIceDialer = makeIceDialer

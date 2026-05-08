@@ -59,8 +59,9 @@ type Probe struct {
 	onBeforeRestart func()
 
 	// Epoch and running for discover() goroutine coordination.
-	epoch   atomic.Uint64
-	running atomic.Bool
+	epoch             atomic.Uint64
+	running           atomic.Bool
+	restartInProgress atomic.Bool
 
 	// currentTransport holds the active transport.
 	currentTransport infra.Transport
@@ -77,11 +78,17 @@ func (p *Probe) Handle(ctx context.Context, remoteId infra.PeerIdentity, packet 
 		p.mu.RLock()
 		d := p.iceDialer
 		p.mu.RUnlock()
+		if d == nil {
+			return nil
+		}
 		return d.Handle(ctx, p.remoteId, packet)
 	case grpc.DialerType_LRP:
 		p.mu.RLock()
 		d := p.lrpDialer
 		p.mu.RUnlock()
+		if d == nil {
+			return nil
+		}
 		return d.Handle(ctx, p.remoteId, packet)
 	}
 	return nil
@@ -89,6 +96,11 @@ func (p *Probe) Handle(ctx context.Context, remoteId infra.PeerIdentity, packet 
 
 // restart replaces both dialers with fresh instances and re-runs discovery.
 func (p *Probe) restart() {
+	if !p.restartInProgress.CompareAndSwap(false, true) {
+		return // another restart already in flight
+	}
+	defer p.restartInProgress.Store(false)
+
 	if p.newIceDialer == nil {
 		return
 	}

@@ -62,6 +62,7 @@ type iceDialer struct {
 	showLog           bool
 	getLocalPeer      func() *infra.Peer
 	onPeerReceived    func(peer infra.Peer)
+	onRestart         func() // called when a SYN arrives on a closed dialer (remote peer restarted)
 
 	// offerReady is closed when the first remote candidate OFFER is received,
 	// signalling Dial() that it can call StartDial/StartAccept + AwaitConnect.
@@ -90,6 +91,9 @@ type ICEDialerConfig struct {
 	GetLocalPeer   func() *infra.Peer
 	OnPeerReceived func(peer infra.Peer)
 	ShowLog        bool
+	// OnRestart is called when a SYN arrives on an already-closed dialer,
+	// indicating the remote peer restarted. Mirrors the LRP dialer pattern.
+	OnRestart func()
 }
 
 func (i *iceDialer) Handle(ctx context.Context, remoteId infra.PeerIdentity, packet *grpc.SignalPacket) error {
@@ -127,10 +131,14 @@ func (i *iceDialer) Handle(ctx context.Context, remoteId infra.PeerIdentity, pac
 		// start send offer
 		return agent.GatherCandidates()
 	case grpc.PacketType_HANDSHAKE_SYN:
-		// If already fully closed, the remote may have restarted after our cleanup.
-		// Drop the SYN — probe.restart() already created a new iceDialer that will
-		// handle the next retry (Node A resends SYN every 2 s).
+		// If already fully closed, the remote peer restarted after our ICE cleanup.
+		// Trigger probe.restart() so a fresh dialer is created to handle the peer's
+		// next SYN retry (sent every 2 s). Without this the probe stays stuck in
+		// ICEReady with a dead dialer and the WG peer entry is never re-established.
 		if i.closed.Load() {
+			if i.onRestart != nil {
+				go i.onRestart()
+			}
 			return nil
 		}
 
@@ -241,6 +249,7 @@ func NewIceDialer(cfg *ICEDialerConfig) infra.Dialer {
 		showLog:        cfg.ShowLog,
 		getLocalPeer:   cfg.GetLocalPeer,
 		onPeerReceived: cfg.OnPeerReceived,
+		onRestart:      cfg.OnRestart,
 		offerReady:     make(chan struct{}),
 		closeChan:      make(chan struct{}),
 		cancel:         func() {}, // no-op until Prepare sets a real one

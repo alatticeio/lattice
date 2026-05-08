@@ -5,7 +5,7 @@ name: Test README Scripts
 #
 # Uses published latticeio images — no build or image import required.
 # Setup:  docker run lattice-k3s (k3s + latticed all-in-one, exposes
-#         API on 8080 and NATS on 4222)
+#         API on 8080)
 # Test:   README Steps 1-6
 
 on:
@@ -31,7 +31,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # ── Start lattice-k3s (k3s + latticed + NATS, all-in-one) ─────────────
+      # ── Start lattice-k3s (k3s + latticed all-in-one) ────────────────────
       - name: "Start lattice-k3s container"
         run: |
           docker pull "$K3S_IMAGE"
@@ -39,7 +39,6 @@ jobs:
             --name lattice-k3s \
             --privileged \
             -p 8080:8080 \
-            -p 4222:4222 \
             "$K3S_IMAGE"
           echo "lattice-k3s container started"
 
@@ -73,39 +72,47 @@ jobs:
             sleep 1
           done
 
-          echo "Waiting for Lattice API (http://localhost:8080)..."
-          for i in $(seq 1 60); do
-            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/ 2>/dev/null || echo "000")
-            if [ "$HTTP_CODE" != "000" ]; then
-              echo "Lattice API responded with HTTP $HTTP_CODE after ${i}s"
+          echo "Waiting for Lattice login API (http://localhost:8080/api/v1/users/login)..."
+          for i in $(seq 1 90); do
+            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 3 \
+              -X POST http://localhost:8080/api/v1/users/login \
+              -H "Content-Type: application/json" \
+              -d '{"username":"admin","password":"123456","client":"cli"}' 2>/dev/null) || true
+            if [ "$HTTP_CODE" != "000" ] && [ "$HTTP_CODE" != "502" ] && [ "$HTTP_CODE" != "503" ]; then
+              echo "Lattice login API ready (HTTP $HTTP_CODE) after ${i}s"
               break
             fi
-            if [ $i -eq 60 ]; then
-              echo "ERROR: Lattice API not reachable within 60s"
+            if [ $i -eq 90 ]; then
+              echo "ERROR: Lattice login API not ready within 90s"
               docker logs lattice-k3s 2>&1 | tail -30
               exit 1
             fi
-            sleep 1
+            sleep 2
           done
-
-          echo "Waiting for NATS (localhost:4222)..."
-          for i in $(seq 1 30); do
-            nc -z 127.0.0.1 4222 2>/dev/null && break || true
-            sleep 1
-          done
-          nc -z 127.0.0.1 4222 2>/dev/null \
-            && echo "localhost:4222 ready" \
-            || { echo "ERROR: localhost:4222 not reachable"; docker logs lattice-k3s 2>&1 | tail -20; exit 1; }
 
       # ── Use published image as CLI ─────────────────────────────────────────
       # ENTRYPOINT is /app/lattice, so `docker run image <subcommand>` works
       # directly as a CLI. --network host lets it reach localhost:8080 / 4222.
+      # Auth token is obtained via curl and passed as LATTICE_AUTH_TOKEN so
+      # each stateless `docker run --rm` container is pre-authenticated.
+
+      - name: "Login and obtain auth token"
+        run: |
+          echo ">>> POST /api/v1/users/login"
+          LOGIN_RESP=$(curl -s --max-time 10 -X POST http://localhost:8080/api/v1/users/login \
+            -H "Content-Type: application/json" \
+            -d '{"username":"admin","password":"123456","client":"cli"}')
+          AUTH_TOKEN=$(echo "$LOGIN_RESP" | python3 -c \
+            "import sys,json; print(json.load(sys.stdin)['data']['token'])" 2>/dev/null || true)
+          [[ -n "$AUTH_TOKEN" ]] || { echo "ERROR: failed to obtain auth token (response: $LOGIN_RESP)"; exit 1; }
+          echo "Auth token obtained (${#AUTH_TOKEN} chars)"
+          echo "AUTH_TOKEN=$AUTH_TOKEN" >> $GITHUB_ENV
 
       - name: "Set LATTICE to published image"
         run: |
           docker pull "${AGENT_IMAGE}"
           docker run --rm --network host "${AGENT_IMAGE}" --help | head -5
-          echo "LATTICE=docker run --rm --network host ${AGENT_IMAGE}" >> $GITHUB_ENV
+          echo "LATTICE=docker run --rm --network host -e LATTICE_AUTH_TOKEN=${AUTH_TOKEN} ${AGENT_IMAGE}" >> $GITHUB_ENV
           echo "lattice CLI via image: ${AGENT_IMAGE}"
 
       # ════════════════════════════════════════════════════════════════════════

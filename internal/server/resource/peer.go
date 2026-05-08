@@ -65,6 +65,14 @@ func (c *Client) Register(ctx context.Context, namespace string, e *dto.PeerDto)
 	// Use SSA mode
 	manager := client.FieldOwner("lattice-controller-manager")
 
+	// Preserve existing labels (e.g. network labels set by the controller)
+	// to avoid stripping them on re-registration.
+	mergedLabels := node.GetLabels()
+	if mergedLabels == nil {
+		mergedLabels = make(map[string]string)
+	}
+	mergedLabels["app.kubernetes.io/managed-by"] = "lattice-controller"
+
 	defaultNet := "lattice-default-net"
 	node = v1alpha1.LatticePeer{
 		TypeMeta: v1.TypeMeta{
@@ -74,9 +82,7 @@ func (c *Client) Register(ctx context.Context, namespace string, e *dto.PeerDto)
 		ObjectMeta: v1.ObjectMeta{
 			Namespace: namespace,
 			Name:      e.AppID,
-			Labels: map[string]string{
-				"app.kubernetes.io/managed-by": "lattice-controller",
-			},
+			Labels:    mergedLabels,
 		},
 		Spec: v1alpha1.LatticePeerSpec{
 			Network:       &defaultNet,
