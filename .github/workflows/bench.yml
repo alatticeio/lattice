@@ -181,20 +181,7 @@ jobs:
           export THROUGHPUT_MBPS=$(python3 -c "import json; d=json.load(open('hack/bench/results/throughput.json')); print(int(d['message'].split()[0]))")
           export API_P99_MS=$(python3 -c "import json; d=json.load(open('hack/bench/results/api-p99.json')); print(int(float(d['message'].rstrip('ms'))))")
           export TODAY=$(date -u +'%Y-%m-%d')
-          python3 - <<'PYEOF'
-import json, os
-history_file = os.environ.get('HISTORY_FILE', 'docs/benchmarks/history.json')
-with open(history_file) as f:
-    history = json.load(f)
-history.append({
-    "date": os.environ['TODAY'],
-    "handshake_ms": int(os.environ['HANDSHAKE_MS']),
-    "throughput_mbps": int(os.environ['THROUGHPUT_MBPS']),
-    "api_p99_ms": int(os.environ['API_P99_MS']),
-})
-with open(history_file, 'w') as f:
-    json.dump(history, f, indent=2)
-PYEOF
+          python3 hack/bench/update_history.py
 
           # Create minimal index if it doesn't exist
           if [ ! -f index.html ]; then
