@@ -56,7 +56,7 @@ func (w *workspaceService) DeleteWorkspace(ctx context.Context, id string) error
 	}
 
 	// Delete K8s Namespace (cascading delete of all resources within: Peer, Network, Policy, etc.)
-	if ws.Namespace != "" {
+	if ws.Namespace != "" && w.client != nil {
 		ns := &corev1.Namespace{}
 		ns.Name = ws.Namespace
 		if err := w.client.Delete(ctx, ns); err != nil && !k8serrors.IsNotFound(err) {
@@ -116,6 +116,11 @@ func (w *workspaceService) ListWorkspaces(ctx context.Context, request *dto.Page
 				CreatedBy:   ws.CreatedBy,
 				UpdatedBy:   ws.UpdatedBy,
 				UpdatedAt:   ws.UpdatedAt.Format("2006-01-02T15:04:05Z"),
+			}
+
+			if w.client == nil {
+				result[idx] = v
+				return nil
 			}
 
 			// First check if the Namespace exists
@@ -357,6 +362,9 @@ func (w *workspaceService) InitNewNamespace(ctx context.Context, workspaceId str
 }
 
 func (w *workspaceService) InitializeTenant(ctx context.Context, wsID, role string) error {
+	if w.client == nil {
+		return fmt.Errorf("workspace initialization requires Kubernetes — no K8s client available")
+	}
 	nsName := fmt.Sprintf("wf-%s", wsID)
 
 	// 1. Create Namespace

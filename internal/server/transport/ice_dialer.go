@@ -101,6 +101,17 @@ func (i *iceDialer) Handle(ctx context.Context, remoteId infra.PeerIdentity, pac
 		return nil
 	}
 	switch packet.Type {
+	case grpc.PacketType_RESTART_NOTIFY:
+		// The remote non-initiator just started fresh. If our ICE dialer is already
+		// closed (we were previously connected), trigger probe.restart() so we
+		// re-initiate the handshake with the restarted peer's new endpoint.
+		// If our dialer is still open (normal startup race), safely ignore.
+		if i.closed.Load() {
+			if i.onRestart != nil {
+				go i.onRestart()
+			}
+		}
+		return nil
 	case grpc.PacketType_HANDSHAKE_ACK:
 		if i.closed.Load() {
 			return nil
@@ -263,6 +274,16 @@ func (i *iceDialer) Prepare(ctx context.Context, remoteId infra.PeerIdentity) er
 	// its agent inside Handle() to avoid pre-creating unnecessary ICE agents.
 	if !isInitiator(i.localId, remoteId) {
 		i.log.Debug("not initiator, waiting for SYN")
+		// Notify the remote that we are starting fresh. If the remote's ICE dialer
+		// is already closed (it was previously connected to us), receiving this
+		// triggers probe.restart() on the remote so it re-initiates the ICE
+		// handshake. If the remote is still probing (normal startup), the
+		// notification is ignored.
+		go func() {
+			if err := i.sendPacket(ctx, remoteId, grpc.PacketType_RESTART_NOTIFY, nil); err != nil {
+				i.log.Debug("restart notify send failed", "remoteId", remoteId, "err", err)
+			}
+		}()
 		return nil
 	}
 	// init agent (initiator side only)

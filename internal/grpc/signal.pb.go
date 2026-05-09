@@ -24,12 +24,13 @@ const (
 type PacketType int32
 
 const (
-	PacketType_UNKNOWN       PacketType = 0
-	PacketType_HANDSHAKE_SYN PacketType = 1 // Initiate handshake: are you there?
-	PacketType_HANDSHAKE_ACK PacketType = 2 // Respond handshake: I am here, ready to exchange.
-	PacketType_OFFER         PacketType = 3 // Business data: Offer
-	PacketType_ANSWER        PacketType = 4 //
-	PacketType_MESSAGE       PacketType = 5
+	PacketType_UNKNOWN        PacketType = 0
+	PacketType_HANDSHAKE_SYN  PacketType = 1 // Initiate handshake: are you there?
+	PacketType_HANDSHAKE_ACK  PacketType = 2 // Respond handshake: I am here, ready to exchange.
+	PacketType_OFFER          PacketType = 3 // Business data: Offer
+	PacketType_ANSWER         PacketType = 4 //
+	PacketType_MESSAGE        PacketType = 5
+	PacketType_RESTART_NOTIFY PacketType = 6 // Non-initiator restarted: please re-initiate if already connected
 )
 
 // Enum value maps for PacketType.
@@ -41,14 +42,16 @@ var (
 		3: "OFFER",
 		4: "ANSWER",
 		5: "MESSAGE",
+		6: "RESTART_NOTIFY",
 	}
 	PacketType_value = map[string]int32{
-		"UNKNOWN":       0,
-		"HANDSHAKE_SYN": 1,
-		"HANDSHAKE_ACK": 2,
-		"OFFER":         3,
-		"ANSWER":        4,
-		"MESSAGE":       5,
+		"UNKNOWN":        0,
+		"HANDSHAKE_SYN":  1,
+		"HANDSHAKE_ACK":  2,
+		"OFFER":          3,
+		"ANSWER":         4,
+		"MESSAGE":        5,
+		"RESTART_NOTIFY": 6,
 	}
 )
 

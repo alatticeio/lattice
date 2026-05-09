@@ -15,19 +15,6 @@ import (
 )
 
 func (s *Server) aiRouter() {
-	if s.aiService == nil {
-		// AI not configured: register stub handlers returning 503
-		ai := s.Group("/api/v1/ai")
-		ai.Use(middleware.AuthMiddleware(nil))
-		ai.POST("/chat", func(c *gin.Context) {
-			resp.Error(c, "AI not configured: set ai.enabled=true and ai.api-key in lattice.yaml")
-		})
-		ai.GET("/audit", func(c *gin.Context) {
-			resp.Error(c, "AI not configured: set ai.enabled=true and ai.api-key in lattice.yaml")
-		})
-		return
-	}
-
 	ai := s.Group("/api/v1/ai")
 	ai.Use(middleware.AuthMiddleware(nil))
 	{
@@ -102,10 +89,14 @@ func (s *Server) handleAIAudit() gin.HandlerFunc {
 
 // handleAIListTools returns all available MCP tools for the workspace.
 //
-// Query params: workspaceId=ws-xxx
+// Accepts workspaceId from: query param, X-Workspace-Id header, or context.
 func (s *Server) handleAIListTools() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		ns, err := s.peerNamespace(c)
+		wsID := c.Query("workspaceId")
+		if wsID == "" {
+			wsID = c.GetHeader("X-Workspace-Id")
+		}
+		ns, err := s.resolveWorkspaceNamespace(c.Request.Context(), wsID)
 		if err != nil {
 			resp.Error(c, "workspace not found: "+err.Error())
 			return
@@ -131,7 +122,14 @@ func (s *Server) handleAIToolCall() gin.HandlerFunc {
 			resp.BadRequest(c, "invalid request: "+err.Error())
 			return
 		}
-		ns, err := s.peerNamespace(c)
+		wsID := req.WorkspaceID
+		if wsID == "" {
+			wsID = c.Query("workspaceId")
+		}
+		if wsID == "" {
+			wsID = c.GetHeader("X-Workspace-Id")
+		}
+		ns, err := s.resolveWorkspaceNamespace(c.Request.Context(), wsID)
 		if err != nil {
 			resp.Error(c, "workspace not found: "+err.Error())
 			return

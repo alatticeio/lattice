@@ -154,6 +154,9 @@ func NewAIServiceWithWorkflow(
 // ── Chat ──────────────────────────────────────────────────────────────────────
 
 func (s *aiService) Chat(ctx context.Context, req *ChatRequest, out StreamWriter) error {
+	if s.llm == nil {
+		return fmt.Errorf("AI chat requires api-key (set ai.enabled=true and ai.api-key in lattice.yaml)")
+	}
 	ws, err := s.store.Workspaces().GetByID(ctx, req.WorkspaceID)
 	if err != nil {
 		return fmt.Errorf("workspace not found: %w", err)
@@ -239,6 +242,9 @@ func (s *aiService) Chat(ctx context.Context, req *ChatRequest, out StreamWriter
 // ── Audit ─────────────────────────────────────────────────────────────────────
 
 func (s *aiService) Audit(ctx context.Context, workspaceID string) (*AuditReport, error) {
+	if s.llm == nil {
+		return nil, fmt.Errorf("AI audit requires api-key (set ai.enabled=true and ai.api-key in lattice.yaml)")
+	}
 	ws, err := s.store.Workspaces().GetByID(ctx, workspaceID)
 	if err != nil {
 		return nil, fmt.Errorf("workspace not found: %w", err)
@@ -1028,6 +1034,9 @@ func (s *aiService) toolApplyNetworkChange(ctx context.Context, input json.RawMe
 // ── Time-Travel Debug tools (Pro) ──────────────────────────────────────────────
 
 func (s *aiService) Debug(ctx context.Context, req *DebugRequest, out StreamWriter) error {
+	if s.llm == nil {
+		return fmt.Errorf("AI debug requires api-key (set ai.enabled=true and ai.api-key in lattice.yaml)")
+	}
 	ws, err := s.store.Workspaces().GetByID(ctx, req.WorkspaceID)
 	if err != nil {
 		return fmt.Errorf("workspace not found: %w", err)

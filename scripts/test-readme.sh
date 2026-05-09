@@ -18,6 +18,8 @@ SERVER_URL="http://localhost:8080"
 KUBECTL="docker exec lattice-k3s kubectl"
 LOCAL_K3S_IMAGE="lattice-k3s:local"
 LOCAL_AGENT_IMAGE="ghcr.io/alatticeio/lattice:local"
+LATEST_K3S_IMAGE="ghcr.io/alatticeio/lattice-k3s:latest"
+LATEST_AGENT_IMAGE="ghcr.io/alatticeio/lattice:latest"
 
 # ── Argument parsing ─────────────────────────────────────────────────────────
 FORCE_BUILD=false
@@ -35,13 +37,15 @@ resolve_k3s_image() {
     echo "K3S: using env K3S_IMAGE=$K3S_IMAGE"
     return
   fi
-  if [[ "$FORCE_BUILD" == true ]] || ! docker image inspect "$LOCAL_K3S_IMAGE" > /dev/null 2>&1; then
+  if [[ "$FORCE_BUILD" == true ]]; then
     echo "K3S: building $LOCAL_K3S_IMAGE from source..."
     docker build -f "$REPO_ROOT/deploy/k3s/Dockerfile" -t "$LOCAL_K3S_IMAGE" "$REPO_ROOT"
+    K3S_IMAGE="$LOCAL_K3S_IMAGE"
   else
-    echo "K3S: reusing existing $LOCAL_K3S_IMAGE (use --force-build to rebuild)"
+    echo "K3S: pulling $LATEST_K3S_IMAGE..."
+    docker pull "$LATEST_K3S_IMAGE"
+    K3S_IMAGE="$LATEST_K3S_IMAGE"
   fi
-  K3S_IMAGE="$LOCAL_K3S_IMAGE"
 }
 
 resolve_agent_image() {
@@ -49,13 +53,15 @@ resolve_agent_image() {
     echo "Agent: using env AGENT_IMAGE=$AGENT_IMAGE"
     return
   fi
-  if [[ "$FORCE_BUILD" == true ]] || ! docker image inspect "$LOCAL_AGENT_IMAGE" > /dev/null 2>&1; then
+  if [[ "$FORCE_BUILD" == true ]]; then
     echo "Agent: building $LOCAL_AGENT_IMAGE from source..."
     (cd "$REPO_ROOT" && make docker-build SERVICE=lattice TAG=local)
+    AGENT_IMAGE="$LOCAL_AGENT_IMAGE"
   else
-    echo "Agent: reusing existing $LOCAL_AGENT_IMAGE (use --force-build to rebuild)"
+    echo "Agent: pulling $LATEST_AGENT_IMAGE..."
+    docker pull "$LATEST_AGENT_IMAGE"
+    AGENT_IMAGE="$LATEST_AGENT_IMAGE"
   fi
-  AGENT_IMAGE="$LOCAL_AGENT_IMAGE"
 }
 
 resolve_k3s_image

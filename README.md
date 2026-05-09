@@ -34,7 +34,6 @@ Deploy the entire control plane on your infrastructure — bare metal, Docker, o
 - **K8s-native + device-native** — The same mesh works for Kubernetes clusters (via CRD operator) and personal devices (via `lattice up`)
 - **Full data sovereignty** — Your keys, your traffic, your infrastructure stays on your infrastructure
 - **AI-native networking** — MCP server for AI assistant management, zero-trust enrollment for AI agent fleets (TTL identities + kernel-level isolation), and a natural-language intent engine — none of which exist in competing products
-- **Open core** — Apache 2.0 community edition with optional Pro features (AI intent engine, eBPF policy, SSO, compliance reporting)
 
 ### AI Feature Comparison
 
@@ -42,9 +41,9 @@ Deploy the entire control plane on your infrastructure — bare metal, Docker, o
 |---|---|---|---|---|
 | MCP Server (AI assistant manages network via natural language) | ✅ Built-in | ❌ | ❌ | ❌ |
 | AI Agent Zero-Trust Enrollment (TTL + network isolation presets) | ✅ API + Python SDK | ❌ | ❌ | ❌ |
-| Network Intent Engine (natural language → CRD plan → apply) | ✅ (Pro) | ❌ | ❌ | ❌ |
+| Network Intent Engine (natural language → CRD plan → apply) | ✅ | ❌ | ❌ | ❌ |
 | Write-op approval workflow (human-in-the-loop for AI changes) | ✅ Built-in | N/A | N/A | N/A |
-| Compliance-as-Conversation | 🔜 (Pro) | ❌ | ❌ | ❌ |
+| Compliance-as-Conversation | 🔜 | ❌ | ❌ | ❌ |
 
 ---
 
@@ -80,9 +79,9 @@ Lattice is a WireGuard orchestration platform for Kubernetes and beyond. It auto
 | **MCP Server — manage network via natural language (Claude Desktop, Cursor)** | ✅ |
 | **AI Agent Zero-Trust Enrollment — TTL identities, network isolation presets** | ✅ |
 | **Python Agent SDK — `async with LatticeAgent(...)`** | ✅ |
-| **Network Intent Engine (Pro) — natural language → CRD change plan → diff → apply** | ✅ |
-| **Compliance-as-Conversation (Pro)** | 🔜 |
-| **Time-Travel Network Debugging (Pro)** | 🔜 |
+| **Network Intent Engine — natural language → CRD change plan → diff → apply** | ✅ |
+| **Compliance-as-Conversation** | 🔜 |
+| **Time-Travel Network Debugging** | 🔜 |
 
 ---
 
@@ -462,8 +461,8 @@ Claude Desktop, Cursor, and other MCP-compatible AI assistants manage your netwo
 | `list_networks` | Read | List all networks and CIDRs |
 | `check_connectivity` | Read | Check if two peers can communicate |
 | `audit_workspace` | Read | Security audit of workspace policies |
-| `plan_network_change` | Read (Pro) | Translate natural language intent into a CRD change plan diff |
-| `apply_network_change` | Write (Pro) | Execute an approved change plan (requires admin approval) |
+| `plan_network_change` | Read | Translate natural language intent into a CRD change plan diff |
+| `apply_network_change` | Write | Execute an approved change plan (requires admin approval) |
 | `create_policy` | Write | Create an access control policy |
 | `delete_policy` | Write | Delete a policy |
 | `create_peer` | Write | Create a new peer node |

@@ -11,6 +11,7 @@ enum PacketType {
   OFFER = 3;    // 业务数据：Offer
   ANSWER = 4; //
   MESSAGE = 5;
+  RESTART_NOTIFY = 6; // Non-initiator restarted: please re-initiate if already connected
 }
 
 enum DialerType {

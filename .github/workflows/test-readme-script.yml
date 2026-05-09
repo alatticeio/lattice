@@ -4,19 +4,18 @@ name: Test README Scripts
 # The same script can be run locally: bash scripts/test-readme.sh
 
 on:
-  pull_request:
+  workflow_run:
+    workflows: ["CI/CD Pipeline"]
     branches: [master, main]
+    types: [completed]
   workflow_dispatch:
-
-env:
-  K3S_IMAGE: ghcr.io/alatticeio/lattice-k3s:${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || 'latest' }}
-  AGENT_IMAGE: ghcr.io/alatticeio/lattice:${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || 'latest' }}
 
 permissions:
   contents: read
 
 jobs:
   test-readme-scripts:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 40
 

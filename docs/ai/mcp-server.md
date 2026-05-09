@@ -2,115 +2,158 @@
 title: MCP Server + AI ChatOps
 ---
 
-# MCP Server + AI ChatOps
+# MCP Server — User Guide
 
-Lattice implements the **Model Context Protocol (MCP)** to expose network management capabilities to AI assistants. Any MCP client — Claude Desktop, Claude Code, Cursor — can manage your Lattice network directly.
+让 Claude Desktop / Claude Code 直接管理 Lattice 网络。
 
-## Architecture
+## What is MCP?
 
+Model Context Protocol (MCP) 是 Anthropic 发布的开放协议。Lattice MCP Server 实现了这个协议，让 AI 助手可以直接操作你的 WireGuard 网络——创建 Peer、管理策略、查看拓扑，全部通过自然语言。
+
+## Quick Start (5 分钟)
+
+### 1. 启动 Lattice 控制平面
+
+```bash
+latticed start
 ```
-Claude Desktop / Claude Code / Cursor / any MCP client
-          ↓  MCP protocol (JSON-RPC 2.0 over stdio / HTTP)
-    lattice-mcp
-          ↓  REST API
-    Lattice Management Server
+
+### 2. 登录并获取 workspace ID
+
+```bash
+# 登录
+curl -s http://localhost:8080/api/v1/users/login \
+  -X POST -H 'Content-Type: application/json' \
+  -d '{"username":"admin","password":"your-password"}'
 ```
 
-The `lattice-mcp` binary is a standalone process. It communicates with the Lattice Management Server via REST API and does not require direct K8s API access.
+Token 自动保存到 `~/.lattice/lattice.yaml`。
 
-## Tools
+### 3. 找到 workspace ID
 
-### Read Tools
+在 Dashboard UI → 选择 workspace，查看 URL 中的 ID。或：
+
+```bash
+curl -s http://localhost:8080/api/v1/workspaces/list \
+  -H "Authorization: Bearer $(grep auth-token ~/.lattice/lattice.yaml | awk '{print $2}')"
+```
+
+### 4. 配置 Claude Desktop
+
+编辑 `~/.config/claude/claude_desktop_config.json`（macOS）：
+
+```json
+{
+  "mcpServers": {
+    "lattice": {
+      "command": "lattice-mcp",
+      "args": ["--workspace", "YOUR_WORKSPACE_ID"]
+    }
+  }
+}
+```
+
+或 Claude Code (`~/.claude/claude.json`)：
+
+```json
+{
+  "mcpServers": {
+    "lattice": {
+      "command": "lattice-mcp",
+      "args": ["--workspace", "YOUR_WORKSPACE_ID"]
+    }
+  }
+}
+```
+
+### 5. 重启 Claude Desktop
+
+在对话里试试：
+
+> "列出我网络里所有的 Peer"
+
+Claude 会自动调用 MCP 工具返回结果。
+
+---
+
+## Available Tools (14)
+
+### Read
 
 | Tool | Description |
 |------|-------------|
-| `list_peers` | List all peers in a workspace with status |
-| `list_policies` | List all network policies |
-| `list_networks` | List all networks with CIDR and peer count |
-| `check_connectivity` | Simulate connectivity check between two peers |
-| `audit_workspace` | Run a security audit on a workspace |
+| `list_peers` | 列出所有 Peer，含在线状态、IP、标签 |
+| `list_policies` | 列出所有访问控制策略 |
+| `list_networks` | 列出所有网络及 CIDR |
+| `check_connectivity` | 检查两个 Peer 间是否有策略允许通信 |
 
-### Write Tools
-
-Write tools require approval via `WorkflowService` by default:
+### Write (needs approval)
 
 | Tool | Description |
 |------|-------------|
-| `create_peer` | Create a new LatticePeer + enrollment token |
-| `delete_peer` | Delete a peer with NATS disconnect notification |
-| `create_policy` | Create a new LatticePolicy |
-| `update_policy` | Modify an existing policy |
-| `delete_policy` | Delete a policy |
+| `create_peer` | 创建新 Peer 节点 |
+| `delete_peer` | 删除 Peer 节点 |
+| `create_policy` | 创建访问控制策略 |
+| `delete_policy` | 删除策略 |
 
-## Write Tool Security Model
+### Pro (needs `ai.enabled=true` + LLM API Key)
 
-Write operations follow a configurable approval flow:
+| Tool | Description |
+|------|-------------|
+| `plan_network_change` | 自然语言意图 → 变更计划预览 |
+| `apply_network_change` | 执行变更计划 |
+| `list_snapshots` | 网络状态历史快照 |
+| `get_snapshot` | 获取指定快照完整状态 |
+| `diff_snapshots` | 对比两个快照的变更 |
+| `check_connectivity_at` | 在历史快照状态检查连通性 |
 
+---
+
+## Local Dev Verification
+
+```bash
+# 1. Start latticed
+latticed start
+
+# 2. Build MCP binary
+make build-mcp
+
+# 3. Login
+TOKEN=$(curl -s http://localhost:8080/api/v1/users/login \
+  -X POST -H 'Content-Type: application/json' \
+  -d '{"username":"admin","password":"123456"}' \
+  | jq -r '.data.token')
+
+# 4. Update config
+sed -i '' "s|auth-token: .*|auth-token: $TOKEN|" ~/.lattice/lattice.yaml
+
+# 5. Test via stdio (Ctrl+D to exit)
+echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}
+{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}' | ./bin/lattice-mcp --workspace YOUR_WORKSPACE_ID
 ```
-MCP calls write tool
-    |
-    +- auto_approve=true  → execute immediately
-    +- auto_approve=false → WorkflowService.Submit()
-           → returns workflow_id, waits for human approval
-           → after approval: WorkflowService.Approve() → K8s Apply
-```
 
-Configure per-tool auto-approve in `lattice.yaml`:
+Expected: returns 14 tools.
+
+---
+
+## AI Chat (Pro)
 
 ```yaml
+# ~/.lattice/lattice.yaml
 ai:
   enabled: true
-  api-key: "sk-..."
-  provider: anthropic   # anthropic | openai-compat
-  workflow:
-    auto_approve:
-      create_peer: false
-      delete_peer: false
-      create_policy: false
+  api-key: "sk-..."         # Anthropic / DeepSeek / OpenAI
+  provider: anthropic
+  max-tool-calls: 5
 ```
 
-## Setup
+---
 
-### Claude Desktop
+## Troubleshooting
 
-Add to your `claude_desktop_config.json`:
-
-```json
-{
-  "mcpServers": {
-    "lattice": {
-      "command": "lattice-mcp",
-      "args": ["--config", "/etc/lattice/lattice.yaml"]
-    }
-  }
-}
-```
-
-### Claude Code
-
-Add to your project's `.claude/mcp.json`:
-
-```json
-{
-  "mcpServers": {
-    "lattice": {
-      "command": "lattice-mcp",
-      "args": ["--config", "/etc/lattice/lattice.yaml"]
-    }
-  }
-}
-```
-
-### Transport Modes
-
-| Mode | Description | Use Case |
-|------|-------------|----------|
-| stdio | Subprocess communication via stdin/stdout | Claude Desktop / Code (default) |
-| SSE | HTTP-based transport for remote access | Team-shared MCP server |
-
-## Design Principles
-
-- **MCP is the unified entry point** — Claude Desktop, Claude Code, Cursor, and custom agents all connect through the same protocol
-- **CRD as Source of Truth** — all state reads and writes go through K8s API
-- **Human-in-the-loop** — write operations go through WorkflowService approval by default, with `auto_approve` configurable per tool
-- **Tool logic shared with built-in AI** — the same backend tools power both the dashboard Chat UI and the MCP server
+| Symptom | Fix |
+|---------|-----|
+| `tools/list` returns 404 | `latticed` not running or `server-url` wrong in config |
+| "workspace not found" | `--workspace` arg is not a valid workspace ID |
+| Claude Desktop can't find `lattice-mcp` | Use absolute path in config, or add to PATH |
+| `ai.enabled=true` but tools still 500 | Check `api-key` is valid for your provider |

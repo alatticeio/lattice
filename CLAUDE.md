@@ -66,6 +66,7 @@ The Makefile sets `BPF2GO_CC=/opt/homebrew/opt/llvm/bin/clang` on macOS to pick 
 
 - **Branches**: `master` (main), `dev` (development)
 - **Commits**: Conventional commits with scope: `feat(scope):`, `fix(scope):`, `refactor:`, `ci:`
+- **Commit author**: Always use the identity from `git config user.name` / `git config user.email` — never add `Co-Authored-By` trailers
 - **PR triggers**: `run-e2e` label, `run-pro` label, `[run-pro]` in commit message, `ok-release` label
 
 ## Code Patterns
