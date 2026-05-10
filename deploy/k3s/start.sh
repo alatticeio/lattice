@@ -21,6 +21,7 @@ mkdir -p /var/log
 k3s server \
     --disable traefik \
     --disable servicelb \
+    --kubelet-arg=cgroups-per-qos=false \
     > /var/log/k3s.log 2>&1 &
 K3S_PID=$!
 
@@ -49,7 +50,7 @@ done
 # Step 3: Install CRDs
 # ═════════════════════════════════════════════════════════════════════════════
 log "Installing Lattice CRDs..."
-kubectl apply -f /var/lib/rancher/k3s/server/manifests/crds/ 2>&1 || {
+kubectl apply -f /var/lib/lattice/crds/ 2>&1 || {
     log "WARNING: kubectl apply CRDs failed, k3s may still be processing them"
 }
 

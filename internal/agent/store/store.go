@@ -34,6 +34,7 @@ type Store interface {
 	SystemConfig() SystemConfigRepository
 	IntentPlans() IntentPlanRepository
 	NetworkSnapshots() NetworkSnapshotRepository
+	Seed() SeedRepository
 
 	Close() error
 }
@@ -217,4 +218,9 @@ type CustomMetricRepository interface {
 	Update(ctx context.Context, m *models.CustomMetric) error
 	Delete(ctx context.Context, id string) error
 	ListByWorkspace(ctx context.Context, wsID string) ([]*models.CustomMetric, error)
+}
+
+// SeedRepository handles demo seed data lifecycle.
+type SeedRepository interface {
+	Clear(ctx context.Context, workspaceID string) error
 }

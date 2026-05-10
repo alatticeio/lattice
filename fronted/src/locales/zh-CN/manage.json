@@ -422,6 +422,25 @@
       "statusOnline": "在线中",
       "editLabels": "编辑标签",
       "save": "保存更改"
+    },
+    "enroll": {
+      "bannerTitle": "连接你的第一台真实节点",
+      "bannerDesc": "当前网络仅包含演示数据。运行下方命令，30 秒内你的机器就会出现在节点列表中。",
+      "namePlaceholder": "节点名称（如 my-laptop）",
+      "generateBtn": "生成安装命令",
+      "generating": "生成中...",
+      "commandTitle": "在目标机器上运行以下命令：",
+      "copied": "已复制",
+      "copyBtn": "复制",
+      "dismiss": "暂时隐藏",
+      "tokenExpiry": "Token 有效期 24 小时",
+      "errorNoWorkspace": "请先选择工作空间",
+      "errorGenerate": "生成失败，请重试"
+    },
+    "addNodeBtn": "添加节点",
+    "addNodeDialog": {
+      "title": "添加节点",
+      "desc": "输入节点名称，生成安装命令，在目标机器上运行即可完成接入。可重复生成以接入多台机器。"
     }
   },
   "networkPeering": {

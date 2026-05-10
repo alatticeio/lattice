@@ -9,7 +9,7 @@ import {
   Server, Wifi, WifiOff, Clock, Network,
   KeyRound, ChevronRight, ChevronLeft, Trash2, Pencil,
   Globe, Copy, Check, Layers,
-  Ban, CircleCheck,
+  Ban, CircleCheck, Plus, Terminal,
 } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -29,6 +29,10 @@ import {
 } from '@/components/ui/dropdown-menu'
 import AppAlertDialog from '@/components/AlertDialog.vue'
 import { usePeerPageStore } from '@/stores/peerPage'
+import NodeEnrollBanner from '@/components/NodeEnrollBanner.vue'
+import { create as createToken } from '@/api/token'
+import { useWorkspaceStore } from '@/stores/workspace'
+import { toast } from 'vue-sonner'
 
 definePage({
   meta: { titleKey: 'manage.nodes.title', descKey: 'manage.nodes.desc' },
@@ -36,6 +40,17 @@ definePage({
 
 const { t } = useI18n()
 const store = usePeerPageStore()
+const workspaceStore = useWorkspaceStore()
+// Show enrollment banner when every node in the list is a seed node (no real nodes yet).
+const showEnrollBanner = computed(() => {
+  if (store.loading) return false
+  if (store.rows.length === 0) return true
+  return store.rows.every((n: any) => {
+    const labels = n.labels
+    if (!labels || typeof labels !== 'object' || Array.isArray(labels)) return false
+    return labels['lattice.io/is-seed'] === 'true'
+  })
+})
 onMounted(() => store.actions.refresh())
 
 // Auto-refresh every 30 s so online/offline status stays current.
@@ -158,6 +173,53 @@ function goToPage(p: number) {
   if (p < 1 || p > totalPages.value) return
   store.params.page = p
   store.actions.refresh()
+}
+
+// ── Add Node dialog ────────────────────────────────────────────────
+const addNodeOpen    = ref(false)
+const addNodeName    = ref('my-laptop')
+const addNodeLoading = ref(false)
+const addNodeCommand = ref('')
+const addNodeCopied  = ref(false)
+
+function openAddNode() {
+  addNodeName.value    = 'my-laptop'
+  addNodeCommand.value = ''
+  addNodeCopied.value  = false
+  addNodeOpen.value    = true
+}
+
+async function generateAddNodeCommand() {
+  const ws = workspaceStore.currentWorkspace
+  if (!ws) { toast.error(t('manage.nodes.enroll.errorNoWorkspace')); return }
+  const name = addNodeName.value.trim()
+  if (!name) return
+  addNodeLoading.value = true
+  addNodeCommand.value = ''
+  try {
+    const res = await createToken({}) as any
+    const token = res?.data?.token
+    if (!token) { toast.error(t('manage.nodes.enroll.errorGenerate')); return }
+    const origin = window.location.origin
+    addNodeCommand.value = [
+      `curl -sSL ${origin}/install.sh |`,
+      `  sh -s -- \\`,
+      `  --server ${origin} \\`,
+      `  --token  ${token} \\`,
+      `  --name   ${name}`,
+    ].join('\n')
+  } catch {
+    toast.error(t('manage.nodes.enroll.errorGenerate'))
+  } finally {
+    addNodeLoading.value = false
+  }
+}
+
+async function copyAddNodeCommand() {
+  if (!addNodeCommand.value) return
+  await navigator.clipboard.writeText(addNodeCommand.value)
+  addNodeCopied.value = true
+  setTimeout(() => { addNodeCopied.value = false }, 2000)
 }
 
 // ── Delete / Disable confirm ───────────────────────────────────────
@@ -343,6 +405,9 @@ const table = useVueTable({
 <template>
   <div class="flex flex-col gap-5 p-6 animate-in fade-in duration-300">
 
+    <!-- Guided enrollment banner (shown when all nodes are seed-only) -->
+    <NodeEnrollBanner v-if="showEnrollBanner" />
+
     <!-- ── Stat cards ─────────────────────────────────────────────── -->
     <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
 
@@ -449,6 +514,10 @@ const table = useVueTable({
           <RefreshCw class="size-3.5" :class="store.loading ? 'animate-spin' : ''" />
           {{ t('common.action.refresh') }}
         </Button>
+        <Button size="sm" class="gap-1.5" @click="openAddNode">
+          <Plus class="size-3.5" />
+          {{ t('manage.nodes.addNodeBtn') }}
+        </Button>
       </div>
     </div>
 
@@ -534,6 +603,68 @@ const table = useVueTable({
     />
 
   </div>
+
+  <!-- ── Add Node Dialog ────────────────────────────────────────── -->
+  <Dialog v-model:open="addNodeOpen">
+    <DialogContent class="sm:max-w-md p-0 gap-0 overflow-hidden">
+      <DialogHeader class="px-6 pt-6 pb-4 border-b gap-0">
+        <div class="flex items-center gap-2.5">
+          <div class="size-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+            <Terminal class="size-4 text-primary" />
+          </div>
+          <div>
+            <DialogTitle class="text-sm font-semibold leading-none">{{ t('manage.nodes.addNodeDialog.title') }}</DialogTitle>
+            <p class="text-xs text-muted-foreground mt-1 leading-relaxed">{{ t('manage.nodes.addNodeDialog.desc') }}</p>
+          </div>
+        </div>
+      </DialogHeader>
+
+      <div class="px-6 py-5 space-y-4">
+        <!-- Name input + generate -->
+        <div class="flex gap-2">
+          <Input
+            v-model="addNodeName"
+            :placeholder="t('manage.nodes.enroll.namePlaceholder')"
+            class="h-9 text-xs"
+            @keydown.enter="generateAddNodeCommand"
+          />
+          <Button
+            size="sm"
+            class="shrink-0"
+            :disabled="addNodeLoading || !addNodeName.trim()"
+            @click="generateAddNodeCommand"
+          >
+            {{ addNodeLoading ? t('manage.nodes.enroll.generating') : t('manage.nodes.enroll.generateBtn') }}
+          </Button>
+        </div>
+
+        <!-- Generated command -->
+        <div v-if="addNodeCommand" class="rounded-lg bg-neutral-950 dark:bg-black border border-neutral-800 p-3 animate-in fade-in duration-200">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-[11px] text-neutral-400 font-medium">{{ t('manage.nodes.enroll.commandTitle') }}</span>
+            <div class="flex items-center gap-2">
+              <span class="text-[11px] text-neutral-500">{{ t('manage.nodes.enroll.tokenExpiry') }}</span>
+              <Button
+                size="sm"
+                variant="outline"
+                class="h-6 px-2 text-[11px] border-neutral-700 text-neutral-300 hover:bg-neutral-800 hover:text-white bg-transparent"
+                @click="copyAddNodeCommand"
+              >
+                <Check v-if="addNodeCopied" class="size-3 mr-1 text-emerald-400" />
+                <Copy v-else class="size-3 mr-1" />
+                {{ addNodeCopied ? t('manage.nodes.enroll.copied') : t('manage.nodes.enroll.copyBtn') }}
+              </Button>
+            </div>
+          </div>
+          <pre class="font-mono text-xs text-neutral-200 whitespace-pre-wrap break-all leading-relaxed">{{ addNodeCommand }}</pre>
+        </div>
+      </div>
+
+      <DialogFooter class="px-6 py-4 border-t bg-muted/30">
+        <Button variant="ghost" size="sm" @click="addNodeOpen = false">{{ t('common.action.close') }}</Button>
+      </DialogFooter>
+    </DialogContent>
+  </Dialog>
 
   <!-- ── Node Detail / Edit Dialog ──────────────────────────────── -->
   <Dialog :open="store.isDrawerOpen" @update:open="v => { if (!v) store.isDrawerOpen = false }">

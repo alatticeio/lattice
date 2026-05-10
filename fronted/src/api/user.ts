@@ -67,3 +67,24 @@ export const getMe = (data?: any) => request.get('/users/getme', data)
 export const updateMe = (data?: any) => request.put('/profile/updateProfile', data)
 export const uploadAvatar = (formData: FormData) =>
   request.post<{ data: { url: string } }>('/profile/avatar', formData)
+
+// ── Agent Enrollment ──────────────────────────────────────────────────────────
+
+export interface AgentEnrollRequest {
+  agentName: string
+  agentType: string
+  workspaceId: string
+  ttlSeconds?: number
+}
+
+export interface AgentEnrollResponse {
+  peerName: string
+  enrollmentToken: string
+  expiresAt?: string
+}
+
+export const enrollAgent = (data: AgentEnrollRequest) =>
+  request.post('/agent-enroll', data) as Promise<{ code: number; msg?: string; data: AgentEnrollResponse }>
+
+export const revokeAgent = (peerName: string, workspaceId: string) =>
+  request.delete(`/agent-enroll/${peerName}`, { params: { workspaceId } })

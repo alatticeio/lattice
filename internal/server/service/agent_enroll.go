@@ -96,7 +96,54 @@ func (s *agentEnrollService) Enroll(ctx context.Context, req AgentEnrollRequest)
 		return nil, fmt.Errorf("agent enrollment requires Kubernetes — no K8s client available")
 	}
 	peerName := fmt.Sprintf("agent-%s", req.AgentName)
+	tokenName := fmt.Sprintf("token-%s", peerName)
 
+	// Check if the peer already exists; if so, try to reuse or refresh the token.
+	var existingPeer v1alpha1.LatticePeer
+	peerExists := true
+	if err := s.client.Get(ctx, client.ObjectKey{Namespace: req.Namespace, Name: peerName}, &existingPeer); err != nil {
+		peerExists = false
+	}
+
+	if peerExists {
+		// Peer exists — look for an existing token.
+		var existingToken v1alpha1.LatticeEnrollmentToken
+		if err := s.client.Get(ctx, client.ObjectKey{Namespace: req.Namespace, Name: tokenName}, &existingToken); err == nil {
+			expired := existingToken.Status.IsExpired || time.Now().After(existingToken.Spec.Expiry.Time)
+			exhausted := existingToken.Spec.UsageLimit > 0 &&
+				existingToken.Status.UsedCount >= existingToken.Spec.UsageLimit
+			if !expired && !exhausted {
+				// Token is still valid — reuse it.
+				s.logger.Info("reusing existing enrollment token", "tokenName", tokenName)
+				return &AgentEnrollResponse{
+					PeerName:        peerName,
+					EnrollmentToken: existingToken.Spec.Token,
+					ExpiresAt:       existingToken.Spec.Expiry.Time,
+				}, nil
+			}
+			// Token expired or exhausted — delete it and issue a new one.
+			s.logger.Info("enrollment token expired or exhausted, issuing new token", "tokenName", tokenName,
+				"expired", expired, "exhausted", exhausted)
+			_ = s.client.Delete(ctx, &existingToken)
+		}
+		// Issue a new token for the existing peer.
+		token, _, err := s.createEnrollmentToken(ctx, req.Namespace, peerName, req.TTL)
+		if err != nil {
+			return nil, fmt.Errorf("create enrollment token: %w", err)
+		}
+		expiresAt := time.Now().Add(24 * time.Hour)
+		if req.TTL > 0 {
+			expiresAt = time.Now().Add(req.TTL)
+		}
+		s.logger.Info("new enrollment token issued for existing peer", "peerName", peerName)
+		return &AgentEnrollResponse{
+			PeerName:        peerName,
+			EnrollmentToken: token,
+			ExpiresAt:       expiresAt,
+		}, nil
+	}
+
+	// Peer does not exist — create peer + token from scratch.
 	annotations := map[string]string{}
 	var expiresAt time.Time
 	if req.TTL > 0 {
@@ -128,9 +175,12 @@ func (s *agentEnrollService) Enroll(ctx context.Context, req AgentEnrollRequest)
 		s.logger.Warn("preset application failed (peer still created)", "err", err)
 	}
 
-	token, tokenName, err := s.createEnrollmentToken(ctx, req.Namespace, peerName, req.TTL)
+	token, _, err := s.createEnrollmentToken(ctx, req.Namespace, peerName, req.TTL)
 	if err != nil {
 		return nil, fmt.Errorf("create enrollment token: %w", err)
+	}
+	if expiresAt.IsZero() {
+		expiresAt = time.Now().Add(24 * time.Hour)
 	}
 	s.logger.Info("enrollment token created", "tokenName", tokenName)
 

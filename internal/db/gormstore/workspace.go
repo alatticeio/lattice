@@ -109,7 +109,12 @@ func (r *workspaceMemberRepo) ListByUser(ctx context.Context, userID string, pag
 	if err != nil {
 		return nil, 0, err
 	}
-	items, err := r.Find(ctx, repository.WithUserID(userID), repository.Paginate(page, pageSize))
+	var items []*models.WorkspaceMember
+	q := r.DB().WithContext(ctx).Where("user_id = ?", userID).Preload("Workspace")
+	if pageSize > 0 {
+		q = q.Offset((page - 1) * pageSize).Limit(pageSize)
+	}
+	err = q.Find(&items).Error
 	return items, total, err
 }
 

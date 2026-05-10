@@ -25,6 +25,7 @@ import (
 	"github.com/alatticeio/lattice/internal/server/models"
 
 	"github.com/glebarez/sqlite"
+	. "github.com/onsi/gomega"
 	"gorm.io/gorm"
 )
 
@@ -135,4 +136,22 @@ func TestSoftRemove_Idempotent(t *testing.T) {
 	if got.Status != models.MemberStatusRemoved {
 		t.Errorf("expected status=%q, got %q", models.MemberStatusRemoved, got.Status)
 	}
+}
+
+func TestWorkspace_SeedInjectedField(t *testing.T) {
+	g := NewWithT(t)
+	st := setupTestStore(t)
+	ctx := context.Background()
+
+	ws := &models.Workspace{
+		Slug:        "test-seed-field",
+		DisplayName: "Test Seed Field",
+	}
+	g.Expect(st.Workspaces().Create(ctx, ws)).To(Succeed())
+	ws.SeedInjected = true
+	g.Expect(st.Workspaces().Update(ctx, ws)).To(Succeed())
+
+	got, err := st.Workspaces().GetByID(ctx, ws.ID)
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(got.SeedInjected).To(BeTrue())
 }

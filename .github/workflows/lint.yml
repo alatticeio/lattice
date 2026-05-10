@@ -14,5 +14,8 @@ jobs:
       - name: Sync Dependencies
         run: go mod download
 
+      - name: Create dist placeholder for embed
+        run: mkdir -p internal/web/dist && touch internal/web/dist/.gitkeep
+
       - name: Run lint
         run: make lint

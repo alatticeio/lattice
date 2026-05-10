@@ -16,6 +16,7 @@ func (s *Server) workspaceRouter() {
 		workspaceGroup.GET("/list", s.handleListWs())
 		workspaceGroup.PUT("/:id", s.middleware.AdminOnly(), s.handleUpdateWs())
 		workspaceGroup.DELETE("/:id", s.middleware.AdminOnly(), s.handleDeleteWs())
+		workspaceGroup.DELETE("/:id/seed", s.middleware.AdminOnly(), s.handleClearSeed())
 	}
 }
 
@@ -92,5 +93,20 @@ func (s *Server) handleDeleteWs() gin.HandlerFunc {
 		}
 
 		resp.OK(c, "ok")
+	}
+}
+
+func (s *Server) handleClearSeed() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		id := c.Param("id")
+		if id == "" {
+			resp.BadRequest(c, "id is required")
+			return
+		}
+		if err := s.workspaceController.ClearSeedData(c.Request.Context(), id); err != nil {
+			resp.Error(c, err.Error())
+			return
+		}
+		resp.OK(c, "seed data cleared")
 	}
 }

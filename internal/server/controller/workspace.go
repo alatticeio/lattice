@@ -8,6 +8,7 @@ import (
 	"github.com/alatticeio/lattice/internal/server/dto"
 	"github.com/alatticeio/lattice/internal/server/models"
 	"github.com/alatticeio/lattice/internal/server/resource"
+	"github.com/alatticeio/lattice/internal/server/seed"
 	"github.com/alatticeio/lattice/internal/server/service"
 	"github.com/alatticeio/lattice/internal/server/vo"
 )
@@ -17,6 +18,7 @@ type WorkspaceController interface {
 	UpdateWorkspace(ctx context.Context, id string, workspaceDto *dto.WorkspaceDto) (*vo.WorkspaceVo, error)
 	DeleteWorkspace(ctx context.Context, id string) error
 	ListWorkspaces(ctx context.Context, request *dto.PageRequest) (*dto.PageResult[vo.WorkspaceVo], error)
+	ClearSeedData(ctx context.Context, workspaceID string) error
 }
 
 type WorkspaceMemberController interface {
@@ -28,10 +30,15 @@ type WorkspaceMemberController interface {
 
 type workspaceController struct {
 	workspaceService service.WorkspaceService
+	seedInjector     *seed.Injector
 }
 
 func (c *workspaceController) DeleteWorkspace(ctx context.Context, id string) error {
 	return c.workspaceService.DeleteWorkspace(ctx, id)
+}
+
+func (c *workspaceController) ClearSeedData(ctx context.Context, workspaceID string) error {
+	return c.seedInjector.Clear(ctx, workspaceID)
 }
 
 func (c *workspaceController) ListWorkspaces(ctx context.Context, request *dto.PageRequest) (*dto.PageResult[vo.WorkspaceVo], error) {
@@ -114,5 +121,6 @@ func NewWorkspaceMemberController(st store.Store) WorkspaceMemberController {
 func NewWorkspaceController(client *resource.Client, st store.Store) WorkspaceController {
 	return &workspaceController{
 		workspaceService: service.NewWorkspaceService(client, st),
+		seedInjector:     seed.NewInjector(st, client),
 	}
 }

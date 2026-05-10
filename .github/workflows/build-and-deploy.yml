@@ -58,7 +58,7 @@ jobs:
         with:
           version: 10.32.1
 
-      # 只构建并推送 latticed（all-in-one）和 lattice（边缘 agent）
+      # 构建并推送 latticed（all-in-one）和 lattice（边缘 agent），社区版 + PRO 版
       - name: Build and Push Images
         run: |
           OWNER_LOWER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
@@ -71,22 +71,29 @@ jobs:
             TAG="pr-${{ github.event.pull_request.number }}"
           fi
 
-          make docker-build SERVICE=latticed TAG="$TAG" REGISTRY="$REGISTRY" BUILD_CACHE_ARGS="$CACHE"
-          make docker-build SERVICE=lattice  TAG="$TAG" REGISTRY="$REGISTRY" BUILD_CACHE_ARGS="$CACHE"
-          make docker-push  SERVICE=latticed TAG="$TAG" REGISTRY="$REGISTRY"
-          make docker-push  SERVICE=lattice  TAG="$TAG" REGISTRY="$REGISTRY"
+          # Community edition
+          make docker-build SERVICE=latticed TAG="$TAG"         REGISTRY="$REGISTRY" BUILD_CACHE_ARGS="$CACHE"
+          make docker-build SERVICE=lattice  TAG="$TAG"         REGISTRY="$REGISTRY" BUILD_CACHE_ARGS="$CACHE"
+          make docker-push  SERVICE=latticed TAG="$TAG"         REGISTRY="$REGISTRY"
+          make docker-push  SERVICE=lattice  TAG="$TAG"         REGISTRY="$REGISTRY"
 
-  # 2. 在 Self-hosted 服务器上部署 all-in-one（仅 PR，不在 merge 后重复部署）
+          # PRO edition
+          make docker-build SERVICE=latticed TAG="pro-${TAG}"   REGISTRY="$REGISTRY" EDITION=pro BUILD_CACHE_ARGS="--cache-from type=gha"
+          make docker-build SERVICE=lattice  TAG="pro-${TAG}"   REGISTRY="$REGISTRY" EDITION=pro BUILD_CACHE_ARGS="--cache-from type=gha"
+          make docker-push  SERVICE=latticed TAG="pro-${TAG}"   REGISTRY="$REGISTRY"
+          make docker-push  SERVICE=lattice  TAG="pro-${TAG}"   REGISTRY="$REGISTRY"
+
+  # 2. 在 Self-hosted 服务器上部署 all-in-one（PR 预览 + merge 到 master 后正式部署）
   deploy:
     needs: build-and-push
     if: |
-      github.event_name == 'pull_request' &&
+      github.event_name == 'push' ||
       (github.event.pull_request.author_association == 'MEMBER' ||
        github.event.pull_request.author_association == 'OWNER')
     runs-on: self-hosted
 
     steps:
-      - name: Checkout PR Code
+      - name: Checkout Code
         uses: actions/checkout@v4
 
       - name: Deploy to K3s/K8s
@@ -94,9 +101,15 @@ jobs:
           export PATH=$PATH:/usr/local/go/bin:$(go env GOPATH)/bin
 
           OWNER_LOWER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
-          TAG="pr-${{ github.event.pull_request.number }}"
 
-          echo "Deploying pr-${{ github.event.pull_request.number }}"
+          if [ "${{ github.event_name }}" == "push" ]; then
+            TAG="latest"
+            echo "Deploying master (latest)"
+          else
+            TAG="pr-${{ github.event.pull_request.number }}"
+            echo "Deploying pr-${{ github.event.pull_request.number }}"
+          fi
+
           make undeploy-aio
           make deploy-aio IMG="ghcr.io/${OWNER_LOWER}/latticed:${TAG}"
 

@@ -32,6 +32,9 @@ type AuditLog struct {
 
 	// Detail snapshot (JSON, optional, only records before/after for critical operations)
 	Detail string `gorm:"type:text" json:"detail,omitempty"`
+
+	// IsSeed marks records injected by the seed data injector for new workspaces.
+	IsSeed bool `gorm:"default:false;index" json:"isSeed,omitempty"`
 }
 
 func (AuditLog) TableName() string { return "t_audit_log" }

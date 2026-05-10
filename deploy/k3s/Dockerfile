@@ -23,9 +23,10 @@ WORKDIR /workspace
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
+# Ensure embedded dist dir exists (frontend is built separately and embedded via go:embed)
+RUN mkdir -p internal/web/dist && touch internal/web/dist/.gitkeep
 RUN CGO_ENABLED=0 GOOS=linux \
-    ${BUILD_TAGS:+-tags ${BUILD_TAGS}} \
-    go build -o /latticed ./cmd/latticed/
+    go build ${BUILD_TAGS:+-tags ${BUILD_TAGS}} -o /latticed ./cmd/latticed/
 
 # ── Stage 2: k3s with embedded latticed ─────────────────────────────────────
 FROM rancher/k3s:latest
@@ -33,8 +34,8 @@ FROM rancher/k3s:latest
 # Copy latticed binary
 COPY --from=builder /latticed /usr/bin/latticed
 
-# Copy CRDs to k3s auto-deploy directory (applied automatically at startup)
-COPY config/crd/bases/ /var/lib/rancher/k3s/server/manifests/crds/
+# Copy CRDs to a standalone directory (applied manually by start.sh after k3s is ready)
+COPY config/crd/bases/ /var/lib/lattice/crds/
 
 # Copy entrypoint
 COPY deploy/k3s/start.sh /start.sh

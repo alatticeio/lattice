@@ -257,8 +257,15 @@ test-e2e-cleanup: ## 清理 E2E 残留的测试 Namespace (前缀 wf-test-)
 	$(E2E_KUBECTL) get ns -o name | grep "namespace/wf-test-" | xargs -r $(E2E_KUBECTL) delete --ignore-not-found=true
 
 
+## check-install-script: Verify embedded install.sh mirror is in sync with canonical scripts/install.sh
+.PHONY: check-install-script
+check-install-script:
+	@diff -q scripts/install.sh internal/server/server/scripts/install.sh > /dev/null 2>&1 || \
+		(echo "ERROR: internal/server/server/scripts/install.sh is out of sync with scripts/install.sh. Run: cp scripts/install.sh internal/server/server/scripts/install.sh" && exit 1)
+	@echo "install.sh mirror is in sync"
+
 .PHONY: lint
-lint: golangci-lint ## Run golangci-lint linter
+lint: golangci-lint check-install-script ## Run golangci-lint linter
 	$(GOLANGCI_LINT) run
 
 .PHONY: lint-fix

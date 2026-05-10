@@ -9,6 +9,7 @@ import (
 	"github.com/alatticeio/lattice/internal/server/dto"
 	"github.com/alatticeio/lattice/internal/server/models"
 	client_r "github.com/alatticeio/lattice/internal/server/resource"
+	"github.com/alatticeio/lattice/internal/server/seed"
 	"github.com/alatticeio/lattice/internal/server/vo"
 	"github.com/alatticeio/lattice/pkg/utils"
 	"time"
@@ -324,6 +325,11 @@ func (w *workspaceService) AddWorkspace(ctx context.Context, dto *dto.WorkspaceD
 	})
 	if err != nil {
 		return nil, err
+	}
+
+	// Inject seed data AFTER transaction commits (non-fatal).
+	if seedErr := seed.NewInjector(w.store, w.client).Inject(ctx, res.ID, seed.DefaultOptions()); seedErr != nil {
+		w.log.Warn("failed to inject seed data", "workspaceId", res.ID, "err", seedErr)
 	}
 	return &res, nil
 }

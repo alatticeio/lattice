@@ -1,0 +1,50 @@
+# Demo environment for demo.lattice.io
+# Runs latticed in read-only API mode with pre-seeded data.
+# Copyright 2024 The Lattice Authors. Apache 2.0 License.
+version: "3.9"
+
+services:
+  latticed:
+    image: ghcr.io/alatticeio/latticed:latest
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      LATTICE_MODE: demo
+      LATTICE_SEED_DATA: "true"
+      LATTICE_DEMO_RESET_CRON: "0 0 * * *"
+    volumes:
+      - lattice-data:/data
+
+  demo-agent-1:
+    image: ghcr.io/alatticeio/lattice-agent:latest
+    restart: unless-stopped
+    depends_on: [latticed]
+    environment:
+      LATTICE_SERVER: "http://latticed:8080"
+      LATTICE_TOKEN: "${DEMO_TOKEN}"
+      LATTICE_NODE_NAME: "node-beijing-01"
+    cap_add: [NET_ADMIN]
+
+  demo-agent-2:
+    image: ghcr.io/alatticeio/lattice-agent:latest
+    restart: unless-stopped
+    depends_on: [latticed]
+    environment:
+      LATTICE_SERVER: "http://latticed:8080"
+      LATTICE_TOKEN: "${DEMO_TOKEN}"
+      LATTICE_NODE_NAME: "node-shanghai-01"
+    cap_add: [NET_ADMIN]
+
+  demo-agent-3:
+    image: ghcr.io/alatticeio/lattice-agent:latest
+    restart: unless-stopped
+    depends_on: [latticed]
+    environment:
+      LATTICE_SERVER: "http://latticed:8080"
+      LATTICE_TOKEN: "${DEMO_TOKEN}"
+      LATTICE_NODE_NAME: "node-guangzhou-01"
+    cap_add: [NET_ADMIN]
+
+volumes:
+  lattice-data:

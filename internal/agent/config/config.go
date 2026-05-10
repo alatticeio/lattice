@@ -254,6 +254,7 @@ type Config struct {
 	Debug         bool   `mapstructure:"debug"`
 	Auth          string `mapstructure:"auth"`
 	AppId         string `mapstructure:"app-id"`
+	Name          string `mapstructure:"name"`           // display name shown in the UI (optional)
 	Token         string `mapstructure:"token"`
 	InterfaceName string `mapstructure:"interface-name"` // WireGuard interface name
 
@@ -377,6 +378,7 @@ type AIConfig struct {
 type AppConfig struct {
 	Name       string        `mapstructure:"name"`
 	InitAdmins []AdminConfig `mapstructure:"initAdmins"` // list of admins initialized on first startup
+	Playground bool          `mapstructure:"playground"` // enables playground mode: all Pro features unlocked, no license required
 }
 
 type AdminConfig struct {

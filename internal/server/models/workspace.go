@@ -65,6 +65,9 @@ type Workspace struct {
 	// Operator
 	CreatedBy string `gorm:"type:varchar(100)" json:"createdBy,omitempty"`
 	UpdatedBy string `gorm:"type:varchar(100)" json:"updatedBy,omitempty"`
+
+	// Playground seed data
+	SeedInjected bool `gorm:"default:false" json:"seedInjected"`
 }
 
 func (Workspace) TableName() string {

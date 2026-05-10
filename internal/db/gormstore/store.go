@@ -30,6 +30,7 @@ type GormStore struct {
 	systemConfig         store.SystemConfigRepository
 	intentPlans          store.IntentPlanRepository
 	networkSnapshots     store.NetworkSnapshotRepository
+	seed                 store.SeedRepository
 }
 
 // New creates the gormStore: first runs AutoMigrate, then initializes each sub-Repository.
@@ -56,6 +57,7 @@ func newStore(db *gorm.DB) *GormStore {
 		systemConfig:         newSystemConfigRepo(db),
 		intentPlans:          newIntentPlanRepo(db),
 		networkSnapshots:     newNetworkSnapshotRepo(db),
+		seed:                 newSeedRepo(db),
 	}
 }
 
@@ -75,6 +77,7 @@ func (s *GormStore) CustomMetrics() store.CustomMetricRepository       { return 
 func (s *GormStore) SystemConfig() store.SystemConfigRepository        { return s.systemConfig }
 func (s *GormStore) IntentPlans() store.IntentPlanRepository           { return s.intentPlans }
 func (s *GormStore) NetworkSnapshots() store.NetworkSnapshotRepository { return s.networkSnapshots }
+func (s *GormStore) Seed() store.SeedRepository { return s.seed }
 
 // Tx executes fn within a database transaction, providing a temporary Store for all Repository access.
 func (s *GormStore) Tx(ctx context.Context, fn func(store.Store) error) error {

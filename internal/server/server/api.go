@@ -120,6 +120,9 @@ func (s *Server) apiRouter() error {
 	// Discovery — no auth required; returns NATS URL for agent auto-connect.
 	api.GET("/discovery", s.handleDiscovery())
 
+	// Public install script — served without authentication.
+	s.GET("/install.sh", installScriptHandler())
+
 	// SPA static resources: must be registered last, catch all unmatched paths via NoRoute
 	s.logger.Info("Registering SPA static files")
 	web.RegisterHandlers(s.Engine)

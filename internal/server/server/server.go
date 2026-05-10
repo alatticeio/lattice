@@ -29,6 +29,7 @@ import (
 	"github.com/alatticeio/lattice/internal/server/controller"
 	"github.com/alatticeio/lattice/internal/server/llm"
 	managementnats "github.com/alatticeio/lattice/internal/server/nats"
+	"github.com/alatticeio/lattice/internal/server/dto"
 	"github.com/alatticeio/lattice/internal/server/permission"
 	"github.com/alatticeio/lattice/internal/server/resource"
 	"github.com/alatticeio/lattice/internal/server/server/middleware"
@@ -202,13 +203,19 @@ func NewServer(ctx context.Context, serverConfig *ServerConfig) (*Server, error)
 	}
 
 	// ── License Verification (Pro validates JWT, Community returns StatusNotFound) ──
-	lv := license.NewVerifier()
-	lic, status, err := lv.Verify()
-	if err != nil {
-		logger.Warn("license check", "status", status, "err", err)
+	var lv license.Verifier
+	if cfg.App.Playground {
+		lv = license.NewPlaygroundVerifier()
+		logger.Info("playground mode: all Pro features unlocked")
 	} else {
-		logger.Info("license valid", "type", lic.Type, "customer", lic.CustomerName,
-			"expires", lic.ExpiresAt.Format(time.RFC3339), "features", lic.Features)
+		lv = license.NewVerifier()
+		lic, status, err := lv.Verify()
+		if err != nil {
+			logger.Warn("license check", "status", status, "err", err)
+		} else {
+			logger.Info("license valid", "type", lic.Type, "customer", lic.CustomerName,
+				"expires", lic.ExpiresAt.Format(time.RFC3339), "features", lic.Features)
+		}
 	}
 
 	// ── Weak Dependency 4: Monitor (optional) ────────────────────────
@@ -276,6 +283,25 @@ func NewServer(ctx context.Context, serverConfig *ServerConfig) (*Server, error)
 		s.logger.Debug("Init admin success")
 	}
 
+	// Playground: auto-create default workspace once K8s cache is ready.
+	// Runs in a goroutine because the controller-runtime cache must be synced
+	// before workspace creation (createDefaultNetwork uses client.Get via cache).
+	if cfg.App.Playground {
+		go func() {
+			if cacheReady != nil {
+				select {
+				case <-cacheReady:
+				case <-time.After(120 * time.Second):
+					s.logger.Warn("playground: timed out waiting for K8s cache, skipping workspace init")
+					return
+				}
+			}
+			if wsErr := s.initPlaygroundWorkspace(context.Background()); wsErr != nil {
+				s.logger.Warn("playground workspace init failed (non-fatal)", "err", wsErr)
+			}
+		}()
+	}
+
 	// Register workflow executors before starting the router.
 	s.registerPolicyExecutor()
 
@@ -299,6 +325,41 @@ func NewServer(ctx context.Context, serverConfig *ServerConfig) (*Server, error)
 	}
 
 	return s, nil
+}
+
+// initPlaygroundWorkspace creates a default "My Workspace" on first playground startup.
+// It is idempotent: skips silently if any workspace already exists.
+func (s *Server) initPlaygroundWorkspace(ctx context.Context) error {
+	_, total, err := s.store.Workspaces().List(ctx, "", 1, 1)
+	if err != nil {
+		return fmt.Errorf("check workspaces: %w", err)
+	}
+	if total > 0 {
+		s.logger.Debug("playground: workspace already exists, skipping init")
+		return nil
+	}
+
+	admins := config.GlobalConfig.App.InitAdmins
+	if len(admins) == 0 {
+		return fmt.Errorf("no init_admins configured")
+	}
+	user, err := s.store.Users().GetByUsername(ctx, admins[0].Username)
+	if err != nil {
+		return fmt.Errorf("get admin user %q: %w", admins[0].Username, err)
+	}
+
+	userCtx := context.WithValue(ctx, infra.UserIDKey, user.ID)
+	userCtx = context.WithValue(userCtx, infra.UsernameKey, user.Username)
+
+	ws, err := s.workspaceController.AddWorkspace(userCtx, &dto.WorkspaceDto{
+		DisplayName: "My Workspace",
+		Slug:        "my-workspace",
+	})
+	if err != nil {
+		return fmt.Errorf("create default workspace: %w", err)
+	}
+	s.logger.Info("playground: default workspace created", "id", ws.ID, "namespace", ws.Namespace)
+	return nil
 }
 
 func (s *Server) Start(ctx context.Context) error {

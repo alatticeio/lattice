@@ -74,15 +74,22 @@ func (c *Client) Register(ctx context.Context, namespace string, e *dto.PeerDto)
 	mergedLabels["app.kubernetes.io/managed-by"] = "lattice-controller"
 
 	defaultNet := "lattice-default-net"
+
+	annotations := map[string]string{}
+	if e.DisplayName != "" {
+		annotations["lattice.io/display-name"] = e.DisplayName
+	}
+
 	node = v1alpha1.LatticePeer{
 		TypeMeta: v1.TypeMeta{
 			Kind:       "LatticePeer",
 			APIVersion: "alattice.io/v1alpha1",
 		},
 		ObjectMeta: v1.ObjectMeta{
-			Namespace: namespace,
-			Name:      e.AppID,
-			Labels:    mergedLabels,
+			Namespace:   namespace,
+			Name:        e.AppID,
+			Labels:      mergedLabels,
+			Annotations: annotations,
 		},
 		Spec: v1alpha1.LatticePeerSpec{
 			Network:       &defaultNet,

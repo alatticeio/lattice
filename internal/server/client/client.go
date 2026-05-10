@@ -107,6 +107,7 @@ func (c *Client) Register(ctx context.Context, token, interfaceName string) (*in
 	registryRequest := &dto.PeerDto{
 		Name:                config.Conf.AppId,
 		Hostname:            hostname,
+		DisplayName:         config.Conf.Name,
 		InterfaceName:       interfaceName,
 		Platform:            runtime.GOOS,
 		AppID:               config.Conf.AppId,

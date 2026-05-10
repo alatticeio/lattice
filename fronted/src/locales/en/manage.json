@@ -422,6 +422,25 @@
       "statusOnline": "Online",
       "editLabels": "Edit Labels",
       "save": "Save Changes"
+    },
+    "enroll": {
+      "bannerTitle": "Connect Your First Real Node",
+      "bannerDesc": "This network contains only demo data. Run the command below — your machine will appear in the node list within 30 seconds.",
+      "namePlaceholder": "Node name (e.g. my-laptop)",
+      "generateBtn": "Generate Install Command",
+      "generating": "Generating...",
+      "commandTitle": "Run this command on your machine:",
+      "copied": "Copied",
+      "copyBtn": "Copy",
+      "dismiss": "Dismiss",
+      "tokenExpiry": "Token valid for 24 hours",
+      "errorNoWorkspace": "Please select a workspace first",
+      "errorGenerate": "Failed to generate, please try again"
+    },
+    "addNodeBtn": "Add Node",
+    "addNodeDialog": {
+      "title": "Add Node",
+      "desc": "Enter a node name, generate an install command, then run it on the target machine. Repeat for multiple machines."
     }
   },
   "networkPeering": {

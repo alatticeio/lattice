@@ -52,13 +52,24 @@ jobs:
             echo "tag=pr-${{ github.event.pull_request.number }}" >> $GITHUB_OUTPUT
           fi
 
-      - name: Build Image
+      - name: Build Image (community)
         run: |
           OWNER_LOWER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
           docker build \
             --cache-from type=gha \
             --cache-to type=gha,mode=max \
             -t ghcr.io/${OWNER_LOWER}/lattice-k3s:${{ steps.tag.outputs.tag }} \
+            -f deploy/k3s/Dockerfile \
+            .
+
+      - name: Build Image (pro)
+        run: |
+          OWNER_LOWER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          PRO_TAG="pro-${{ steps.tag.outputs.tag }}"
+          docker build \
+            --cache-from type=gha \
+            --build-arg BUILD_TAGS=pro \
+            -t ghcr.io/${OWNER_LOWER}/lattice-k3s:${PRO_TAG} \
             -f deploy/k3s/Dockerfile \
             .
 
@@ -135,14 +146,10 @@ jobs:
 
       - name: Smoke Test — Verify NATS Port
         run: |
-          # 验证 NATS 端口在监听（INFO 行包含 nats:// 或端口可连）
+          # 验证 NATS 端口在监听
           for i in $(seq 1 30); do
             if docker exec lattice-k3s-test ss -tlnp 2>/dev/null | grep -q 4222; then
               echo "NATS listening on :4222 after ${i}s"
-              break
-            fi
-            if docker exec lattice-k3s-test nc -z localhost 4222 2>/dev/null; then
-              echo "NATS port 4222 reachable after ${i}s"
               break
             fi
             if [ $i -eq 30 ]; then
@@ -164,11 +171,17 @@ jobs:
           fi
           echo "Stability check passed"
 
-      - name: Push Image
+      - name: Push Image (community)
         if: github.event_name == 'push' && github.ref == 'refs/heads/master'
         run: |
           OWNER_LOWER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
           docker push ghcr.io/${OWNER_LOWER}/lattice-k3s:${{ steps.tag.outputs.tag }}
+
+      - name: Push Image (pro)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        run: |
+          OWNER_LOWER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          docker push ghcr.io/${OWNER_LOWER}/lattice-k3s:pro-${{ steps.tag.outputs.tag }}
 
       - name: Cleanup
         if: always()

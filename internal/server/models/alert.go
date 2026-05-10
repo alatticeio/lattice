@@ -41,6 +41,9 @@ type AlertHistory struct {
 	StartedAt   time.Time  `json:"started_at"`
 	EndedAt     *time.Time `json:"ended_at"`
 	Notified    bool       `gorm:"default:false" json:"notified"`
+
+	// IsSeed marks records injected by the seed data injector for new workspaces.
+	IsSeed bool `gorm:"default:false;index" json:"isSeed,omitempty"`
 }
 
 // AlertChannel defines a notification destination.

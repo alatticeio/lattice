@@ -27,6 +27,9 @@ type Policy struct {
 	CreatedByName     string       `gorm:"size:200"                                   json:"createdByName,omitempty"`
 	UpdatedBy         string       `gorm:"size:36"                                    json:"updatedBy,omitempty"`
 	UpdatedByName     string       `gorm:"size:200"                                   json:"updatedByName,omitempty"`
+
+	// IsSeed marks records injected by the seed data injector for new workspaces.
+	IsSeed bool `gorm:"default:false;index" json:"isSeed,omitempty"`
 }
 
 func (Policy) TableName() string { return "t_policy" }
