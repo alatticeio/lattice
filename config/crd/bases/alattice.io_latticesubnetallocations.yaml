@@ -21,7 +21,7 @@ spec:
       openAPIV3Schema:
         description: |-
           LatticeSubnetAllocation for store / search a network's cidr
-          它的 Name 格式定为: subnet-<hex-ip> (例如 subnet-0a0a0100)
+          Its Name format is: subnet-<hex-ip> (e.g. subnet-0a0a0100)
         properties:
           apiVersion:
             description: |-

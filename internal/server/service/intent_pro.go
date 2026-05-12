@@ -104,8 +104,30 @@ func (s *intentService) Apply(ctx context.Context, planID, approvedBy string) ([
 		return nil, fmt.Errorf("parse changes: %w", err)
 	}
 
-	// Return plan ID — the HTTP handler converts changes to workflow requests.
+	if err := s.store.IntentPlans().MarkApplied(ctx, planID, approvedBy); err != nil {
+		s.logger.Warn("failed to mark plan as applied", "planID", planID, "err", err)
+	}
+
 	return []string{planID}, nil
+}
+
+func (s *intentService) History(ctx context.Context, workspaceID string, limit int) ([]*IntentHistoryItem, error) {
+	plans, err := s.store.IntentPlans().ListApplied(ctx, workspaceID, limit)
+	if err != nil {
+		return nil, fmt.Errorf("list history: %w", err)
+	}
+	items := make([]*IntentHistoryItem, len(plans))
+	for i, p := range plans {
+		items[i] = &IntentHistoryItem{
+			ID:        p.ID,
+			Intent:    p.Intent,
+			Summary:   p.Summary,
+			RiskLevel: p.RiskLevel,
+			AppliedAt: p.AppliedAt,
+			AppliedBy: p.AppliedBy,
+		}
+	}
+	return items, nil
 }
 
 // buildStateContext returns a compact text representation of current K8s state.

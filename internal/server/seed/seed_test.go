@@ -20,9 +20,9 @@ import (
 	"github.com/alatticeio/lattice/internal/agent/store"
 	"github.com/alatticeio/lattice/internal/db/gormstore"
 	"github.com/alatticeio/lattice/internal/server/seed"
+	"github.com/glebarez/sqlite"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"github.com/glebarez/sqlite"
 	"gorm.io/gorm"
 )
 

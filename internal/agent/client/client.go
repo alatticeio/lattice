@@ -88,14 +88,20 @@ func (c *Client) do(ctx context.Context, method, path string, wsID string, body 
 		return fmt.Errorf("server returned HTTP %d: %s", resp.StatusCode, string(raw))
 	}
 
+	// Unwrap {"code":0,"msg":"...","data":{...}} envelope
+	var envelope struct {
+		Code int             `json:"code"`
+		Msg  string          `json:"msg"`
+		Data json.RawMessage `json:"data"`
+	}
+	if err := json.Unmarshal(raw, &envelope); err != nil {
+		return fmt.Errorf("unexpected response: %w", err)
+	}
+	if envelope.Code != 0 && envelope.Code != http.StatusOK {
+		return fmt.Errorf("server error: %s", envelope.Msg)
+	}
+
 	if result != nil {
-		// Unwrap {"code":0,"data":{...}} envelope
-		var envelope struct {
-			Data json.RawMessage `json:"data"`
-		}
-		if err := json.Unmarshal(raw, &envelope); err != nil {
-			return fmt.Errorf("unexpected response: %w", err)
-		}
 		if err := json.Unmarshal(envelope.Data, result); err != nil {
 			return fmt.Errorf("decoding response data: %w", err)
 		}

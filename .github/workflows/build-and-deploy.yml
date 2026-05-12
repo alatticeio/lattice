@@ -17,10 +17,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'push' && github.ref || github.event.pull_request.head.sha }}
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
           cache: true
+      - name: Create dist placeholder for embed
+        run: mkdir -p internal/web/dist && echo '<!DOCTYPE html>' > internal/web/dist/index.html
+
       - name: Run unit tests
         run: go test ./internal/... ./pkg/... -count=1 -timeout 5m
 

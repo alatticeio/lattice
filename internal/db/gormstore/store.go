@@ -15,22 +15,23 @@ import (
 // GormStore implements the store.Store interface.
 // Peer and Token have been migrated to K8s etcd and are no longer managed by this store.
 type GormStore struct {
-	db                   *gorm.DB
-	users                store.UserRepository
-	workspaces           store.WorkspaceRepository
-	workspaceMembers     store.WorkspaceMemberRepository
-	profiles             store.ProfileRepository
-	userIdentities       store.UserIdentityRepository
-	workspaceInvitations store.WorkspaceInvitationRepository
-	auditLogs            store.AuditLogRepository
-	workflowRequests     store.WorkflowRepository
-	policies             store.PolicyRepository
-	alerts               store.AlertRepository
-	customMetrics        store.CustomMetricRepository
-	systemConfig         store.SystemConfigRepository
-	intentPlans          store.IntentPlanRepository
-	networkSnapshots     store.NetworkSnapshotRepository
-	seed                 store.SeedRepository
+	db                    *gorm.DB
+	users                 store.UserRepository
+	workspaces            store.WorkspaceRepository
+	workspaceMembers      store.WorkspaceMemberRepository
+	profiles              store.ProfileRepository
+	userIdentities        store.UserIdentityRepository
+	workspaceInvitations  store.WorkspaceInvitationRepository
+	auditLogs             store.AuditLogRepository
+	workflowRequests      store.WorkflowRepository
+	policies              store.PolicyRepository
+	alerts                store.AlertRepository
+	customMetrics         store.CustomMetricRepository
+	systemConfig          store.SystemConfigRepository
+	intentPlans           store.IntentPlanRepository
+	networkSnapshots      store.NetworkSnapshotRepository
+	agentEnrollmentTokens store.AgentEnrollmentTokenRepository
+	seed                  store.SeedRepository
 }
 
 // New creates the gormStore: first runs AutoMigrate, then initializes each sub-Repository.
@@ -42,22 +43,23 @@ func New(db *gorm.DB) (store.Store, error) {
 }
 func newStore(db *gorm.DB) *GormStore {
 	return &GormStore{
-		db:                   db,
-		users:                newUserRepo(db),
-		workspaces:           newWorkspaceRepo(db),
-		workspaceMembers:     newWorkspaceMemberRepo(db),
-		profiles:             newProfileRepo(db),
-		userIdentities:       newUserIdentityRepo(db),
-		workspaceInvitations: newWorkspaceInvitationRepo(db),
-		auditLogs:            newAuditLogRepo(db),
-		workflowRequests:     newWorkflowRepo(db),
-		policies:             newPolicyRepo(db),
-		alerts:               newAlertRepo(db),
-		customMetrics:        newCustomMetricRepo(db),
-		systemConfig:         newSystemConfigRepo(db),
-		intentPlans:          newIntentPlanRepo(db),
-		networkSnapshots:     newNetworkSnapshotRepo(db),
-		seed:                 newSeedRepo(db),
+		db:                    db,
+		users:                 newUserRepo(db),
+		workspaces:            newWorkspaceRepo(db),
+		workspaceMembers:      newWorkspaceMemberRepo(db),
+		profiles:              newProfileRepo(db),
+		userIdentities:        newUserIdentityRepo(db),
+		workspaceInvitations:  newWorkspaceInvitationRepo(db),
+		auditLogs:             newAuditLogRepo(db),
+		workflowRequests:      newWorkflowRepo(db),
+		policies:              newPolicyRepo(db),
+		alerts:                newAlertRepo(db),
+		customMetrics:         newCustomMetricRepo(db),
+		systemConfig:          newSystemConfigRepo(db),
+		intentPlans:           newIntentPlanRepo(db),
+		networkSnapshots:      newNetworkSnapshotRepo(db),
+		seed:                  newSeedRepo(db),
+		agentEnrollmentTokens: NewAgentEnrollmentTokenRepo(db),
 	}
 }
 
@@ -77,6 +79,9 @@ func (s *GormStore) CustomMetrics() store.CustomMetricRepository       { return 
 func (s *GormStore) SystemConfig() store.SystemConfigRepository        { return s.systemConfig }
 func (s *GormStore) IntentPlans() store.IntentPlanRepository           { return s.intentPlans }
 func (s *GormStore) NetworkSnapshots() store.NetworkSnapshotRepository { return s.networkSnapshots }
+func (s *GormStore) AgentEnrollmentTokens() store.AgentEnrollmentTokenRepository {
+	return s.agentEnrollmentTokens
+}
 func (s *GormStore) Seed() store.SeedRepository { return s.seed }
 
 // Tx executes fn within a database transaction, providing a temporary Store for all Repository access.

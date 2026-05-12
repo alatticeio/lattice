@@ -49,7 +49,7 @@ func TestAIService_WriteToolSubmitsWorkflow(t *testing.T) {
 	wf := &fakeWorkflow{}
 
 	svc := service.NewAIServiceWithWorkflow(nil, nil, nil, nil, 5, wf,
-		map[string]bool{}) // auto_approve all false
+		map[string]bool{}, nil) // auto_approve all false
 
 	input, _ := json.Marshal(map[string]interface{}{
 		"name":    "allow-frontend-to-api",

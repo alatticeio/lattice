@@ -14,6 +14,7 @@ export interface Message {
   toolCalls: ToolCall[]
   isStreaming: boolean
   error?: string
+  createdAt: number
 }
 
 export interface Conversation {
@@ -84,6 +85,7 @@ export const useAiStore = defineStore('ai', () => {
       content,
       toolCalls: [],
       isStreaming: false,
+      createdAt: Date.now(),
     }
     const conv = conversations.value.find(c => c.id === conversationId)
     if (!conv) throw new Error('conversation not found')
@@ -104,6 +106,7 @@ export const useAiStore = defineStore('ai', () => {
       content: '',
       toolCalls: [],
       isStreaming: true,
+      createdAt: Date.now(),
     }
     const conv = conversations.value.find(c => c.id === conversationId)
     if (!conv) throw new Error('conversation not found')

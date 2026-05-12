@@ -25,3 +25,11 @@ data:
       # 如需接入外部 MariaDB（企业级），替换为：
       # dsn: "root:pass@tcp(mariadb.lattice-system.svc:3306)/lattice?charset=utf8mb4&parseTime=True"
       dsn: "data/lattice.db"
+
+    ai:
+      enabled: true
+      provider: anthropic          # anthropic / deepseek / openai / 自定义 OpenAI 兼容
+      api-key: "YOUR_API_KEY"      # ⚠️ 生产环境建议通过 K8s Secret + 环境变量 LATTICE_AI_API_KEY 注入
+      model: "mimo-v2.5-pro"       # MiMo 模型名；留空则使用 provider 默认值（anthropic 默认 claude-sonnet-4-6）
+      base-url: "https://api.xiaomimimo.com/anthropic"  # 自定义 API 端点
+      max-tool-calls: 5

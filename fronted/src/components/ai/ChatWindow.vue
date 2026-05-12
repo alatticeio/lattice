@@ -89,9 +89,17 @@ function handleStop() {
 </script>
 
 <template>
-  <div class="flex h-full flex-col bg-background">
+  <div class="flex flex-col bg-background h-full">
+    <!-- Title bar -->
+    <div
+      v-if="activeConv"
+      class="flex h-12 shrink-0 items-center border-b border-border px-6"
+    >
+      <span class="text-sm font-medium text-foreground truncate">{{ activeConv.title }}</span>
+    </div>
+
     <!-- Message area -->
-    <div ref="scrollEl" class="flex-1 overflow-y-auto">
+    <div ref="scrollEl" class="flex-1 min-h-0 overflow-y-auto">
       <template v-if="activeConv && activeConv.messages.length > 0">
         <div class="py-4">
           <MessageBubble
@@ -99,7 +107,6 @@ function handleStop() {
             :key="msg.id"
             :message="msg"
           />
-          <!-- Bottom padding so last message isn't flush against input -->
           <div class="h-4" />
         </div>
       </template>
@@ -107,10 +114,12 @@ function handleStop() {
     </div>
 
     <!-- Input -->
-    <ChatInput
-      :loading="loading"
-      @send="handleSend"
-      @stop="handleStop"
-    />
+    <div class="shrink-0">
+      <ChatInput
+        :loading="loading"
+        @send="handleSend"
+        @stop="handleStop"
+      />
+    </div>
   </div>
 </template>

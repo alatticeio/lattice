@@ -15,7 +15,7 @@
 #   LATTICE_CONFIG_DIR     config directory (default: /etc/lattice)
 
 # ── Stage 1: Build latticed binary ──────────────────────────────────────────
-FROM golang:1.25.2 AS builder
+FROM golang:1.25.8 AS builder
 
 ARG BUILD_TAGS=""
 

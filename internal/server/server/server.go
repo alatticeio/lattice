@@ -27,9 +27,9 @@ import (
 	"github.com/alatticeio/lattice/internal/monitor"
 	"github.com/alatticeio/lattice/internal/server/auth"
 	"github.com/alatticeio/lattice/internal/server/controller"
+	"github.com/alatticeio/lattice/internal/server/dto"
 	"github.com/alatticeio/lattice/internal/server/llm"
 	managementnats "github.com/alatticeio/lattice/internal/server/nats"
-	"github.com/alatticeio/lattice/internal/server/dto"
 	"github.com/alatticeio/lattice/internal/server/permission"
 	"github.com/alatticeio/lattice/internal/server/resource"
 	"github.com/alatticeio/lattice/internal/server/server/middleware"
@@ -78,6 +78,9 @@ type Server struct {
 	intentService      service.IntentService
 	peeringService     service.PeeringService
 	agentEnrollService service.AgentEnrollService
+
+	agentIsolationService service.AgentIsolationService
+	agentRegService       service.AgentRegistrationService
 
 	middleware      *middleware.Middleware
 	revocationList  *auth.RevocationList
@@ -165,6 +168,30 @@ func NewServer(ctx context.Context, serverConfig *ServerConfig) (*Server, error)
 
 	workflowSvc := service.NewWorkflowService(st)
 
+	// ── Agent Isolation (optional; nil-safe when disabled or no k8s client) ──
+	var agentIsolSvc service.AgentIsolationService
+	var agentRegSvc service.AgentRegistrationService
+	if cfg.AI.AgentIsolation.Enabled && client != nil {
+		jwtSecret := cfg.AI.AgentIsolation.JWTSecret
+		if jwtSecret == "" {
+			jwtSecret = cfg.JWT.Secret
+		}
+		agentIsolSvc = service.NewAgentIsolationService(
+			cfg.AI.AgentIsolation,
+			&k8sAgentIdentityReader{c: client.Client},
+		)
+		agentRegSvc = service.NewAgentRegistrationService(jwtSecret, st, client.Client)
+		logger.Info("agent isolation enabled", "mode", cfg.AI.AgentIsolation.EnforcementMode)
+		if mgr != nil {
+			if err := controller.NewAgentTTLReconciler(mgr.GetClient()).SetupWithManager(mgr); err != nil {
+				logger.Warn("failed to setup AgentTTLReconciler", "err", err)
+			}
+			if err := controller.NewAgentIdentityReconciler(mgr.GetClient()).SetupWithManager(mgr); err != nil {
+				logger.Warn("failed to setup AgentIdentityReconciler", "err", err)
+			}
+		}
+	}
+
 	// ── Weak Dependency 3: AI Service (tools always available; Chat/Audit/Debug need LLM) ──
 	var aiSvc service.AIService
 	var intentSvc service.IntentService
@@ -178,6 +205,7 @@ func NewServer(ctx context.Context, serverConfig *ServerConfig) (*Server, error)
 				cfg.AI.MaxToolCalls,
 				workflowSvc,
 				cfg.AI.Workflow.AutoApprove,
+				agentIsolSvc,
 			)
 			intentSvc = service.NewIntentService(llmClient, client, st)
 			service.SetIntentService(aiSvc, intentSvc)
@@ -198,9 +226,14 @@ func NewServer(ctx context.Context, serverConfig *ServerConfig) (*Server, error)
 	}
 	// Always create tool-capable service even without LLM (Chat/Audit/Debug will return errors).
 	if aiSvc == nil {
-		aiSvc = service.NewAIServiceWithWorkflow(nil, st, client, presence, 0, workflowSvc, nil)
+		aiSvc = service.NewAIServiceWithWorkflow(nil, st, client, presence, 0, workflowSvc, nil, agentIsolSvc)
 		logger.Info("AI service in tools-only mode (Chat/Audit/Debug require api-key)")
 	}
+	// Attach workspace and token controllers for AI workspace/token management tools.
+	wsCtrl := controller.NewWorkspaceController(client, st)
+	tokCtrl := controller.NewTokenController(client, st)
+	service.SetWorkspaceCtrl(aiSvc, wsCtrl)
+	service.SetTokenCtrl(aiSvc, tokCtrl)
 
 	// ── License Verification (Pro validates JWT, Community returns StatusNotFound) ──
 	var lv license.Verifier
@@ -272,6 +305,8 @@ func NewServer(ctx context.Context, serverConfig *ServerConfig) (*Server, error)
 		intentService:          intentSvc,
 		peeringService:         service.NewPeeringService(client, st),
 		agentEnrollService:     service.NewAgentEnrollService(client),
+		agentIsolationService:  agentIsolSvc,
+		agentRegService:        agentRegSvc,
 		licenseVerifier:        lv,
 		monitor:                mon,
 	}

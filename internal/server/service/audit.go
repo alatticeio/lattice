@@ -11,6 +11,14 @@ import (
 	"github.com/google/uuid"
 )
 
+// Agent-specific audit action constants.
+const (
+	AuditActionAgentToolCall    = "agent.tool.call"
+	AuditActionAgentToolBlocked = "agent.tool.blocked"
+	AuditActionAgentRegistered  = "agent.registered"
+	AuditActionAgentRevoked     = "agent.revoked"
+)
+
 // AuditService records and queries audit log entries.
 type AuditService interface {
 	// Log queues an audit event for async write; never blocks the caller.

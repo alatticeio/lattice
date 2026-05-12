@@ -3,6 +3,8 @@ package server
 import (
 	"context"
 	"fmt"
+	"strings"
+
 	"github.com/alatticeio/lattice/internal/agent/infra"
 	"github.com/alatticeio/lattice/internal/server/dex"
 	"github.com/alatticeio/lattice/internal/server/dto"
@@ -11,7 +13,6 @@ import (
 	"github.com/alatticeio/lattice/internal/server/service"
 	"github.com/alatticeio/lattice/internal/web"
 	"github.com/alatticeio/lattice/pkg/utils/resp"
-	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -114,6 +115,8 @@ func (s *Server) apiRouter() error {
 	s.snapshotRouter()
 
 	s.agentRouter()
+
+	s.agentIsolationRouter()
 
 	s.platformRouter()
 

@@ -34,6 +34,7 @@ type Store interface {
 	SystemConfig() SystemConfigRepository
 	IntentPlans() IntentPlanRepository
 	NetworkSnapshots() NetworkSnapshotRepository
+	AgentEnrollmentTokens() AgentEnrollmentTokenRepository
 	Seed() SeedRepository
 
 	Close() error
@@ -199,6 +200,8 @@ type SystemConfigRepository interface {
 type IntentPlanRepository interface {
 	Create(ctx context.Context, plan *models.IntentPlan) error
 	GetByID(ctx context.Context, id string) (*models.IntentPlan, error)
+	MarkApplied(ctx context.Context, id, appliedBy string) error
+	ListApplied(ctx context.Context, workspaceID string, limit int) ([]*models.IntentPlan, error)
 	DeleteExpired(ctx context.Context) error
 	Delete(ctx context.Context, id string) error
 }
@@ -218,6 +221,14 @@ type CustomMetricRepository interface {
 	Update(ctx context.Context, m *models.CustomMetric) error
 	Delete(ctx context.Context, id string) error
 	ListByWorkspace(ctx context.Context, wsID string) ([]*models.CustomMetric, error)
+}
+
+// AgentEnrollmentTokenRepository manages one-time registration tokens.
+type AgentEnrollmentTokenRepository interface {
+	Create(ctx context.Context, token *models.AgentEnrollmentToken) error
+	GetByToken(ctx context.Context, token string) (*models.AgentEnrollmentToken, error)
+	MarkUsed(ctx context.Context, token string, usedAt time.Time) error
+	DeleteExpired(ctx context.Context) error
 }
 
 // SeedRepository handles demo seed data lifecycle.

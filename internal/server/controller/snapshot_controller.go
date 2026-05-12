@@ -160,6 +160,7 @@ func simplifyNetworks(networks []v1alpha1.LatticeNetwork) []simpleNetwork {
 func (r *SnapshotController) SetupWithManager(mgr ctrl.Manager) error {
 	r.client = mgr.GetClient()
 	return ctrl.NewControllerManagedBy(mgr).
+		Named("snapshot").
 		For(&v1alpha1.LatticePolicy{}).
 		Complete(r)
 }

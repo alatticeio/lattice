@@ -220,8 +220,8 @@ func (inj *Injector) injectVirtualPeers(ctx context.Context, namespace string, o
 				Name:      n.name,
 				Namespace: namespace,
 				Labels: map[string]string{
-					seedLabel:        "true",
-					"region":         n.region,
+					seedLabel: "true",
+					"region":  n.region,
 				},
 				Annotations: map[string]string{
 					"lattice.io/display-name": n.display,

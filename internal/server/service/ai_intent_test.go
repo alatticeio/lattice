@@ -50,6 +50,9 @@ func (f *fakeIntentService) Plan(_ context.Context, _ service.IntentRequest) (*s
 func (f *fakeIntentService) Apply(_ context.Context, planID, _ string) ([]string, error) {
 	return []string{planID}, nil
 }
+func (f *fakeIntentService) History(_ context.Context, _ string, _ int) ([]*service.IntentHistoryItem, error) {
+	return nil, nil
+}
 
 func newTestDB(t *testing.T) store.Store {
 	t.Helper()
@@ -77,7 +80,7 @@ func TestAIIntent_ToolPlanNetworkChange(t *testing.T) {
 	})
 	g.Expect(err).ToNot(HaveOccurred())
 
-	svc := service.NewAIServiceWithWorkflow(nil, st, nil, nil, 5, nil, nil)
+	svc := service.NewAIServiceWithWorkflow(nil, st, nil, nil, 5, nil, nil, nil)
 	service.SetIntentService(svc, fakeIntent)
 
 	input, _ := json.Marshal(map[string]string{
@@ -92,7 +95,7 @@ func TestAIIntent_ToolPlanNetworkChange(t *testing.T) {
 
 func TestAIIntent_ToolPlanNetworkChange_NoIntentService(t *testing.T) {
 	g := NewWithT(t)
-	svc := service.NewAIServiceWithWorkflow(nil, nil, nil, nil, 5, nil, nil)
+	svc := service.NewAIServiceWithWorkflow(nil, nil, nil, nil, 5, nil, nil, nil)
 
 	input, _ := json.Marshal(map[string]string{"intent": "allow frontend to api"})
 	_, err := svc.ExecuteTool(context.Background(), "test-ns", "plan_network_change", input)
@@ -112,12 +115,16 @@ func TestAIIntent_CommunityStub(t *testing.T) {
 	_, err = intentSvc.Apply(context.Background(), "", "")
 	g.Expect(err).To(HaveOccurred())
 	g.Expect(err.Error()).To(ContainSubstring("Pro feature"))
+
+	_, err = intentSvc.History(context.Background(), "", 10)
+	g.Expect(err).To(HaveOccurred())
+	g.Expect(err.Error()).To(ContainSubstring("Pro feature"))
 }
 
 func TestAIIntent_ToolApplyNetworkChange(t *testing.T) {
 	g := NewWithT(t)
 	fakeIntent := &fakeIntentService{}
-	svc := service.NewAIServiceWithWorkflow(nil, nil, nil, nil, 5, nil, nil)
+	svc := service.NewAIServiceWithWorkflow(nil, nil, nil, nil, 5, nil, nil, nil)
 	service.SetIntentService(svc, fakeIntent)
 
 	input, _ := json.Marshal(map[string]string{"plan_id": "plan-001"})

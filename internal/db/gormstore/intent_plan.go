@@ -28,9 +28,30 @@ func (r *intentPlanRepo) GetByID(ctx context.Context, id string) (*models.Intent
 	return &plan, nil
 }
 
+func (r *intentPlanRepo) MarkApplied(ctx context.Context, id, appliedBy string) error {
+	now := time.Now()
+	return r.db.WithContext(ctx).Model(&models.IntentPlan{}).
+		Where("id = ?", id).
+		Updates(map[string]any{
+			"applied":    true,
+			"applied_at": &now,
+			"applied_by": appliedBy,
+		}).Error
+}
+
+func (r *intentPlanRepo) ListApplied(ctx context.Context, workspaceID string, limit int) ([]*models.IntentPlan, error) {
+	var plans []*models.IntentPlan
+	err := r.db.WithContext(ctx).
+		Where("workspace_id = ? AND applied = ?", workspaceID, true).
+		Order("applied_at DESC").
+		Limit(limit).
+		Find(&plans).Error
+	return plans, err
+}
+
 func (r *intentPlanRepo) DeleteExpired(ctx context.Context) error {
 	return r.db.WithContext(ctx).
-		Where("expires_at < ?", time.Now()).
+		Where("expires_at < ? AND applied = ?", time.Now(), false).
 		Delete(&models.IntentPlan{}).Error
 }
 

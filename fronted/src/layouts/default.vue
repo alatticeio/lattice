@@ -56,14 +56,15 @@ const pageDescription = computed(() => {
   const key = route.meta.descKey as string | undefined
   return key ? t(key) : (route.meta.description as string | undefined)
 })
+const isFullHeight = computed(() => !!route.meta.fullHeight)
 
 </script>
 
 <template>
-  <SidebarProvider>
+  <SidebarProvider class="h-svh overflow-hidden">
     <AppSidebar />
 
-    <SidebarInset class="bg-muted/90 flex flex-col min-w-0">
+    <SidebarInset class="bg-muted/90 flex flex-col min-w-0 h-svh overflow-hidden">
       <!-- ── Top Navbar ─────────────────────────────────────────────── -->
       <header class="border-border bg-card sticky top-0 z-30 flex h-14 shrink-0 items-center gap-3 border-b px-4">
         <SidebarTrigger class="-ml-1 shrink-0" />
@@ -180,14 +181,15 @@ const pageDescription = computed(() => {
       </header>
 
       <!-- ── Page Header (Title ←→ Breadcrumb) ─────────────────────── -->
-      <PageHeader
+      <div
         v-if="pageTitle"
-        :title="pageTitle"
-        :description="pageDescription"
-      />
+        class="sticky top-14 z-20 shrink-0 bg-card border-b border-border"
+      >
+        <PageHeader :title="pageTitle" :description="pageDescription" />
+      </div>
 
       <!-- ── Page Content ───────────────────────────────────────────── -->
-      <main class="flex-1 overflow-auto">
+      <main class="flex-1 min-h-0" :class="isFullHeight ? 'overflow-hidden' : 'overflow-auto'">
         <RouterView />
       </main>
     </SidebarInset>

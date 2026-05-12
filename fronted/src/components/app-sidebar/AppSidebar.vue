@@ -8,7 +8,7 @@ import {
 } from "@/components/ui/sidebar"
 import {
   LayoutDashboard, Network, Settings2,
-  ShieldCheck, Bot,
+  ShieldCheck, Bot, House,
 } from "lucide-vue-next"
 import NavMain from "@/components/app-sidebar/NavMain.vue"
 import NavUser from "@/components/app-sidebar/NavUser.vue"
@@ -34,6 +34,13 @@ const navMain = computed(() => {
   const isAdmin = userStore.isPlatformAdmin
 
   const groups = [
+    // ── Home ──────────────────────────────────────────────────────
+    {
+      title: t('common.breadcrumb.home'),
+      url: '/',
+      icon: House,
+    },
+
     // ── Overview ──────────────────────────────────────────────────
     {
       title: t('common.nav.group.overview'),

@@ -1,3 +1,7 @@
+# Communication
+
+**语言要求：始终用中文回答用户的所有问题和消息。**
+
 # Lattice Project Context
 
 > Kubernetes-native overlay networking with WireGuard. Open-core model: community + PRO editions.
@@ -66,6 +70,8 @@ The Makefile sets `BPF2GO_CC=/opt/homebrew/opt/llvm/bin/clang` on macOS to pick 
 
 - **Branches**: `master` (main), `dev` (development)
 - **Commits**: Conventional commits with scope: `feat(scope):`, `fix(scope):`, `refactor:`, `ci:`
+- **Commit grouping**: 同一功能点（相同 prefix，如 `feat(agent-isolation):`）的所有修改必须合并到**同一个 commit** 中，不要分散成多次提交。创建新 commit 前，先用 `git log --oneline -20` 检查最近提交，若已有相同 prefix 的 commit，使用 `git commit --amend` 追加到该 commit 而非新建。
+- **Commit flags**: Always use `git commit -s` (DCO sign-off)
 - **Commit author**: Always use the identity from `git config user.name` / `git config user.email` — never add `Co-Authored-By` trailers
 - **PR triggers**: `run-e2e` label, `run-pro` label, `[run-pro]` in commit message, `ok-release` label
 

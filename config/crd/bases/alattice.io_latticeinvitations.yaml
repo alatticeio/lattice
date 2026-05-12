@@ -66,7 +66,7 @@ spec:
               peerLabels:
                 additionalProperties:
                   type: string
-                description: '预设给新 Peer 的标签（例如 role: developer）'
+                description: 'Preset labels for new peers (e.g., role: developer)'
                 type: object
               targetNamespace:
                 description: join to special namespace
@@ -82,10 +82,10 @@ spec:
                 format: date-time
                 type: string
               token:
-                description: 生成给客户端的token
+                description: Token generated for the client
                 type: string
               usedCount:
-                description: 已使用的次数
+                description: Number of times used
                 type: integer
               usedPeers:
                 items:

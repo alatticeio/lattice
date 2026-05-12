@@ -42,6 +42,11 @@ type LatticePolicySpec struct {
 
 	// default DENY
 	Action string `json:"action,omitempty"` // DENY / ALLOW
+
+	// ExpiresAt is the optional time after which this policy will be automatically deleted.
+	// Nil means the policy never expires.
+	// +optional
+	ExpiresAt *metav1.Time `json:"expiresAt,omitempty"`
 }
 
 // IngressRule and EgressRule are used to control the lattice's traffic flow.

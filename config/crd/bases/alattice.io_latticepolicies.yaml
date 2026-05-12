@@ -139,6 +139,12 @@ spec:
                       type: array
                   type: object
                 type: array
+              expiresAt:
+                description: |-
+                  ExpiresAt is the optional time after which this policy will be automatically deleted.
+                  Nil means the policy never expires.
+                format: date-time
+                type: string
               ingress:
                 items:
                   description: IngressRule and EgressRule are used to control the
@@ -271,10 +277,10 @@ spec:
             description: NetworkPolicyStatus defines the observed state of LatticePolicy.
             properties:
               ruleCount:
-                description: 规则条数（Ingress + Egress）
+                description: Rule count (Ingress + Egress)
                 type: integer
               targetNodes:
-                description: 策略当前匹配到的节点数量
+                description: Number of nodes currently matched by the policy
                 type: integer
             type: object
         type: object

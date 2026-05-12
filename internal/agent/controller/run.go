@@ -219,6 +219,10 @@ func Start(flags *config.Config) error {
 		setupLog.Error(err, "unable to create controller", "controller", "LatticeClusterPeering")
 		return err
 	}
+	if err := NewPolicyTTLReconciler(mgr.GetClient()).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "PolicyTTL")
+		return err
+	}
 	//+kubebuilder:scaffold:builder
 
 	if metricsCertWatcher != nil {

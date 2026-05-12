@@ -24,3 +24,7 @@ func (s *intentServiceStub) Plan(_ context.Context, _ IntentRequest) (*IntentPla
 func (s *intentServiceStub) Apply(_ context.Context, _, _ string) ([]string, error) {
 	return nil, ErrPaymentRequired("network intent engine is a Pro feature")
 }
+
+func (s *intentServiceStub) History(_ context.Context, _ string, _ int) ([]*IntentHistoryItem, error) {
+	return nil, ErrPaymentRequired("network intent engine is a Pro feature")
+}

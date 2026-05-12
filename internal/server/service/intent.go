@@ -31,10 +31,21 @@ type IntentPlanView struct {
 	ExpiresAt time.Time   `json:"expiresAt"`
 }
 
+// IntentHistoryItem is a single applied plan summary for the history list.
+type IntentHistoryItem struct {
+	ID          string     `json:"id"`
+	Intent      string     `json:"intent"`
+	Summary     string     `json:"summary"`
+	RiskLevel   string     `json:"riskLevel"`
+	AppliedAt   *time.Time `json:"appliedAt"`
+	AppliedBy   string     `json:"appliedBy"`
+}
+
 // IntentService translates natural language intent into CRD change plans.
 type IntentService interface {
 	Plan(ctx context.Context, req IntentRequest) (*IntentPlanView, error)
 	Apply(ctx context.Context, planID, approvedBy string) ([]string, error) // returns workflowIDs
+	History(ctx context.Context, workspaceID string, limit int) ([]*IntentHistoryItem, error)
 }
 
 // ErrPaymentRequired returns a sentinel error for Pro-only features.

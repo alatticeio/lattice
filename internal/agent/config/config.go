@@ -254,7 +254,7 @@ type Config struct {
 	Debug         bool   `mapstructure:"debug"`
 	Auth          string `mapstructure:"auth"`
 	AppId         string `mapstructure:"app-id"`
-	Name          string `mapstructure:"name"`           // display name shown in the UI (optional)
+	Name          string `mapstructure:"name"` // display name shown in the UI (optional)
 	Token         string `mapstructure:"token"`
 	InterfaceName string `mapstructure:"interface-name"` // WireGuard interface name
 
@@ -339,6 +339,31 @@ type AIWorkflowConfig struct {
 	AutoApprove map[string]bool `mapstructure:"auto_approve"`
 }
 
+// AgentIsolationConfig controls the AI Agent isolation feature.
+type AgentIsolationConfig struct {
+	// Enabled is the master switch. Default false (disabled).
+	// When false, AgentIsolationService is not injected and ExecuteTool() is unchanged.
+	Enabled bool `mapstructure:"enabled"`
+
+	// EnforcementMode controls how violations are handled.
+	// disabled: no checks (same as Enabled=false)
+	// audit:    check and log but never block
+	// enforce:  check and block on violation
+	// Default: "disabled"
+	EnforcementMode string `mapstructure:"enforcement-mode"`
+
+	// AuditLevel controls how much tool activity is logged.
+	// none: no agent tool logging
+	// write: log write/intent tool calls only
+	// full: log all tool calls including reads
+	// Default: "write"
+	AuditLevel string `mapstructure:"audit-level"`
+
+	// JWTSecret is the signing secret for Agent JWTs.
+	// When empty, falls back to cfg.JWT.Secret.
+	JWTSecret string `mapstructure:"jwt-secret"`
+}
+
 // AIConfig aggregates AI feature configuration.
 // AI is a soft dependency: when Enabled=false or APIKey is empty, all /api/v1/ai/* endpoints return 503.
 type AIConfig struct {
@@ -372,6 +397,9 @@ type AIConfig struct {
 
 	// Workflow controls write-tool approval behaviour.
 	Workflow AIWorkflowConfig `mapstructure:"workflow"`
+
+	// AgentIsolation controls the AI Agent identity and RBAC isolation feature.
+	AgentIsolation AgentIsolationConfig `mapstructure:"agent-isolation"`
 }
 
 // AppConfig aggregates application-layer server-side configuration (excluding CLI override fields).
@@ -592,6 +620,9 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("ai.model", "")
 	v.SetDefault("ai.max-tool-calls", 5)
 	v.SetDefault("ai.audit-schedule", "0 2 * * *")
+	v.SetDefault("ai.agent-isolation.enabled", false)
+	v.SetDefault("ai.agent-isolation.enforcement-mode", "disabled")
+	v.SetDefault("ai.agent-isolation.audit-level", "write")
 
 	v.SetDefault("app.name", "Lattice")
 	v.SetDefault("app.initAdmins", []map[string]string{

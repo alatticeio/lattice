@@ -3,6 +3,7 @@ import App from './App.vue'
 import {createPinia} from 'pinia'
 
 import './style.css'
+import 'highlight.js/styles/github-dark-dimmed.min.css'
 
 import router from './router'
 import { i18n } from './locales'

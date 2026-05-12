@@ -72,7 +72,7 @@ func TestAIDebug_ToolListSnapshots(t *testing.T) {
 		{ID: "snap-002", WorkspaceID: "ws-test", CapturedAt: time.Now().Add(-5 * time.Minute), TriggerType: "peer_online", TriggerBy: "peer-a"},
 	}}
 
-	svc := service.NewAIServiceWithWorkflow(nil, st, nil, nil, 5, nil, nil)
+	svc := service.NewAIServiceWithWorkflow(nil, st, nil, nil, 5, nil, nil, nil)
 	service.SetSnapStore(svc, snapStore)
 
 	// list_snapshots with time range covering both
@@ -97,7 +97,7 @@ func TestAIDebug_ToolGetSnapshot(t *testing.T) {
 			Networks: `[{"name":"default"}]`, Presence: `{}`,
 		},
 	}}
-	svc := service.NewAIServiceWithWorkflow(nil, nil, nil, nil, 5, nil, nil)
+	svc := service.NewAIServiceWithWorkflow(nil, nil, nil, nil, 5, nil, nil, nil)
 	service.SetSnapStore(svc, snapStore)
 
 	input, _ := json.Marshal(map[string]string{"id": "snap-001"})
@@ -110,7 +110,7 @@ func TestAIDebug_ToolGetSnapshot(t *testing.T) {
 
 func TestAIDebug_ToolGetSnapshot_NotFound(t *testing.T) {
 	g := NewWithT(t)
-	svc := service.NewAIServiceWithWorkflow(nil, nil, nil, nil, 5, nil, nil)
+	svc := service.NewAIServiceWithWorkflow(nil, nil, nil, nil, 5, nil, nil, nil)
 	service.SetSnapStore(svc, &fakeSnapStore{})
 
 	input, _ := json.Marshal(map[string]string{"id": "nonexistent"})
@@ -131,7 +131,7 @@ func TestAIDebug_ToolDiffSnapshots(t *testing.T) {
 			Policies: `[{"name":"allow-all","action":"ALLOW"},{"name":"deny-ssh","action":"DENY"}]`,
 		},
 	}}
-	svc := service.NewAIServiceWithWorkflow(nil, nil, nil, nil, 5, nil, nil)
+	svc := service.NewAIServiceWithWorkflow(nil, nil, nil, nil, 5, nil, nil, nil)
 	service.SetSnapStore(svc, snapStore)
 
 	input, _ := json.Marshal(map[string]string{"from_id": "snap-before", "to_id": "snap-after"})
@@ -149,7 +149,7 @@ func TestAIDebug_ToolCheckConnectivityAt_Allowed(t *testing.T) {
 			Policies: `[{"name":"allow-frontend-api","action":"ALLOW"}]`,
 		},
 	}}
-	svc := service.NewAIServiceWithWorkflow(nil, nil, nil, nil, 5, nil, nil)
+	svc := service.NewAIServiceWithWorkflow(nil, nil, nil, nil, 5, nil, nil, nil)
 	service.SetSnapStore(svc, snapStore)
 
 	input, _ := json.Marshal(map[string]string{
@@ -170,7 +170,7 @@ func TestAIDebug_ToolCheckConnectivityAt_Blocked(t *testing.T) {
 			Policies: `[{"name":"deny-all","action":"DENY"}]`,
 		},
 	}}
-	svc := service.NewAIServiceWithWorkflow(nil, nil, nil, nil, 5, nil, nil)
+	svc := service.NewAIServiceWithWorkflow(nil, nil, nil, nil, 5, nil, nil, nil)
 	service.SetSnapStore(svc, snapStore)
 
 	input, _ := json.Marshal(map[string]string{
@@ -187,7 +187,7 @@ func TestAIDebug_ToolCheckConnectivityAt_Blocked(t *testing.T) {
 func TestAIDebug_SnapStoreNotConfigured_ReturnsError(t *testing.T) {
 	g := NewWithT(t)
 	// No snapStore configured
-	svc := service.NewAIServiceWithWorkflow(nil, nil, nil, nil, 5, nil, nil)
+	svc := service.NewAIServiceWithWorkflow(nil, nil, nil, nil, 5, nil, nil, nil)
 
 	_, err := svc.ExecuteTool(context.Background(), "test-ns", "list_snapshots", json.RawMessage(`{"from":"2024-01-01T00:00:00Z","to":"2024-12-31T00:00:00Z"}`))
 	g.Expect(err).To(HaveOccurred())

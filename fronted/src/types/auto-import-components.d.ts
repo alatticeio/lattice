@@ -34,6 +34,7 @@ declare module 'vue' {
     NewYorkV4BlocksLogin05ComponentsLoginForm: typeof import('./../components/new-york-v4/blocks/login-05/components/LoginForm.vue')['default']
     NewYorkV4BlocksSignup03ComponentsSignupForm: typeof import('./../components/new-york-v4/blocks/signup-03/components/SignupForm.vue')['default']
     NewYorkV4BlocksSignup05ComponentsSignupForm: typeof import('./../components/new-york-v4/blocks/signup-05/components/SignupForm.vue')['default']
+    NodeEnrollBanner: typeof import('./../components/NodeEnrollBanner.vue')['default']
     PageHeader: typeof import('./../components/PageHeader.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']

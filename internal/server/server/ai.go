@@ -23,6 +23,16 @@ func (s *Server) aiRouter() {
 		ai.GET("/tools", s.handleAIListTools())
 		ai.POST("/tools/call", s.handleAIToolCall())
 	}
+
+	// Agent API routes — authenticated via Agent JWT issued by the server.
+	// Agents call this endpoint to execute tools on behalf of their identity.
+	if s.cfg.AI.AgentIsolation.Enabled && s.cfg.AI.AgentIsolation.JWTSecret != "" {
+		agentAPI := s.Group("/api/v1/agents")
+		agentAPI.Use(middleware.AgentAuth(s.cfg.AI.AgentIsolation.JWTSecret))
+		{
+			agentAPI.POST("/tools/call", s.handleAIToolCall())
+		}
+	}
 }
 
 // handleAIChat streams an AI conversation response via Server-Sent Events.
@@ -59,7 +69,12 @@ func (s *Server) handleAIChat() gin.HandlerFunc {
 
 		w := &sseWriter{w: c.Writer}
 
-		if err := s.aiService.Chat(c.Request.Context(), &req, w); err != nil {
+		ctx := c.Request.Context()
+		if claims, ok := middleware.GetAgentClaims(c); ok {
+			ctx = service.ContextWithAgentClaims(ctx, claims)
+		}
+
+		if err := s.aiService.Chat(ctx, &req, w); err != nil {
 			// Error already sent via SSE inside Chat(); nothing more to do.
 			s.logger.Warn("AI chat error", "err", err)
 		}
@@ -137,7 +152,11 @@ func (s *Server) handleAIToolCall() gin.HandlerFunc {
 		if req.Input == nil {
 			req.Input = json.RawMessage(`{}`)
 		}
-		result, err := s.aiService.ExecuteTool(c.Request.Context(), ns, req.Tool, req.Input)
+		ctx := c.Request.Context()
+		if claims, ok := middleware.GetAgentClaims(c); ok {
+			ctx = service.ContextWithAgentClaims(ctx, claims)
+		}
+		result, err := s.aiService.ExecuteTool(ctx, ns, req.Tool, req.Input)
 		if err != nil {
 			resp.Error(c, err.Error())
 			return

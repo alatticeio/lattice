@@ -2,7 +2,7 @@
 
 # Lattice
 
-**AI-Native WireGuard Overlay Networking**
+**Self-Hosted WireGuard Mesh · AI Agent Sandbox**
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Go Report Card](https://goreportcard.com/badge/github.com/alatticeio/lattice)](https://goreportcard.com/report/github.com/alatticeio/lattice)
@@ -14,7 +14,7 @@
 [![Throughput](https://img.shields.io/endpoint?url=https://alatticeio.github.io/lattice/docs/benchmarks/throughput.json)](https://github.com/alatticeio/lattice/actions/workflows/bench.yml)
 [![API p99](https://img.shields.io/endpoint?url=https://alatticeio.github.io/lattice/docs/benchmarks/api-p99.json)](https://github.com/alatticeio/lattice/actions/workflows/bench.yml)
 
-Lattice is a self-hosted WireGuard orchestration platform that connects any device — laptops, servers, IoT, Kubernetes pods, and AI agents — into a single encrypted overlay network, without touching firewalls or exposing public IPs. It is the only overlay mesh with a built-in AI-native networking stack: MCP server for AI assistant integration, zero-trust agent enrollment for AI workloads, and a natural-language network intent engine.
+Lattice is a self-hosted platform built around **two core pillars**: a **network orchestration engine** that connects any device — servers, containers, IoT, Kubernetes pods — into an encrypted WireGuard overlay mesh, and an **AI agent sandbox** that gives every AI agent a zero-trust WireGuard identity with kernel-level isolation and natural-language policy management.
 
 [**Website**](https://lattice.run) · [**Documentation**](https://lattice.run/docs) · [**Issues**](https://github.com/alatticeio/lattice/issues)
 
@@ -22,139 +22,82 @@ Lattice is a self-hosted WireGuard orchestration platform that connects any devi
 
 ---
 
-## Why Lattice?
+## Two Core Pillars
 
-Most overlay mesh solutions make you choose: either a SaaS-controlled mesh (Tailscale) or a self-hosted mesh with limited management tools (Netbird / Headscale). Neither treats AI workloads as a first-class citizen.
+### Network Orchestration
 
-**Lattice gives you both — a self-hosted control plane with a full management console, plus the only built-in AI-native networking stack in the overlay mesh space.**
+Connect any device into an encrypted overlay — no firewall changes, no public IP exposure.
 
-Deploy the entire control plane on your infrastructure — bare metal, Docker, or Kubernetes — and manage your network through a web dashboard. No third-party coordination servers, no data leaving your network.
+| Capability | Description |
+|------------|-------------|
+| **WireGuard Tunnel Automation** | Key distribution, rotation, and peer discovery are fully automated; first-handshake time (TTFH) is observable |
+| **NAT Traversal** | Dual-stack ICE/STUN (IPv4 + IPv6), concurrent LRP relay fallback, works across symmetric NAT |
+| **Built-in IPAM** | Two-tier allocation (global pool → subnet → peer IP), optimistic locking, automatic hole reuse |
+| **Policy Engine** | Default-deny + label selectors + port-level ingress/egress; TTL-based expiry; dual backend: iptables (Community) / eBPF TC (PRO) |
+| **Multi-Workspace & RBAC** | Namespace isolation + cross-workspace peering + cross-cluster peering + invitations |
+| **LRP Relay** | Custom relay protocol with TCP + QUIC dual transport, automatic failover when P2P is unavailable |
+| **K8s Operator** | 13 CRDs (Network, Peer, Policy, IPPool, Relay, Peering, etc.) for declarative lifecycle management |
+| **Web Dashboard** | Visual topology, policy editor, monitoring dashboard, workspace management |
+| **Telemetry** | PRO: VictoriaMetrics push (system metrics, per-peer WireGuard traffic/latency/packet loss) |
+| **All-in-One Deployment** | Embedded NATS + SQLite, zero external dependencies, one `docker run` to start |
 
-- **Self-hosted dashboard** — Manage peers, policies, monitoring, and workspaces through a web UI, not just CLI
-- **K8s-native + device-native** — The same mesh works for Kubernetes clusters (via CRD operator) and personal devices (via `lattice up`)
-- **Full data sovereignty** — Your keys, your traffic, your infrastructure stays on your infrastructure
-- **AI-native networking** — MCP server for AI assistant management, zero-trust enrollment for AI agent fleets (TTL identities + kernel-level isolation), and a natural-language intent engine — none of which exist in competing products
+### AI Agent Sandbox
 
-### AI Feature Comparison
+Give every AI agent a secure network identity — kernel-level isolation, natural-language-driven policy changes.
 
-| Capability | Lattice | Tailscale | Netbird | ZeroTier |
-|---|---|---|---|---|
-| MCP Server (AI assistant manages network via natural language) | ✅ Built-in | ❌ | ❌ | ❌ |
-| AI Agent Zero-Trust Enrollment (TTL + network isolation presets) | ✅ API + Python SDK | ❌ | ❌ | ❌ |
-| Network Intent Engine (natural language → CRD plan → apply) | ✅ | ❌ | ❌ | ❌ |
-| Write-op approval workflow (human-in-the-loop for AI changes) | ✅ Built-in | N/A | N/A | N/A |
-| Compliance-as-Conversation | 🔜 | ❌ | ❌ | ❌ |
+| Capability | Description |
+|------------|-------------|
+| **AgentIdentity CRD** | Binds an AI agent to a WireGuard Peer with RBAC (AllowedTools, AllowedNamespaces); four SandboxModes (none/pod/gvisor/microvm) and three EnforcementModes (disabled/audit/enforce) |
+| **Zero-Trust Enrollment** | Single-use Enrollment Token (TTL + usage limit) → auto-create LatticePeer + AgentIdentity → issue JWT — no manual key setup |
+| **Agent Isolation Enforcement** | `ExecuteTool()` path enforces: is the identity expired/revoked? is the namespace whitelisted? is the tool whitelisted? Audit mode logs violations; enforce mode blocks them |
+| **Agent JWT Auth Middleware** | HS256-signed, 365-day expiry, injected into Gin context; human users and agents share the same API, context auto-detects the caller |
+| **gVisor Sandbox (PRO)** | `lattice-agent-sandbox` CLI + `internal/agent/gvisor/` runtime: user-space kernel (runsc), zero privileges, no TUN, no eBPF; channel endpoint bridges WireGuard; policy adapter hooks into Lattice policy layer |
+| **MCP Server** | `lattice-mcp` binary for Claude Desktop / Cursor; 14 tools (read: list_peers, list_policies, check_connectivity, etc.; write: create_policy, delete_peer, etc. with human approval) |
+| **Intent Engine (PRO)** | Natural language → LLM extracts CRD change plan → Markdown diff preview → approve → apply — full human-in-the-loop workflow |
+| **Tool Call Audit** | Every agent tool call writes an audit log (allowed/blocked); test coverage in `ai_audit_test.go` |
 
 ---
 
-## Overview
+## Comparison
 
-Lattice is a WireGuard orchestration platform for Kubernetes and beyond. It automates the full lifecycle of secure peer-to-peer tunnels:
+### Network Orchestration
 
-- **Control Plane** — Kubernetes Operator (or all-in-one standalone mode) that declaratively manages network topology. Acts as the single source of truth for keys, IP allocation, and peer relationships.
-- **Data Plane** — Lightweight (~12 MB) agent deployed on any device — K8s pods, laptops, servers, or edge. Establishes encrypted WireGuard tunnels with automatic NAT traversal (ICE/STUN/TURN), even across symmetric NATs.
-- **Relay Plane** — Built-in LRP relay server as fallback when direct P2P is not possible.
-- **AI Plane** — MCP server for AI assistant (Claude, Cursor) network management; zero-trust enrollment API + Python SDK for AI agent fleets; natural-language intent engine that translates plain-English requests into CRD change plans.
+| Capability | Lattice | Tailscale | Netbird | ZeroTier |
+|------------|---------|-----------|---------|----------|
+| Self-hosted control plane | ✅ | ❌ (SaaS only) | ✅ | ✅ |
+| Web Dashboard | ✅ | ✅ | ✅ | ✅ |
+| K8s CRD Operator | ✅ (13 CRDs) | ✅ (limited) | ❌ | ❌ |
+| eBPF policy enforcement | ✅ (PRO) | ❌ | ❌ | ❌ |
+| Policy TTL expiry | ✅ | ❌ | ❌ | ❌ |
+| Cross-workspace peering | ✅ | ❌ | ❌ | ❌ |
+| Built-in IPAM | ✅ | ✅ | ❌ | ❌ |
+
+### AI Agent Sandbox
+
+| Capability | Lattice | Tailscale | Netbird | ZeroTier |
+|------------|---------|-----------|---------|----------|
+| Agent zero-trust enrollment (TTL + network isolation presets) | ✅ | ❌ | ❌ | ❌ |
+| AgentIdentity CRD + RBAC | ✅ | ❌ | ❌ | ❌ |
+| gVisor user-space kernel sandbox | ✅ (PRO) | ❌ | ❌ | ❌ |
+| MCP Server (AI assistant manages network via natural language) | ✅ | ❌ | ❌ | ❌ |
+| Intent Engine (natural language → CRD → approve → apply) | ✅ (PRO) | ❌ | ❌ | ❌ |
+| Tool call audit logging | ✅ | ❌ | ❌ | ❌ |
+| Write-op approval workflow | ✅ | N/A | N/A | N/A |
+| Sidecar intent interception (seccomp notify) | 🔜 | ❌ | ❌ | ❌ |
+| eBPF PID ↔ TUN traffic binding | 🔜 | ❌ | ❌ | ❌ |
+
+---
 
 ## Architecture
 
 ![Architecture](docs/images/architecture.png)
 
-## Features
+Lattice consists of four planes:
 
-| Feature | Status |
-|---------|--------|
-| WireGuard tunnel automation (key distribution, rotation) | ✅ |
-| Automatic NAT traversal (ICE / STUN / TURN) | ✅ |
-| Built-in IPAM — conflict-free IP allocation per workspace | ✅ |
-| CRD-based declarative network topology | ✅ |
-| Network policy engine (allow/deny, ingress/egress, port-level) | ✅ |
-| Multi-workspace & RBAC | ✅ |
-| Web Dashboard | ✅ |
-| All-in-One deployment (embedded NATS + SQLite, no external deps) | ✅ |
-| Telemetry export (VictoriaMetrics push) | ✅ |
-| Multi-region / multi-cloud bridging | 🔜 |
-| Smart DNS (internal service naming) | 🔜 |
-| **— AI-Native —** | |
-| **MCP Server — manage network via natural language (Claude Desktop, Cursor)** | ✅ |
-| **AI Agent Zero-Trust Enrollment — TTL identities, network isolation presets** | ✅ |
-| **Python Agent SDK — `async with LatticeAgent(...)`** | ✅ |
-| **Network Intent Engine — natural language → CRD change plan → diff → apply** | ✅ |
-| **Compliance-as-Conversation** | 🔜 |
-| **Time-Travel Network Debugging** | 🔜 |
-
----
-
-## Installation
-
-### Homebrew (macOS / Linux)
-
-```bash
-brew tap alatticeio/tap
-brew install lattice
-```
-
-> **Note:** If prompted for GitHub credentials, you've hit GitHub's API rate limit.
-> Authenticate brew with a [Personal Access Token](https://github.com/settings/tokens):
->
-> ```bash
-> export HOMEBREW_GITHUB_API_TOKEN=<your-token>
-> brew tap alatticeio/tap
-> brew install lattice
-> ```
-
-### YUM (RHEL / CentOS / Rocky / Fedora)
-
-Create `/etc/yum.repos.d/lattice.repo`:
-
-```ini
-[lattice]
-name=Lattice
-baseurl=https://alatticeio.github.io/lattice/rpm
-enabled=1
-gpgcheck=0
-```
-
-```bash
-sudo yum install lattice
-sudo systemctl enable --now lattice
-```
-
-### APT (Debian / Ubuntu)
-
-```bash
-curl -fsSL https://alatticeio.github.io/lattice/deb/Packages.gz -o /tmp/lattice-Packages.gz
-echo "deb [trusted=yes] https://alatticeio.github.io/lattice/deb ./" | sudo tee /etc/apt/sources.list.d/lattice.list
-sudo apt update
-sudo apt install lattice
-sudo systemctl enable --now lattice
-```
-
-### Docker
-
-```bash
-docker run -d \
-  --name lattice \
-  --restart unless-stopped \
-  --privileged \
-  --network host \
-  -v ~/.lattice:/root/.lattice \
-  ghcr.io/alatticeio/lattice:latest \
-  up
-```
-
-Before running, configure via `lattice init` (or pass flags directly: `up --server-url http://<host>:8080 --token <token>`).
-
-### Binary Download
-
-Download pre-built binaries from [GitHub Releases](https://github.com/alatticeio/lattice/releases).
-
-```bash
-# Linux amd64 — replace VERSION with the desired release tag (e.g. v0.5.0)
-VERSION=$(curl -s https://api.github.com/repos/alatticeio/lattice/releases/latest | grep tag_name | cut -d'"' -f4)
-curl -sSL "https://github.com/alatticeio/lattice/releases/download/${VERSION}/lattice_${VERSION}_linux_amd64.tar.gz" | tar xz
-sudo mv lattice /usr/local/bin/
-```
+- **Control Plane** — K8s Operator or All-in-One standalone mode (`latticed`), declaratively managing network topology, keys, IP allocation, and peer relationships
+- **Data Plane** — Lightweight agent (~12 MB) deployed on any device, establishing encrypted WireGuard tunnels with ICE/STUN NAT traversal
+- **Relay Plane** — Custom LRP relay protocol, automatic fallback when direct P2P is unavailable
+- **Sandbox Plane** — gVisor user-space kernel + Agent JWT + tool-level RBAC, providing a zero-privilege execution environment for AI agents
 
 ---
 
@@ -170,10 +113,9 @@ docker run -d \
   ghcr.io/alatticeio/lattice-k3s:latest
 ```
 
-This starts a self-contained container with k3s (lightweight Kubernetes) and the Lattice control plane already deployed inside. After ~30 seconds:
-- Dashboard / API: `http://localhost:8080`
+This container bundles k3s + the Lattice control plane. After ~30 seconds, visit `http://localhost:8080`.
 
-### Existing Kubernetes cluster (kustomize)
+### Existing Kubernetes cluster
 
 ```bash
 kubectl apply -k https://github.com/alatticeio/lattice/config/lattice/overlays/all-in-one
@@ -181,401 +123,157 @@ kubectl apply -k https://github.com/alatticeio/lattice/config/lattice/overlays/a
 
 ---
 
-## Connecting an Agent
+## Connecting a Device
 
-### 0. One-time setup (interactive)
+### 1. One-time setup
 
 ```bash
 lattice init
 ```
 
-Follow the prompts to enter your server URL and enrollment token. Config is saved to `~/.lattice/lattice.yaml`. After this, all commands read from config — no flags needed.
+Follow the prompts to enter your Server URL and Enrollment Token. Config is saved to `~/.lattice/lattice.yaml`.
 
-### 1. Create a workspace
-
-```bash
-lattice workspace add dev \
-  --display-name "Development"
-```
+### 2. Create a workspace
 
 ```bash
-# List all workspaces
-lattice workspace list
+lattice workspace add dev --display-name "Development"
 ```
 
-### 2. Create an enrollment token
+### 3. Create an enrollment token
 
 ```bash
-lattice token create dev-team \
-  -n <namespace> \
-  --limit 10 \
-  --expiry 168h
+lattice token create dev-team -n <namespace> --limit 10 --expiry 168h
 ```
 
-| Flag | Description |
-|------|-------------|
-| `-n` / `--namespace` | Workspace namespace (from `workspace list`) |
-| `--limit` | Max agent connections (0 = unlimited) |
-| `--expiry` | Token lifetime (e.g. `24h`, `168h`, omit = never) |
-
-### 3. Start an agent
+### 4. Start the agent
 
 ```bash
 lattice up
 ```
 
-Reads config from `~/.lattice/lattice.yaml` (set up via `lattice init`). Flags still override file values when needed.
-
-Run as a container (mount the config directory):
-
-```bash
-docker run -d \
-  --name wf-agent \
-  --restart unless-stopped \
-  --privileged \
-  --network host \
-  -v ~/.lattice:/root/.lattice \
-  ghcr.io/alatticeio/lattice:latest \
-  up
-```
-
-### 4. Allow traffic between peers
-
-Lattice enforces a **default-deny** policy — agents can establish tunnels but cannot exchange traffic until a policy explicitly permits it. This prevents accidental exposure in multi-tenant environments.
-
-**CLI — allow all traffic in a workspace (development / single-tenant):**
-
-```bash
-lattice policy allow-all \
-  -n <namespace>
-```
-
-**CLI — fine-grained policy:**
-
-```bash
-lattice policy add my-policy \
-  -n <namespace> \
-  --action ALLOW \
-  --desc "allow all peer traffic"
-```
-
-**Dashboard — visual policy editor:**
-
-Navigate to `http://localhost:8080` → **Policies** → **Create Policy**.
-
-You can define rules scoped to specific peers (by label), ports, and direction (ingress / egress).
-
-**kubectl — apply a policy CRD directly:**
-
-```yaml
-apiVersion: alattice.io/v1alpha1
-kind: LatticePolicy
-metadata:
-  name: allow-all
-  namespace: default
-  labels:
-    action: ALLOW
-  annotations:
-    description: "Full mesh — allow all peer traffic"
-    policyTypes: "Ingress,Egress"
-spec:
-  action: ALLOW
-  peerSelector: {}   # matches all peers in the namespace
-  ingress: []        # empty = no port restriction
-  egress: []
-```
-
-```bash
-kubectl apply -f policy-allow-all.yaml
-```
-
-### 5. Verify connectivity
-
-Check the local agent status and peer list:
-
-```bash
-lattice status
-```
-
-Example output:
-
-```
-Interface : wg0
-Address   : 10.100.0.1/24
-Public Key: abc123...=
-Port      : 51820
-
-Peers: 2 total, 2 connected
-
-  Peer      : xyz456...=
-  Address   : 10.100.0.2/32
-  Endpoint  : 203.0.113.5:51820
-  Handshake : 8 seconds ago
-  Traffic   : ↑ 1.2 MB  ↓ 3.4 MB
-  Status    : connected
-
-  Peer      : def789...=
-  Address   : 10.100.0.3/32
-  Endpoint  : 198.51.100.7:51820
-  Handshake : 22 seconds ago
-  Traffic   : ↑ 0.5 MB  ↓ 2.1 MB
-  Status    : connected
-```
-
-**Ping between nodes to confirm the tunnel is working:**
-
-On **Node A** (address `10.100.0.1`), ping Node B:
-
-```bash
-ping 10.100.0.2
-```
-
-Expected output when the tunnel is up:
-
-```
-PING 10.100.0.2 (10.100.0.2): 56 data bytes
-64 bytes from 10.100.0.2: icmp_seq=0 ttl=64 time=4.3 ms
-64 bytes from 10.100.0.2: icmp_seq=1 ttl=64 time=3.8 ms
-```
-
-If ping times out, the tunnel has not been established. Common causes:
-- The policy is still default-deny — run `lattice policy allow-all -n <namespace>` to permit traffic.
-- The peer has not yet completed a WireGuard handshake — check `lattice status` on both nodes and wait a few seconds.
-- A firewall is blocking UDP on port 51820 — Lattice will attempt TURN relay fallback automatically.
-
----
-
-### 6. Clean up resources
-
-Remove a specific agent from the workspace:
-
-```bash
-lattice token remove <token>
-```
-
-Delete a workspace and all its peers:
-
-```bash
-lattice workspace remove <namespace>
-```
-
-Remove a policy:
-
-```bash
-lattice policy remove <name> -n <namespace>
-```
-
-Uninstall the control plane from Kubernetes:
-
-```bash
-kubectl delete -k https://github.com/alatticeio/lattice/config/lattice/overlays/all-in-one
-```
-
----
-
-## CLI Reference
-
-All management commands (`workspace`, `token`, `policy`) use `--server-url` to reach the control plane. The NATS signaling URL is auto-discovered — no need to configure it separately. Use `lattice init` for interactive first-time setup.
-
-### Setup & Agent
-
-```bash
-lattice init     # Interactive first-time setup (saves to ~/.lattice/lattice.yaml)
-lattice up       # Connect to the mesh (reads config, zero flags needed after init)
-lattice status   # Show local WireGuard status and peer list
-```
-
-### Workspace
-
-```bash
-lattice workspace add <slug> [--display-name <name>] [-n <namespace>]
-lattice workspace list
-lattice workspace remove <namespace>
-```
-
-### Token
-
-```bash
-lattice token create <name> [-n <namespace>] [--limit <n>] [--expiry <duration>]
-lattice token list  [-n <namespace>]
-lattice token remove <token>
-```
-
-### Policy
+### 5. Allow traffic (default-deny)
 
 ```bash
 lattice policy allow-all -n <namespace>
-lattice policy add <name>  -n <namespace> [--action ALLOW|DENY] [--desc <text>]
-lattice policy list  -n <namespace>
-lattice policy remove <name> -n <namespace>
+```
+
+### 6. Verify
+
+```bash
+lattice status     # Show local WireGuard status and peer list
+ping 10.100.0.2    # Ping a peer to confirm the tunnel is up
+```
+
+---
+
+## AI Agent Sandbox
+
+### CLI: Start a sandboxed agent
+
+```bash
+lattice-agent-sandbox start \
+  --name my-agent \
+  --mode gvisor \
+  --server-url https://lattice.company.com \
+  --token lt-enroll-xxx
+```
+
+On start, the agent completes zero-trust enrollment automatically (generate WireGuard keypair → `POST /api/v1/agent-isolation/register` → receive IP → create gVisor sandbox), then blocks until SIGINT/SIGTERM.
+
+In sandbox mode, all outbound traffic goes through the gVisor user-space network stack. Policy checks are enforced by the Lattice policy adapter — no host iptables/eBPF required.
+
+### REST API: Agent enrollment
+
+```bash
+# Create an enrollment token
+curl -X POST https://lattice.company.com/api/v1/agent-isolation/enrollment-tokens \
+  -H "Authorization: Bearer $HUMAN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"namespace":"default","allowedTools":["list_peers","check_connectivity"],"allowedNamespaces":["default"],"ttl":"1h"}'
+
+# Agent registers with the token and receives a JWT
+curl -X POST https://lattice.company.com/api/v1/agent-isolation/register \
+  -H "Content-Type: application/json" \
+  -d '{"token":"<enrollment-token>","agentName":"code-executor","sandboxMode":"none"}'
+
+# Revoke an agent
+curl -X DELETE "https://lattice.company.com/api/v1/agent-isolation/agents/code-executor?namespace=default" \
+  -H "Authorization: Bearer $HUMAN_TOKEN"
 ```
 
 ---
 
 ## AI Assistant Integration (MCP)
 
-Lattice ships with an [MCP](https://modelcontextprotocol.io) server (`lattice-mcp`) that lets
-Claude Desktop, Cursor, and other MCP-compatible AI assistants manage your network with natural language.
-
-### Setup
-
-1. Install `lattice-mcp`:
-   ```bash
-   go install github.com/alatticeio/lattice/cmd/lattice-mcp@latest
-   ```
-
-2. Log in to your Lattice server:
-   ```bash
-   lattice login
-   ```
-
-3. Find your workspace ID:
-   ```bash
-   lattice workspace list
-   ```
-
-4. Add to Claude Desktop (`~/.config/claude/claude_desktop_config.json`):
-   ```json
-   {
-     "mcpServers": {
-       "lattice": {
-         "command": "lattice-mcp",
-         "args": ["--workspace", "YOUR_WORKSPACE_ID"]
-       }
-     }
-   }
-   ```
-
-5. Restart Claude Desktop. You can now ask:
-   > "List all peers in my network"
-   > "Create a policy that allows frontend to reach api-gateway on port 443"
-   > "Why can't payment-service reach postgres?"
-   > "Show me all offline peers"
-
-### Available Tools
-
-| Tool | Type | Description |
-|------|------|-------------|
-| `list_peers` | Read | List all WireGuard peers with status |
-| `list_policies` | Read | List all access control policies |
-| `list_networks` | Read | List all networks and CIDRs |
-| `check_connectivity` | Read | Check if two peers can communicate |
-| `audit_workspace` | Read | Security audit of workspace policies |
-| `plan_network_change` | Read | Translate natural language intent into a CRD change plan diff |
-| `apply_network_change` | Write | Execute an approved change plan (requires admin approval) |
-| `create_policy` | Write | Create an access control policy |
-| `delete_policy` | Write | Delete a policy |
-| `create_peer` | Write | Create a new peer node |
-| `delete_peer` | Write | Delete a peer node |
-
-Write operations require approval in the Lattice dashboard unless `ai.workflow.auto_approve` is configured:
-
-```yaml
-ai:
-  enabled: true
-  api-key: sk-...
-  workflow:
-    auto_approve:
-      create_policy: false  # require approval (default)
-      delete_peer: false    # require approval (default)
+```bash
+go install github.com/alatticeio/lattice/cmd/lattice-mcp@latest
 ```
+
+Add to Claude Desktop (`~/.config/claude/claude_desktop_config.json`):
+
+```json
+{
+  "mcpServers": {
+    "lattice": {
+      "command": "lattice-mcp",
+      "args": ["--workspace", "YOUR_WORKSPACE_ID"]
+    }
+  }
+}
+```
+
+Then ask Claude in natural language: "List all peers", "Create a policy allowing frontend to reach api-gateway on port 443", "Why can't payment-service reach postgres?"
 
 ---
 
-## AI Agent Networking
+## Installation
 
-Lattice provides **Zero-Trust networking for AI agent clusters**. When running multi-agent
-systems (AutoGen, LangGraph, Claude Agent SDK), each agent gets a unique WireGuard
-identity and network isolation enforced at the kernel level — even if an agent is
-compromised by a prompt injection attack, it cannot reach services outside its policy preset.
-
-### Python SDK
+### Homebrew (macOS / Linux)
 
 ```bash
-pip install lattice-sdk
+brew tap alatticeio/tap
+brew install lattice
 ```
 
-```python
-from lattice_sdk import LatticeAgent
-
-async with LatticeAgent(
-    server="https://lattice.company.com",
-    token="lt-workspace-token",
-    workspace_id="ws-prod-agents",
-    agent_name="code-executor",
-    agent_type="code-executor",
-    ttl_seconds=3600,
-    policy_preset="sandboxed",   # no ingress, egress to tool services only
-) as agent:
-    # WireGuard tunnel is up; agent.peer_name and agent.enrollment_token are set
-    result = await run_agent_task()
-# Tunnel torn down automatically on exit
-```
-
-### Policy Presets
-
-| Preset | Behaviour |
-|--------|-----------|
-| `sandboxed` | Egress allowed; all ingress denied |
-| `coordinator` | Accepts ingress from same-workspace agents |
-| `isolated` | No network access (whitelist only) |
-
-### REST API
+### APT (Debian / Ubuntu)
 
 ```bash
-# Enroll an agent
-curl -X POST https://lattice.company.com/api/v1/agent-enroll \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"agentName":"executor-1","agentType":"code-executor","workspaceId":"ws-xxx","ttlSeconds":3600,"policyPreset":"sandboxed"}'
-
-# Revoke an agent before TTL expiry
-curl -X DELETE "https://lattice.company.com/api/v1/agent-enroll/agent-executor-1?workspaceId=ws-xxx" \
-  -H "Authorization: Bearer $TOKEN"
+echo "deb [trusted=yes] https://alatticeio.github.io/lattice/deb ./" | sudo tee /etc/apt/sources.list.d/lattice.list
+sudo apt update && sudo apt install lattice
 ```
 
----
+### YUM (RHEL / CentOS / Fedora)
 
-## Configuration Reference
+```bash
+sudo tee /etc/yum.repos.d/lattice.repo <<< '[lattice]
+name=Lattice
+baseurl=https://alatticeio.github.io/lattice/rpm
+enabled=1
+gpgcheck=0'
+sudo yum install lattice
+```
 
-The control plane is configured via a YAML file (default: `/etc/lattice/lattice.yaml`):
+### Binary
 
-```yaml
-app:
-  listen: :8080
-  name: "Lattice"
-  env: "production"
-  init_admins:
-    - username: "admin"
-      password: "changeme"        # ⚠ Change before deploying
-
-jwt:
-  secret: "replace-with-random-secret"   # ⚠ Use a 32-byte random value
-  expire_hours: 24
-
-database:
-  dsn: "data/lattice.db"                # SQLite (all-in-one)
-  # dsn: "root:pass@tcp(mariadb:3306)/lattice?charset=utf8mb4&parseTime=True"  # MariaDB
+```bash
+VERSION=$(curl -s https://api.github.com/repos/alatticeio/lattice/releases/latest | grep tag_name | cut -d'"' -f4)
+curl -sSL "https://github.com/alatticeio/lattice/releases/download/${VERSION}/lattice_${VERSION}_linux_amd64.tar.gz" | tar xz
+sudo mv lattice /usr/local/bin/
 ```
 
 ---
 
 ## Development
 
-### Requirements
-
-- Go 1.25+
-- Docker 20.10+
-- k3d 5.x+ (for local cluster)
-- kubectl 1.20+
-
-### Build from source
-
 ```bash
 git clone https://github.com/alatticeio/lattice.git
 cd lattice
-make build-all
+make build-all     # Build all binaries
+make test          # Run unit tests
+make lint          # Run golangci-lint
 ```
+
+Requirements: Go 1.25+ / Docker 20.10+ / k3d 5.x+ (E2E) / kubectl 1.20+
 
 ---
 

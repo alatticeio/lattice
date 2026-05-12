@@ -8,11 +8,15 @@ import (
 	"time"
 
 	"github.com/alatticeio/lattice/api/v1alpha1"
+	"github.com/alatticeio/lattice/internal/agent/infra"
 	"github.com/alatticeio/lattice/internal/agent/log"
 	"github.com/alatticeio/lattice/internal/agent/store"
+	"github.com/alatticeio/lattice/internal/server/dto"
 	"github.com/alatticeio/lattice/internal/server/llm"
+	"github.com/alatticeio/lattice/internal/server/models"
 	managementnats "github.com/alatticeio/lattice/internal/server/nats"
 	"github.com/alatticeio/lattice/internal/server/resource"
+	"github.com/alatticeio/lattice/internal/server/vo"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -82,19 +86,39 @@ type DebugRequest struct {
 	To          time.Time `json:"to"`
 }
 
+// ── Narrow interfaces (avoid import cycle with controller package) ─────────────
+
+// WorkspaceManager is a narrow interface for workspace management.
+// Satisfied by controller.WorkspaceController without creating an import cycle.
+type WorkspaceManager interface {
+	AddWorkspace(ctx context.Context, workspaceDto *dto.WorkspaceDto) (*vo.WorkspaceVo, error)
+	DeleteWorkspace(ctx context.Context, id string) error
+}
+
+// TokenManager is a narrow interface for enrollment token management.
+// Satisfied by controller.TokenController without creating an import cycle.
+type TokenManager interface {
+	Create(ctx context.Context, req *dto.TokenDto) (string, error)
+	Delete(ctx context.Context, token string) error
+}
+
 // ── Implementation ────────────────────────────────────────────────────────────
 
 type aiService struct {
-	logger       *log.Logger
-	llm          llm.Client
-	store        store.Store
-	k8s          *resource.Client
-	presence     *managementnats.NodePresenceStore
-	maxToolCalls int
-	workflow     WorkflowService
-	autoApprove  map[string]bool                 // tool name -> skip approval
-	intentSvc    IntentService                   // optional, Pro-only
-	snapStore    store.NetworkSnapshotRepository // optional, Pro-only
+	logger         *log.Logger
+	llm            llm.Client
+	store          store.Store
+	k8s            *resource.Client
+	presence       *managementnats.NodePresenceStore
+	maxToolCalls   int
+	workflow       WorkflowService
+	autoApprove    map[string]bool                 // tool name -> skip approval
+	intentSvc      IntentService                   // optional, Pro-only
+	snapStore      store.NetworkSnapshotRepository // optional, Pro-only
+	agentIsolation AgentIsolationService           // nil = feature disabled
+	auditSvc       AuditService                    // optional, nil = no agent tool audit logging
+	workspaceCtrl  WorkspaceManager                // optional, workspace CRUD via AI
+	tokenCtrl      TokenManager                    // optional, enrollment token CRUD via AI
 }
 
 // SetSnapStore attaches the NetworkSnapshot repository to an existing AIService.
@@ -112,6 +136,47 @@ func SetIntentService(svc AIService, intentSvc IntentService) {
 	}
 }
 
+// SetAuditService attaches an AuditService to the AIService for agent tool-call logging.
+func SetAuditService(svc AIService, auditSvc AuditService) {
+	if as, ok := svc.(*aiService); ok {
+		as.auditSvc = auditSvc
+	}
+}
+
+// SetWorkspaceCtrl attaches a WorkspaceManager to an existing AIService.
+func SetWorkspaceCtrl(svc AIService, ctrl WorkspaceManager) {
+	if as, ok := svc.(*aiService); ok {
+		as.workspaceCtrl = ctrl
+	}
+}
+
+// SetTokenCtrl attaches a TokenManager to an existing AIService.
+func SetTokenCtrl(svc AIService, ctrl TokenManager) {
+	if as, ok := svc.(*aiService); ok {
+		as.tokenCtrl = ctrl
+	}
+}
+
+// logToolAudit writes an audit entry for an agent tool call (allowed or blocked).
+// It is a no-op when auditSvc is nil or when called from a non-agent (human) context.
+func (s *aiService) logToolAudit(ctx context.Context, namespace, toolName, action string) {
+	if s.auditSvc == nil {
+		return
+	}
+	claims := agentClaimsFromContext(ctx)
+	agentID := "human" // fallback for non-agent calls
+	if claims != nil {
+		agentID = claims.AgentID
+	}
+	s.auditSvc.Log(models.AuditLog{
+		WorkspaceID:  namespace,
+		Action:       action,
+		Resource:     "tool",
+		ResourceName: toolName,
+		UserID:       agentID,
+	})
+}
+
 // NewAIService is the existing constructor (unchanged signature for compatibility).
 func NewAIService(
 	llmClient llm.Client,
@@ -120,7 +185,7 @@ func NewAIService(
 	presence *managementnats.NodePresenceStore,
 	maxToolCalls int,
 ) AIService {
-	return NewAIServiceWithWorkflow(llmClient, st, k8s, presence, maxToolCalls, nil, nil)
+	return NewAIServiceWithWorkflow(llmClient, st, k8s, presence, maxToolCalls, nil, nil, nil)
 }
 
 // NewAIServiceWithWorkflow is the full constructor used by the server.
@@ -132,6 +197,7 @@ func NewAIServiceWithWorkflow(
 	maxToolCalls int,
 	wf WorkflowService,
 	autoApprove map[string]bool,
+	agentIsolation AgentIsolationService,
 ) AIService {
 	if maxToolCalls <= 0 {
 		maxToolCalls = 5
@@ -140,14 +206,15 @@ func NewAIServiceWithWorkflow(
 		autoApprove = map[string]bool{}
 	}
 	return &aiService{
-		logger:       log.GetLogger("ai-service"),
-		llm:          llmClient,
-		store:        st,
-		k8s:          k8s,
-		presence:     presence,
-		maxToolCalls: maxToolCalls,
-		workflow:     wf,
-		autoApprove:  autoApprove,
+		logger:         log.GetLogger("ai-service"),
+		llm:            llmClient,
+		store:          st,
+		k8s:            k8s,
+		presence:       presence,
+		maxToolCalls:   maxToolCalls,
+		workflow:       wf,
+		autoApprove:    autoApprove,
+		agentIsolation: agentIsolation,
 	}
 }
 
@@ -592,9 +659,77 @@ func (s *aiService) ListTools(namespace string) []llm.Tool {
 				"required": ["snapshot_id", "from", "to"]
 			}`),
 		},
+		// ── Workspace management tools ─────────────────────────────────
+		{
+			Name:        "list_workspaces",
+			Description: "列出所有工作区（Workspace），包括名称、命名空间、状态等信息",
+			InputSchema: json.RawMessage(`{"type":"object","properties":{}}`),
+		},
+		{
+			Name:        "create_workspace",
+			Description: "创建新工作区（Workspace）。写操作，需要审批。",
+			InputSchema: json.RawMessage(`{
+				"type": "object",
+				"properties": {
+					"slug":        {"type": "string", "description": "工作区唯一标识符（URL 友好，小写字母+连字符）"},
+					"namespace":   {"type": "string", "description": "K8s 命名空间名称（DNS-1123 格式）"},
+					"displayName": {"type": "string", "description": "工作区显示名称"}
+				},
+				"required": ["slug", "namespace", "displayName"]
+			}`),
+		},
+		{
+			Name:        "delete_workspace",
+			Description: "删除工作区（Workspace）及其所有资源。写操作，需要审批。",
+			InputSchema: json.RawMessage(`{
+				"type": "object",
+				"properties": {
+					"id": {"type": "string", "description": "工作区 ID"}
+				},
+				"required": ["id"]
+			}`),
+		},
+		// ── Enrollment Token tools ─────────────────────────────────────
+		{
+			Name:        "list_enrollment_tokens",
+			Description: "列出当前工作区的所有注册 Token（LatticeEnrollmentToken），用于设备注册",
+			InputSchema: json.RawMessage(`{"type":"object","properties":{}}`),
+		},
+		{
+			Name:        "create_enrollment_token",
+			Description: "为当前工作区创建新的注册 Token，用于设备自动注册。写操作，需要审批。",
+			InputSchema: json.RawMessage(`{
+				"type": "object",
+				"properties": {
+					"expiry": {"type": "string", "description": "过期时间，如 '168h'、'24h'，默认 168h"},
+					"limit":  {"type": "integer", "description": "最大注册设备数，默认 5"}
+				}
+			}`),
+		},
+		{
+			Name:        "revoke_enrollment_token",
+			Description: "撤销注册 Token，阻止设备使用该 Token 注册。写操作，需要审批。",
+			InputSchema: json.RawMessage(`{
+				"type": "object",
+				"properties": {
+					"token": {"type": "string", "description": "要撤销的 Token 名称"}
+				},
+				"required": ["token"]
+			}`),
+		},
 	}
 }
 func (s *aiService) ExecuteTool(ctx context.Context, namespace, name string, input json.RawMessage) (string, error) {
+	// Agent isolation: nil-safe, no-op when feature is disabled.
+	if s.agentIsolation != nil {
+		if err := s.agentIsolation.CheckToolAccess(ctx, namespace, name); err != nil {
+			s.logToolAudit(ctx, namespace, name, AuditActionAgentToolBlocked)
+			return "", err
+		}
+	}
+	// Log allowed tool calls (after isolation check passes).
+	s.logToolAudit(ctx, namespace, name, AuditActionAgentToolCall)
+
 	switch name {
 	case "list_peers":
 		return s.toolListPeers(ctx, namespace)
@@ -631,6 +766,18 @@ func (s *aiService) ExecuteTool(ctx context.Context, namespace, name string, inp
 		return s.toolDiffSnapshots(ctx, input)
 	case "check_connectivity_at":
 		return s.toolCheckConnectivityAt(ctx, input)
+	case "list_workspaces":
+		return s.toolListWorkspaces(ctx)
+	case "create_workspace":
+		return s.toolCreateWorkspace(ctx, input)
+	case "delete_workspace":
+		return s.toolDeleteWorkspace(ctx, input)
+	case "list_enrollment_tokens":
+		return s.toolListEnrollmentTokens(ctx, namespace)
+	case "create_enrollment_token":
+		return s.toolCreateEnrollmentToken(ctx, namespace, input)
+	case "revoke_enrollment_token":
+		return s.toolRevokeEnrollmentToken(ctx, namespace, input)
 	default:
 		return "", fmt.Errorf("unknown tool: %s", name)
 	}
@@ -1043,11 +1190,20 @@ func (s *aiService) Debug(ctx context.Context, req *DebugRequest, out StreamWrit
 	}
 
 	debugTools := s.buildDebugTools()
-	system := fmt.Sprintf(`你是 Lattice 网络调试助手。通过查询历史快照来定位网络故障根因。
-当前工作区: %s（命名空间: %s）
-调试时间范围: %s ~ %s
+	system := fmt.Sprintf(`你是 Lattice 网络调试专家。当前工作区: %s（命名空间: %s），调试时间范围: %s ~ %s。
 
-分析步骤：先用 list_snapshots 找到相关时间点的快照，再用 diff_snapshots 对比变更，最后用 check_connectivity_at 验证结论。`,
+分析流程：
+1. 用 get_snapshot 获取指定快照详情
+2. 如果有上一快照，用 diff_snapshots 对比变更
+3. 必要时用 check_connectivity_at 验证连通性
+
+收集完信息后，请输出结构化分析报告，包含：
+- **变更摘要**：列出本次快照的具体变更内容
+- **影响评估**：这些变更对网络连通性/安全性的影响
+- **风险点**：需要关注的潜在问题（如有）
+- **建议**：改进或排查建议（如有）
+
+报告要具体，引用实际的 Peer 名称、策略名称、网络名称。`,
 		ws.DisplayName, ws.Namespace,
 		req.From.Format("2006-01-02 15:04"), req.To.Format("2006-01-02 15:04"))
 
@@ -1083,6 +1239,19 @@ func (s *aiService) Debug(ctx context.Context, req *DebugRequest, out StreamWrit
 		}
 		msgs = append(msgs, assistantMsg, toolResultMsg)
 	}
+
+	// maxToolCalls exhausted — force a final synthesis without tools
+	finalResp, err := s.llm.Complete(ctx, &llm.Request{
+		System:    system,
+		Messages:  msgs,
+		MaxTokens: 4096,
+	})
+	if err != nil {
+		_ = out.Write(StreamEvent{Type: "error", Error: err.Error()})
+		return err
+	}
+	_ = out.Write(StreamEvent{Type: "token", Content: finalResp.Content})
+	_ = out.Write(StreamEvent{Type: "done"})
 	return nil
 }
 
@@ -1257,4 +1426,195 @@ func (s *aiService) toolCheckConnectivityAt(ctx context.Context, input json.RawM
 	}
 	return fmt.Sprintf("快照 %s 中未找到允许 %s → %s 的 ALLOW 策略，连接被阻断。",
 		args.SnapshotID, args.From, args.To), nil
+}
+
+// ── Workspace management tools ────────────────────────────────────────────────
+
+func (s *aiService) toolListWorkspaces(ctx context.Context) (string, error) {
+	workspaces, _, err := s.store.Workspaces().List(ctx, "", 1, 100)
+	if err != nil {
+		return "", err
+	}
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("共 %d 个工作区：\n", len(workspaces)))
+	for _, ws := range workspaces {
+		sb.WriteString(fmt.Sprintf("- [%s] %s (命名空间: %s, ID: %s)\n",
+			ws.Status, ws.DisplayName, ws.Namespace, ws.ID))
+	}
+	return sb.String(), nil
+}
+
+func (s *aiService) toolCreateWorkspace(ctx context.Context, input json.RawMessage) (string, error) {
+	if s.workspaceCtrl == nil {
+		return "", fmt.Errorf("workspace management not available")
+	}
+	var args struct {
+		Slug        string `json:"slug"`
+		Namespace   string `json:"namespace"`
+		DisplayName string `json:"displayName"`
+	}
+	if err := json.Unmarshal(input, &args); err != nil {
+		return "", fmt.Errorf("invalid input: %w", err)
+	}
+	if args.Slug == "" || args.Namespace == "" || args.DisplayName == "" {
+		return "", fmt.Errorf("slug, namespace, displayName are required")
+	}
+	payload := map[string]interface{}{
+		"slug": args.Slug, "namespace": args.Namespace, "displayName": args.DisplayName,
+	}
+	return s.submitOrApply(ctx, args.Namespace, "create_workspace", "workspace", args.Slug, payload, s.applyCreateWorkspace)
+}
+
+func (s *aiService) applyCreateWorkspace(ctx context.Context, _ string, payload string) (string, error) {
+	var args struct {
+		Slug        string `json:"slug"`
+		Namespace   string `json:"namespace"`
+		DisplayName string `json:"displayName"`
+	}
+	if err := json.Unmarshal([]byte(payload), &args); err != nil {
+		return "", err
+	}
+	ctx = context.WithValue(ctx, infra.UserIDKey, "ai-agent")
+	ctx = context.WithValue(ctx, infra.UsernameKey, "ai-agent")
+	ws, err := s.workspaceCtrl.AddWorkspace(ctx, &dto.WorkspaceDto{
+		Slug:        args.Slug,
+		Namespace:   args.Namespace,
+		DisplayName: args.DisplayName,
+	})
+	if err != nil {
+		return "", fmt.Errorf("create workspace: %w", err)
+	}
+	return fmt.Sprintf("工作区 %s 已创建 (ID: %s, 命名空间: %s)", ws.DisplayName, ws.ID, ws.Namespace), nil
+}
+
+func (s *aiService) toolDeleteWorkspace(ctx context.Context, input json.RawMessage) (string, error) {
+	if s.workspaceCtrl == nil {
+		return "", fmt.Errorf("workspace management not available")
+	}
+	var args struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal(input, &args); err != nil {
+		return "", fmt.Errorf("invalid input: %w", err)
+	}
+	if args.ID == "" {
+		return "", fmt.Errorf("id is required")
+	}
+	payload := map[string]interface{}{"id": args.ID}
+	return s.submitOrApply(ctx, args.ID, "delete_workspace", "workspace", args.ID, payload, s.applyDeleteWorkspace)
+}
+
+func (s *aiService) applyDeleteWorkspace(ctx context.Context, _ string, payload string) (string, error) {
+	var args struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal([]byte(payload), &args); err != nil {
+		return "", err
+	}
+	if err := s.workspaceCtrl.DeleteWorkspace(ctx, args.ID); err != nil {
+		return "", fmt.Errorf("delete workspace: %w", err)
+	}
+	return fmt.Sprintf("工作区 %s 已删除", args.ID), nil
+}
+
+// ── Enrollment Token tools ────────────────────────────────────────────────────
+
+func (s *aiService) toolListEnrollmentTokens(ctx context.Context, namespace string) (string, error) {
+	var list v1alpha1.LatticeEnrollmentTokenList
+	if err := s.k8s.GetAPIReader().List(ctx, &list, client.InNamespace(namespace)); err != nil {
+		return "", err
+	}
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("共 %d 个注册 Token：\n", len(list.Items)))
+	for _, t := range list.Items {
+		expiry := ""
+		if !t.Spec.Expiry.IsZero() {
+			expiry = " 过期: " + t.Spec.Expiry.Format("2006-01-02 15:04:05")
+		}
+		sb.WriteString(fmt.Sprintf("- %s (限制: %d 台设备, 已绑定: %d 台)%s\n",
+			t.Name, t.Spec.UsageLimit, len(t.Spec.BoundPeers), expiry))
+	}
+	return sb.String(), nil
+}
+
+func (s *aiService) toolCreateEnrollmentToken(ctx context.Context, namespace string, input json.RawMessage) (string, error) {
+	if s.tokenCtrl == nil {
+		return "", fmt.Errorf("token management not available")
+	}
+	var args struct {
+		Expiry string `json:"expiry"`
+		Limit  int    `json:"limit"`
+	}
+	if err := json.Unmarshal(input, &args); err != nil {
+		return "", fmt.Errorf("invalid input: %w", err)
+	}
+	payload := map[string]interface{}{"expiry": args.Expiry, "limit": args.Limit}
+	return s.submitOrApply(ctx, namespace, "create_enrollment_token", "token", "new-token", payload, s.applyCreateEnrollmentToken)
+}
+
+func (s *aiService) applyCreateEnrollmentToken(ctx context.Context, namespace string, payload string) (string, error) {
+	var args struct {
+		Expiry    string `json:"expiry"`
+		Limit     int    `json:"limit"`
+		Namespace string `json:"namespace"`
+	}
+	if err := json.Unmarshal([]byte(payload), &args); err != nil {
+		return "", err
+	}
+	if args.Namespace != "" {
+		namespace = args.Namespace
+	}
+	ws, err := s.store.Workspaces().GetByNamespace(ctx, namespace)
+	if err != nil {
+		return "", fmt.Errorf("workspace not found for namespace %s: %w", namespace, err)
+	}
+	ctx = context.WithValue(ctx, infra.WorkspaceKey, ws.ID)
+	token, err := s.tokenCtrl.Create(ctx, &dto.TokenDto{
+		Namespace: namespace,
+		Expiry:    args.Expiry,
+		Limit:     args.Limit,
+	})
+	if err != nil {
+		return "", fmt.Errorf("create token: %w", err)
+	}
+	return fmt.Sprintf("注册 Token 已创建: %s", token), nil
+}
+
+func (s *aiService) toolRevokeEnrollmentToken(ctx context.Context, namespace string, input json.RawMessage) (string, error) {
+	if s.tokenCtrl == nil {
+		return "", fmt.Errorf("token management not available")
+	}
+	var args struct {
+		Token string `json:"token"`
+	}
+	if err := json.Unmarshal(input, &args); err != nil {
+		return "", fmt.Errorf("invalid input: %w", err)
+	}
+	if args.Token == "" {
+		return "", fmt.Errorf("token is required")
+	}
+	payload := map[string]interface{}{"token": args.Token}
+	return s.submitOrApply(ctx, namespace, "revoke_enrollment_token", "token", args.Token, payload, s.applyRevokeEnrollmentToken)
+}
+
+func (s *aiService) applyRevokeEnrollmentToken(ctx context.Context, namespace string, payload string) (string, error) {
+	var args struct {
+		Token     string `json:"token"`
+		Namespace string `json:"namespace"`
+	}
+	if err := json.Unmarshal([]byte(payload), &args); err != nil {
+		return "", err
+	}
+	if args.Namespace != "" {
+		namespace = args.Namespace
+	}
+	ws, err := s.store.Workspaces().GetByNamespace(ctx, namespace)
+	if err != nil {
+		return "", fmt.Errorf("workspace not found for namespace %s: %w", namespace, err)
+	}
+	ctx = context.WithValue(ctx, infra.WorkspaceKey, ws.ID)
+	if err := s.tokenCtrl.Delete(ctx, args.Token); err != nil {
+		return "", fmt.Errorf("revoke token: %w", err)
+	}
+	return fmt.Sprintf("注册 Token %s 已撤销", args.Token), nil
 }

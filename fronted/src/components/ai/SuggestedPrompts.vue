@@ -1,20 +1,37 @@
 <script setup lang="ts">
-import { Network, ShieldCheck, Search, Zap } from 'lucide-vue-next'
+import { Network, ShieldCheck, Search, Zap, Terminal, GitBranch } from 'lucide-vue-next'
 
 const emit = defineEmits<{ select: [prompt: string] }>()
 
-const prompts = [
-  { icon: Search,       label: '查询离线',   text: '现在哪些 Peer 离线了？' },
-  { icon: Network,      label: '网络概览',   text: '列出当前所有网络和它们的 CIDR' },
-  { icon: ShieldCheck,  label: '安全审计',   text: '分析当前工作区的安全策略' },
-  { icon: Zap,          label: '连通性诊断', text: '为什么两个 Peer 之间无法通信？' },
+const groups = [
+  {
+    label: '常见问题',
+    items: [
+      { icon: Search,  text: '现在哪些 Peer 离线了？' },
+      { icon: ShieldCheck, text: '分析当前工作区的安全策略' },
+    ],
+  },
+  {
+    label: '网络管理',
+    items: [
+      { icon: Network, text: '列出当前所有网络和它们的 CIDR' },
+      { icon: Zap,     text: '为什么两个 Peer 之间无法通信？' },
+    ],
+  },
+  {
+    label: '运维诊断',
+    items: [
+      { icon: Terminal,   text: '查看最近的连接失败事件' },
+      { icon: GitBranch,  text: '当前有哪些活跃的中继节点？' },
+    ],
+  },
 ]
 </script>
 
 <template>
   <div class="flex h-full flex-col items-center justify-center px-6">
     <!-- Heading -->
-    <div class="mb-10 text-center">
+    <div class="mb-8 text-center">
       <div class="mx-auto mb-4 flex size-12 items-center justify-center rounded-2xl bg-primary/10 ring-1 ring-primary/20">
         <svg class="size-6 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
           <path stroke-linecap="round" stroke-linejoin="round"
@@ -22,26 +39,27 @@ const prompts = [
         </svg>
       </div>
       <h2 class="text-2xl font-semibold tracking-tight">Lattice AI</h2>
-      <p class="mt-2 text-sm text-muted-foreground">你的网络运维助手，用自然语言管理 WireGuard 网络</p>
+      <p class="mt-2 text-sm text-muted-foreground">用自然语言管理 WireGuard 网络</p>
     </div>
 
-    <!-- Prompt grid -->
-    <div class="grid w-full max-w-xl grid-cols-2 gap-3">
-      <button
-        v-for="p in prompts"
-        :key="p.text"
-        class="group flex flex-col items-start gap-2.5 rounded-xl border border-border bg-card p-4 text-left transition-all hover:border-primary/40 hover:bg-primary/5 hover:shadow-sm"
-        @click="emit('select', p.text)"
-      >
-        <component
-          :is="p.icon"
-          class="size-4 text-muted-foreground transition-colors group-hover:text-primary"
-        />
-        <div>
-          <p class="text-xs font-medium text-foreground">{{ p.label }}</p>
-          <p class="mt-0.5 text-xs text-muted-foreground leading-snug">{{ p.text }}</p>
+    <!-- Grouped prompts -->
+    <div class="w-full max-w-lg space-y-5">
+      <div v-for="group in groups" :key="group.label">
+        <p class="mb-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground/60">
+          {{ group.label }}
+        </p>
+        <div class="flex flex-col gap-1.5">
+          <button
+            v-for="item in group.items"
+            :key="item.text"
+            class="flex items-center gap-3 rounded-lg border border-border bg-card px-4 py-2.5 text-left text-sm transition-all hover:border-primary/40 hover:bg-primary/5 hover:shadow-sm"
+            @click="emit('select', item.text)"
+          >
+            <component :is="item.icon" class="size-3.5 shrink-0 text-muted-foreground" />
+            <span class="text-foreground/80">{{ item.text }}</span>
+          </button>
         </div>
-      </button>
+      </div>
     </div>
   </div>
 </template>

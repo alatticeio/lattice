@@ -27,6 +27,7 @@ func (s *Server) intentRouter() {
 	{
 		intent.POST("/plan", s.handleIntentPlan())
 		intent.POST("/apply", s.handleIntentApply())
+		intent.GET("/history", s.handleIntentHistory())
 	}
 }
 
@@ -68,6 +69,25 @@ func (s *Server) handleIntentPlan() gin.HandlerFunc {
 
 type intentApplyRequest struct {
 	PlanID string `json:"planId" binding:"required"`
+}
+
+// handleIntentHistory returns the last N applied plans for a workspace.
+//
+//	GET /api/v1/ai/intent/history?workspaceId=...
+func (s *Server) handleIntentHistory() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		workspaceID := c.Query("workspaceId")
+		if workspaceID == "" {
+			resp.BadRequest(c, "workspaceId is required")
+			return
+		}
+		items, err := s.intentService.History(c.Request.Context(), workspaceID, 20)
+		if err != nil {
+			resp.Error(c, err.Error())
+			return
+		}
+		resp.OK(c, items)
+	}
 }
 
 // handleIntentApply executes a previously generated plan via WorkflowService.

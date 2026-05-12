@@ -177,7 +177,16 @@
         "medium": "Medium Risk",
         "high": "High Risk"
       },
-      "proRequired": "Intent Engine is a Pro feature. Upgrade to use it."
+      "proRequired": "Intent Engine is a Pro feature. Upgrade to use it.",
+      "expired": "Expired",
+      "noChangesTitle": "No changes identified",
+      "noChanges": "No network changes were identified. Try a more specific description, e.g. \"allow frontend to access api on port 8080\".",
+      "noWorkspace": "Please select a workspace first",
+      "dryRun": "Preview only (don't save)",
+      "dryRunHint": "Preview mode: plan is not saved. Uncheck and regenerate to submit for approval.",
+      "historyTitle": "Change History",
+      "historyEmpty": "No applied changes yet",
+      "historyBy": "By:"
     }
   }
 }

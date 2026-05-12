@@ -29,7 +29,7 @@ function newChat() {
 </script>
 
 <template>
-  <div class="flex h-full w-60 shrink-0 flex-col border-r border-border bg-background">
+  <div class="flex w-60 shrink-0 flex-col border-r border-border bg-background h-full">
     <!-- Header -->
     <div class="flex h-14 items-center justify-between px-4">
       <span class="text-sm font-semibold text-foreground">对话历史</span>
@@ -45,7 +45,7 @@ function newChat() {
     </div>
 
     <!-- List -->
-    <div class="flex-1 overflow-y-auto px-2 pb-4">
+    <div class="flex-1 min-h-0 overflow-y-auto px-2 pb-4">
       <!-- Empty -->
       <div
         v-if="conversations.length === 0"

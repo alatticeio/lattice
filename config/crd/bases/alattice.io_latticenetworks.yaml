@@ -101,7 +101,7 @@ spec:
               allocatedCount:
                 type: integer
               availableIPs:
-                description: 可用 IP 数量
+                description: Available IP count
                 type: integer
               conditions:
                 items:

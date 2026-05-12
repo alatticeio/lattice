@@ -177,7 +177,16 @@
         "medium": "中风险",
         "high": "高风险"
       },
-      "proRequired": "意图引擎是 Pro 功能。升级后使用。"
+      "proRequired": "意图引擎是 Pro 功能。升级后使用。",
+      "expired": "已过期",
+      "noChangesTitle": "未识别出变更意图",
+      "noChanges": "AI 未识别出有效的网络变更意图，请尝试更具体的描述，例如：允许 frontend 访问 api 的 8080 端口。",
+      "noWorkspace": "请先选择一个 Workspace",
+      "dryRun": "预览模式（不保存）",
+      "dryRunHint": "当前为预览模式，计划未保存。取消勾选后重新生成可提交申请。",
+      "historyTitle": "变更历史",
+      "historyEmpty": "暂无已执行的变更记录",
+      "historyBy": "执行人："
     }
   }
 }

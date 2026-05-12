@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, nextTick } from 'vue'
 import { ArrowUp, Square } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 
@@ -21,7 +21,6 @@ function handleSend() {
   if (!canSend.value) return
   const msg = input.value.trim()
   input.value = ''
-  // Reset height
   nextTick(() => {
     const el = document.querySelector('.chat-textarea') as HTMLTextAreaElement
     if (el) el.style.height = 'auto'
@@ -41,10 +40,6 @@ function autoResize(e: Event) {
   el.style.height = 'auto'
   el.style.height = Math.min(el.scrollHeight, 200) + 'px'
 }
-</script>
-
-<script lang="ts">
-import { nextTick } from 'vue'
 </script>
 
 <template>
