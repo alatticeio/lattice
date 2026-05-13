@@ -72,6 +72,7 @@ declare global {
   const useCssVars: typeof import('vue').useCssVars
   const useDashboardStore: typeof import('../stores/useDashboard').useDashboardStore
   const useId: typeof import('vue').useId
+  const useMcpServerStore: typeof import('../stores/useMcpServerStore').useMcpServerStore
   const useModel: typeof import('vue').useModel
   const useMonitorStore: typeof import('../stores/monitor').useMonitorStore
   const useNavbarStore: typeof import('../stores/pages/topNavbar').useNavbarStore

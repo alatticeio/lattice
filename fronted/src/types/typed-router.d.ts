@@ -133,9 +133,16 @@ declare module 'vue-router/auto-routes' {
       { token: ParamValue<false> },
       | never
     >,
-    '/manage/mcp-servers/': RouteRecordInfo<
-      '/manage/mcp-servers/',
-      '/manage/mcp-servers',
+    '/legal/privacy': RouteRecordInfo<
+      '/legal/privacy',
+      '/legal/privacy',
+      Record<never, never>,
+      Record<never, never>,
+      | never
+    >,
+    '/legal/terms': RouteRecordInfo<
+      '/legal/terms',
+      '/legal/terms',
       Record<never, never>,
       Record<never, never>,
       | never
@@ -213,27 +220,6 @@ declare module 'vue-router/auto-routes' {
     '/platform/network-peering/': RouteRecordInfo<
       '/platform/network-peering/',
       '/platform/network-peering',
-      Record<never, never>,
-      Record<never, never>,
-      | never
-    >,
-    '/sandbox/': RouteRecordInfo<
-      '/sandbox/',
-      '/sandbox',
-      Record<never, never>,
-      Record<never, never>,
-      | never
-    >,
-    '/sandbox/audit': RouteRecordInfo<
-      '/sandbox/audit',
-      '/sandbox/audit',
-      Record<never, never>,
-      Record<never, never>,
-      | never
-    >,
-    '/sandbox/tokens': RouteRecordInfo<
-      '/sandbox/tokens',
-      '/sandbox/tokens',
       Record<never, never>,
       Record<never, never>,
       | never
@@ -399,9 +385,15 @@ declare module 'vue-router/auto-routes' {
       views:
         | never
     }
-    'src/pages/manage/mcp-servers/index.vue': {
+    'src/pages/legal/privacy.vue': {
       routes:
-        | '/manage/mcp-servers/'
+        | '/legal/privacy'
+      views:
+        | never
+    }
+    'src/pages/legal/terms.vue': {
+      routes:
+        | '/legal/terms'
       views:
         | never
     }
@@ -468,24 +460,6 @@ declare module 'vue-router/auto-routes' {
     'src/pages/platform/network-peering/index.vue': {
       routes:
         | '/platform/network-peering/'
-      views:
-        | never
-    }
-    'src/pages/sandbox/index.vue': {
-      routes:
-        | '/sandbox/'
-      views:
-        | never
-    }
-    'src/pages/sandbox/audit.vue': {
-      routes:
-        | '/sandbox/audit'
-      views:
-        | never
-    }
-    'src/pages/sandbox/tokens.vue': {
-      routes:
-        | '/sandbox/tokens'
       views:
         | never
     }
