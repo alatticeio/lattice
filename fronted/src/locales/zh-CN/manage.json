@@ -653,5 +653,33 @@
       "createFailed": "策略创建失败",
       "submitted": "策略已提交审批，等待管理员确认"
     }
+  },
+  "mcpServers": {
+    "title": "外部 MCP Server",
+    "desc": "注册和管理外部 MCP Server，Agent 可通过 Lattice 代理调用其工具。",
+    "register": "注册",
+    "registerFirst": "注册第一个 MCP Server",
+    "registerTitle": "注册外部 MCP Server",
+    "registerDesc": "注册后，Agent 可使用该 MCP server 提供的工具，Lattice 代理转发并做权限管控。",
+    "registerSuccess": "MCP Server 注册成功",
+    "registerError": "注册失败",
+    "deleteSuccess": "已删除",
+    "deleteError": "删除失败",
+    "confirmDelete": "确认删除此 MCP Server？",
+    "empty": "暂无注册的 MCP Server",
+    "colName": "名称",
+    "colDesc": "描述",
+    "colURL": "URL",
+    "colVisibility": "可见性",
+    "colActions": "操作",
+    "formName": "名称",
+    "formNamePlaceholder": "例如：query-db",
+    "formDesc": "描述",
+    "formDescPlaceholder": "例如：Production database tools",
+    "formURL": "MCP Server URL",
+    "formVisibility": "可见性",
+    "visWorkspace": "工作空间",
+    "visPrivate": "私有",
+    "visPublic": "公开"
   }
 }

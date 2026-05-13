@@ -103,6 +103,7 @@
     "aiDebug": "Network Debug",
     "aiCompliance": "Compliance Audit",
     "aiTools": "MCP Tools",
+    "mcpServers": "MCP Servers",
     "dashboard": "Dashboard",
     "members": "Members",
     "policies": "Policies",

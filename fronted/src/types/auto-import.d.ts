@@ -79,6 +79,7 @@ declare global {
   const usePolicyPageStore: typeof import('../stores/usePolicyPageStore').usePolicyPageStore
   const useRoute: typeof import('vue-router').useRoute
   const useRouter: typeof import('vue-router').useRouter
+  const useSandboxStore: typeof import('../stores/useSandboxStore').useSandboxStore
   const useSlots: typeof import('vue').useSlots
   const useSystemTheme: typeof import('../composables/use-system-theme').useSystemTheme
   const useTable: typeof import('../composables/useApi').useTable

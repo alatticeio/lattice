@@ -653,5 +653,33 @@
       "createFailed": "Policy creation failed",
       "submitted": "Policy submitted for approval, awaiting admin confirmation"
     }
+  },
+  "mcpServers": {
+    "title": "External MCP Servers",
+    "desc": "Register and manage external MCP servers. Agents can call their tools through Lattice proxy with RBAC.",
+    "register": "Register",
+    "registerFirst": "Register your first MCP Server",
+    "registerTitle": "Register External MCP Server",
+    "registerDesc": "Once registered, agents can use tools from this MCP server. Lattice proxies and enforces permissions.",
+    "registerSuccess": "MCP Server registered successfully",
+    "registerError": "Registration failed",
+    "deleteSuccess": "Deleted",
+    "deleteError": "Deletion failed",
+    "confirmDelete": "Confirm delete this MCP Server?",
+    "empty": "No registered MCP servers",
+    "colName": "Name",
+    "colDesc": "Description",
+    "colURL": "URL",
+    "colVisibility": "Visibility",
+    "colActions": "Actions",
+    "formName": "Name",
+    "formNamePlaceholder": "e.g. query-db",
+    "formDesc": "Description",
+    "formDescPlaceholder": "e.g. Production database tools",
+    "formURL": "MCP Server URL",
+    "formVisibility": "Visibility",
+    "visWorkspace": "Workspace",
+    "visPrivate": "Private",
+    "visPublic": "Public"
   }
 }

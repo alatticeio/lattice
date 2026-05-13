@@ -514,6 +514,36 @@ const toolOptions = data.tools.map(t => ({
 
 UI 分组展示：**平台内置**（`source: builtin`，不可管理）+ **外部 MCP Server**（`source: user`，可注册/删除）。
 
+### 4.6 外部 MCP Server 管理页面 `/manage/mcp-servers`
+
+独立页面用于注册和管理用户自己的外部 MCP server。
+
+**页面结构**：
+
+```
+┌──────────────────────────────────────────────────┐
+│  外部 MCP Server 管理                             │
+│                                                  │
+│  ┌─ 注册新 MCP Server ──────────────────────────┐│
+│  │  名称: [query-db            ]                ││
+│  │  描述: [Production DB tools ]                ││
+│  │  URL:  [http://my-server:8080]               ││
+│  │  可见性: ○ workspace  ○ private  ○ public    ││
+│  │  [ 注册 ]                                    ││
+│  └──────────────────────────────────────────────┘│
+│                                                  │
+│  ┌─ 已注册的 MCP Server ────────────────────────┐│
+│  │  名称       │ URL                   │ 操作   ││
+│  │  query-db   │ http://my-server:8080 │ 删除   ││
+│  │  slack-bot  │ http://slack:9090     │ 删除   ││
+│  └──────────────────────────────────────────────┘│
+└──────────────────────────────────────────────────┘
+```
+
+**路由**：`/manage/mcp-servers`
+
+**侧边栏**：在 AI Assistant 分组下新增「MCP Server」入口。
+
 ---
 
 ## 五、API 变更（全部）
@@ -712,6 +742,9 @@ onMounted(async () => {
 | `internal/server/service/agent_tool_proxy.go` | Agent tool 调用代理转发（查 DB → POST 到外部 MCP server） |
 | `internal/server/service/agent_registration.go` | `allowedTools` 合并平台内置 + 用户注册 tool |
 | `fronted/src/components/TokenToolPicker.vue` | Token 创建页 tool 选择组件（分组：内置/外部 MCP） |
+| `fronted/src/pages/manage/mcp-servers/index.vue` | 外部 MCP Server 管理页面（注册/列表/删除） |
+| `fronted/src/api/mcp-server.ts` | MCP Server 管理 API client |
+| `fronted/src/stores/useMcpServerStore.ts` | MCP Server 状态管理 |
 
 ---
 
