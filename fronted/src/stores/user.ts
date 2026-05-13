@@ -2,8 +2,8 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { toast } from 'vue-sonner' // 或者从 '@/components/ui/sonner' 引入
-import { getMe, login as loginApi } from '@/api/user'
-import { setToken, removeToken, hasToken } from '@/utils/auth'
+import { getMe, login as loginApi, logout as logoutApi } from '@/api/user'
+import { setToken, removeToken, hasToken, setRefreshToken, getRefreshToken, clearAuth } from '@/utils/auth'
 
 export interface User {
     id: string | number
@@ -37,6 +37,9 @@ export const useUserStore = defineStore('user', () => {
 
             if (code === 200) {
                 setToken(data.token)
+                if (data.refreshToken) {
+                    setRefreshToken(data.refreshToken)
+                }
                 await fetchUserInfo()
 
                 // 成功反馈
@@ -86,8 +89,17 @@ export const useUserStore = defineStore('user', () => {
     /**
      * 退出登录
      */
-    function logout(showToast = true) {
-        removeToken()
+    async function logout(showToast = true) {
+        // 尝试通知后端撤销 refresh token（不阻塞退出流程）
+        const storedRefreshToken = getRefreshToken()
+        if (storedRefreshToken) {
+            try {
+                await logoutApi(storedRefreshToken)
+            } catch {
+                // 忽略失败，继续本地退出
+            }
+        }
+        clearAuth()
         userInfo.value = null
         if (showToast) {
             toast.info('已退出登录')

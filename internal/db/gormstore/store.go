@@ -31,6 +31,7 @@ type GormStore struct {
 	intentPlans           store.IntentPlanRepository
 	networkSnapshots      store.NetworkSnapshotRepository
 	agentEnrollmentTokens store.AgentEnrollmentTokenRepository
+	refreshTokens         store.RefreshTokenRepository
 	seed                  store.SeedRepository
 }
 
@@ -60,6 +61,7 @@ func newStore(db *gorm.DB) *GormStore {
 		networkSnapshots:      newNetworkSnapshotRepo(db),
 		seed:                  newSeedRepo(db),
 		agentEnrollmentTokens: NewAgentEnrollmentTokenRepo(db),
+		refreshTokens:         newRefreshTokenRepo(db),
 	}
 }
 
@@ -83,6 +85,7 @@ func (s *GormStore) AgentEnrollmentTokens() store.AgentEnrollmentTokenRepository
 	return s.agentEnrollmentTokens
 }
 func (s *GormStore) Seed() store.SeedRepository { return s.seed }
+func (s *GormStore) RefreshTokens() store.RefreshTokenRepository { return s.refreshTokens }
 
 // Tx executes fn within a database transaction, providing a temporary Store for all Repository access.
 func (s *GormStore) Tx(ctx context.Context, fn func(store.Store) error) error {

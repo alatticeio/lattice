@@ -30,5 +30,6 @@ func migrate(db *gorm.DB) error {
 		&models.IntentPlan{},
 		&models.NetworkSnapshot{},
 		&models.AgentEnrollmentToken{},
+		&models.RefreshToken{},
 	)
 }

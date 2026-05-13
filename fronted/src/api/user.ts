@@ -22,6 +22,10 @@ export interface UserVo {
 
 export const registerUser = (data?: any) => request.post('/users/register', data)
 export const login = (data: User) => request.post('/users/login', data)
+export const refreshToken = (refreshToken: string): Promise<{ token: string; refreshToken: string }> =>
+    request.post('/auth/refresh', { refreshToken })
+export const logout = (refreshToken: string): Promise<void> =>
+    request.post('/auth/logout', { refreshToken })
 export const add = (data?: any) => request.post('/users/add', data)
 export const listUser = (params?: any) => request.get('/users/list', params)
 export const deleteUser = (id: string) => request.delete(`/users/${id}`)

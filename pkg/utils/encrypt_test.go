@@ -14,7 +14,42 @@
 
 package utils
 
-import "testing"
+import (
+	"errors"
+	"testing"
+)
+
+func TestValidatePassword(t *testing.T) {
+	tests := []struct {
+		name  string
+		pw    string
+		errIs error
+	}{
+		{"too short", "Ab1", ErrPasswordTooShort},
+		{"no upper", "abcdefgh1", ErrPasswordNoUpper},
+		{"no lower", "ABCDEFGH1", ErrPasswordNoLower},
+		{"no digit", "Abcdefgh", ErrPasswordNoDigit},
+		{"valid", "Abcdefg1", nil},
+		{"valid long", "MySecureP@ssw0rd!", nil},
+		{"valid exactly 8", "Abcdefg1", nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := ValidatePassword(tt.pw)
+			if tt.errIs != nil {
+				if err == nil {
+					t.Fatalf("expected error %q, got nil", tt.errIs)
+				} else if !errors.Is(err, tt.errIs) {
+					t.Fatalf("expected error %q, got %v", tt.errIs, err)
+				}
+			} else {
+				if err != nil {
+					t.Errorf("expected no error, got %v", err)
+				}
+			}
+		})
+	}
+}
 
 func TestEncryptPassword(t *testing.T) {
 	password := "123456"

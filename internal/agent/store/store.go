@@ -36,6 +36,7 @@ type Store interface {
 	NetworkSnapshots() NetworkSnapshotRepository
 	AgentEnrollmentTokens() AgentEnrollmentTokenRepository
 	Seed() SeedRepository
+	RefreshTokens() RefreshTokenRepository
 
 	Close() error
 }
@@ -229,6 +230,14 @@ type AgentEnrollmentTokenRepository interface {
 	GetByToken(ctx context.Context, token string) (*models.AgentEnrollmentToken, error)
 	MarkUsed(ctx context.Context, token string, usedAt time.Time) error
 	DeleteExpired(ctx context.Context) error
+}
+
+// RefreshTokenRepository manages refresh token lifecycle.
+type RefreshTokenRepository interface {
+	Create(ctx context.Context, token *models.RefreshToken) error
+	GetByHash(ctx context.Context, hash string) (*models.RefreshToken, error)
+	Revoke(ctx context.Context, id string, revokedAt time.Time) error
+	RevokeAllByUser(ctx context.Context, userID string, revokedAt time.Time) error
 }
 
 // SeedRepository handles demo seed data lifecycle.

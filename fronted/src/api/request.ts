@@ -9,6 +9,13 @@ import router from '@/router';
 import NProgress from '@/types/progress';
 import type { ApiResponse } from '@/types/api';
 
+// Extend axios types to support _retry flag for token refresh.
+declare module 'axios' {
+    interface InternalAxiosRequestConfig {
+        _retry?: boolean
+    }
+}
+
 // 1. 创建实例
 const service: AxiosInstance = axios.create({
     baseURL: (import.meta.env.VITE_API_BASE as string) || '/api/v1',
@@ -63,7 +70,34 @@ service.interceptors.response.use(
     },
     (error) => {
         NProgress.done();
-        const { response } = error;
+        const { response, config } = error;
+
+        // 尝试用 refresh token 自动续期（仅一次，且不拦截 /auth/refresh 本身）
+        if (response?.status === 401 && config && !config._retry && !config.url?.includes('/auth/refresh')) {
+            config._retry = true;
+            const storedRefreshToken = localStorage.getItem('wf_refresh_token');
+            if (storedRefreshToken) {
+                return service.post('/auth/refresh', { refreshToken: storedRefreshToken })
+                    .then((res) => {
+                        const body = res.data;
+                        if (body.token && body.refreshToken) {
+                            localStorage.setItem('wf_token', body.token);
+                            localStorage.setItem('wf_refresh_token', body.refreshToken);
+                            // 重试原请求，带上新 token
+                            config.headers['Authorization'] = `Bearer ${body.token}`;
+                            return service(config);
+                        }
+                        throw new Error('refresh failed');
+                    })
+                    .catch(() => {
+                        localStorage.removeItem('wf_token');
+                        localStorage.removeItem('wf_refresh_token');
+                        router.push('/auth/login');
+                        return Promise.reject(error);
+                    });
+            }
+        }
+
         let message = '网络异常，请稍后再试';
 
         if (response) {

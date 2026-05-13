@@ -5,12 +5,12 @@ type PeeringDto struct {
 	Name string `json:"name,omitempty"`
 
 	// NamespaceB is the remote workspace's K8s namespace.
-	NamespaceB string `json:"namespaceB"`
+	NamespaceB string `json:"namespaceB" binding:"required,min=1,max=64"`
 
 	// NetworkB is the LatticeNetwork name in NamespaceB.
 	// Defaults to "lattice-default-net" when empty.
 	NetworkB string `json:"networkB,omitempty"`
 
 	// PeeringMode controls traffic forwarding: "gateway" (default) or "mesh".
-	PeeringMode string `json:"peeringMode,omitempty"`
+	PeeringMode string `json:"peeringMode,omitempty" binding:"omitempty,oneof=gateway mesh"`
 }

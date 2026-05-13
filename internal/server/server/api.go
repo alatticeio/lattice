@@ -18,9 +18,18 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
+var ipLimiter = middleware.NewIPRateLimiter()
+
 func (s *Server) apiRouter() error {
-	// CORS handling (for Vite dev environment)
+	// HTTPS redirect — must be the first middleware to catch plain HTTP before any processing
+	s.Use(s.httpsRedirect())
+	// Security headers
+	s.Use(middleware.SecurityHeaders())
+	// CORS handling (for Vite dev environment) — MUST be before rate limiter
+	// to avoid blocking OPTIONS preflight requests.
 	s.Use(middleware.CORSMiddleware())
+	// Global rate limit: 100 req/min per IP, burst 200
+	s.Use(ipLimiter.Middleware(100.0/60, 200))
 	// Audit middleware: records all non-GET write operations
 	s.Use(middleware.AuditMiddleware(s.auditService))
 
@@ -119,6 +128,8 @@ func (s *Server) apiRouter() error {
 	s.agentIsolationRouter()
 
 	s.platformRouter()
+
+	s.authRouter(s.authService)
 
 	// Discovery — no auth required; returns NATS URL for agent auto-connect.
 	api.GET("/discovery", s.handleDiscovery())

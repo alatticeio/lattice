@@ -86,6 +86,7 @@ type Server struct {
 	revocationList  *auth.RevocationList
 	auditService    service.AuditService
 	workflowService service.WorkflowService
+	authService     service.AuthService
 
 	store           store.Store
 	presence        *managementnats.NodePresenceStore
@@ -268,6 +269,8 @@ func NewServer(ctx context.Context, serverConfig *ServerConfig) (*Server, error)
 	revocationList := auth.NewRevocationList()
 	revocationList.StartCleanup(5 * time.Minute)
 
+	authSvc := service.NewAuthService(st)
+
 	checker := permission.NewChecker(st, nil)
 
 	s := &Server{
@@ -298,6 +301,7 @@ func NewServer(ctx context.Context, serverConfig *ServerConfig) (*Server, error)
 		platformController:     controller.NewPlatformController(st),
 		middleware:             middleware.NewMiddleware(checker, st, revocationList),
 		revocationList:         revocationList,
+		authService:            authSvc,
 		auditService:           auditSvc,
 		workflowService:        workflowSvc,
 		store:                  st,
@@ -465,4 +469,16 @@ func (s *Server) Heartbeat(content []byte) ([]byte, error) {
 
 func (s *Server) Shutdown(ctx context.Context) error {
 	return nil
+}
+
+func (s *Server) httpsRedirect() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if c.Request.Header.Get("X-Forwarded-Proto") == "http" {
+			target := "https://" + c.Request.Host + c.Request.RequestURI
+			c.Redirect(301, target)
+			c.Abort()
+			return
+		}
+		c.Next()
+	}
 }

@@ -1,17 +1,17 @@
 package dto
 
 type WorkspaceDto struct {
-	Slug string `json:"slug"` // URL identifier, e.g. "tencent-rd"
+	Slug string `json:"slug" binding:"required,min=1,max=64"` // URL identifier, e.g. "tencent-rd"
 
 	// Physical namespace: this is key! Corresponds to K8s metadata.name
 	// Must comply with DNS-1123 format (lowercase letters, numbers, hyphens)
-	Namespace string `json:"namespace"`
+	Namespace string `json:"namespace" binding:"required,min=1,max=64"`
 
 	// Display name: the name users see in the Vercel-style UI (e.g. "My Private Cloud")
-	DisplayName string `json:"displayName"`
+	DisplayName string `json:"displayName" binding:"required,min=1,max=128"`
 
 	// Workspace quota
-	MaxNodeCount int `json:"maxNodeCount"`
+	MaxNodeCount int `json:"maxNodeCount" binding:"required"`
 }
 
 // WorkspaceRole defines team role types

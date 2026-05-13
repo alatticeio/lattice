@@ -16,9 +16,18 @@ package utils
 
 import (
 	"crypto/rand"
+	"errors"
 	"math/big"
+	"strings"
 
 	"golang.org/x/crypto/bcrypt"
+)
+
+var (
+	ErrPasswordTooShort = errors.New("password must be at least 8 characters")
+	ErrPasswordNoUpper  = errors.New("password must contain at least one uppercase letter")
+	ErrPasswordNoLower  = errors.New("password must contain at least one lowercase letter")
+	ErrPasswordNoDigit  = errors.New("password must contain at least one digit")
 )
 
 func EncryptPassword(password string) (string, error) {
@@ -28,6 +37,22 @@ func EncryptPassword(password string) (string, error) {
 	}
 
 	return string(hashedPassword), nil
+}
+
+func ValidatePassword(password string) error {
+	if len(password) < 8 {
+		return ErrPasswordTooShort
+	}
+	if !strings.ContainsAny(password, "ABCDEFGHIJKLMNOPQRSTUVWXYZ") {
+		return ErrPasswordNoUpper
+	}
+	if !strings.ContainsAny(password, "abcdefghijklmnopqrstuvwxyz") {
+		return ErrPasswordNoLower
+	}
+	if !strings.ContainsAny(password, "0123456789") {
+		return ErrPasswordNoDigit
+	}
+	return nil
 }
 
 func ComparePassword(hashedPassword, password string) error {

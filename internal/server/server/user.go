@@ -1,28 +1,45 @@
 package server
 
 import (
+	"encoding/base64"
 	"net/http"
 	"time"
 
 	"github.com/alatticeio/lattice/internal/server/dto"
+	"github.com/alatticeio/lattice/internal/server/models"
 	"github.com/alatticeio/lattice/internal/server/server/middleware"
 	"github.com/alatticeio/lattice/pkg/utils"
 	"github.com/alatticeio/lattice/pkg/utils/resp"
 	"github.com/gin-gonic/gin"
 )
 
-func (s *Server) userRouter() {
-
-	// Auth group — logout endpoint.
-	authGroup := s.Group("/api/v1/auth")
-	{
-		authGroup.POST("/logout", middleware.AuthMiddleware(s.revocationList), s.logout())
+// generateRefreshToken creates a raw refresh token (returned to the caller)
+// and persists its SHA256 hash in the database.
+func (s *Server) generateRefreshToken(ctx *gin.Context, userID string) (string, error) {
+	raw := make([]byte, 32)
+	if err := utils.GenerateRandomBytes(raw); err != nil {
+		return "", err
 	}
+	rawToken := base64.RawURLEncoding.EncodeToString(raw)
+
+	now := time.Now()
+	rt := &models.RefreshToken{
+		UserID:    userID,
+		TokenHash: models.HashRefreshToken(rawToken),
+		ExpiresAt: now.Add(720 * time.Hour), // 30 days
+	}
+	if err := s.store.RefreshTokens().Create(ctx.Request.Context(), rt); err != nil {
+		return "", err
+	}
+	return rawToken, nil
+}
+
+func (s *Server) userRouter() {
 
 	userApi := s.Group("/api/v1/users")
 	{
-		userApi.POST("/register", s.RegisterUser)
-		userApi.POST("/login", s.login)
+		userApi.POST("/register", ipLimiter.Middleware(10.0/60, 3), s.RegisterUser) // 10 req/min, burst 3
+		userApi.POST("/login", ipLimiter.Middleware(5.0/60, 5), s.login)           // 5 req/min, burst 5
 		userApi.GET("/getme", middleware.AuthMiddleware(s.revocationList), s.getMe())
 		userApi.GET("/list", middleware.AuthMiddleware(s.revocationList), s.listUser())
 		userApi.POST("/add", middleware.AuthMiddleware(s.revocationList), s.handleAddUser())
@@ -54,8 +71,8 @@ func (s *Server) RegisterUser(c *gin.Context) {
 
 func (s *Server) login(c *gin.Context) {
 	var req struct {
-		Username string `json:"username"`
-		Password string `json:"password"`
+		Username string `json:"username" binding:"required"`
+		Password string `json:"password" binding:"required,min=1,max=128"`
 		Client   string `json:"client"` // "cli" → long-lived token (30 days)
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -82,10 +99,18 @@ func (s *Server) login(c *gin.Context) {
 		return
 	}
 
+	// Issue refresh token (30-day, revocable)
+	rawRefreshToken, err := s.generateRefreshToken(c, user.ID)
+	if err != nil {
+		resp.Error(c, "failed to issue refresh token")
+		return
+	}
+
 	// Return to frontend
 	resp.OK(c, map[string]interface{}{
-		"user":  user.Username,
-		"token": businessToken,
+		"user":         user.Username,
+		"token":        businessToken,
+		"refreshToken": rawRefreshToken,
 	})
 }
 
@@ -234,25 +259,3 @@ func (s *Server) handleGetUserWorkspaces() gin.HandlerFunc {
 	}
 }
 
-func (s *Server) logout() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		jti := c.GetString("jti")
-		if jti == "" {
-			resp.Error(c, "invalid token")
-			return
-		}
-
-		expRaw, exists := c.Get("exp")
-		if !exists {
-			s.revocationList.Revoke(jti, time.Now().Add(12*time.Hour))
-		} else {
-			if exp, ok := expRaw.(time.Time); ok {
-				s.revocationList.Revoke(jti, exp)
-			} else {
-				s.revocationList.Revoke(jti, time.Now().Add(12*time.Hour))
-			}
-		}
-
-		resp.OK(c, nil)
-	}
-}

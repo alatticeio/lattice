@@ -528,6 +528,8 @@ onUnmounted(() => clearInterval(timer))
           <a href="#pricing" class="hover:text-foreground transition-colors">{{ t('landing.nav.pricing') }}</a>
           <a href="https://github.com/francisxys" target="_blank" rel="noopener noreferrer" class="hover:text-foreground transition-colors">{{ t('landing.nav.github') }}</a>
           <a href="#" class="hover:text-foreground transition-colors">{{ t('landing.nav.community') }}</a>
+          <a href="/legal/privacy" class="text-xs text-muted-foreground hover:text-foreground transition-colors">隐私政策</a>
+          <a href="/legal/terms" class="text-xs text-muted-foreground hover:text-foreground transition-colors">服务条款</a>
         </div>
       </div>
     </footer>

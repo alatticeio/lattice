@@ -52,6 +52,9 @@ func (u *userService) UpdateSystemRole(ctx context.Context, userID string, role 
 }
 
 func (u *userService) AddUser(ctx context.Context, dto *dto.UserDto) error {
+	if err := utils.ValidatePassword(dto.Password); err != nil {
+		return fmt.Errorf("password: %w", err)
+	}
 	return u.store.Tx(ctx, func(s store.Store) error {
 		hashedPassword, err := utils.EncryptPassword(dto.Password)
 		if err != nil {
@@ -244,6 +247,9 @@ func (u *userService) GetMe(ctx context.Context, id string) (*models.User, error
 }
 
 func (u *userService) Register(ctx context.Context, userDto dto.UserDto) error {
+	if err := utils.ValidatePassword(userDto.Password); err != nil {
+		return fmt.Errorf("password: %w", err)
+	}
 	password, err := utils.EncryptPassword(userDto.Password)
 	if err != nil {
 		return err

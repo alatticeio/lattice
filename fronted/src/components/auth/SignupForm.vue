@@ -20,6 +20,7 @@ const router = useRouter()
 
 const form = reactive({ username: '', password: '', confirm: '' })
 const loading = ref(false)
+const agreedToS = ref(false)
 
 async function handleSubmit() {
   if (form.password.length < 6) {
@@ -33,7 +34,7 @@ async function handleSubmit() {
 
   loading.value = true
   try {
-    await registerUser({ username: form.username, password: form.password })
+    await registerUser({ username: form.username, password: form.password, tosAccepted: agreedToS.value })
     toast.success('Account created! Please sign in.')
     router.push('/auth/login')
   } catch (e: any) {
@@ -87,6 +88,17 @@ async function handleSubmit() {
                 required
                 autocomplete="new-password"
               />
+            </Field>
+            <Field>
+              <div class="flex items-start gap-2">
+                <input type="checkbox" v-model="agreedToS" required class="mt-0.5 accent-primary" />
+                <span class="text-xs text-muted-foreground">
+                  我已阅读并同意
+                  <a href="/legal/terms" target="_blank" class="text-primary hover:underline">服务条款</a>
+                  和
+                  <a href="/legal/privacy" target="_blank" class="text-primary hover:underline">隐私政策</a>
+                </span>
+              </div>
             </Field>
             <Field>
               <Button type="submit" :disabled="loading" class="w-full">

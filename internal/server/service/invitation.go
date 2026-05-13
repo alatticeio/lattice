@@ -180,6 +180,10 @@ func (s *invitationService) Accept(ctx context.Context, token, acceptorUserID st
 // RegisterAndAccept creates a new User with the invitation email, then accepts the invitation.
 // Returns a signed JWT on success.
 func (s *invitationService) RegisterAndAccept(ctx context.Context, token, username, password string) (string, error) {
+	if err := utils.ValidatePassword(password); err != nil {
+		return "", fmt.Errorf("password: %w", err)
+	}
+
 	var jwtToken string
 
 	err := s.store.Tx(ctx, func(st store.Store) error {
