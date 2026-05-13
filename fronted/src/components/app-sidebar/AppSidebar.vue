@@ -8,7 +8,7 @@ import {
 } from "@/components/ui/sidebar"
 import {
   LayoutDashboard, Network, Settings2,
-  ShieldCheck, Bot, House,
+  ShieldCheck, Bot, House, Container,
 } from "lucide-vue-next"
 import NavMain from "@/components/app-sidebar/NavMain.vue"
 import NavUser from "@/components/app-sidebar/NavUser.vue"
@@ -92,6 +92,18 @@ const navMain = computed(() => {
         { title: t('common.nav.aiDebug'), url: '/ai/debug' },
         { title: t('common.nav.aiCompliance'), url: '/ai/compliance' },
         { title: t('common.nav.aiTools'), url: '/ai/tools' },
+      ],
+    },
+
+    // ── Agent Sandbox ──────────────────────────────────────────────
+    {
+      title: t('common.nav.group.sandbox'),
+      url: '/sandbox',
+      icon: Container,
+      items: [
+        { title: t('common.nav.sandboxList'),  url: '/sandbox' },
+        { title: t('common.nav.sandboxTokens'), url: '/sandbox/tokens' },
+        { title: t('common.nav.sandboxAudit'),  url: '/sandbox/audit' },
       ],
     },
 

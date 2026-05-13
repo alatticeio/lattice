@@ -30,7 +30,8 @@
     "statNodes": "Online Nodes",
     "statTunnels": "Active Tunnels",
     "statPolicies": "Policies",
-    "statAlerts": "System Alerts"
+    "statAlerts": "System Alerts",
+    "statSandboxes": "Agent Sandboxes"
   },
   "approvals": {
     "title": "Approval Workbench",

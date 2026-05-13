@@ -3,9 +3,8 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import {
-  ArrowRight, Network, Shield, Cpu, Layers, Zap, Globe,
-  CheckCircle, ChevronRight, Terminal, Lock, LogOut, LayoutDashboard,
-  Crown, X,
+  ArrowRight, Cpu, Zap, Globe, Shield,
+  CheckCircle, ChevronRight, Crown, X, LogOut, LayoutDashboard, Container,
 } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
@@ -186,11 +185,27 @@ onUnmounted(() => clearInterval(timer))
             <div class="size-3 rounded-full bg-rose-500/70" />
             <div class="size-3 rounded-full bg-amber-400/70" />
             <div class="size-3 rounded-full bg-emerald-500/70" />
-            <span class="ml-2 text-[11px] text-indigo-300/60 font-mono flex-1">lattice — control-plane</span>
+            <span class="ml-2 text-[11px] text-indigo-300/60 font-mono flex-1">{{ t('landing.terminal.title') }}</span>
             <div class="flex items-center gap-1.5">
               <span class="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              <span class="text-[11px] text-emerald-400 font-mono font-semibold">FABRIC ONLINE</span>
+              <span class="text-[11px] text-emerald-400 font-mono font-semibold">{{ t('landing.terminal.status') }}</span>
             </div>
+          </div>
+          <!-- Terminal content -->
+          <div class="p-5 font-mono text-sm leading-7">
+            <p><span class="text-indigo-300/50 select-none">{{ t('landing.terminal.line1') }}</span></p>
+            <p><span class="text-emerald-400/60">{{ t('landing.terminal.line2') }}</span></p>
+            <p><span class="text-emerald-400/60">{{ t('landing.terminal.line3') }}</span></p>
+            <p><span class="text-emerald-400/60">{{ t('landing.terminal.line4') }}</span></p>
+            <p class="mt-1"><span class="text-sky-400">{{ t('landing.terminal.line5') }}</span></p>
+            <p class="mt-3"><span class="text-indigo-300/50 italic">{{ t('landing.terminal.line6') }}</span></p>
+            <p><span class="text-white">{{ t('landing.terminal.line7') }}</span></p>
+            <p><span class="text-emerald-400/60">{{ t('landing.terminal.line8') }}</span></p>
+            <p><span class="text-emerald-400/60">{{ t('landing.terminal.line9') }}</span></p>
+            <p class="mt-3"><span class="text-rose-400/70 italic">{{ t('landing.terminal.line10') }}</span></p>
+            <p><span class="text-white">{{ t('landing.terminal.line11') }}</span></p>
+            <p><span class="text-rose-400/60">{{ t('landing.terminal.line12') }}</span></p>
+            <p><span class="text-rose-400/60">{{ t('landing.terminal.line13') }}</span></p>
           </div>
           <!-- Stats row -->
           <div class="grid grid-cols-3 divide-x divide-white/[0.06]">
@@ -210,7 +225,7 @@ onUnmounted(() => clearInterval(timer))
             </div>
             <div class="px-7 py-6">
               <p class="text-[10px] font-black uppercase tracking-widest text-indigo-300/40 mb-2">{{ t('landing.stats.data_plane') }}</p>
-              <p class="text-3xl font-mono font-black bg-gradient-to-r from-violet-400 to-cyan-400 bg-clip-text text-transparent italic">eBPF</p>
+              <p class="text-3xl font-mono font-black bg-gradient-to-r from-violet-400 to-cyan-400 bg-clip-text text-transparent italic">gVisor</p>
               <span class="inline-block mt-1.5 text-[10px] font-bold px-2 py-0.5 rounded bg-amber-400/10 text-amber-400 ring-1 ring-amber-400/20">{{ t('landing.features.tag_roadmap') }}</span>
             </div>
           </div>
@@ -224,78 +239,76 @@ onUnmounted(() => clearInterval(timer))
         <div class="text-center mb-12">
           <p class="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-2">{{ t('landing.features.label') }}</p>
           <h2 class="text-2xl font-black tracking-tighter text-foreground">{{ t('landing.features.title') }}</h2>
-          <p class="text-muted-foreground text-sm mt-2.5 max-w-md mx-auto leading-relaxed">
+          <p class="text-muted-foreground text-sm mt-2.5 max-w-lg mx-auto leading-relaxed">
             {{ t('landing.features.subtitle') }}
           </p>
         </div>
 
-        <div class="grid md:grid-cols-3 gap-4">
-          <!-- Card 1: CRDs -->
-          <div class="bg-card border border-border rounded-xl p-6 hover:shadow-md hover:border-border/60 hover:-translate-y-0.5 transition-all duration-200">
-            <div class="size-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center mb-4">
-              <Layers class="size-5" />
-            </div>
-            <span class="text-[10px] font-bold px-2 py-0.5 rounded-full text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 ring-1 ring-emerald-200 dark:ring-emerald-500/20">{{ t('landing.features.tag_stable') }}</span>
-            <h3 class="text-sm font-bold mt-3 mb-1.5 text-card-foreground">{{ t('landing.features.card_1_title') }}</h3>
-            <p class="text-xs text-muted-foreground leading-relaxed">{{ t('landing.features.card_1_desc') }}</p>
-          </div>
-
-          <!-- Card 2: eBPF -->
+        <!-- Row 1: AI Agent -->
+        <p class="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-4">AI Agent 运行时</p>
+        <div class="grid md:grid-cols-3 gap-4 mb-8">
           <div class="bg-card border border-border rounded-xl p-6 hover:shadow-md hover:border-border/60 hover:-translate-y-0.5 transition-all duration-200">
             <div class="size-10 rounded-xl bg-violet-50 dark:bg-violet-500/10 text-violet-600 dark:text-violet-400 flex items-center justify-center mb-4">
+              <Container class="size-5" />
+            </div>
+            <span class="text-[10px] font-bold px-2 py-0.5 rounded-full text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 ring-1 ring-emerald-200 dark:ring-emerald-500/20">{{ t('landing.features.tag_stable') }}</span>
+            <h3 class="text-sm font-bold mt-3 mb-1.5 text-card-foreground">{{ t('landing.features.ai_sandbox.title') }}</h3>
+            <p class="text-xs text-muted-foreground leading-relaxed">{{ t('landing.features.ai_sandbox.desc') }}</p>
+          </div>
+
+          <div class="bg-card border border-border rounded-xl p-6 hover:shadow-md hover:border-border/60 hover:-translate-y-0.5 transition-all duration-200">
+            <div class="size-10 rounded-xl bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center mb-4">
+              <Shield class="size-5" />
+            </div>
+            <span class="text-[10px] font-bold px-2 py-0.5 rounded-full text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 ring-1 ring-emerald-200 dark:ring-emerald-500/20">{{ t('landing.features.tag_stable') }}</span>
+            <h3 class="text-sm font-bold mt-3 mb-1.5 text-card-foreground">{{ t('landing.features.ai_sidecar.title') }}</h3>
+            <p class="text-xs text-muted-foreground leading-relaxed">{{ t('landing.features.ai_sidecar.desc') }}</p>
+          </div>
+
+          <div class="bg-card border border-border rounded-xl p-6 hover:shadow-md hover:border-border/60 hover:-translate-y-0.5 transition-all duration-200">
+            <div class="size-10 rounded-xl bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center mb-4">
+              <Zap class="size-5" />
+            </div>
+            <span class="text-[10px] font-bold px-2 py-0.5 rounded-full text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10 ring-1 ring-amber-200 dark:ring-amber-400/20">{{ t('landing.features.tag_roadmap') }}</span>
+            <h3 class="text-sm font-bold mt-3 mb-1.5 text-card-foreground">{{ t('landing.features.ai_intent.title') }}</h3>
+            <p class="text-xs text-muted-foreground leading-relaxed">{{ t('landing.features.ai_intent.desc') }}</p>
+          </div>
+        </div>
+
+        <!-- Row 2: Network Foundation -->
+        <p class="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-4">网络基础层</p>
+        <div class="grid md:grid-cols-3 gap-4">
+          <div class="bg-card border border-border rounded-xl p-6 hover:shadow-md hover:border-border/60 hover:-translate-y-0.5 transition-all duration-200">
+            <div class="size-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center mb-4">
+              <Globe class="size-5" />
+            </div>
+            <span class="text-[10px] font-bold px-2 py-0.5 rounded-full text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 ring-1 ring-emerald-200 dark:ring-emerald-500/20">{{ t('landing.features.tag_stable') }}</span>
+            <h3 class="text-sm font-bold mt-3 mb-1.5 text-card-foreground">{{ t('landing.features.net_wg.title') }}</h3>
+            <p class="text-xs text-muted-foreground leading-relaxed">{{ t('landing.features.net_wg.desc') }}</p>
+          </div>
+
+          <div class="bg-card border border-border rounded-xl p-6 hover:shadow-md hover:border-border/60 hover:-translate-y-0.5 transition-all duration-200">
+            <div class="size-10 rounded-xl bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center mb-4">
               <Cpu class="size-5" />
             </div>
             <span class="text-[10px] font-bold px-2 py-0.5 rounded-full text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10 ring-1 ring-amber-200 dark:ring-amber-400/20">{{ t('landing.features.tag_roadmap') }}</span>
-            <h3 class="text-sm font-bold mt-3 mb-1.5 text-card-foreground">{{ t('landing.features.card_2_title') }}</h3>
-            <p class="text-xs text-muted-foreground leading-relaxed">{{ t('landing.features.card_2_desc') }}</p>
+            <h3 class="text-sm font-bold mt-3 mb-1.5 text-card-foreground">{{ t('landing.features.net_ebpf.title') }}</h3>
+            <p class="text-xs text-muted-foreground leading-relaxed">{{ t('landing.features.net_ebpf.desc') }}</p>
           </div>
 
-          <!-- Card 3: Zero-Trust -->
           <div class="bg-card border border-border rounded-xl p-6 hover:shadow-md hover:border-border/60 hover:-translate-y-0.5 transition-all duration-200">
-            <div class="size-10 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mb-4">
-              <Lock class="size-5" />
+            <div class="size-10 rounded-xl bg-cyan-50 dark:bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 flex items-center justify-center mb-4">
+              <Shield class="size-5" />
             </div>
             <span class="text-[10px] font-bold px-2 py-0.5 rounded-full text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 ring-1 ring-emerald-200 dark:ring-emerald-500/20">{{ t('landing.features.tag_stable') }}</span>
-            <h3 class="text-sm font-bold mt-3 mb-1.5 text-card-foreground">{{ t('landing.features.card_3_title') }}</h3>
-            <p class="text-xs text-muted-foreground leading-relaxed">{{ t('landing.features.card_3_desc') }}</p>
+            <h3 class="text-sm font-bold mt-3 mb-1.5 text-card-foreground">{{ t('landing.features.net_audit.title') }}</h3>
+            <p class="text-xs text-muted-foreground leading-relaxed">{{ t('landing.features.net_audit.desc') }}</p>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- ── Advantages ─────────────────────────────────────────────── -->
-    <section class="py-16 px-6">
-      <div class="max-w-4xl mx-auto">
-        <div class="grid grid-cols-2 md:grid-cols-3 gap-3">
-          <div class="flex items-center gap-3 p-3.5 rounded-lg bg-muted border border-border hover:bg-muted/80 transition-colors">
-            <Globe class="size-4 text-primary shrink-0" />
-            <span class="text-sm text-foreground">{{ t('landing.advantages.item_1') }}</span>
-          </div>
-          <div class="flex items-center gap-3 p-3.5 rounded-lg bg-muted border border-border hover:bg-muted/80 transition-colors">
-            <Zap class="size-4 text-primary shrink-0" />
-            <span class="text-sm text-foreground">{{ t('landing.advantages.item_2') }}</span>
-          </div>
-          <div class="flex items-center gap-3 p-3.5 rounded-lg bg-muted border border-border hover:bg-muted/80 transition-colors">
-            <Shield class="size-4 text-primary shrink-0" />
-            <span class="text-sm text-foreground">{{ t('landing.advantages.item_3') }}</span>
-          </div>
-          <div class="flex items-center gap-3 p-3.5 rounded-lg bg-muted border border-border hover:bg-muted/80 transition-colors">
-            <Layers class="size-4 text-primary shrink-0" />
-            <span class="text-sm text-foreground">{{ t('landing.advantages.item_4') }}</span>
-          </div>
-          <div class="flex items-center gap-3 p-3.5 rounded-lg bg-muted border border-border hover:bg-muted/80 transition-colors">
-            <Cpu class="size-4 text-primary shrink-0" />
-            <span class="text-sm text-foreground">{{ t('landing.advantages.item_5') }}</span>
-          </div>
-          <div class="flex items-center gap-3 p-3.5 rounded-lg bg-muted border border-border hover:bg-muted/80 transition-colors">
-            <Terminal class="size-4 text-primary shrink-0" />
-            <span class="text-sm text-foreground">{{ t('landing.advantages.item_6') }}</span>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- ── IaC / Architecture ─────────────────────────────────────── -->
+    <!-- ── Architecture ─────────────────────────────────────────────── -->
     <section id="architecture" class="py-20 px-6 bg-muted/50 border-y border-border">
       <div class="max-w-5xl mx-auto">
         <div class="text-center mb-12">
@@ -345,7 +358,7 @@ onUnmounted(() => clearInterval(timer))
             </div>
           </div>
 
-          <!-- Terminal -->
+          <!-- Data-path Terminal -->
           <div class="lg:w-3/5 rounded-xl overflow-hidden border border-[#1e1b4b] bg-[#0f0d2e]">
             <div class="flex items-center gap-1.5 px-4 py-2.5 bg-[#1e1b4b] border-b border-[#1e1b4b]">
               <div class="size-2.5 rounded-full bg-rose-500/70" />
@@ -354,11 +367,17 @@ onUnmounted(() => clearInterval(timer))
               <span class="ml-2 text-[11px] text-indigo-300/60 font-mono">bash</span>
             </div>
             <div class="p-5 font-mono text-sm leading-7">
-              <p><span class="text-indigo-300/30 select-none">#  </span><span class="text-indigo-300/50 italic">{{ t('landing.architecture.terminal_comment') }}</span></p>
-              <p><span class="text-indigo-300/50 select-none">$  </span><span class="text-emerald-400">curl -sSL https://get.lattice.run \</span></p>
-              <p><span class="text-indigo-300/20 select-none">   </span><span class="text-emerald-400">  | sudo bash -s -- join \</span></p>
-              <p><span class="text-indigo-300/20 select-none">   </span><span class="text-emerald-400">  --token <span class="text-sky-400">wf_live_8s2k...92nz</span></span></p>
-              <p class="mt-2"><span class="text-emerald-400/60 select-none">✓  </span><span class="text-emerald-500">{{ t('landing.architecture.terminal_success') }}</span></p>
+              <p><span class="text-indigo-300/50 italic">{{ t('landing.architecture.terminal_comment') }}</span></p>
+              <p><span class="text-indigo-300/50">{{ t('landing.architecture.terminal_line1') }}</span></p>
+              <p><span class="text-emerald-400/60">{{ t('landing.architecture.terminal_line2') }}</span></p>
+              <p><span class="text-emerald-400/60">{{ t('landing.architecture.terminal_line3') }}</span></p>
+              <p><span class="text-emerald-400/60">{{ t('landing.architecture.terminal_line4') }}</span></p>
+              <p><span class="text-emerald-400/60">{{ t('landing.architecture.terminal_line5') }}</span></p>
+              <p class="mt-3"><span class="text-rose-400/70 italic">{{ t('landing.architecture.terminal_comment2') }}</span></p>
+              <p><span class="text-rose-400/60">{{ t('landing.architecture.terminal_line6') }}</span></p>
+              <p><span class="text-rose-400/60">{{ t('landing.architecture.terminal_line7') }}</span></p>
+              <p><span class="text-rose-400/60">{{ t('landing.architecture.terminal_line8') }}</span></p>
+              <p><span class="text-rose-400/60">{{ t('landing.architecture.terminal_line9') }}</span></p>
             </div>
           </div>
         </div>
@@ -388,47 +407,16 @@ onUnmounted(() => clearInterval(timer))
             </div>
 
             <ul class="space-y-3 mb-8 flex-1">
-              <li class="flex items-center gap-2.5 text-sm text-foreground">
-                <CheckCircle class="size-4 text-emerald-500 shrink-0" />
-                {{ t('landing.pricing.community_feat_1') }}
-              </li>
-              <li class="flex items-center gap-2.5 text-sm text-foreground">
-                <CheckCircle class="size-4 text-emerald-500 shrink-0" />
-                {{ t('landing.pricing.community_feat_2') }}
-              </li>
-              <li class="flex items-center gap-2.5 text-sm text-foreground">
-                <CheckCircle class="size-4 text-emerald-500 shrink-0" />
-                {{ t('landing.pricing.community_feat_3') }}
-              </li>
-              <li class="flex items-center gap-2.5 text-sm text-foreground">
-                <CheckCircle class="size-4 text-emerald-500 shrink-0" />
-                {{ t('landing.pricing.community_feat_4') }}
-              </li>
-              <li class="flex items-center gap-2.5 text-sm text-foreground">
-                <CheckCircle class="size-4 text-emerald-500 shrink-0" />
-                {{ t('landing.pricing.community_feat_5') }}
-              </li>
-              <li class="flex items-center gap-2.5 text-sm text-foreground">
-                <CheckCircle class="size-4 text-emerald-500 shrink-0" />
-                {{ t('landing.pricing.community_feat_6') }}
-              </li>
-              <li class="flex items-center gap-2.5 text-sm text-foreground">
-                <CheckCircle class="size-4 text-emerald-500 shrink-0" />
-                {{ t('landing.pricing.community_feat_7') }}
-              </li>
-              <!-- Locked pro features -->
-              <li class="flex items-center gap-2.5 text-sm text-muted-foreground/50 line-through">
-                <X class="size-4 text-muted-foreground/30 shrink-0" />
-                {{ t('landing.pricing.pro_feat_locked_1') }}
-              </li>
-              <li class="flex items-center gap-2.5 text-sm text-muted-foreground/50 line-through">
-                <X class="size-4 text-muted-foreground/30 shrink-0" />
-                {{ t('landing.pricing.pro_feat_locked_2') }}
-              </li>
-              <li class="flex items-center gap-2.5 text-sm text-muted-foreground/50 line-through">
-                <X class="size-4 text-muted-foreground/30 shrink-0" />
-                {{ t('landing.pricing.pro_feat_locked_3') }}
-              </li>
+              <li class="flex items-center gap-2.5 text-sm text-foreground"><CheckCircle class="size-4 text-emerald-500 shrink-0" />{{ t('landing.pricing.community_feat_1') }}</li>
+              <li class="flex items-center gap-2.5 text-sm text-foreground"><CheckCircle class="size-4 text-emerald-500 shrink-0" />{{ t('landing.pricing.community_feat_2') }}</li>
+              <li class="flex items-center gap-2.5 text-sm text-foreground"><CheckCircle class="size-4 text-emerald-500 shrink-0" />{{ t('landing.pricing.community_feat_3') }}</li>
+              <li class="flex items-center gap-2.5 text-sm text-foreground"><CheckCircle class="size-4 text-emerald-500 shrink-0" />{{ t('landing.pricing.community_feat_4') }}</li>
+              <li class="flex items-center gap-2.5 text-sm text-foreground"><CheckCircle class="size-4 text-emerald-500 shrink-0" />{{ t('landing.pricing.community_feat_5') }}</li>
+              <li class="flex items-center gap-2.5 text-sm text-foreground"><CheckCircle class="size-4 text-emerald-500 shrink-0" />{{ t('landing.pricing.community_feat_6') }}</li>
+              <li class="flex items-center gap-2.5 text-sm text-foreground"><CheckCircle class="size-4 text-emerald-500 shrink-0" />{{ t('landing.pricing.community_feat_7') }}</li>
+              <li class="flex items-center gap-2.5 text-sm text-muted-foreground/50 line-through"><X class="size-4 text-muted-foreground/30 shrink-0" />{{ t('landing.pricing.pro_feat_locked_1') }}</li>
+              <li class="flex items-center gap-2.5 text-sm text-muted-foreground/50 line-through"><X class="size-4 text-muted-foreground/30 shrink-0" />{{ t('landing.pricing.pro_feat_locked_2') }}</li>
+              <li class="flex items-center gap-2.5 text-sm text-muted-foreground/50 line-through"><X class="size-4 text-muted-foreground/30 shrink-0" />{{ t('landing.pricing.pro_feat_locked_3') }}</li>
             </ul>
 
             <a href="https://github.com/francisxys" target="_blank" rel="noopener noreferrer">
@@ -457,42 +445,15 @@ onUnmounted(() => clearInterval(timer))
             </div>
 
             <ul class="space-y-3 mb-8 flex-1">
-              <li class="flex items-center gap-2.5 text-sm font-medium text-primary">
-                <CheckCircle class="size-4 shrink-0" />
-                {{ t('landing.pricing.pro_feat_all') }}
-              </li>
-              <li class="flex items-center gap-2.5 text-sm text-foreground">
-                <CheckCircle class="size-4 text-emerald-500 shrink-0" />
-                {{ t('landing.pricing.pro_feat_1') }}
-              </li>
-              <li class="flex items-center gap-2.5 text-sm text-foreground">
-                <CheckCircle class="size-4 text-emerald-500 shrink-0" />
-                {{ t('landing.pricing.pro_feat_2') }}
-              </li>
-              <li class="flex items-center gap-2.5 text-sm text-foreground">
-                <CheckCircle class="size-4 text-emerald-500 shrink-0" />
-                {{ t('landing.pricing.pro_feat_3') }}
-              </li>
-              <li class="flex items-center gap-2.5 text-sm text-foreground">
-                <CheckCircle class="size-4 text-emerald-500 shrink-0" />
-                {{ t('landing.pricing.pro_feat_4') }}
-              </li>
-              <li class="flex items-center gap-2.5 text-sm text-foreground">
-                <CheckCircle class="size-4 text-emerald-500 shrink-0" />
-                {{ t('landing.pricing.pro_feat_5') }}
-              </li>
-              <li class="flex items-center gap-2.5 text-sm text-foreground">
-                <CheckCircle class="size-4 text-emerald-500 shrink-0" />
-                {{ t('landing.pricing.pro_feat_6') }}
-              </li>
-              <li class="flex items-center gap-2.5 text-sm text-foreground">
-                <CheckCircle class="size-4 text-emerald-500 shrink-0" />
-                {{ t('landing.pricing.pro_feat_7') }}
-              </li>
-              <li class="flex items-center gap-2.5 text-sm text-foreground">
-                <CheckCircle class="size-4 text-emerald-500 shrink-0" />
-                {{ t('landing.pricing.pro_feat_8') }}
-              </li>
+              <li class="flex items-center gap-2.5 text-sm font-medium text-primary"><CheckCircle class="size-4 shrink-0" />{{ t('landing.pricing.pro_feat_all') }}</li>
+              <li class="flex items-center gap-2.5 text-sm text-foreground"><CheckCircle class="size-4 text-emerald-500 shrink-0" />{{ t('landing.pricing.pro_feat_1') }}</li>
+              <li class="flex items-center gap-2.5 text-sm text-foreground"><CheckCircle class="size-4 text-emerald-500 shrink-0" />{{ t('landing.pricing.pro_feat_2') }}</li>
+              <li class="flex items-center gap-2.5 text-sm text-foreground"><CheckCircle class="size-4 text-emerald-500 shrink-0" />{{ t('landing.pricing.pro_feat_3') }}</li>
+              <li class="flex items-center gap-2.5 text-sm text-foreground"><CheckCircle class="size-4 text-emerald-500 shrink-0" />{{ t('landing.pricing.pro_feat_4') }}</li>
+              <li class="flex items-center gap-2.5 text-sm text-foreground"><CheckCircle class="size-4 text-emerald-500 shrink-0" />{{ t('landing.pricing.pro_feat_5') }}</li>
+              <li class="flex items-center gap-2.5 text-sm text-foreground"><CheckCircle class="size-4 text-emerald-500 shrink-0" />{{ t('landing.pricing.pro_feat_6') }}</li>
+              <li class="flex items-center gap-2.5 text-sm text-foreground"><CheckCircle class="size-4 text-emerald-500 shrink-0" />{{ t('landing.pricing.pro_feat_7') }}</li>
+              <li class="flex items-center gap-2.5 text-sm text-foreground"><CheckCircle class="size-4 text-emerald-500 shrink-0" />{{ t('landing.pricing.pro_feat_8') }}</li>
             </ul>
 
             <Button
@@ -518,7 +479,7 @@ onUnmounted(() => clearInterval(timer))
     <section id="quickstart" class="py-20 px-6">
       <div class="max-w-xl mx-auto text-center">
         <div class="size-14 rounded-2xl bg-gradient-to-br from-indigo-600/10 to-cyan-500/10 flex items-center justify-center mx-auto mb-5">
-          <Network class="size-7 text-indigo-500" />
+          <Container class="size-7 text-indigo-500" />
         </div>
         <h2 class="text-2xl font-black tracking-tighter mb-3 text-foreground">{{ t('landing.cta.title') }}</h2>
         <p class="text-muted-foreground text-sm leading-relaxed mb-7 max-w-sm mx-auto">
@@ -541,32 +502,13 @@ onUnmounted(() => clearInterval(timer))
             {{ t('landing.cta.button_secondary') }} <ArrowRight class="size-4" />
           </Button>
         </div>
-
         <div class="grid grid-cols-3 gap-2 text-left max-w-xs mx-auto">
-          <div class="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <CheckCircle class="size-3.5 text-emerald-500 shrink-0" />
-            {{ t('landing.cta.badge_1') }}
-          </div>
-          <div class="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <CheckCircle class="size-3.5 text-emerald-500 shrink-0" />
-            {{ t('landing.cta.badge_2') }}
-          </div>
-          <div class="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <CheckCircle class="size-3.5 text-emerald-500 shrink-0" />
-            {{ t('landing.cta.badge_3') }}
-          </div>
-          <div class="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <CheckCircle class="size-3.5 text-emerald-500 shrink-0" />
-            {{ t('landing.cta.badge_4') }}
-          </div>
-          <div class="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <CheckCircle class="size-3.5 text-emerald-500 shrink-0" />
-            {{ t('landing.cta.badge_5') }}
-          </div>
-          <div class="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <CheckCircle class="size-3.5 text-emerald-500 shrink-0" />
-            {{ t('landing.cta.badge_6') }}
-          </div>
+          <div class="flex items-center gap-1.5 text-xs text-muted-foreground"><CheckCircle class="size-3.5 text-emerald-500 shrink-0" />{{ t('landing.cta.badge_1') }}</div>
+          <div class="flex items-center gap-1.5 text-xs text-muted-foreground"><CheckCircle class="size-3.5 text-emerald-500 shrink-0" />{{ t('landing.cta.badge_2') }}</div>
+          <div class="flex items-center gap-1.5 text-xs text-muted-foreground"><CheckCircle class="size-3.5 text-emerald-500 shrink-0" />{{ t('landing.cta.badge_3') }}</div>
+          <div class="flex items-center gap-1.5 text-xs text-muted-foreground"><CheckCircle class="size-3.5 text-emerald-500 shrink-0" />{{ t('landing.cta.badge_4') }}</div>
+          <div class="flex items-center gap-1.5 text-xs text-muted-foreground"><CheckCircle class="size-3.5 text-emerald-500 shrink-0" />{{ t('landing.cta.badge_5') }}</div>
+          <div class="flex items-center gap-1.5 text-xs text-muted-foreground"><CheckCircle class="size-3.5 text-emerald-500 shrink-0" />{{ t('landing.cta.badge_6') }}</div>
         </div>
       </div>
     </section>

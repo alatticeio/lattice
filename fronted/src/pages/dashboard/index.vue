@@ -3,7 +3,7 @@ import { computed, watch, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
   Activity, Server, ShieldCheck, AlertTriangle,
-  MoreHorizontal, Globe, Building2, RefreshCw,
+  MoreHorizontal, Globe, Building2, RefreshCw, Container,
 } from 'lucide-vue-next'
 import { useDashboardStore } from '@/stores/useDashboard'
 import { useWorkspaceStore } from '@/stores/workspace'
@@ -30,18 +30,20 @@ watch(() => workspaceStore.currentWorkspace?.id, (newId, oldId) => {
 })
 
 // ── icon lookup for stat cards ────────────────────────────────────────
-const iconByIndex = [Server, Activity, ShieldCheck, AlertTriangle]
+const iconByIndex = [Server, Activity, ShieldCheck, AlertTriangle, Container]
 const titleKeyByIndex = [
   'settings.dashboard.statNodes',
   'settings.dashboard.statTunnels',
   'settings.dashboard.statPolicies',
   'settings.dashboard.statAlerts',
+  'settings.dashboard.statSandboxes',
 ]
 const colorByIndex = [
   { badge: 'bg-blue-500/10',    icon: 'text-blue-500',    num: 'text-blue-600 dark:text-blue-400' },
   { badge: 'bg-emerald-500/10', icon: 'text-emerald-500', num: 'text-emerald-600 dark:text-emerald-400' },
   { badge: 'bg-primary/10',     icon: 'text-primary',     num: 'text-primary' },
   { badge: 'bg-amber-500/10',   icon: 'text-amber-500',   num: 'text-amber-600 dark:text-amber-400' },
+  { badge: 'bg-violet-500/10',  icon: 'text-violet-500',  num: 'text-violet-600 dark:text-violet-400' },
 ]
 
 // ── stat cards: workspace when active, global otherwise ──────────────
@@ -129,7 +131,7 @@ const BAR_MAX_PX = 64 // px height when at 100% of maxCpu
     </div>
 
     <!-- ── Stat Cards ──────────────────────────────────────────────── -->
-    <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+    <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
       <div
         v-for="(stat, i) in stats"
         :key="i"
@@ -167,7 +169,7 @@ const BAR_MAX_PX = 64 // px height when at 100% of maxCpu
       <!-- skeleton when no data yet -->
       <template v-if="stats.length === 0">
         <div
-          v-for="i in 4"
+          v-for="i in 5"
           :key="i"
           class="border-border bg-card rounded-xl border p-5 shadow-sm animate-pulse"
         >

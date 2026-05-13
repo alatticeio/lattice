@@ -94,6 +94,7 @@
       "workspace": "Workspace",
       "platform": "Platform",
       "ai": "AI Assistant",
+      "sandbox": "Agent Sandbox",
       "settings": "Settings"
     },
     "ai": "AI Assistant",
@@ -118,7 +119,10 @@
     "platformSettings": "Platform Settings",
     "audit": "Audit Log",
     "relays": "Relays",
-    "quickstart": "Quick Start"
+    "quickstart": "Quick Start",
+    "sandboxList": "Sandbox List",
+    "sandboxTokens": "Access Tokens",
+    "sandboxAudit": "Traffic Audit"
   },
   "ai": {
     "tools": {
@@ -187,6 +191,75 @@
       "historyTitle": "Change History",
       "historyEmpty": "No applied changes yet",
       "historyBy": "By:"
+    }
+  },
+  "sandbox": {
+    "list": {
+      "title": "Agent Sandboxes",
+      "desc": "Manage all AI Agent sandbox instances",
+      "colName": "Name",
+      "colStatus": "Status",
+      "colMode": "Isolation Mode",
+      "colIP": "VPN IP",
+      "colSandboxId": "Sandbox ID",
+      "colTrafficRx": "Rx Traffic",
+      "colTrafficTx": "Tx Traffic",
+      "colCreated": "Created",
+      "colActions": "Actions",
+      "revoke": "Revoke",
+      "confirmRevoke": "Confirm Revoke Sandbox",
+      "confirmRevokeDesc": "This will immediately terminate the agent process and revoke its network access. This action is irreversible.",
+      "online": "Online",
+      "offline": "Offline",
+      "modeGvisor": "gVisor",
+      "modeCgroup": "cgroup",
+      "empty": "No sandbox instances",
+      "error": "Failed to load sandbox list"
+    },
+    "tokens": {
+      "title": "Access Tokens",
+      "desc": "Create and manage agent enrollment tokens",
+      "createTitle": "Create Token",
+      "createDesc": "Generate a one-time enrollment token for agents to register with the control plane.",
+      "ttl": "TTL",
+      "ttl1h": "1 Hour",
+      "ttl6h": "6 Hours",
+      "ttl24h": "24 Hours",
+      "allowedTools": "Allowed Tools",
+      "generate": "Generate Token",
+      "generatedToken": "Token Generated",
+      "tokenWarning": "This token is only visible once. Copy it now — you won't be able to see it again.",
+      "colToken": "Token",
+      "colCreated": "Created",
+      "colExpires": "Expires",
+      "colStatus": "Status",
+      "colActions": "Actions",
+      "statusActive": "Active",
+      "statusExpired": "Expired",
+      "statusRevoked": "Revoked",
+      "revoke": "Revoke",
+      "empty": "No tokens",
+      "error": "Failed to load tokens"
+    },
+    "audit": {
+      "title": "Traffic Audit",
+      "desc": "Agent traffic event audit and traceability",
+      "searchPlaceholder": "Search by sandbox name or destination IP...",
+      "filterVerdict": "Verdict",
+      "filterAll": "All",
+      "filterAllow": "Allow",
+      "filterDrop": "Drop",
+      "colTime": "Time",
+      "colSandbox": "Sandbox",
+      "colSrcIP": "Source IP",
+      "colDst": "Dest IP:Port",
+      "colProtocol": "Protocol",
+      "colVerdict": "Verdict",
+      "allow": "Allow",
+      "drop": "Drop",
+      "empty": "No traffic audit events",
+      "noMatch": "No matching events found",
+      "error": "Failed to load audit events"
     }
   }
 }

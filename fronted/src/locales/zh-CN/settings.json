@@ -30,7 +30,8 @@
     "statNodes": "在线节点",
     "statTunnels": "活跃隧道",
     "statPolicies": "编排策略",
-    "statAlerts": "系统告警"
+    "statAlerts": "系统告警",
+    "statSandboxes": "Agent 沙箱"
   },
   "approvals": {
     "title": "审批工作台",

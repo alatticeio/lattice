@@ -94,6 +94,7 @@
       "workspace": "工作空间",
       "platform": "平台管理",
       "ai": "AI 助手",
+      "sandbox": "Agent 沙箱",
       "settings": "设置"
     },
     "ai": "AI 助手",
@@ -118,7 +119,10 @@
     "platformSettings": "平台设置",
     "audit": "审计日志",
     "relays": "中继节点",
-    "quickstart": "快速接入"
+    "quickstart": "快速接入",
+    "sandboxList": "沙箱列表",
+    "sandboxTokens": "接入令牌",
+    "sandboxAudit": "流量审计"
   },
   "ai": {
     "tools": {
@@ -187,6 +191,75 @@
       "historyTitle": "变更历史",
       "historyEmpty": "暂无已执行的变更记录",
       "historyBy": "执行人："
+    }
+  },
+  "sandbox": {
+    "list": {
+      "title": "Agent 沙箱",
+      "desc": "管理所有 AI Agent 沙箱实例",
+      "colName": "名称",
+      "colStatus": "状态",
+      "colMode": "隔离模式",
+      "colIP": "VPN IP",
+      "colSandboxId": "Sandbox ID",
+      "colTrafficRx": "下行流量",
+      "colTrafficTx": "上行流量",
+      "colCreated": "创建时间",
+      "colActions": "操作",
+      "revoke": "吊销",
+      "confirmRevoke": "确认吊销沙箱",
+      "confirmRevokeDesc": "此操作将立即终止 Agent 进程并移除其网络访问权限，不可逆。",
+      "online": "在线",
+      "offline": "离线",
+      "modeGvisor": "gVisor",
+      "modeCgroup": "cgroup",
+      "empty": "暂无沙箱实例",
+      "error": "加载沙箱列表失败"
+    },
+    "tokens": {
+      "title": "接入令牌",
+      "desc": "创建和管理 Agent 注册令牌",
+      "createTitle": "创建令牌",
+      "createDesc": "生成一次性 enrollment token，Agent 凭此注册到控制面。",
+      "ttl": "有效期",
+      "ttl1h": "1 小时",
+      "ttl6h": "6 小时",
+      "ttl24h": "24 小时",
+      "allowedTools": "允许的工具",
+      "generate": "生成令牌",
+      "generatedToken": "令牌已生成",
+      "tokenWarning": "此令牌仅在此时可见一次，请立即复制保存。关闭后将无法再次查看。",
+      "colToken": "令牌",
+      "colCreated": "创建时间",
+      "colExpires": "过期时间",
+      "colStatus": "状态",
+      "colActions": "操作",
+      "statusActive": "有效",
+      "statusExpired": "已过期",
+      "statusRevoked": "已撤销",
+      "revoke": "撤销",
+      "empty": "暂无令牌",
+      "error": "加载令牌列表失败"
+    },
+    "audit": {
+      "title": "流量审计",
+      "desc": "Agent 流量事件审计与追溯",
+      "searchPlaceholder": "搜索沙箱名或目标 IP...",
+      "filterVerdict": "判决",
+      "filterAll": "全部",
+      "filterAllow": "放行",
+      "filterDrop": "拒绝",
+      "colTime": "时间",
+      "colSandbox": "沙箱",
+      "colSrcIP": "源 IP",
+      "colDst": "目标 IP:Port",
+      "colProtocol": "协议",
+      "colVerdict": "判决",
+      "allow": "放行",
+      "drop": "拒绝",
+      "empty": "暂无流量审计事件",
+      "noMatch": "未找到匹配的事件",
+      "error": "加载审计事件失败"
     }
   }
 }

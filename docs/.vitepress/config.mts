@@ -33,7 +33,7 @@ export default defineConfig({
       '/config/': userSidebar(),
       '/features/': userSidebar(),
       '/ai/': userSidebar(),
-      '/guide/': userSidebar(),
+      '/faq/': userSidebar(),
 
       // ── Internal / developer docs ─────────────────────────────────────────
       '/design/': designSidebar(),
@@ -114,6 +114,12 @@ function userSidebar() {
             { text: 'Billing', link: '/features/billing' },
           ],
         },
+      ],
+    },
+    {
+      text: 'FAQ',
+      items: [
+        { text: 'eBPF & Agent Sandbox', link: '/faq/ebpf-sandbox' },
       ],
     },
     {

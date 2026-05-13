@@ -18,6 +18,7 @@ package provision
 
 import (
 	"github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/features"
 	"github.com/cilium/ebpf/rlimit"
 )
 
@@ -27,7 +28,7 @@ func selectEBPFAvailable() EnforcerMode {
 		return ModeIPTables
 	}
 	// Probe basic eBPF support.
-	if ok, _ := ebpf.HaveProgramType(ebpf.SchedCLS); !ok {
+	if err := features.HaveProgramType(ebpf.SchedCLS); err != nil {
 		return ModeIPTables
 	}
 	return ModeEBPF
