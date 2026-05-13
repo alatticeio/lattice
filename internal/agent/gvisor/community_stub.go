@@ -37,3 +37,9 @@ type Config struct {
 func New(_ Config) (*Sandbox, error) {
 	return nil, errProOnly
 }
+
+// NewUDPBind returns a Pro-only error in the community edition. The return
+// type uses interface{} because shim.WireGuardBind is a PRO-only type.
+func NewUDPBind(_ string) (interface{}, error) {
+	return nil, errProOnly
+}

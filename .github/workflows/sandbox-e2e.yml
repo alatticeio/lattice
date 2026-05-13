@@ -1,0 +1,108 @@
+name: Sandbox E2E
+
+on:
+  pull_request:
+    types: [labeled, synchronize, reopened]
+  push:
+    branches:
+      - dev
+
+jobs:
+  sandbox-e2e:
+    if: github.event_name == 'push' || (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'run-pro'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Prepare metadata
+        id: meta
+        run: |
+          OWNER_LOWER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          echo "owner_lower=${OWNER_LOWER}" >> $GITHUB_OUTPUT
+          echo "tag=$(date +%s)" >> $GITHUB_OUTPUT
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build PRO images
+        run: |
+          EDITION=pro make docker-build SERVICE=latticed TAG=${{ steps.meta.outputs.tag }}
+          EDITION=pro make docker-build SERVICE=lattice-agent-sandbox TAG=${{ steps.meta.outputs.tag }}
+
+      - name: Push PRO images to GHCR
+        if: github.event_name == 'push'
+        run: |
+          docker push ghcr.io/${{ steps.meta.outputs.owner_lower }}/latticed:pro-${{ steps.meta.outputs.tag }}
+          docker push ghcr.io/${{ steps.meta.outputs.owner_lower }}/lattice-agent-sandbox:pro-${{ steps.meta.outputs.tag }}
+
+      - name: Set up k3d
+        uses: AbsaOSS/k3d-action@v2
+        with:
+          cluster-name: lattice-sandbox-e2e
+          args: >
+            --agents 0
+            --no-lb
+            --k3s-arg "--disable=traefik@server:*"
+
+      - name: Export kubeconfig
+        run: |
+          mkdir -p $HOME/.kube
+          k3d kubeconfig get lattice-sandbox-e2e > $HOME/.kube/config
+          chmod 600 $HOME/.kube/config
+
+      - name: Import images to k3d
+        run: |
+          k3d image import \
+            ghcr.io/${{ steps.meta.outputs.owner_lower }}/latticed:pro-${{ steps.meta.outputs.tag }} \
+            ghcr.io/${{ steps.meta.outputs.owner_lower }}/lattice-agent-sandbox:pro-${{ steps.meta.outputs.tag }} \
+            -c lattice-sandbox-e2e
+
+      - name: Deploy Lattice All-in-One (PRO)
+        run: |
+          kubectl create namespace lattice-system
+          EDITION=pro make deploy-aio IMG=ghcr.io/${{ steps.meta.outputs.owner_lower }}/latticed:pro-${{ steps.meta.outputs.tag }}
+
+      - name: Wait for latticed ready
+        run: |
+          kubectl wait --for=condition=available deployment/latticed -n lattice-system --timeout=120s
+          kubectl port-forward -n lattice-system svc/lattice-api-service 8080:8080 &
+          sleep 5
+
+      - name: Run sandbox e2e tests
+        run: |
+          go test ./test/e2e/ -v -timeout 15m -run "Agent Sandbox" \
+            --agent-image=ghcr.io/${{ steps.meta.outputs.owner_lower }}/lattice-agent-sandbox:pro-${{ steps.meta.outputs.tag }} \
+            --manage-url=http://localhost:8080
+
+      - name: Collect diagnostics on failure
+        if: failure()
+        run: |
+          echo "===== Control Plane Pods ====="
+          kubectl get pods -n lattice-system
+          echo "===== latticed Logs ====="
+          kubectl logs -n lattice-system deployment/latticed --tail=200 || true
+          echo "===== LatticePeer CRDs ====="
+          kubectl get latticepeer -A || true
+          echo "===== AgentIdentity CRDs ====="
+          kubectl get agentidentity -A || true
+
+      - name: Cleanup
+        if: always()
+        run: |
+          k3d cluster delete lattice-sandbox-e2e || true

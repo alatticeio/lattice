@@ -3,6 +3,8 @@ package e2e
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -53,6 +55,22 @@ func apiPOST(url, token string, body any) (int, *resp.Response) {
 	return httpResp.StatusCode, &data
 }
 
+// apiDELETE sends an HTTP DELETE with optional Bearer auth. Returns status code and parsed response body.
+func apiDELETE(url, token string) (int, *resp.Response) {
+	req, _ := http.NewRequestWithContext(context.Background(), http.MethodDelete, url, nil)
+	if token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
+	httpClient := &http.Client{Timeout: 15 * time.Second}
+	httpResp, err := httpClient.Do(req)
+	Expect(err).NotTo(HaveOccurred(), "HTTP DELETE %s failed", url)
+	defer httpResp.Body.Close() //nolint:errcheck
+
+	var data resp.Response
+	_ = json.NewDecoder(httpResp.Body).Decode(&data)
+	return httpResp.StatusCode, &data
+}
+
 // ---- Test setup helpers ----
 
 // login returns the admin access token.
@@ -66,6 +84,48 @@ func login(manageURL string) string {
 	token, ok := dataMap["token"].(string)
 	Expect(ok && token != "").To(BeTrue(), "token not found in login response")
 	return token
+}
+
+// createEnrollmentToken creates a one-time enrollment token for agent sandbox registration.
+func createEnrollmentToken(manageURL, accessToken, namespace string) string {
+	By("Create Enrollment Token for sandbox agent")
+	statusCode, data := apiPOST(manageURL+"/api/v1/agent-isolation/enrollment-tokens", accessToken, map[string]any{
+		"namespace":    namespace,
+		"allowedTools": []string{"http", "exec"},
+		"ttlSeconds":   600,
+	})
+	Expect(statusCode).To(Equal(http.StatusOK), "create enrollment token failed: %+v", data)
+
+	dataMap, ok := data.Data.(map[string]any)
+	Expect(ok).To(BeTrue(), "Enrollment token response Data format error")
+	token, ok := dataMap["token"].(string)
+	Expect(ok && token != "").To(BeTrue(), "token not found in enrollment response")
+	return token
+}
+
+// registerSandboxAgent calls POST /api/v1/agent-isolation/register and
+// returns the JWT and allocated VPN IP.
+func registerSandboxAgent(manageURL, accessToken, enrollmentToken, agentName, sandboxMode string) (jwt, localIP string) {
+	By("Register sandbox agent via enrollment token")
+
+	rawKey := make([]byte, 32)
+	_, err := rand.Read(rawKey)
+	Expect(err).NotTo(HaveOccurred(), "generate sandbox WG key failed")
+	pubKey := hex.EncodeToString(rawKey)
+
+	statusCode, data := apiPOST(manageURL+"/api/v1/agent-isolation/register", accessToken, map[string]string{
+		"enrollmentToken": enrollmentToken,
+		"agentName":       agentName,
+		"publicKey":       pubKey,
+		"sandbox":         sandboxMode,
+	})
+	Expect(statusCode).To(Equal(http.StatusOK), "register sandbox agent failed: %+v", data)
+
+	dataMap, ok := data.Data.(map[string]any)
+	Expect(ok).To(BeTrue(), "register response Data format error")
+	jwt, _ = dataMap["JWT"].(string)
+	localIP, _ = dataMap["localIP"].(string)
+	return jwt, localIP
 }
 
 // createWorkspace creates a workspace and returns the workspace ID.
@@ -195,6 +255,85 @@ func deployAgentDeployment(clientset *kubernetes.Clientset, ns, name, agentImage
 	Expect(err).NotTo(HaveOccurred(), "failed to create Deployment %s", name)
 }
 
+// deployMultiContainerAgent creates a Deployment running the lattice agent plus additional containers.
+func deployMultiContainerAgent(clientset *kubernetes.Clientset, ns, name, agentImage, joinToken string, hostAliases []corev1.HostAlias, extraContainers ...corev1.Container) {
+	privileged := true
+	replicas := int32(1)
+	hostPathType := corev1.HostPathDirectory
+
+	containers := []corev1.Container{{
+		Name:            "agent",
+		Image:           agentImage,
+		ImagePullPolicy: corev1.PullIfNotPresent,
+		SecurityContext: &corev1.SecurityContext{
+			Privileged:               &privileged,
+			AllowPrivilegeEscalation: &privileged,
+			Capabilities: &corev1.Capabilities{
+				Add: []corev1.Capability{"NET_ADMIN", "NET_RAW"},
+			},
+		},
+		VolumeMounts: []corev1.VolumeMount{
+			{Name: "lib-modules", MountPath: "/lib/modules", ReadOnly: true},
+			{Name: "xtables-lock", MountPath: "/run/xtables.lock"},
+		},
+		Command: []string{
+			"/app/lattice", "up",
+			"--token", joinToken,
+			"--level", "debug",
+			"--server-url", "http://lattice-api-service.lattice-system.svc.cluster.local:8080",
+		},
+	}}
+	containers = append(containers, extraContainers...)
+
+	_, err := clientset.AppsV1().Deployments(ns).Create(context.Background(), &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{Name: name},
+		Spec: appsv1.DeploymentSpec{
+			Replicas: &replicas,
+			Selector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{"wf-role": name},
+			},
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						"app":     "wf-e2e",
+						"wf-role": name,
+					},
+				},
+				Spec: corev1.PodSpec{
+					Hostname:    name,
+					HostAliases: hostAliases,
+					Containers:  containers,
+					Volumes: []corev1.Volume{
+						{
+							Name: "lib-modules",
+							VolumeSource: corev1.VolumeSource{
+								HostPath: &corev1.HostPathVolumeSource{
+									Path: "/lib/modules",
+									Type: &hostPathType,
+								},
+							},
+						},
+						{
+							Name: "xtables-lock",
+							VolumeSource: corev1.VolumeSource{
+								HostPath: &corev1.HostPathVolumeSource{
+									Path: "/run/xtables.lock",
+									Type: func() *corev1.HostPathType {
+										t := corev1.HostPathFileOrCreate
+										return &t
+									}(),
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}, metav1.CreateOptions{})
+
+	Expect(err).NotTo(HaveOccurred(), "failed to create Deployment %s", name)
+}
+
 // waitForPodRunningReady waits until a pod matching the role label is Running and all containers Ready.
 func waitForPodRunningReady(clientset *kubernetes.Clientset, ns, role string, timeout string) string {
 	var podName string
@@ -262,6 +401,84 @@ func getNetworkName(peer *latticev1.LatticePeer) string {
 		return *peer.Status.ActiveNetwork
 	}
 	return ""
+}
+
+// ---- Sandbox helpers ----
+
+// deploySandboxPod creates a Pod running lattice-agent-sandbox with --wg.
+// peer, if non-empty, is appended as a --peer flag for static WireGuard config.
+func deploySandboxPod(clientset *kubernetes.Clientset, ns, name, sandboxImage, serverURL, enrollmentToken string, hostAliases []corev1.HostAlias, peer string) {
+	args := []string{
+		"/app/lattice", "start",
+		"--name", name,
+		"--server-url", serverURL,
+		"--token", enrollmentToken,
+		"--wg",
+	}
+	if peer != "" {
+		args = append(args, "--peer", peer)
+	}
+
+	_, err := clientset.CoreV1().Pods(ns).Create(context.Background(), &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: name,
+			Labels: map[string]string{
+				"app":     "wf-e2e",
+				"wf-role": name,
+			},
+		},
+		Spec: corev1.PodSpec{
+			Hostname:    name,
+			HostAliases: hostAliases,
+			Containers: []corev1.Container{{
+				Name:            "sandbox",
+				Image:           sandboxImage,
+				ImagePullPolicy: corev1.PullIfNotPresent,
+				Ports: []corev1.ContainerPort{{
+					ContainerPort: 51820,
+					Protocol:      corev1.ProtocolUDP,
+				}},
+				// Dockerfile copies binary as /app/lattice regardless of TARGETSERVICE.
+				Command: args,
+			}},
+		},
+	}, metav1.CreateOptions{})
+	Expect(err).NotTo(HaveOccurred(), "failed to create sandbox Pod %s", name)
+}
+
+// revokeSandboxAgent calls DELETE /api/v1/agent-isolation/agents/:name to revoke an agent.
+func revokeSandboxAgent(manageURL, accessToken, agentName, namespace string) {
+	By("Revoke sandbox agent: " + agentName)
+	url := fmt.Sprintf("%s/api/v1/agent-isolation/agents/%s?namespace=%s", manageURL, agentName, namespace)
+	statusCode, data := apiDELETE(url, accessToken)
+	Expect(statusCode).To(Equal(http.StatusOK), "revoke agent failed: %+v", data)
+}
+
+// auditEvent is a single audit event read from the sandbox JSONL log.
+type auditEvent struct {
+	Identity string `json:"identity"`
+	SrcIP    string `json:"src_ip"`
+	DstIP    string `json:"dst_ip"`
+	DstPort  uint16 `json:"dst_port"`
+	Protocol string `json:"protocol"`
+	Verdict  string `json:"verdict"`
+}
+
+// readAuditLog reads and parses the sandbox audit JSONL file.
+func readAuditLog(clientset *kubernetes.Clientset, config *rest.Config, ns, podName string) []auditEvent {
+	output, err := execInPod(clientset, config, ns, podName, []string{"cat", "/tmp/lattice-audit.jsonl"})
+	Expect(err).NotTo(HaveOccurred(), "read audit log failed")
+
+	var events []auditEvent
+	for _, line := range strings.Split(strings.TrimSpace(output), "\n") {
+		if line == "" {
+			continue
+		}
+		var ev auditEvent
+		Expect(json.Unmarshal([]byte(line), &ev)).To(Succeed(), "parse audit event: %s", line)
+		events = append(events, ev)
+	}
+	return events
 }
 
 // ---- Policy helpers ----
@@ -418,4 +635,17 @@ func execInPod(c *kubernetes.Clientset, config *rest.Config, namespace, podName 
 		return "", fmt.Errorf("command execution failed [%v]: stderr=%s", err, stderr.String())
 	}
 	return stdout.String(), nil
+}
+
+// cleanupSandboxCRDs removes AgentIdentity CRDs that might block namespace deletion.
+func cleanupSandboxCRDs(ns string) {
+	ctx := context.Background()
+	list := &latticev1.AgentIdentityList{}
+	if err := latticeClient.List(ctx, list, sigclient.InNamespace(ns)); err == nil {
+		for _, id := range list.Items {
+			id.SetFinalizers(nil)
+			_ = latticeClient.Update(ctx, &id)
+			_ = latticeClient.Delete(ctx, &latticev1.AgentIdentity{ObjectMeta: metav1.ObjectMeta{Name: id.Name, Namespace: ns}})
+		}
+	}
 }

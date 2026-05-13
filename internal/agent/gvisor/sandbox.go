@@ -210,6 +210,12 @@ func (s *Sandbox) ListenTCP(addr string) (net.Listener, error) {
 	return s.ns.ListenTCP(addr)
 }
 
+// Channel returns the channel endpoint used by the gVisor netstack. Callers
+// can attach a tun.Device (e.g. wireguard-go) to read/write raw IP packets.
+func (s *Sandbox) Channel() *channel.Endpoint {
+	return s.ch
+}
+
 // WireGuardEndpoint returns the bridge that the caller should connect to
 // wireguard-go.
 func (s *Sandbox) WireGuardEndpoint() *shim.WireGuardEndpoint {

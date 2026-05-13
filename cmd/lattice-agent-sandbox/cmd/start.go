@@ -16,18 +16,20 @@ package cmd
 
 import (
 	"bytes"
-	"crypto/rand"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
+	"time"
 
 	"github.com/spf13/cobra"
+	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 )
 
 var (
@@ -37,6 +39,7 @@ var (
 	sandboxWGEnabled bool
 	sandboxServerURL string
 	sandboxToken     string
+	sandboxPeer      string
 )
 
 func init() {
@@ -46,6 +49,7 @@ func init() {
 	startCmd.Flags().BoolVar(&sandboxWGEnabled, "wg", false, "Enable WireGuard tunnel attachment")
 	startCmd.Flags().StringVar(&sandboxServerURL, "server-url", "", "Lattice control plane URL (for auto-registration)")
 	startCmd.Flags().StringVar(&sandboxToken, "token", "", "Enrollment token for auto-registration")
+	startCmd.Flags().StringVar(&sandboxPeer, "peer", "", "Static WireGuard peer (pubkey:endpoint:allowedIPs)")
 
 	_ = startCmd.MarkFlagRequired("name")
 	rootCmd.AddCommand(startCmd)
@@ -63,7 +67,11 @@ Examples:
   lattice-agent-sandbox start --name agent-1 --server-url http://localhost:8080 --token lt-xxx
 
   # Start with pre-allocated IP (skip registration):
-  lattice-agent-sandbox start --name agent-1 --local-ip 10.100.0.5`,
+  lattice-agent-sandbox start --name agent-1 --local-ip 10.100.0.5
+
+  # Start with a static WireGuard peer:
+  lattice-agent-sandbox start --name agent-1 --local-ip 10.100.0.5 --wg \
+    --peer "abc123...=:10.100.0.10:51820:10.100.0.0/24"`,
 	RunE: runStart,
 }
 
@@ -73,10 +81,20 @@ func runStart(cmd *cobra.Command, args []string) error {
 	}
 
 	agentJWT := ""
+	var privateKey wgtypes.Key
+
+	// Generate key pair, even if we don't use wireguard-go, so we have one
+	// available for registration.
+	privKey, err := wgtypes.GeneratePrivateKey()
+	if err != nil {
+		return fmt.Errorf("generate WireGuard key: %w", err)
+	}
+	privateKey = privKey
+	pubKey := privKey.PublicKey().String()
 
 	// Auto-register with control plane if server URL and token are provided.
 	if sandboxServerURL != "" && sandboxToken != "" {
-		regResp, err := registerWithServer(sandboxServerURL, sandboxToken, sandboxName, sandboxMode)
+		regResp, err := registerWithServer(sandboxServerURL, sandboxToken, sandboxName, sandboxMode, pubKey)
 		if err != nil {
 			return fmt.Errorf("registration failed: %w", err)
 		}
@@ -87,11 +105,21 @@ func runStart(cmd *cobra.Command, args []string) error {
 		fmt.Printf("Registered agent %q with server %s\n", sandboxName, sandboxServerURL)
 	}
 
+	// Parse --peer flag if provided.
+	var peers []wgtypes.PeerConfig
+	if sandboxPeer != "" {
+		peerConfig, err := parsePeerConfig(sandboxPeer)
+		if err != nil {
+			return fmt.Errorf("parse --peer: %w", err)
+		}
+		peers = append(peers, peerConfig)
+	}
+
 	fmt.Printf("Starting sandbox %q, localIP=%s, wg=%v\n", sandboxName, sandboxLocalIP, sandboxWGEnabled)
 
 	// Create the gVisor sandbox. In community builds this returns a
 	// "Pro-only" error.
-	sb, err := createSandbox(sandboxName, sandboxLocalIP, agentJWT)
+	sb, err := createSandbox(sandboxName, sandboxLocalIP, agentJWT, sandboxWGEnabled, privateKey, peers)
 	if err != nil {
 		return fmt.Errorf("create sandbox: %w", err)
 	}
@@ -117,14 +145,7 @@ type registerResponse struct {
 
 // registerWithServer calls the control plane registration API and returns
 // the agent JWT and allocated IP.
-func registerWithServer(serverURL, token, agentName, sandboxMode string) (*registerResponse, error) {
-	// Generate a WireGuard key pair.
-	rawKey := make([]byte, 32)
-	if _, err := rand.Read(rawKey); err != nil {
-		return nil, fmt.Errorf("generate key: %w", err)
-	}
-	pubKey := hex.EncodeToString(rawKey)
-
+func registerWithServer(serverURL, token, agentName, sandboxMode, pubKey string) (*registerResponse, error) {
 	body := map[string]string{
 		"enrollmentToken": token,
 		"agentName":       agentName,
@@ -155,4 +176,40 @@ func registerWithServer(serverURL, token, agentName, sandboxMode string) (*regis
 		return nil, fmt.Errorf("parse response: %w (body=%s)", err, string(respBody))
 	}
 	return &result.Data, nil
+}
+
+// parsePeerConfig parses a peer string in "pubkey:endpoint:allowedIPs" format
+// into a wgtypes.PeerConfig. The endpoint must be an ip:port pair
+// (e.g. "10.100.0.10:51820").
+func parsePeerConfig(s string) (wgtypes.PeerConfig, error) {
+	// Format: pubkey:ip:port:allowedIPs
+	// e.g. "abc123...=:10.100.0.10:51820:10.100.0.0/24"
+	parts := strings.SplitN(s, ":", 4)
+	if len(parts) != 4 {
+		return wgtypes.PeerConfig{}, fmt.Errorf("invalid peer format, expected pubkey:ip:port:allowedIPs, got %q", s)
+	}
+
+	key, err := wgtypes.ParseKey(parts[0])
+	if err != nil {
+		return wgtypes.PeerConfig{}, fmt.Errorf("parse peer pubkey: %w", err)
+	}
+
+	endpointAddr := parts[1] + ":" + parts[2]
+	endpoint, err := net.ResolveUDPAddr("udp", endpointAddr)
+	if err != nil {
+		return wgtypes.PeerConfig{}, fmt.Errorf("parse peer endpoint %q: %w", endpointAddr, err)
+	}
+
+	_, allowedNet, err := net.ParseCIDR(parts[3])
+	if err != nil {
+		return wgtypes.PeerConfig{}, fmt.Errorf("parse peer allowedIPs %q: %w", parts[3], err)
+	}
+
+	keepalive := 25 * time.Second
+	return wgtypes.PeerConfig{
+		PublicKey:                   key,
+		Endpoint:                    endpoint,
+		AllowedIPs:                  []net.IPNet{*allowedNet},
+		PersistentKeepaliveInterval: &keepalive,
+	}, nil
 }

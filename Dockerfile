@@ -42,6 +42,8 @@ ARG TARGETSERVICE
 #   manager   (K8s operator) -> 仅需 ca-certificates
 RUN if [ "$TARGETSERVICE" = "lattice" ] || [ "$TARGETSERVICE" = "latticed" ]; then \
         apk add --no-cache wireguard-tools iptables iproute2 ca-certificates; \
+    elif [ "$TARGETSERVICE" = "lattice-agent-sandbox" ]; then \
+        apk add --no-cache ca-certificates; \
     else \
         apk add --no-cache ca-certificates; \
     fi

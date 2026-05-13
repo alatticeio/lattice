@@ -16,13 +16,17 @@
 
 package cmd
 
-import "fmt"
+import (
+	"errors"
+
+	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
+)
 
 // sandboxCloser is a no-op in the community edition.
 type sandboxCloser struct{}
 
 func (c *sandboxCloser) Close() {}
 
-func createSandbox(name, localIP, agentJWT string) (*sandboxCloser, error) {
-	return nil, fmt.Errorf("gVisor agent sandbox is a Lattice Pro feature")
+func createSandbox(sandboxName, localIP, agentJWT string, wgEnabled bool, privateKey wgtypes.Key, peers []wgtypes.PeerConfig) (*sandboxCloser, error) {
+	return nil, errors.New("gVisor agent sandbox is a Lattice Pro feature")
 }

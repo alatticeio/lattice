@@ -16,7 +16,7 @@ LDFLAGS = -X 'lattice/pkg/version.Version=$(LATTICE_VERSION)' \
 
 REGISTRY ?= ghcr.io/alatticeio
 # manager: K8s operator; lattice: edge agent; latticed: all-in-one control plane
-SERVICES := manager lattice latticed lrp
+SERVICES := manager lattice latticed lrp lattice-agent-sandbox
 TARGETOS ?= linux
 TARGETARCH ?=amd64
 VERSION ?= dev
