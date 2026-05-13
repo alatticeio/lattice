@@ -43,8 +43,8 @@ type EnrollmentTokenRequest struct {
 
 // EnrollmentTokenResponse is returned after creating an enrollment token.
 type EnrollmentTokenResponse struct {
-	Token     string
-	ExpiresAt time.Time
+	Token     string    `json:"token"`
+	ExpiresAt time.Time `json:"expiresAt"`
 }
 
 // AgentRegisterRequest is sent by an Agent during initial registration.
@@ -63,9 +63,9 @@ type AgentRegisterRequest struct {
 // AgentRegisterResponse is returned after successful registration.
 type AgentRegisterResponse struct {
 	// JWT is the signed Agent JWT for all subsequent API calls.
-	JWT string
+	JWT string `json:"jwt"`
 	// AgentIdentityName is the name of the created AgentIdentity CRD.
-	AgentIdentityName string
+	AgentIdentityName string `json:"agentIdentityName"`
 }
 
 // AgentRegistrationService manages Agent lifecycle: enrollment tokens,
