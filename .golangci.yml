@@ -5,7 +5,7 @@ run:
   tests: true
 
 linters:
-  disable-all: true
+  default: none
   enable:
     - errcheck
     - govet
@@ -20,19 +20,19 @@ linters:
         - shadow
       disable:
         - slog
+    errcheck:
+      exclude-functions:
+        - (net/http.Response).Body.Close
+        - (io.Closer).Close
+        - (io.ReadCloser).Close
 
-issues:
-  exclude-rules:
-    - path: _test\.go
-      linters:
-        - errcheck
-        - unused
-    - text: "variable name '.*' is too short"
-      linters:
-        - revive
-
-  max-issues-per-linter: 0
-  max-same-issues: 0
+  exclusions:
+    rules:
+      - path: _test\.go
+        linters:
+          - errcheck
+          - unused
+          - govet
 
 formatters:
   enable:

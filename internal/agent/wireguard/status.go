@@ -32,11 +32,12 @@ func PrintStatus(interfaceName string) error {
 	if err != nil {
 		return fmt.Errorf("failed to open wgctrl: %w", err)
 	}
-	defer ctr.Close()
+	defer ctr.Close() //nolint:errcheck
 
 	var devices []*wgtypes.Device
 	if interfaceName != "" {
-		dev, err := ctr.Device(interfaceName)
+		var dev *wgtypes.Device
+		dev, err = ctr.Device(interfaceName)
 		if err != nil {
 			return fmt.Errorf("interface %q not found: %w", interfaceName, err)
 		}

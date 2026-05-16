@@ -98,7 +98,7 @@ func (s *Server) boltUpgradeHandler(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleBoltSession(conn net.Conn, bufrw *bufio.ReadWriter) {
 	stream := &ReadWriterConn{Conn: conn, ReadWriter: bufrw}
-	defer stream.Close()
+	defer stream.Close() //nolint:errcheck
 
 	_ = conn.SetReadDeadline(time.Now().Add(10 * time.Second))
 

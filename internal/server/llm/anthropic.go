@@ -103,11 +103,7 @@ func (c *AnthropicClient) Complete(ctx context.Context, req *Request) (*Response
 
 	// Convert tools
 	for _, t := range req.Tools {
-		ar.Tools = append(ar.Tools, anthropicTool{
-			Name:        t.Name,
-			Description: t.Description,
-			InputSchema: t.InputSchema,
-		})
+		ar.Tools = append(ar.Tools, anthropicTool(t))
 	}
 
 	// Convert messages

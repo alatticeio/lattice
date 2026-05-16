@@ -197,7 +197,7 @@ func (c *Client) ListTokens(namespace string) error {
 	for _, t := range list {
 		expiry := "never"
 		if !t.Expiry.IsZero() {
-			expiry = t.Expiry.Time.Format("2006-01-02 15:04")
+			expiry = t.Expiry.Format("2006-01-02 15:04")
 		}
 		limit := fmt.Sprintf("%d", t.UsageLimit)
 		if t.UsageLimit == 0 {

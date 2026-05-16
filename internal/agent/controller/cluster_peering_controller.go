@@ -128,7 +128,7 @@ func (r *ClusterPeeringReconciler) reconcileNormal(ctx context.Context, cp *v1al
 	}
 
 	// 5. Create/update a shadow peer in the local namespace representing the remote gateway.
-	if err := r.ensureRemoteGatewayShadow(ctx, cp, info, localNetwork.Name); err != nil {
+	if err = r.ensureRemoteGatewayShadow(ctx, cp, info, localNetwork.Name); err != nil {
 		return ctrl.Result{}, fmt.Errorf("ensure remote gateway shadow: %w", err)
 	}
 

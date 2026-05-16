@@ -39,7 +39,7 @@ func (s *Server) userRouter() {
 	userApi := s.Group("/api/v1/users")
 	{
 		userApi.POST("/register", ipLimiter.Middleware(10.0/60, 3), s.RegisterUser) // 10 req/min, burst 3
-		userApi.POST("/login", ipLimiter.Middleware(5.0/60, 5), s.login)           // 5 req/min, burst 5
+		userApi.POST("/login", ipLimiter.Middleware(5.0/60, 5), s.login)            // 5 req/min, burst 5
 		userApi.GET("/getme", middleware.AuthMiddleware(s.revocationList), s.getMe())
 		userApi.GET("/list", middleware.AuthMiddleware(s.revocationList), s.listUser())
 		userApi.POST("/add", middleware.AuthMiddleware(s.revocationList), s.handleAddUser())
@@ -258,4 +258,3 @@ func (s *Server) handleGetUserWorkspaces() gin.HandlerFunc {
 		resp.OK(c, result)
 	}
 }
-
