@@ -36,7 +36,7 @@ func WatchFirstHandshake(ctx context.Context, ifaceName string, startTime time.T
 	if err != nil {
 		return
 	}
-	defer ctr.Close()
+	defer ctr.Close() //nolint:errcheck
 
 	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()

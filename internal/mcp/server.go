@@ -83,7 +83,7 @@ func (s *Server) Run() error {
 			continue // notifications have no response
 		}
 		out, _ := json.Marshal(response)
-		fmt.Fprintf(os.Stdout, "%s\n", out)
+		fmt.Fprintf(os.Stdout, "%s\n", out) //nolint:errcheck
 	}
 	return scanner.Err()
 }
@@ -103,7 +103,7 @@ func (s *Server) HandleOnce(r io.Reader, w io.Writer) error {
 		return nil
 	}
 	out, _ := json.Marshal(response)
-	fmt.Fprintf(w, "%s\n", out)
+	fmt.Fprintf(w, "%s\n", out) //nolint:errcheck
 	return nil
 }
 

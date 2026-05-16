@@ -3,7 +3,7 @@ import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { toast } from 'vue-sonner' // 或者从 '@/components/ui/sonner' 引入
 import { getMe, login as loginApi, logout as logoutApi } from '@/api/user'
-import { setToken, removeToken, hasToken, setRefreshToken, getRefreshToken, clearAuth } from '@/utils/auth'
+import { setToken, hasToken, setRefreshToken, getRefreshToken, clearAuth } from '@/utils/auth'
 
 export interface User {
     id: string | number

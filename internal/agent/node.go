@@ -195,7 +195,8 @@ func NewNode(ctx context.Context, cfg *NodeConfig) (*Node, error) {
 
 	// Auto-discover NATS URL from server if not already set (e.g. via advanced override).
 	if config.Conf.GetSignalingURL() == "" {
-		natsURL, err := discoverNATSURL(ctx, config.Conf.ServerUrl)
+		var natsURL string
+		natsURL, err = discoverNATSURL(ctx, config.Conf.ServerUrl)
 		if err != nil {
 			return nil, fmt.Errorf("NATS discovery failed: %w", err)
 		}
@@ -364,10 +365,10 @@ func NewNode(ctx context.Context, cfg *NodeConfig) (*Node, error) {
 	// The handler reads GetNetworkMap at call time (not at setup time), so it
 	// works even though GetNetworkMap is assigned externally after NewAgent returns.
 	natsSignalService.SetReconnectedHandler(func() {
-		ctx := context.Background()
-		peer, err := node.ctrClient.Register(ctx, node.token, node.Name)
-		if err != nil {
-			node.logger.Error("NATS reconnect: re-register failed", err)
+		rctx := context.Background()
+		peer, rErr := node.ctrClient.Register(rctx, node.token, node.Name)
+		if rErr != nil {
+			node.logger.Error("NATS reconnect: re-register failed", rErr)
 			return
 		}
 		node.current = peer
@@ -375,13 +376,13 @@ func NewNode(ctx context.Context, cfg *NodeConfig) (*Node, error) {
 		if node.GetNetworkMap == nil {
 			return
 		}
-		remoteCfg, err := node.GetNetworkMap()
-		if err != nil {
-			node.logger.Error("NATS reconnect: re-fetch network map failed", err)
+		remoteCfg, rErr := node.GetNetworkMap()
+		if rErr != nil {
+			node.logger.Error("NATS reconnect: re-fetch network map failed", rErr)
 			return
 		}
-		if err = node.messageHandler.ApplyFullConfig(ctx, remoteCfg); err != nil {
-			node.logger.Error("NATS reconnect: re-apply config failed", err)
+		if rErr = node.messageHandler.ApplyFullConfig(rctx, remoteCfg); rErr != nil {
+			node.logger.Error("NATS reconnect: re-apply config failed", rErr)
 		}
 	})
 

@@ -78,7 +78,7 @@ func (r *PeerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 
 	// Finalizer / deletion handling.
 	const finalizerName = "alattice.io/node"
-	if !peer.ObjectMeta.DeletionTimestamp.IsZero() {
+	if !peer.DeletionTimestamp.IsZero() {
 		if controllerutil.ContainsFinalizer(&peer, finalizerName) {
 			return r.handleDelete(ctx, &peer)
 		}
@@ -510,7 +510,7 @@ func (r *PeerReconciler) lastReconcile(ctx context.Context, peer *v1alpha1.Latti
 
 		logger.Info("Creating configmap", "name", configMapName, "hash", newHash)
 		manager := client.FieldOwner("lattice-controller-manager")
-		if err := r.Patch(ctx, desiredConfigMap, client.Apply, manager); err != nil {
+		if err = r.Patch(ctx, desiredConfigMap, client.Apply, manager); err != nil {
 			logger.Error(err, "Failed to create configmap")
 			if _, sErr := r.updateStatus(ctx, peer, func(p *v1alpha1.LatticePeer) {
 				p.Status.Conditions = setCondition(p.Status.Conditions, metav1.Condition{
@@ -528,7 +528,7 @@ func (r *PeerReconciler) lastReconcile(ctx context.Context, peer *v1alpha1.Latti
 
 		// Also persist hash in status so the next reconcile (triggered by the
 		// ConfigMap Create event) sees CurrentHash == newHash and skips cleanly.
-		if _, err := r.updateStatus(ctx, peer, func(node *v1alpha1.LatticePeer) {
+		if _, err = r.updateStatus(ctx, peer, func(node *v1alpha1.LatticePeer) {
 			node.Status.CurrentHash = newHash
 			node.Status.Conditions = setCondition(node.Status.Conditions, metav1.Condition{
 				Type:               v1alpha1.NodeConditionNetworkConfigured,
@@ -557,7 +557,7 @@ func (r *PeerReconciler) lastReconcile(ctx context.Context, peer *v1alpha1.Latti
 
 	logger.Info("Updating configmap by hash", "namespace", peer.Namespace, "name", configMapName, "oldHash", oldHash, "newHash", newHash)
 	manager := client.FieldOwner("lattice-controller-manager")
-	if err := r.Patch(ctx, desiredConfigMap, client.Apply, manager); err != nil {
+	if err = r.Patch(ctx, desiredConfigMap, client.Apply, manager); err != nil {
 		logger.Error(err, "Failed to update configmap")
 		if _, sErr := r.updateStatus(ctx, peer, func(p *v1alpha1.LatticePeer) {
 			p.Status.Conditions = setCondition(p.Status.Conditions, metav1.Condition{

@@ -20,7 +20,7 @@ func newCustomMetricRepo(db *gorm.DB) *customMetricRepo {
 }
 
 func (r *customMetricRepo) ListByWorkspace(ctx context.Context, wsID string) ([]*models.CustomMetric, error) {
-	return r.BaseRepository.Find(ctx, func(db *gorm.DB) *gorm.DB {
+	return r.Find(ctx, func(db *gorm.DB) *gorm.DB {
 		return db.Where("workspace_id = ?", wsID)
 	})
 }

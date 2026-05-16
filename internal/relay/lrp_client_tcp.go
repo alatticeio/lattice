@@ -86,21 +86,21 @@ func (c *TCPClient) Connect() error {
 
 	req, err := http.NewRequest("GET", "/lrp/v1/upgrade", nil)
 	if err != nil {
-		conn.Close()
+		conn.Close() //nolint:errcheck
 		return err
 	}
 	req.Header.Set("Upgrade", "lrp")
 	req.Header.Set("Connection", "Upgrade")
 
 	if err = req.Write(conn); err != nil {
-		conn.Close()
+		conn.Close() //nolint:errcheck
 		return err
 	}
 
 	reader := bufio.NewReader(conn)
 	resp, err := http.ReadResponse(reader, req) //nolint:bodyclose // resp.Body wraps conn; we take ownership of the raw connection
 	if err != nil || resp.StatusCode != http.StatusSwitchingProtocols {
-		conn.Close()
+		conn.Close() //nolint:errcheck
 		return fmt.Errorf("upgrade failed: %v", err)
 	}
 	// resp.Body wraps the underlying conn reader. We discard the upgrade response
@@ -113,7 +113,7 @@ func (c *TCPClient) Connect() error {
 	c.mu.Unlock()
 
 	if err = c.register(c); err != nil {
-		conn.Close()
+		conn.Close() //nolint:errcheck
 		return err
 	}
 
