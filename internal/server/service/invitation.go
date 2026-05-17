@@ -66,7 +66,8 @@ func (s *invitationService) Create(ctx context.Context, workspaceID, inviterID, 
 	isPlatformAdmin := inviter.SystemRole == dto.SystemRolePlatformAdmin
 
 	if !isPlatformAdmin {
-		inviterMember, err := s.store.WorkspaceMembers().GetMembership(ctx, workspaceID, inviterID)
+		var inviterMember *models.WorkspaceMember
+		inviterMember, err = s.store.WorkspaceMembers().GetMembership(ctx, workspaceID, inviterID)
 		if err != nil {
 			return nil, errors.New("inviter is not a member of this workspace")
 		}
@@ -212,11 +213,12 @@ func (s *invitationService) RegisterAndAccept(ctx context.Context, token, userna
 		}
 
 		// Check username uniqueness.
-		if _, err := st.Users().GetByUsername(ctx, username); err == nil {
+		if _, err = st.Users().GetByUsername(ctx, username); err == nil {
 			return errors.New("username already taken")
 		}
 
-		hashed, err := utils.EncryptPassword(password)
+		var hashed string
+		hashed, err = utils.EncryptPassword(password)
 		if err != nil {
 			return err
 		}
@@ -227,12 +229,12 @@ func (s *invitationService) RegisterAndAccept(ctx context.Context, token, userna
 			Email:    inv.Email,
 			Password: hashed,
 		}
-		if err := st.Users().Create(ctx, user); err != nil {
+		if err = st.Users().Create(ctx, user); err != nil {
 			return err
 		}
 
 		now := time.Now()
-		if err := st.WorkspaceMembers().AddMember(ctx, &models.WorkspaceMember{
+		if err = st.WorkspaceMembers().AddMember(ctx, &models.WorkspaceMember{
 			WorkspaceID: inv.WorkspaceID,
 			UserID:      user.ID,
 			Role:        inv.Role,
@@ -243,7 +245,7 @@ func (s *invitationService) RegisterAndAccept(ctx context.Context, token, userna
 			return err
 		}
 
-		if err := st.WorkspaceInvitations().UpdateStatus(ctx, inv.ID, "accepted"); err != nil {
+		if err = st.WorkspaceInvitations().UpdateStatus(ctx, inv.ID, "accepted"); err != nil {
 			return err
 		}
 

@@ -114,6 +114,24 @@ type NodeConfig struct {
 	ShowLog       bool
 	Token         string
 	Flags         *config.Config
+
+	// CustomTUN, if non-nil, is used as the WireGuard TUN device instead of
+	// creating a kernel TUN device. CustomName must also be set. Used by the
+	// agent sandbox, which runs WireGuard over gVisor instead of a kernel TUN.
+	CustomTUN  tun.Device
+	CustomName string
+
+	// ProvisionerFactory, if non-nil, is called after the WireGuard device is
+	// created to build the Provisioner. When nil, the default kernel provisioner
+	// (iptables or eBPF) is used. The gVisor sandbox supplies a factory that
+	// delegates WG peer ops to wireguard-go IpcSet and is a no-op for routes.
+	ProvisionerFactory func(dev *wg.Device) provision.Provisioner
+
+	// CurrentPeer, if non-nil, is used as this node's identity and skips the
+	// NATS registration call. The caller must populate PrivateKey, AppID, and
+	// Address. Used by the agent sandbox, which pre-registers via HTTP and
+	// obtains peer info from the control plane before NewNode is called.
+	CurrentPeer *infra.Peer
 }
 
 // NewNode constructs and wires a fully operational Node instance.
@@ -158,9 +176,15 @@ func NewNode(ctx context.Context, cfg *NodeConfig) (*Node, error) {
 	node.manager.turnManager = new(internal.TurnManager)
 
 	// TUN device: the OS virtual NIC that serves as WireGuard's L3 ingress/egress.
-	node.Name, iface, err = infra.CreateTUN(infra.DefaultMTU, cfg.Logger)
-	if err != nil {
-		return nil, err
+	// The sandbox supplies a gVisor TUNAdapter instead of creating a kernel TUN.
+	if cfg.CustomTUN != nil {
+		iface = cfg.CustomTUN
+		node.Name = cfg.CustomName
+	} else {
+		node.Name, iface, err = infra.CreateTUN(infra.DefaultMTU, cfg.Logger)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	// UDP sockets: ICE candidate gathering and WireGuard encapsulated packets
@@ -233,9 +257,15 @@ func NewNode(ctx context.Context, cfg *NodeConfig) (*Node, error) {
 
 	// Register announces this node to the control plane and receives back the
 	// assigned WireGuard private key, allocated IP, and LRP relay URL.
-	node.current, err = node.ctrClient.Register(ctx, cfg.Token, node.Name)
-	if err != nil {
-		return nil, err
+	// The sandbox skips this call: it pre-registers via HTTP and passes
+	// CurrentPeer with identity information already filled in.
+	if cfg.CurrentPeer != nil {
+		node.current = cfg.CurrentPeer
+	} else {
+		node.current, err = node.ctrClient.Register(ctx, cfg.Token, node.Name, "")
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	privateKey, err = utils.ParseKey(node.current.PrivateKey)
@@ -281,14 +311,9 @@ func NewNode(ctx context.Context, cfg *NodeConfig) (*Node, error) {
 		},
 	})
 
-	// Subscribe to this node's NATS signaling subject. All incoming ICE and
-	// LRP signal packets are routed to probeFactory.Handle for dispatch.
-	if err = natsSignalService.Subscribe(fmt.Sprintf("%s.%s", "lattice.signals.peers", localIdentity), node.probeFactory.Handle); err != nil {
-		return nil, err
-	}
-
 	// LRP is an optional relay channel used as a fallback when ICE traversal
 	// fails (e.g. symmetric NAT on both sides).
+	// LRP is initialized before DefaultBind so node.bind receives a valid LrpClient.
 	if cfg.Flags.EnableLrp {
 		if cfg.Flags.RelayQuicURL != "" {
 			lrp, err = relay.NewQUICClient(ctx, localIdentity.ID(), cfg.Flags.RelayQuicURL, node.probeFactory.Handle)
@@ -311,6 +336,12 @@ func NewNode(ctx context.Context, cfg *NodeConfig) (*Node, error) {
 	}
 
 	// ── Phase 3: WireGuard data plane ────────────────────────────────────────
+	// NOTE: Phase 3 is intentionally ordered BEFORE the NATS Subscribe call below.
+	// This ensures node.messageHandler is non-nil before any NATS push can arrive,
+	// eliminating the nil-window race where a config push arriving between Subscribe
+	// and messageHandler assignment would be silently dropped.
+	// Dependency order: ProbeFactory → LRP → DefaultBind → WGDevice → Provisioner
+	//                   → MessageHandler → Subscribe
 
 	// DefaultBind is WireGuard's UDP binding layer. It routes outbound encrypted
 	// packets to the correct transport channel (ICE direct path or LRP relay)
@@ -337,41 +368,61 @@ func NewNode(ctx context.Context, cfg *NodeConfig) (*Node, error) {
 	// Provisioner abstracts all OS network-stack mutations: IP address assignment,
 	// routing table entries, policy enforcement rules, and WireGuard peer configuration.
 	// It must be created after the WireGuard device because it holds a reference to it.
-	enforcerMode := provision.SelectEnforcerMode(cfg.Logger)
-	var policyEnforcer provision.PolicyEnforcer
-	switch enforcerMode {
-	case provision.ModeEBPF:
-		policyEnforcer = provision.NewEBPFEnforcer(node.Name, cfg.Logger)
-	default:
-		policyEnforcer = provision.NewIptablesEnforcer(cfg.Logger, node.Name)
+	// The sandbox supplies a ProvisionerFactory that routes WG ops to wireguard-go
+	// IpcSet and treats routes/IPs/policy as no-ops (gVisor handles them internally).
+	if cfg.ProvisionerFactory != nil {
+		node.provisioner = cfg.ProvisionerFactory(node.iface)
+	} else {
+		enforcerMode := provision.SelectEnforcerMode(cfg.Logger)
+		var policyEnforcer provision.PolicyEnforcer
+		switch enforcerMode {
+		case provision.ModeEBPF:
+			policyEnforcer = provision.NewEBPFEnforcer(node.Name, cfg.Logger)
+		default:
+			policyEnforcer = provision.NewIptablesEnforcer(cfg.Logger, node.Name)
+		}
+		node.provisioner = provision.NewProvisioner(
+			provision.NewRouteProvisioner(cfg.Logger),
+			policyEnforcer,
+			&provision.Params{
+				Device:    node.iface,
+				IfaceName: node.Name,
+			})
 	}
-	node.provisioner = provision.NewProvisioner(
-		provision.NewRouteProvisioner(cfg.Logger),
-		policyEnforcer,
-		&provision.Params{
-			Device:    node.iface,
-			IfaceName: node.Name,
-		})
 
 	// MessageHandler processes topology change events pushed by the control plane
 	// (peers added/removed, configuration updates) and applies them via Provisioner.
+	// Must be assigned before Subscribe so the GetOnMessage closure never returns nil.
 	node.messageHandler = NewMessageHandler(node, log.GetLogger("event-handler"), node.provisioner)
 
 	node.DeviceManager = wireguard.NewDeviceManager(log.GetLogger("device-manager"), node.iface, make(chan struct{}))
+
+	// Subscribe to this node's NATS signaling subject. All incoming ICE and
+	// LRP signal packets are routed to probeFactory.Handle for dispatch.
+	// Subscribe happens after messageHandler is set (phase 3 above).
+	if err = natsSignalService.Subscribe(fmt.Sprintf("%s.%s", "lattice.signals.peers", localIdentity), node.probeFactory.Handle); err != nil {
+		return nil, err
+	}
 	node.token = cfg.Token
 
 	// Re-register and re-apply the network map whenever NATS reconnects.
 	// This covers the case where lattice-aio restarts and loses all node state.
 	// The handler reads GetNetworkMap at call time (not at setup time), so it
 	// works even though GetNetworkMap is assigned externally after NewAgent returns.
+	//
+	// Sandbox nodes (cfg.CurrentPeer != nil) skip NATS re-registration: they
+	// pre-registered via HTTP and their identity does not change on reconnect.
+	skipRegister := cfg.CurrentPeer != nil
 	natsSignalService.SetReconnectedHandler(func() {
 		rctx := context.Background()
-		peer, rErr := node.ctrClient.Register(rctx, node.token, node.Name)
-		if rErr != nil {
-			node.logger.Error("NATS reconnect: re-register failed", rErr)
-			return
+		if !skipRegister {
+			peer, rErr := node.ctrClient.Register(rctx, node.token, node.Name, "")
+			if rErr != nil {
+				node.logger.Error("NATS reconnect: re-register failed", rErr)
+				return
+			}
+			node.current = peer
 		}
-		node.current = peer
 
 		if node.GetNetworkMap == nil {
 			return
@@ -415,6 +466,22 @@ func (c *Node) Start(ctx context.Context) error {
 		return err
 	}
 
+	return c.messageHandler.ApplyFullConfig(ctx, remoteCfg)
+}
+
+// RefreshConfig re-fetches the current network map from the control plane and
+// applies it. It is safe to call concurrently with normal NATS push handlers.
+// Sandbox nodes call this periodically as a fallback in case a NATS config-push
+// is dropped (e.g. when the ConfigMap is updated before the subscription is
+// fully established on the broker).
+func (c *Node) RefreshConfig(ctx context.Context) error {
+	if c.GetNetworkMap == nil {
+		return nil
+	}
+	remoteCfg, err := c.GetNetworkMap()
+	if err != nil {
+		return err
+	}
 	return c.messageHandler.ApplyFullConfig(ctx, remoteCfg)
 }
 
@@ -463,8 +530,13 @@ func (c *Node) close() {
 
 // AddPeer registers a remote peer with the local node. It first updates the
 // in-memory PeerManager (used by hole-punching probes to look up peer info),
-// then writes the WireGuard peer configuration via ControlClient. If the peer
-// is this node itself (matching public key), the WireGuard write is skipped.
+// then starts an ICE/LRP probe via ControlClient. If the peer is this node
+// itself (matching public key), the write is skipped.
+//
+// Sandbox peers (agent.lattice.io/managed=true) participate in the same
+// ICE/LRP signaling as regular peers. The companion is the ICE initiator
+// (higher peerID) and sends the ICE OFFER; the sandbox responds with ANSWER.
+// WireGuard endpoint is configured by the probe factory when ICE connects.
 func (c *Node) AddPeer(peer *infra.Peer) error {
 	c.manager.peerManager.AddPeer(peer.AppID, peer)
 	if peer.PublicKey == c.current.PublicKey {
@@ -508,4 +580,11 @@ func (c *Node) GetDeviceName() string {
 
 func (c *Node) GetPeerManager() *infra.PeerManager {
 	return c.manager.peerManager
+}
+
+// GetNetMap fetches the current network map from the control plane using the
+// provided token. Used by callers (e.g. the sandbox) that need to set
+// GetNetworkMap from outside the agent package.
+func (c *Node) GetNetMap(token string) (*infra.Message, error) {
+	return c.ctrClient.GetNetMap(token)
 }

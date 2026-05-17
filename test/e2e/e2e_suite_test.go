@@ -2,21 +2,18 @@ package e2e
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
-	latticev1 "github.com/alatticeio/lattice/api/v1alpha1"
-	"github.com/alatticeio/lattice/pkg/utils/resp"
 	"net/http"
+	"path/filepath"
 	"testing"
 
-	"path/filepath"
+	latticev1 "github.com/alatticeio/lattice/api/v1alpha1"
+	"github.com/alatticeio/lattice/pkg/utils/resp"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
@@ -29,14 +26,15 @@ var (
 	restConfig    *rest.Config
 	clientset     *kubernetes.Clientset
 	latticeClient client.Client
-	ns            string
 	agentImage    string
+	sandboxImage  string
 	manageUrl     string
 	kubeconfig    string
 )
 
 func init() {
 	flag.StringVar(&agentImage, "agent-image", "ghcr.io/winstonfly/lattice:e2e", "Docker image for the lattice agent")
+	flag.StringVar(&sandboxImage, "sandbox-image", "", "Docker image for the sandbox agent (empty = skip sandbox tests)")
 	flag.StringVar(&manageUrl, "manage-url", "http://localhost:8080", "Lattice manager API base URL")
 	flag.StringVar(&kubeconfig, "kubeconfig", "", "Path to kubeconfig (defaults to ~/.kube/config)")
 }
@@ -91,36 +89,15 @@ var _ = BeforeSuite(func() {
 	Expect(settingsResp.StatusCode).To(Equal(http.StatusOK), "settings API returned non-200")
 	settingsResp.Body.Close() //nolint:errcheck
 
-	By("Test environment ready, Namespace: " + ns)
+	By("Test environment ready")
 })
 
-// ReportAfterSuite is the correct way in Ginkgo v2 to obtain the overall suite pass/fail status
-var _ = ReportAfterSuite("e2e cleanup", func(report Report) {
-	if clientset == nil || ns == "" {
-		return
-	}
-
-	ctx := context.Background()
-
+// ReportAfterSuite logs the overall suite result.
+// Per-spec namespace cleanup is handled by each Describe block's AfterAll.
+var _ = ReportAfterSuite("e2e suite report", func(report Report) {
 	if report.SuiteSucceeded {
-		By("All tests passed, cleaning up Namespace: " + ns)
-
-		deletePolicy := metav1.DeletePropagationBackground
-		err := clientset.CoreV1().Namespaces().Delete(ctx, ns, metav1.DeleteOptions{
-			PropagationPolicy: &deletePolicy,
-		})
-		if err != nil && !errors.IsNotFound(err) {
-			fmt.Printf("[WARN] failed to clean up Namespace: %v\n", err)
-			return
-		}
-
-		Eventually(func() bool {
-			_, err := clientset.CoreV1().Namespaces().Get(ctx, ns, metav1.GetOptions{})
-			return errors.IsNotFound(err)
-		}, "120s", "3s").Should(BeTrue(), "Namespace deletion timed out: %s", ns)
-
-		By("Resource cleanup completed")
+		fmt.Println("[E2E] All specs passed.")
 	} else {
-		fmt.Printf("\n[E2E FAILED] Preserving state for investigation.\n  kubectl get pods -n %s\n  kubectl delete ns %s\n\n", ns, ns)
+		fmt.Println("[E2E] Suite failed.")
 	}
 })

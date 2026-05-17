@@ -88,8 +88,11 @@ func (c *Client) GetNetMap(token string) (*infra.Message, error) {
 	return &msg, nil
 }
 
-// Register will register device to lattice center
-func (c *Client) Register(ctx context.Context, token, interfaceName string) (*infra.Peer, error) {
+// Register announces this node to the control plane. publicKey is optional:
+// when non-empty (sandbox path), it is sent to the server so the server uses
+// the client-generated key instead of generating one. The server then returns
+// an infra.Peer with Token=agentJWT and empty PrivateKey.
+func (c *Client) Register(ctx context.Context, token, interfaceName, publicKey string) (*infra.Peer, error) {
 	if token == "" {
 		return nil, fmt.Errorf("token is empty")
 	}
@@ -114,6 +117,7 @@ func (c *Client) Register(ctx context.Context, token, interfaceName string) (*in
 		PersistentKeepalive: 25,
 		Port:                config.Conf.WgPort,
 		Token:               token,
+		PublicKey:           publicKey, // empty for regular agents
 	}
 
 	data, err := json.Marshal(registryRequest)

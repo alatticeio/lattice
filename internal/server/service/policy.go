@@ -159,7 +159,7 @@ func (p *policyService) ApplyDirect(ctx context.Context, wsID, operatorID, opera
 	}
 
 	manager := client.FieldOwner("lattice-controller-manager")
-	if err := p.client.Patch(ctx, crd, client.Apply, manager); err != nil {
+	if err = p.client.Patch(ctx, crd, client.Apply, manager); err != nil {
 		return nil, err
 	}
 

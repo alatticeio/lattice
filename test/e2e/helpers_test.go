@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -32,12 +33,15 @@ import (
 
 // apiPOST performs an HTTP POST with optional Bearer auth and JSON body.
 // Returns HTTP status code and parsed response body. Response body is consumed
-// and closed inside this function.
+// and closed inside this function. The raw request and response are always
+// logged to GinkgoWriter to aid debugging on failure.
 func apiPOST(url, token string, body any) (int, *resp.Response) {
 	var reqBody []byte
 	if body != nil {
 		reqBody, _ = json.Marshal(body)
 	}
+	GinkgoWriter.Printf("[apiPOST] POST %s  body=%s\n", url, reqBody)
+
 	req, _ := http.NewRequestWithContext(context.Background(), http.MethodPost, url, bytes.NewBuffer(reqBody))
 	if token != "" {
 		req.Header.Set("Authorization", "Bearer "+token)
@@ -50,8 +54,11 @@ func apiPOST(url, token string, body any) (int, *resp.Response) {
 	Expect(err).NotTo(HaveOccurred(), "HTTP POST %s failed", url)
 	defer httpResp.Body.Close() //nolint:errcheck
 
+	rawBody, _ := io.ReadAll(httpResp.Body)
+	GinkgoWriter.Printf("[apiPOST] %d  raw=%s\n", httpResp.StatusCode, rawBody)
+
 	var data resp.Response
-	_ = json.NewDecoder(httpResp.Body).Decode(&data)
+	_ = json.Unmarshal(rawBody, &data)
 	return httpResp.StatusCode, &data
 }
 
@@ -77,16 +84,18 @@ func apiDELETE(url, token string) (int, *resp.Response) {
 func login(manageURL string) string {
 	By("Login to Manager to obtain Admin Token")
 	statusCode, data := apiPOST(manageURL+"/api/v1/users/login", "", map[string]string{"username": "admin", "password": "123456"})
-	Expect(statusCode).To(Equal(http.StatusOK), "login API returned non-200")
+	Expect(statusCode).To(Equal(http.StatusOK), "login API returned non-200: code=%d msg=%s", statusCode, data.Msg)
 
 	dataMap, ok := data.Data.(map[string]any)
-	Expect(ok).To(BeTrue(), "login response Data format error")
+	Expect(ok).To(BeTrue(), "login response Data is not a map: code=%d msg=%q data=%v", data.Code, data.Msg, data.Data)
 	token, ok := dataMap["token"].(string)
-	Expect(ok && token != "").To(BeTrue(), "token not found in login response")
+	Expect(ok && token != "").To(BeTrue(), "token field missing or empty in login response: %v", dataMap)
 	return token
 }
 
 // createEnrollmentToken creates a one-time enrollment token for agent sandbox registration.
+// Calls Skip() automatically if the server reports agent isolation is not enabled (code 402),
+// so sandbox tests are skipped gracefully on community builds instead of failing.
 func createEnrollmentToken(manageURL, accessToken, namespace string) string {
 	By("Create Enrollment Token for sandbox agent")
 	statusCode, data := apiPOST(manageURL+"/api/v1/agent-isolation/enrollment-tokens", accessToken, map[string]any{
@@ -94,12 +103,18 @@ func createEnrollmentToken(manageURL, accessToken, namespace string) string {
 		"allowedTools": []string{"http", "exec"},
 		"ttlSeconds":   600,
 	})
-	Expect(statusCode).To(Equal(http.StatusOK), "create enrollment token failed: %+v", data)
+
+	// Community build or feature disabled: skip instead of failing.
+	if data.Code == 402 {
+		Skip(fmt.Sprintf("agent isolation not available on this server (%s) — skipping sandbox tests", data.Msg))
+	}
+
+	Expect(statusCode).To(Equal(http.StatusOK), "create enrollment token failed: code=%d msg=%s", statusCode, data.Msg)
 
 	dataMap, ok := data.Data.(map[string]any)
-	Expect(ok).To(BeTrue(), "Enrollment token response Data format error")
+	Expect(ok).To(BeTrue(), "enrollment token response Data is not a map: code=%d msg=%q data=%v", data.Code, data.Msg, data.Data)
 	token, ok := dataMap["token"].(string)
-	Expect(ok && token != "").To(BeTrue(), "token not found in enrollment response")
+	Expect(ok && token != "").To(BeTrue(), "token field missing or empty in enrollment response: %v", dataMap)
 	return token
 }
 
@@ -123,8 +138,7 @@ func registerSandboxAgent(manageURL, accessToken, enrollmentToken, agentName, sa
 
 	dataMap, ok := data.Data.(map[string]any)
 	Expect(ok).To(BeTrue(), "register response Data format error")
-	jwt, _ = dataMap["JWT"].(string)
-	localIP, _ = dataMap["localIP"].(string)
+	jwt, _ = dataMap["jwt"].(string)
 	return jwt, localIP
 }
 
@@ -133,16 +147,17 @@ func createWorkspace(manageURL, accessToken, nsName string) string {
 	wsName := fmt.Sprintf("e2e-%d", time.Now().UnixMilli())
 	By("Create Workspace: " + wsName)
 	statusCode, data := apiPOST(manageURL+"/api/v1/workspaces/add", accessToken, dto.WorkspaceDto{
-		Namespace:   nsName,
-		DisplayName: wsName,
-		Slug:        wsName,
+		Namespace:    nsName,
+		DisplayName:  wsName,
+		Slug:         wsName,
+		MaxNodeCount: 10,
 	})
-	Expect(statusCode).To(Equal(http.StatusOK), "create Workspace failed: %+v", data)
+	Expect(statusCode).To(Equal(http.StatusOK), "create Workspace failed: code=%d msg=%s", statusCode, data.Msg)
 
 	dataMap, ok := data.Data.(map[string]any)
-	Expect(ok).To(BeTrue(), "Workspace response Data format error")
+	Expect(ok).To(BeTrue(), "workspace response Data is not a map: code=%d msg=%q data=%v", data.Code, data.Msg, data.Data)
 	workspaceID, ok := dataMap["id"].(string)
-	Expect(ok && workspaceID != "").To(BeTrue(), "workspace id not found in Workspace response")
+	Expect(ok && workspaceID != "").To(BeTrue(), "workspace id missing or empty in response: %v", dataMap)
 	return workspaceID
 }
 
@@ -405,18 +420,19 @@ func getNetworkName(peer *latticev1.LatticePeer) string {
 
 // ---- Sandbox helpers ----
 
-// deploySandboxPod creates a Pod running lattice-agent-sandbox with --wg.
-// peer, if non-empty, is appended as a --peer flag for static WireGuard config.
-func deploySandboxPod(clientset *kubernetes.Clientset, ns, name, sandboxImage, serverURL, enrollmentToken string, hostAliases []corev1.HostAlias, peer string) {
+// deploySandboxPod creates a Pod running `lattice sandbox start`.
+// Peers are discovered automatically from the control plane network map;
+// no static --peer configuration is needed.
+// The pod includes an nginx sidecar on port 8080 to serve inbound overlay connections
+// forwarded by the sandbox's ForwardListener (--forward 8080:127.0.0.1:8080).
+func deploySandboxPod(clientset *kubernetes.Clientset, ns, name, sandboxImage, serverURL, enrollmentToken string, hostAliases []corev1.HostAlias) {
 	args := []string{
-		"/app/lattice", "start",
+		"/app/lattice", "sandbox", "start",
 		"--name", name,
 		"--server-url", serverURL,
 		"--token", enrollmentToken,
-		"--wg",
-	}
-	if peer != "" {
-		args = append(args, "--peer", peer)
+		"--proxy-addr", "127.0.0.1:1080",
+		"--forward", "8080:127.0.0.1:8080",
 	}
 
 	_, err := clientset.CoreV1().Pods(ns).Create(context.Background(), &corev1.Pod{
@@ -430,17 +446,46 @@ func deploySandboxPod(clientset *kubernetes.Clientset, ns, name, sandboxImage, s
 		Spec: corev1.PodSpec{
 			Hostname:    name,
 			HostAliases: hostAliases,
-			Containers: []corev1.Container{{
-				Name:            "sandbox",
-				Image:           sandboxImage,
-				ImagePullPolicy: corev1.PullIfNotPresent,
-				Ports: []corev1.ContainerPort{{
-					ContainerPort: 51820,
-					Protocol:      corev1.ProtocolUDP,
-				}},
-				// Dockerfile copies binary as /app/lattice regardless of TARGETSERVICE.
-				Command: args,
+			// emptyDir persists across container restarts within the same Pod,
+			// allowing sandbox-credentials.json to survive crashes so the
+			// sandbox can resume without re-registering (enrollment token is
+			// single-use; re-registration would fail with "already used").
+			Volumes: []corev1.Volume{{
+				Name: "lattice-config",
+				VolumeSource: corev1.VolumeSource{
+					EmptyDir: &corev1.EmptyDirVolumeSource{},
+				},
 			}},
+			Containers: []corev1.Container{
+				{
+					Name:            "sandbox",
+					Image:           sandboxImage,
+					ImagePullPolicy: corev1.PullIfNotPresent,
+					Ports: []corev1.ContainerPort{{
+						ContainerPort: 51820,
+						Protocol:      corev1.ProtocolUDP,
+					}},
+					VolumeMounts: []corev1.VolumeMount{{
+						Name:      "lattice-config",
+						MountPath: "/etc/lattice",
+					}},
+					// Dockerfile copies binary as /app/lattice regardless of TARGETSERVICE.
+					Command: args,
+				},
+				{
+					// nginx sidecar: ForwardListener relays overlay:8080 → 127.0.0.1:8080 here.
+					Name:            "nginx",
+					Image:           "nginx:alpine",
+					ImagePullPolicy: corev1.PullIfNotPresent,
+					Ports: []corev1.ContainerPort{{
+						ContainerPort: 8080,
+					}},
+					// Override nginx listen port from default 80 to 8080.
+					Command: []string{"sh", "-c",
+						`sed -i 's/listen\s*80/listen 8080/g' /etc/nginx/conf.d/default.conf && nginx -g 'daemon off;'`,
+					},
+				},
+			},
 		},
 	}, metav1.CreateOptions{})
 	Expect(err).NotTo(HaveOccurred(), "failed to create sandbox Pod %s", name)
@@ -612,14 +657,26 @@ func cleanupWorkspace(clientset *kubernetes.Clientset, ns string) {
 	fmt.Fprintf(GinkgoWriter, "[WARN] Namespace %s deletion timed out (skipped)\n", ns) //nolint:errcheck
 }
 
-// execInPod executes a command inside a specified Pod via SPDY and returns stdout output
+// execInPod executes a command inside the first container of a Pod via SPDY.
 func execInPod(c *kubernetes.Clientset, config *rest.Config, namespace, podName string, command []string) (string, error) {
+	container := ""
+	pod, err := c.CoreV1().Pods(namespace).Get(context.Background(), podName, metav1.GetOptions{})
+	if err == nil && len(pod.Spec.Containers) > 0 {
+		container = pod.Spec.Containers[0].Name
+	}
+	return execInContainer(c, config, namespace, podName, container, command)
+}
+
+// execInContainer executes a command inside a specific container of a Pod via SPDY.
+// If container is empty, Kubernetes picks the first container in the pod spec.
+func execInContainer(c *kubernetes.Clientset, config *rest.Config, namespace, podName, container string, command []string) (string, error) {
 	req := c.CoreV1().RESTClient().Post().
 		Resource("pods").Name(podName).Namespace(namespace).SubResource("exec")
 	req.VersionedParams(&corev1.PodExecOptions{
-		Command: command,
-		Stdout:  true,
-		Stderr:  true,
+		Container: container,
+		Command:   command,
+		Stdout:    true,
+		Stderr:    true,
 	}, scheme.ParameterCodec)
 
 	exec, err := remotecommand.NewSPDYExecutor(config, "POST", req.URL())

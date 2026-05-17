@@ -14,145 +14,117 @@ permissions:
   contents: write
   packages: write
 
-# 触发条件：push tag 或 PR 带有 ok-release 标签
-# is_release=true  → tag push，跑正式 release
-# is_release=false → PR ok-release，跑 snapshot（不发布 GitHub Release）
 env:
-  IS_RELEASE: ${{ github.event_name == 'push' }}
+  REGISTRY: ghcr.io/alatticeio
 
 jobs:
-  check:
-    runs-on: ubuntu-latest
-    outputs:
-      should_run: ${{ steps.check.outputs.should_run }}
-    steps:
-      - name: Check trigger condition
-        id: check
-        run: |
-          if [ "${{ github.event_name }}" = "push" ]; then
-            echo "should_run=true" >> $GITHUB_OUTPUT
-          elif [ "${{ github.event_name }}" = "pull_request" ] && \
-               [ "${{ contains(github.event.pull_request.labels.*.name, 'ok-release') }}" = "true" ]; then
-            echo "should_run=true" >> $GITHUB_OUTPUT
-          else
-            echo "should_run=false" >> $GITHUB_OUTPUT
-          fi
-
-  goreleaser:
-    needs: check
-    if: needs.check.outputs.should_run == 'true'
+  release:
+    if: |
+      github.event_name == 'push' ||
+      (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'ok-release'))
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Set up Go
-        uses: actions/setup-go@v5
+      - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
           cache: true
 
-      - name: Install pnpm
-        uses: pnpm/action-setup@v3
-        with:
-          version: 10.32.1
+      - uses: docker/setup-qemu-action@v3
 
-      # PR: snapshot 模式（不需要 tag，不发布 GitHub Release，不推送 artifacts）
-      # Tag: 正式 release
-      - name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@v5
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Compute build variables
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            VERSION="${{ github.ref_name }}"
+            IS_RELEASE=true
+          else
+            VERSION="pr-${{ github.event.pull_request.number }}"
+            IS_RELEASE=false
+          fi
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "IS_RELEASE=$IS_RELEASE" >> "$GITHUB_ENV"
+
+      - name: Run GoReleaser (release)
+        if: env.IS_RELEASE == 'true'
+        uses: goreleaser/goreleaser-action@v6
         with:
-          distribution: goreleaser
           version: latest
-          args: ${{ github.event_name == 'push' && 'release --clean --skip=docker' || 'release --snapshot --clean --skip=docker' }}
+          args: release --clean --skip=docker
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
 
-  docker-images:
-    needs: check
-    if: needs.check.outputs.should_run == 'true'
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        include:
-          - service: latticed
-            build_tags: ""
-            tag_suffix: ""
-            image_title: "latticed (community)"
-          - service: lattice
-            build_tags: ""
-            tag_suffix: ""
-            image_title: "lattice (community)"
-          - service: latticed
-            build_tags: "pro"
-            tag_suffix: "-pro"
-            image_title: "latticed (Pro)"
-          - service: lattice
-            build_tags: "pro"
-            tag_suffix: "-pro"
-            image_title: "lattice (Pro)"
-    permissions:
-      contents: read
-      packages: write
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up QEMU (for arm64 cross-build)
-        uses: docker/setup-qemu-action@v3
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Log in to GHCR
-        uses: docker/login-action@v3
+      - name: Run GoReleaser (snapshot)
+        if: env.IS_RELEASE != 'true'
+        uses: goreleaser/goreleaser-action@v6
         with:
-          registry: ghcr.io
-          username: ${{ github.repository_owner }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          version: latest
+          args: release --snapshot --clean --skip=docker
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Install pnpm
-        uses: pnpm/action-setup@v3
-        with:
-          version: 10.32.1
+      - name: Setup pnpm
+        run: npm install -g pnpm@10.32.1
 
       - name: Build UI
         run: make build-ui
 
-      - name: Determine image tag
-        id: meta
+      - name: Create buildx builder
         run: |
-          OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
-          SUFFIX="${{ matrix.tag_suffix }}"
-          if [ "${{ github.event_name }}" = "push" ]; then
-            # tag push
-            echo "tags=ghcr.io/${OWNER}/${{ matrix.service }}:${{ github.ref_name }}${SUFFIX},ghcr.io/${OWNER}/${{ matrix.service }}:latest${SUFFIX}" >> $GITHUB_OUTPUT
-            echo "version=${{ github.ref_name }}" >> $GITHUB_OUTPUT
-          else
-            # PR
-            echo "tags=ghcr.io/${OWNER}/${{ matrix.service }}:pr-${{ github.event.number }}${SUFFIX}" >> $GITHUB_OUTPUT
-            echo "version=pr-${{ github.event.number }}" >> $GITHUB_OUTPUT
-          fi
+          docker buildx create --name lattice-builder --use
+          docker buildx inspect --bootstrap
 
-      - name: Build and push ${{ matrix.image_title }} image
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: Dockerfile
-          platforms: linux/amd64,linux/arm64
-          push: true
-          build-args: |
-            TARGETSERVICE=${{ matrix.service }}
-            VERSION=${{ steps.meta.outputs.version }}
-            BUILD_TAGS=${{ matrix.build_tags }}
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: |
-            org.opencontainers.image.title=${{ matrix.service }}
-            org.opencontainers.image.version=${{ steps.meta.outputs.version }}
-            org.opencontainers.image.revision=${{ github.sha }}
-            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
-          cache-from: type=gha
-          cache-to:   type=gha,mode=max
+      - name: Login to GHCR
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+      - name: Build and push community images
+        run: |
+          for SERVICE in latticed lattice; do
+            TAGS="--tag $REGISTRY/${SERVICE}:${VERSION}"
+            if [ "$IS_RELEASE" = "true" ]; then
+              TAGS="$TAGS --tag $REGISTRY/${SERVICE}:latest"
+            fi
+            docker buildx build \
+              --platform linux/amd64,linux/arm64 \
+              --push \
+              $TAGS \
+              --build-arg "TARGETSERVICE=${SERVICE}" \
+              --build-arg "VERSION=${VERSION}" \
+              --build-arg "BUILD_TAGS=" \
+              --label "org.opencontainers.image.title=${SERVICE}" \
+              --label "org.opencontainers.image.version=${VERSION}" \
+              --label "org.opencontainers.image.revision=${{ github.sha }}" \
+              --label "org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}" \
+              --cache-from "type=gha" \
+              --cache-to "type=gha,mode=max" \
+              -f Dockerfile .
+          done
+
+      - name: Build and push PRO images
+        run: |
+          for SERVICE in latticed lattice; do
+            TAGS="--tag $REGISTRY/${SERVICE}:${VERSION}-pro"
+            if [ "$IS_RELEASE" = "true" ]; then
+              TAGS="$TAGS --tag $REGISTRY/${SERVICE}:latest-pro"
+            fi
+            docker buildx build \
+              --platform linux/amd64,linux/arm64 \
+              --push \
+              $TAGS \
+              --build-arg "TARGETSERVICE=${SERVICE}" \
+              --build-arg "VERSION=${VERSION}" \
+              --build-arg "BUILD_TAGS=pro" \
+              --label "org.opencontainers.image.title=${SERVICE}" \
+              --label "org.opencontainers.image.version=${VERSION}-pro" \
+              --label "org.opencontainers.image.revision=${{ github.sha }}" \
+              --label "org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}" \
+              --cache-from "type=gha" \
+              --cache-to "type=gha,mode=max" \
+              -f Dockerfile .
+          done

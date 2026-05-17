@@ -25,12 +25,16 @@ import (
 
 func init() {
 	if v, ok := binding.Validator.Engine().(*validator.Validate); ok {
-		v.RegisterValidation("safe_string", func(fl validator.FieldLevel) bool {
+		if err := v.RegisterValidation("safe_string", func(fl validator.FieldLevel) bool {
 			return IsSafeString(fl.Field().String())
-		})
-		v.RegisterValidation("cidr", func(fl validator.FieldLevel) bool {
+		}); err != nil {
+			panic("failed to register safe_string validator: " + err.Error())
+		}
+		if err := v.RegisterValidation("cidr", func(fl validator.FieldLevel) bool {
 			return IsValidCIDR(fl.Field().String())
-		})
+		}); err != nil {
+			panic("failed to register cidr validator: " + err.Error())
+		}
 	}
 }
 

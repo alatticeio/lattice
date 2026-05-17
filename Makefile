@@ -16,7 +16,7 @@ LDFLAGS = -X 'lattice/pkg/version.Version=$(LATTICE_VERSION)' \
 
 REGISTRY ?= ghcr.io/alatticeio
 # manager: K8s operator; lattice: edge agent; latticed: all-in-one control plane
-SERVICES := manager lattice latticed lrp lattice-agent-sandbox
+SERVICES := manager lattice latticed lrp
 TARGETOS ?= linux
 TARGETARCH ?=amd64
 VERSION ?= dev
@@ -187,7 +187,9 @@ NATS_SVC            ?= lattice-nats-service
 MANAGE_PORT         ?= 8080
 NATS_PORT           ?= 8222
 LOCAL_AGENT_IMAGE   ?= $(REGISTRY)/lattice:$(TAG)
-LOCAL_MANAGER_IMAGE ?= $(REGISTRY)/manager:$(TAG)
+LOCAL_SANDBOX_IMAGE ?=
+LOCAL_MANAGER_IMAGE   ?= $(REGISTRY)/manager:$(TAG)
+LOCAL_LATTICED_IMAGE  ?= $(REGISTRY)/latticed:$(TAG)
 LOCAL_CLUSTER_NAME  ?= lattice-e2e
 # 独立 kubeconfig，避免与 ~/.kube/config 中其他集群的 context 冲突
 # CI 中通过 `make ... E2E_KUBECONFIG=/tmp/lattice-e2e.kubeconfig` 传入
@@ -196,7 +198,7 @@ E2E_KUBECONFIG      ?= /tmp/$(LOCAL_CLUSTER_NAME).kubeconfig
 E2E_KUBECTL         := kubectl --kubeconfig=$(E2E_KUBECONFIG)
 
 .PHONY: e2e-setup
-e2e-setup: kustomize ## 一键搭建本地 E2E 环境 (k3d 集群 + 构建/导入镜像 + 部署 Manager)
+e2e-setup: kustomize ## 一键搭建本地 E2E 环境 (k3d 集群 + 构建/导入镜像 + 部署 Latticed all-in-one)
 	@echo "====> [1/5] 创建 k3d 集群 ($(LOCAL_CLUSTER_NAME))..."
 	k3d cluster list 2>/dev/null | grep -q "$(LOCAL_CLUSTER_NAME)" || \
 		k3d cluster create $(LOCAL_CLUSTER_NAME) \
@@ -204,15 +206,20 @@ e2e-setup: kustomize ## 一键搭建本地 E2E 环境 (k3d 集群 + 构建/导�
 			--k3s-arg "--disable=traefik@server:*"
 	@echo "====> [2/5] 导出 kubeconfig → $(E2E_KUBECONFIG)"
 	k3d kubeconfig get $(LOCAL_CLUSTER_NAME) > $(E2E_KUBECONFIG)
-	@echo "====> [3/5] 构建镜像 manager & lattice ..."
-	$(MAKE) docker-build SERVICE=manager  TAG=$(TAG)
+	@echo "====> [3/5] 构建镜像 latticed & lattice ..."
+	$(MAKE) docker-build SERVICE=latticed  TAG=$(TAG)
 	$(MAKE) docker-build SERVICE=lattice TAG=$(TAG)
 	@echo "====> [4/5] 导入镜像到 k3d ..."
-	k3d image import $(LOCAL_MANAGER_IMAGE) -c $(LOCAL_CLUSTER_NAME)
-	k3d image import $(LOCAL_AGENT_IMAGE)   -c $(LOCAL_CLUSTER_NAME)
-	@echo "====> [5/5] 部署 Lattice Manager (ENV=dev) ..."
-	$(MAKE) deploy ENV=dev IMG=$(LOCAL_MANAGER_IMAGE) KUBECTL="$(E2E_KUBECTL)"
-	$(E2E_KUBECTL) rollout status deployment -n $(MANAGE_NS) --timeout=120s
+	k3d image import $(LOCAL_LATTICED_IMAGE) -c $(LOCAL_CLUSTER_NAME)
+	k3d image import $(LOCAL_AGENT_IMAGE)    -c $(LOCAL_CLUSTER_NAME)
+	@echo "====> [5/5] 部署 Lattice all-in-one ..."
+	$(E2E_KUBECTL) create namespace $(MANAGE_NS) --dry-run=client -o yaml | $(E2E_KUBECTL) apply -f -
+	$(KUSTOMIZE) build config/crd | $(E2E_KUBECTL) apply -f -
+	$(E2E_KUBECTL) wait --for=condition=Established crd --all --timeout=60s
+	$(KUSTOMIZE) build config/lattice/overlays/all-in-one --load-restrictor LoadRestrictionsNone | \
+		sed "s|ghcr.io/alatticeio/latticed:.*|$(LOCAL_LATTICED_IMAGE)|g" | \
+		$(E2E_KUBECTL) apply -f -
+	$(E2E_KUBECTL) rollout status deployment/lattice-aio -n $(MANAGE_NS) --timeout=180s
 	@echo "✅ E2E 环境就绪。kubeconfig: $(E2E_KUBECONFIG)"
 	@echo "   运行测试: make test-e2e"
 	@echo "   销毁集群: make e2e-teardown"
@@ -230,6 +237,7 @@ test-e2e: ## 运行 E2E 集成测试（自动 port-forward，测试结束后停�
 	echo "====> 运行 E2E 测试"; \
 	go test ./test/e2e/... -v -timeout 15m -args \
 		--agent-image=$(LOCAL_AGENT_IMAGE) \
+		--sandbox-image=$(LOCAL_SANDBOX_IMAGE) \
 		--manage-url=$(MANAGE_URL) \
 		--kubeconfig=$(E2E_KUBECONFIG); \
 	TEST_EXIT=$$?; \
@@ -257,11 +265,11 @@ test-e2e-cleanup: ## 清理 E2E 残留的测试 Namespace (前缀 wf-test-)
 	$(E2E_KUBECTL) get ns -o name | grep "namespace/wf-test-" | xargs -r $(E2E_KUBECTL) delete --ignore-not-found=true
 
 
-## check-install-script: Verify embedded install.sh mirror is in sync with canonical scripts/install.sh
+## check-install-script: Verify embedded install.sh mirror is in sync with canonical hack/scripts/install.sh
 .PHONY: check-install-script
 check-install-script:
-	@diff -q scripts/install.sh internal/server/server/scripts/install.sh > /dev/null 2>&1 || \
-		(echo "ERROR: internal/server/server/scripts/install.sh is out of sync with scripts/install.sh. Run: cp scripts/install.sh internal/server/server/scripts/install.sh" && exit 1)
+	@diff -q hack/scripts/install.sh internal/server/server/scripts/install.sh > /dev/null 2>&1 || \
+		(echo "ERROR: internal/server/server/scripts/install.sh is out of sync with hack/scripts/install.sh. Run: cp hack/scripts/install.sh internal/server/server/scripts/install.sh" && exit 1)
 	@echo "install.sh mirror is in sync"
 
 .PHONY: lint
@@ -391,7 +399,7 @@ docker-buildx: ## Build and push docker image for the manager for cross-platform
 build-installer: manifests generate kustomize ## Build kustomize manifests into deploy/quickstart/ for installer to fetch via GITHUB_RAW.
 	mkdir -p deploy/quickstart
 	$(KUSTOMIZE) build config/crd > deploy/quickstart/lattice-crds.yaml
-	$(KUSTOMIZE) build config/lattice/overlays/all-in-one > deploy/quickstart/lattice-all-in-one.yaml
+	$(KUSTOMIZE) build config/lattice/overlays/all-in-one --load-restrictor LoadRestrictionsNone > deploy/quickstart/lattice-all-in-one.yaml
 	@echo "✅ Manifests written to deploy/quickstart/"
 
 ##@ Deployment
@@ -416,7 +424,7 @@ deploy-aio: manifests kustomize ## 部署 all-in-one 模式到已有 K8s 集群 
 	@echo "等待 CRDs 就绪..."
 	$(KUBECTL) wait --for=condition=Established crd --all --timeout=60s
 	@echo "正在部署 all-in-one latticed (IMG=$(IMG))..."
-	$(KUSTOMIZE) build config/lattice/overlays/all-in-one | \
+	$(KUSTOMIZE) build config/lattice/overlays/all-in-one --load-restrictor LoadRestrictionsNone | \
 		sed "s|ghcr.io/alatticeio/latticed:.*|$(IMG)|g" | \
 		$(KUBECTL) apply -f -
 	$(KUBECTL) rollout status deployment/lattice-aio -n lattice-system --timeout=180s
@@ -424,7 +432,7 @@ deploy-aio: manifests kustomize ## 部署 all-in-one 模式到已有 K8s 集群 
 
 .PHONY: undeploy-aio
 undeploy-aio: kustomize ## 卸载 all-in-one 部署
-	$(KUSTOMIZE) build config/lattice/overlays/all-in-one | $(KUBECTL) delete -f - --ignore-not-found=true
+	$(KUSTOMIZE) build config/lattice/overlays/all-in-one --load-restrictor LoadRestrictionsNone | $(KUBECTL) delete -f - --ignore-not-found=true
 
 .PHONY: deploy
 deploy: manifests kustomize ## 根据 ENV 部署 (usage: make deploy ENV=production)
@@ -439,7 +447,7 @@ deploy: manifests kustomize ## 根据 ENV 部署 (usage: make deploy ENV=product
 
 .PHONY: yaml
 yaml:
-	$(KUSTOMIZE) build config/lattice/overlays/all-in-one > config/lattice.yaml
+	$(KUSTOMIZE) build config/lattice/overlays/all-in-one --load-restrictor LoadRestrictionsNone > config/lattice.yaml
 
 .PHONY: undeploy
 undeploy: kustomize ## Undeploy controller from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.

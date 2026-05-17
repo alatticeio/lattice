@@ -18,6 +18,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	v1alpha1 "github.com/alatticeio/lattice/api/v1alpha1"
 	"github.com/alatticeio/lattice/internal/agent/config"
 	"github.com/alatticeio/lattice/internal/agent/infra"
 	"github.com/alatticeio/lattice/internal/agent/log"
@@ -184,10 +185,10 @@ func NewServer(ctx context.Context, serverConfig *ServerConfig) (*Server, error)
 		agentRegSvc = service.NewAgentRegistrationService(jwtSecret, st, client.Client)
 		logger.Info("agent isolation enabled", "mode", cfg.AI.AgentIsolation.EnforcementMode)
 		if mgr != nil {
-			if err := controller.NewAgentTTLReconciler(mgr.GetClient()).SetupWithManager(mgr); err != nil {
+			if err = controller.NewAgentTTLReconciler(mgr.GetClient()).SetupWithManager(mgr); err != nil {
 				logger.Warn("failed to setup AgentTTLReconciler", "err", err)
 			}
-			if err := controller.NewAgentIdentityReconciler(mgr.GetClient()).SetupWithManager(mgr); err != nil {
+			if err = controller.NewAgentIdentityReconciler(mgr.GetClient()).SetupWithManager(mgr); err != nil {
 				logger.Warn("failed to setup AgentIdentityReconciler", "err", err)
 			}
 		}
@@ -217,7 +218,7 @@ func NewServer(ctx context.Context, serverConfig *ServerConfig) (*Server, error)
 			// Register SnapshotController (CRD change → snapshot capture)
 			if mgr != nil && client != nil {
 				snapCtrl := controller.NewSnapshotController(mgr.GetClient(), st.NetworkSnapshots(), st.Workspaces())
-				if err := snapCtrl.SetupWithManager(mgr); err != nil {
+				if err = snapCtrl.SetupWithManager(mgr); err != nil {
 					logger.Warn("failed to setup snapshot controller", "err", err)
 				}
 			}
@@ -243,7 +244,9 @@ func NewServer(ctx context.Context, serverConfig *ServerConfig) (*Server, error)
 		logger.Info("playground mode: all Pro features unlocked")
 	} else {
 		lv = license.NewVerifier()
-		lic, status, err := lv.Verify()
+		var lic *license.License
+		var status license.Status
+		lic, status, err = lv.Verify()
 		if err != nil {
 			logger.Warn("license check", "status", status, "err", err)
 		} else {
@@ -443,12 +446,66 @@ func (s *Server) CacheReady() <-chan struct{} {
 func (s *Server) Register(content []byte) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
+
+	// Sandbox path: enrollment token + client-side public key.
+	// Detected by the presence of publicKey in the payload.
+	// Regular agents never send publicKey during registration.
+	if s.agentRegService != nil {
+		var peek dto.PeerDto
+		if jsonErr := json.Unmarshal(content, &peek); jsonErr == nil && peek.PublicKey != "" {
+			return s.handleSandboxNATSRegister(ctx, peek)
+		}
+	}
+
 	return s.peerController.Register(ctx, content)
+}
+
+// handleSandboxNATSRegister registers a sandbox agent via enrollment token over NATS.
+// It delegates to agentRegistrationService.RegisterAgent and returns an infra.Peer
+// with the agent JWT in the Token field (no PrivateKey — sandbox owns its own key).
+func (s *Server) handleSandboxNATSRegister(ctx context.Context, peer dto.PeerDto) ([]byte, error) {
+	result, err := s.agentRegService.RegisterAgent(ctx, service.AgentRegisterRequest{
+		EnrollmentToken: peer.Token,
+		AgentName:       peer.AppID,
+		PublicKey:       peer.PublicKey,
+		Sandbox:         v1alpha1.SandboxGVisor,
+	})
+	if err != nil {
+		return nil, err
+	}
+	// Return infra.Peer with JWT in Token field.
+	// PrivateKey is intentionally empty: sandbox generates its own key.
+	returnPeer := &infra.Peer{
+		Name:  peer.AppID,
+		AppID: peer.AppID,
+		Token: result.JWT,
+	}
+	data, err := json.Marshal(returnPeer)
+	if err != nil {
+		return nil, err
+	}
+	return data, nil
 }
 
 func (s *Server) GetNetMap(content []byte) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
+
+	// Sandbox agents authenticate with a JWT instead of a LatticeEnrollmentToken CRD.
+	// If the token field parses as a valid agent JWT, serve the ConfigMap directly.
+	if s.agentRegService != nil && s.client != nil {
+		var peer dto.PeerDto
+		if jsonErr := json.Unmarshal(content, &peer); jsonErr == nil && peer.Token != "" {
+			if claims, jwtErr := s.agentRegService.ValidateAgentJWT(peer.Token); jwtErr == nil {
+				msg, err := s.client.GetNetworkMapForPeer(ctx, claims.Namespace, peer.AppID)
+				if err != nil {
+					return nil, err
+				}
+				return json.Marshal(msg)
+			}
+		}
+	}
+
 	return s.peerController.GetNetmap(ctx, content)
 }
 

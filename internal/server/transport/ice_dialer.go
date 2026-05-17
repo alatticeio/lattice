@@ -173,23 +173,24 @@ func (i *iceDialer) Handle(ctx context.Context, remoteId infra.PeerIdentity, pac
 		existingAgent := i.agent
 		i.mu.Unlock()
 
-		// If an agent already exists the remote restarted before we detected the
-		// disconnect (fast restart, keepalive not yet timed out).  Close this
-		// dialer; Dial() will return ErrDialerClosed which causes onFailure to
-		// call probe.restart() immediately.  The remote's next SYN retry (≤2 s)
-		// will be handled by the fresh dialer.
+		// If an agent already exists AND the dialer is still open, this is a
+		// SYN retransmit while ICE setup is in progress — NOT a remote restart.
+		// (A genuine remote-restart SYN arrives only after the successful-ICE
+		// close path sets i.closed=true, so it takes the i.closed branch above.)
+		// Resend ACK so the initiator can cancel its 2-second SYN ticker and
+		// proceed with candidate exchange.  Closing here would destroy the
+		// ongoing ICE setup and cause the initiator's OFFERs to be dropped by
+		// the replacement dialer's nil-agent guard.
 		if existingAgent != nil {
-			i.log.Debug("SYN on active agent — remote restarted, forcing close", "remoteId", remoteId)
-			i.Close() //nolint:errcheck
+			i.log.Debug("SYN retransmit during ICE setup, resending ACK", "remoteId", remoteId)
+			_ = i.sendPacket(ctx, i.remoteId, grpc.PacketType_HANDSHAKE_ACK, nil)
 			return nil
 		}
 
-		// send ack to remote (includes our own peer info)
-		if err := i.sendPacket(ctx, i.remoteId, grpc.PacketType_HANDSHAKE_ACK, nil); err != nil {
-			return err
-		}
-
-		// init agent
+		// init agent BEFORE sending ACK.
+		// ACK signals the initiator to start gathering candidates and sending OFFERs
+		// immediately. If we send ACK first and then call getAgent(), the first OFFER
+		// can arrive before i.agent is set and gets dropped with "agent nil, dropping".
 		agent, err := i.getAgent(remoteId)
 		if err != nil {
 			return err
@@ -197,9 +198,26 @@ func (i *iceDialer) Handle(ctx context.Context, remoteId infra.PeerIdentity, pac
 		i.mu.Lock()
 		i.agent = agent
 		i.mu.Unlock()
+
+		// send ack to remote (includes our own peer info)
+		if err := i.sendPacket(ctx, i.remoteId, grpc.PacketType_HANDSHAKE_ACK, nil); err != nil {
+			return err
+		}
 		// responder also gathers candidates
 		return agent.GatherCandidates()
 	case grpc.PacketType_OFFER, grpc.PacketType_ANSWER:
+		if i.closed.Load() {
+			i.log.Debug("receive offer: dialer closed, dropping", "remoteId", remoteId)
+			return nil
+		}
+		i.mu.Lock()
+		agent := i.agent
+		i.mu.Unlock()
+		if agent == nil {
+			i.log.Debug("receive offer: agent nil, dropping", "remoteId", remoteId)
+			return nil
+		}
+
 		i.log.Debug("receive offer", "remoteId", remoteId)
 		offer := packet.GetOffer()
 
@@ -237,7 +255,7 @@ func (i *iceDialer) Handle(ctx context.Context, remoteId infra.PeerIdentity, pac
 			return err
 		}
 
-		if err = i.agent.AddRemoteCandidate(candidate); err != nil {
+		if err = agent.AddRemoteCandidate(candidate); err != nil {
 			return err
 		}
 
@@ -287,12 +305,22 @@ func (i *iceDialer) Prepare(ctx context.Context, remoteId infra.PeerIdentity) er
 		return nil
 	}
 	// init agent (initiator side only)
-	if i.agent == nil {
+	i.mu.Lock()
+	needInit := i.agent == nil
+	i.mu.Unlock()
+	if needInit {
 		agent, err := i.getAgent(remoteId)
 		if err != nil {
 			return fmt.Errorf("getAgent failed: %w", err)
 		}
-		i.agent = agent
+		i.mu.Lock()
+		if i.agent == nil {
+			i.agent = agent
+		} else {
+			// Another goroutine beat us; discard the redundant agent.
+			_ = agent.Close()
+		}
+		i.mu.Unlock()
 	}
 
 	// send syn
@@ -348,17 +376,23 @@ func (i *iceDialer) Dial(ctx context.Context) (infra.Transport, error) {
 		return nil, ErrDialerClosed
 	case <-i.offerReady:
 		i.log.Debug("start dial")
+		i.mu.Lock()
+		agent := i.agent
+		i.mu.Unlock()
+		if agent == nil {
+			return nil, ErrDialerClosed
+		}
 		var iceConn *ice.Conn
 		var err error
 		if isInitiator(i.localId, i.remoteId) {
-			iceConn, err = i.agent.StartDial(i.rUfrag, i.rPwd)
+			iceConn, err = agent.StartDial(i.rUfrag, i.rPwd)
 		} else {
-			iceConn, err = i.agent.StartAccept(i.rUfrag, i.rPwd)
+			iceConn, err = agent.StartAccept(i.rUfrag, i.rPwd)
 		}
 		if err != nil {
 			return nil, err
 		}
-		if err = i.agent.AwaitConnect(dialCtx); err != nil {
+		if err = agent.AwaitConnect(dialCtx); err != nil {
 			return nil, err
 		}
 		remoteAddr := iceConn.RemoteAddr().String()
@@ -502,7 +536,12 @@ func (i *iceDialer) sendPacket(ctx context.Context, remoteId infra.PeerIdentity,
 		}
 		p.Payload = &grpc.SignalPacket_Handshake{Handshake: hs}
 	case grpc.PacketType_OFFER:
+		i.mu.Lock()
 		agent := i.agent
+		i.mu.Unlock()
+		if agent == nil {
+			return fmt.Errorf("agent is nil, cannot send OFFER")
+		}
 		// Keep Current in OFFER for backward compatibility with older nodes that
 		// have not yet adopted the SYN/ACK peer-info exchange.
 		currentData, _ := json.Marshal(i.getLocalPeer())
