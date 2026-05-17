@@ -1,17 +1,23 @@
 name: Test README Scripts
 
-# Validates every CLI command documented in README.md by running scripts/test-readme.sh.
-# The same script can be run locally: bash scripts/test-readme.sh
+# Validates every CLI command documented in README.md.
+# Run locally: bash hack/scripts/test-readme.sh
 
 on:
   workflow_run:
-    workflows: ["CI/CD Pipeline"]
+    workflows: ["Release"]
     branches: [master, main]
     types: [completed]
   workflow_dispatch:
 
 permissions:
   contents: read
+
+env:
+  K3S_IMAGE: ghcr.io/alatticeio/lattice-k3s:latest
+  AGENT_IMAGE: ghcr.io/alatticeio/lattice:latest
+  SERVER_URL: http://localhost:8080
+  KUBECTL: docker exec lattice-k3s kubectl
 
 jobs:
   test-readme-scripts:
@@ -20,27 +26,187 @@ jobs:
     timeout-minutes: 40
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Run README test script
-        run: bash scripts/test-readme.sh
+      - name: Pull images
+        run: |
+          docker pull $K3S_IMAGE
+          docker pull $AGENT_IMAGE
+
+      - name: Start lattice-k3s
+        run: |
+          docker run -d \
+            --name lattice-k3s \
+            --privileged \
+            -p 8080:8080 \
+            $K3S_IMAGE
+
+      - name: Wait for readiness
+        run: |
+          echo "Waiting for K8s API..."
+          for i in $(seq 1 120); do
+            $KUBECTL get nodes >/dev/null 2>&1 && break || true
+            [ "$i" = "120" ] && { docker logs lattice-k3s | tail -30; exit 1; }
+            sleep 1
+          done
+
+          echo "Waiting for CRDs..."
+          for i in $(seq 1 60); do
+            $KUBECTL get crd latticepeers.alattice.io >/dev/null 2>&1 && break || true
+            [ "$i" = "60" ] && exit 1
+            sleep 1
+          done
+
+          echo "Waiting for Lattice API..."
+          for i in $(seq 1 90); do
+            CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 3 \
+              -X POST "$SERVER_URL/api/v1/users/login" \
+              -H "Content-Type: application/json" \
+              -d '{"username":"admin","password":"123456","client":"cli"}' 2>/dev/null || echo 000)
+            [ "$CODE" != "000" ] && [ "$CODE" != "502" ] && [ "$CODE" != "503" ] && break || true
+            [ "$i" = "90" ] && { docker logs lattice-k3s | tail -30; exit 1; }
+            sleep 2
+          done
+          echo "Control plane ready"
+
+      - name: Login and setup workspace + token
+        run: |
+          AUTH_TOKEN=$(curl -s -X POST "$SERVER_URL/api/v1/users/login" \
+            -H "Content-Type: application/json" \
+            -d '{"username":"admin","password":"123456","client":"cli"}' \
+            | python3 -c "import sys,json; print(json.load(sys.stdin)['data']['token'])")
+          echo "LATTICE_AUTH_TOKEN=$AUTH_TOKEN" >> "$GITHUB_ENV"
+
+          WS_OUTPUT=$(docker run --rm --network host \
+            -e "LATTICE_AUTH_TOKEN=$AUTH_TOKEN" \
+            $AGENT_IMAGE \
+            workspace add dev --display-name "Development" --server-url "$SERVER_URL")
+          echo "$WS_OUTPUT"
+          NAMESPACE=$(echo "$WS_OUTPUT" | awk '/namespace:/ {print $2}')
+          echo "NAMESPACE=$NAMESPACE" >> "$GITHUB_ENV"
+
+          TOKEN_OUTPUT=$(docker run --rm --network host \
+            -e "LATTICE_AUTH_TOKEN=$AUTH_TOKEN" \
+            $AGENT_IMAGE \
+            token create dev-team -n "$NAMESPACE" --limit 10 --expiry 168h --server-url "$SERVER_URL")
+          TOKEN=$(echo "$TOKEN_OUTPUT" | awk '/^TOKEN/{found=1; next} found && NF>0 {print $1; exit}')
+          echo "ENROLL_TOKEN=$TOKEN" >> "$GITHUB_ENV"
+          echo "Namespace=$NAMESPACE Token=${TOKEN:0:8}..."
+
+      - name: Start agents
+        run: |
+          echo "Waiting for namespace $NAMESPACE..."
+          for i in $(seq 1 30); do
+            $KUBECTL get ns "$NAMESPACE" &>/dev/null && break || true
+            sleep 2
+          done
+          $KUBECTL get ns "$NAMESPACE" || { echo "Namespace not created"; $KUBECTL get ns; exit 1; }
+
+          docker network create wf-test-net
+
+          docker run -d \
+            --name wf-agent-a \
+            --restart unless-stopped \
+            --privileged \
+            --network wf-test-net \
+            --add-host=host.docker.internal:host-gateway \
+            -e LATTICE_APP_ID=ci-wf-agent-a \
+            $AGENT_IMAGE \
+            up --server-url "http://host.docker.internal:8080" --token "$ENROLL_TOKEN" --level debug
+
+          docker run -d \
+            --name wf-agent-b \
+            --restart unless-stopped \
+            --privileged \
+            --network wf-test-net \
+            --add-host=host.docker.internal:host-gateway \
+            -e LATTICE_APP_ID=ci-wf-agent-b \
+            $AGENT_IMAGE \
+            up --server-url "http://host.docker.internal:8080" --token "$ENROLL_TOKEN" --level debug
+
+      - name: Wait for agent registration and IP allocation
+        run: |
+          LATTICE=(docker run --rm --network host -e "LATTICE_AUTH_TOKEN=$LATTICE_AUTH_TOKEN" $AGENT_IMAGE)
+
+          echo "Waiting for both agents to register..."
+          for i in $(seq 1 36); do
+            NODE_COUNT=$("${LATTICE[@]}" workspace list --server-url "$SERVER_URL" 2>/dev/null \
+              | awk '/dev/ {print $4}' || echo 0)
+            echo "  Nodes: ${NODE_COUNT:-0} (attempt $i/36)"
+            [ "${NODE_COUNT:-0}" -ge 2 ] && break || true
+            sleep 5
+          done
+          [ "${NODE_COUNT:-0}" -ge 2 ] || { echo "Expected >=2 nodes"; docker logs wf-agent-a; exit 1; }
+
+          echo "Waiting for WireGuard IPs..."
+          for i in $(seq 1 30); do
+            COUNT=$($KUBECTL get wfpeer -n "$NAMESPACE" \
+              -o jsonpath='{.items[*].status.allocatedAddress}' 2>/dev/null \
+              | tr ' ' '\n' | grep -v '^$' | wc -l || echo 0)
+            echo "  Peers with IP: $COUNT (attempt $i/30)"
+            [ "$COUNT" -ge 2 ] && break || true
+            sleep 3
+          done
+          [ "$COUNT" -ge 2 ] || { echo "IP allocation timed out"; $KUBECTL get wfpeer -n "$NAMESPACE" -o yaml; exit 1; }
+
+      - name: Apply policies
+        run: |
+          LATTICE=(docker run --rm --network host -e "LATTICE_AUTH_TOKEN=$LATTICE_AUTH_TOKEN" $AGENT_IMAGE)
+          "${LATTICE[@]}" policy allow-all -n "$NAMESPACE" --server-url "$SERVER_URL"
+          "${LATTICE[@]}" policy add my-policy -n "$NAMESPACE" \
+            --action ALLOW --desc "allow all peer traffic" --server-url "$SERVER_URL"
+          POLICIES=$("${LATTICE[@]}" policy list -n "$NAMESPACE" --server-url "$SERVER_URL")
+          echo "$POLICIES" | grep -q "allow-all" || { echo "allow-all missing"; exit 1; }
+          echo "$POLICIES" | grep -q "my-policy" || { echo "my-policy missing"; exit 1; }
+          echo "Policies applied"
+
+      - name: Verify connectivity
+        run: |
+          echo "Waiting 20s for WireGuard handshake..."
+          sleep 20
+
+          STATUS_B=$(docker exec wf-agent-b /app/lattice status 2>&1)
+          WG_IP_B=$(echo "$STATUS_B" | awk '/^Address/{print $3}' | head -1 | cut -d',' -f1 | cut -d'/' -f1)
+          if [ -z "$WG_IP_B" ]; then
+            WG_IP_B=$(docker exec wf-agent-b ip -4 addr show wf0 2>/dev/null | awk '/inet /{print $2}' | cut -d'/' -f1 || true)
+          fi
+          echo "Agent B WireGuard IP: ${WG_IP_B:-(unknown)}"
+          [ -n "$WG_IP_B" ] || { echo "Could not determine Agent B WireGuard IP"; docker logs wf-agent-b | tail -30; exit 1; }
+
+          SUCCESS=0
+          for i in $(seq 1 3); do
+            echo "  ping attempt $i/3..."
+            docker exec wf-agent-a ping -c 3 -W 2 "$WG_IP_B" && SUCCESS=1 && break || true
+            sleep 5
+          done
+          [ "$SUCCESS" = "1" ] || { echo "Ping failed"; docker logs wf-agent-a | tail -50; docker logs wf-agent-b | tail -50; exit 1; }
+          echo "WireGuard tunnel verified"
+
+      - name: Cleanup resources
+        run: |
+          LATTICE=(docker run --rm --network host -e "LATTICE_AUTH_TOKEN=$LATTICE_AUTH_TOKEN" $AGENT_IMAGE)
+          "${LATTICE[@]}" token remove "$ENROLL_TOKEN" -n "$NAMESPACE" --server-url "$SERVER_URL"
+          "${LATTICE[@]}" policy remove my-policy -n "$NAMESPACE" --server-url "$SERVER_URL"
+          "${LATTICE[@]}" workspace remove "$NAMESPACE" --server-url "$SERVER_URL"
+          echo "Resources cleaned up"
 
       - name: Collect failure logs
         if: failure()
         run: |
           echo "===== lattice-system pods ====="
           docker exec lattice-k3s kubectl get all -n lattice-system -o wide 2>/dev/null || true
-
           echo "===== latticed logs ====="
           docker exec lattice-k3s kubectl logs -n lattice-system \
             -l app.kubernetes.io/name=latticed --tail=300 2>/dev/null || true
-
-          echo "===== Agent A docker logs ====="
+          echo "===== Agent A logs ====="
           docker logs wf-agent-a --tail=100 2>/dev/null || true
-
-          echo "===== Agent B docker logs ====="
+          echo "===== Agent B logs ====="
           docker logs wf-agent-b --tail=100 2>/dev/null || true
-
-          echo "===== lattice-k3s container logs ====="
+          echo "===== lattice-k3s logs ====="
           docker logs lattice-k3s --tail=100 2>/dev/null || true
+
+      - name: Cleanup containers
+        if: always()
+        run: |
+          docker rm -f lattice-k3s wf-agent-a wf-agent-b 2>/dev/null || true
+          docker network rm wf-test-net 2>/dev/null || true

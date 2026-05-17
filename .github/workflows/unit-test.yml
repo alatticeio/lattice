@@ -1,11 +1,12 @@
-name: lint
+name: Unit Test
+
 on:
   pull_request:
   push:
     branches: [master, dev]
 
 jobs:
-  golangci:
+  test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -15,7 +16,5 @@ jobs:
           go-version-file: go.mod
           cache: true
 
-      - uses: golangci/golangci-lint-action@v7
-        with:
-          version: v2.12.2
-          args: --timeout 5m
+      - name: Run unit tests
+        run: go test ./internal/... ./pkg/... -count=1 -timeout 5m
