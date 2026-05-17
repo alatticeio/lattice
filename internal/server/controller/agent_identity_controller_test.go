@@ -98,6 +98,35 @@ func TestAgentIdentityReconciler_RequeuesBeforeExpiry(t *testing.T) {
 	g.Expect(got.Status.Phase).To(Equal(v1alpha1.AgentPhaseActive), "should not change phase for live identity")
 }
 
+func TestAgentIdentityReconciler_ActivatesNewIdentity(t *testing.T) {
+	g := NewWithT(t)
+
+	identity := &v1alpha1.AgentIdentity{
+		ObjectMeta: metav1.ObjectMeta{Name: "claude-new", Namespace: "default"},
+		Spec: v1alpha1.AgentIdentitySpec{
+			PeerRef:      "claude-new",
+			AllowedTools: []string{"list_peers"},
+		},
+		// Status.Phase intentionally left empty, as it would be after creation.
+	}
+
+	fakeClient := fake.NewClientBuilder().
+		WithScheme(newTTLTestScheme()).
+		WithObjects(identity).
+		WithStatusSubresource(&v1alpha1.AgentIdentity{}).
+		Build()
+
+	r := controller.NewAgentIdentityReconciler(fakeClient)
+	_, err := r.Reconcile(context.Background(), reconcile.Request{
+		NamespacedName: types.NamespacedName{Namespace: "default", Name: "claude-new"},
+	})
+	g.Expect(err).ToNot(HaveOccurred())
+
+	var got v1alpha1.AgentIdentity
+	g.Expect(fakeClient.Get(context.Background(), types.NamespacedName{Namespace: "default", Name: "claude-new"}, &got)).To(Succeed())
+	g.Expect(got.Status.Phase).To(Equal(v1alpha1.AgentPhaseActive), "new identity should be transitioned to Active")
+}
+
 func TestAgentIdentityReconciler_NoExpiry_NoOp(t *testing.T) {
 	g := NewWithT(t)
 

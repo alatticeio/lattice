@@ -251,18 +251,25 @@ func (p *Probe) discover(ctx context.Context) (infra.Transport, error) {
 		dialerCount = 2
 	}
 
+	// Capture dialers under the read-lock so that a concurrent restart() cannot
+	// swap p.iceDialer/p.lrpDialer between Prepare() and Dial() calls below.
+	p.mu.RLock()
+	iceD := p.iceDialer
+	lrpD := p.lrpDialer
+	p.mu.RUnlock()
+
 	result := make(chan infra.Transport, dialerCount)
 	errs := make(chan error, dialerCount)
 	var lrpWon atomic.Bool
 
 	go func() {
 		p.log.Debug("Starting ice dialer", "remoteId", p.remoteId)
-		if err := p.iceDialer.Prepare(ctx, p.remoteId); err != nil {
+		if err := iceD.Prepare(ctx, p.remoteId); err != nil {
 			p.log.Error("Prepare failed", err)
 			errs <- err
 			return
 		}
-		t, err := p.iceDialer.Dial(ctx)
+		t, err := iceD.Dial(ctx)
 		if err != nil {
 			errs <- err
 			return
@@ -278,11 +285,11 @@ func (p *Probe) discover(ctx context.Context) (infra.Transport, error) {
 	if config.Conf.EnableLrp {
 		go func() {
 			p.log.Debug("Starting lrp dialer", "remoteId", p.remoteId)
-			if err := p.lrpDialer.Prepare(ctx, p.remoteId); err != nil {
+			if err := lrpD.Prepare(ctx, p.remoteId); err != nil {
 				errs <- err
 				return
 			}
-			t, err := p.lrpDialer.Dial(ctx)
+			t, err := lrpD.Dial(ctx)
 			if err != nil {
 				errs <- err
 				return

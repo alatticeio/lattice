@@ -334,7 +334,7 @@ func (p *peerService) Register(ctx context.Context, dto *dto.PeerDto) (*infra.Pe
 	}
 
 	// Enforce license node limit for new peers (re-registration is always allowed).
-	if err := p.checkNodeLimit(ctx, token.Namespace, dto.AppID); err != nil {
+	if err = p.checkNodeLimit(ctx, token.Namespace, dto.AppID); err != nil {
 		return nil, err
 	}
 

@@ -253,7 +253,8 @@ func (s *aiService) Chat(ctx context.Context, req *ChatRequest, out StreamWriter
 			MaxTokens: 4096,
 		}
 
-		resp, err := s.llm.Complete(ctx, llmReq)
+		var resp *llm.Response
+		resp, err = s.llm.Complete(ctx, llmReq)
 		if err != nil {
 			_ = out.Write(StreamEvent{Type: "error", Error: err.Error()})
 			return err
@@ -789,7 +790,7 @@ func (s *aiService) toolListPeers(ctx context.Context, namespace string) (string
 		return "", err
 	}
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("共 %d 个 Peer：\n", len(list.Items)))
+	fmt.Fprintf(&sb, "共 %d 个 Peer：\n", len(list.Items))
 	for _, p := range list.Items {
 		status := "未知"
 		lastSeen := ""
@@ -808,7 +809,7 @@ func (s *aiService) toolListPeers(ctx context.Context, namespace string) (string
 		if len(p.Labels) > 0 {
 			lbls = fmt.Sprintf(" 标签: %v", p.Labels)
 		}
-		sb.WriteString(fmt.Sprintf("- %s [%s]%s%s%s\n", p.Name, status, addr, lastSeen, lbls))
+		fmt.Fprintf(&sb, "- %s [%s]%s%s%s\n", p.Name, status, addr, lastSeen, lbls)
 	}
 	return sb.String(), nil
 }
@@ -819,17 +820,17 @@ func (s *aiService) toolListPolicies(ctx context.Context, namespace string) (str
 		return "", err
 	}
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("共 %d 条策略：\n", len(list.Items)))
+	fmt.Fprintf(&sb, "共 %d 条策略：\n", len(list.Items))
 	for _, p := range list.Items {
-		sb.WriteString(fmt.Sprintf("- %s [%s] 网络: %s\n", p.Name, p.Spec.Action, p.Spec.Network))
+		fmt.Fprintf(&sb, "- %s [%s] 网络: %s\n", p.Name, p.Spec.Action, p.Spec.Network)
 		if len(p.Spec.Ingress) > 0 {
-			sb.WriteString(fmt.Sprintf("  Ingress 规则: %d 条\n", len(p.Spec.Ingress)))
+			fmt.Fprintf(&sb, "  Ingress 规则: %d 条\n", len(p.Spec.Ingress))
 		}
 		if len(p.Spec.Egress) > 0 {
-			sb.WriteString(fmt.Sprintf("  Egress 规则: %d 条\n", len(p.Spec.Egress)))
+			fmt.Fprintf(&sb, "  Egress 规则: %d 条\n", len(p.Spec.Egress))
 		}
 		if p.Spec.PeerSelector.MatchLabels != nil {
-			sb.WriteString(fmt.Sprintf("  目标 Peer 标签: %v\n", p.Spec.PeerSelector.MatchLabels))
+			fmt.Fprintf(&sb, "  目标 Peer 标签: %v\n", p.Spec.PeerSelector.MatchLabels)
 		}
 	}
 	return sb.String(), nil
@@ -841,13 +842,13 @@ func (s *aiService) toolListNetworks(ctx context.Context, namespace string) (str
 		return "", err
 	}
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("共 %d 个网络：\n", len(list.Items)))
+	fmt.Fprintf(&sb, "共 %d 个网络：\n", len(list.Items))
 	for _, n := range list.Items {
 		cidr := ""
 		if n.Status.ActiveCIDR != "" {
 			cidr = " CIDR: " + n.Status.ActiveCIDR
 		}
-		sb.WriteString(fmt.Sprintf("- %s [%s]%s\n", n.Name, n.Status.Phase, cidr))
+		fmt.Fprintf(&sb, "- %s [%s]%s\n", n.Name, n.Status.Phase, cidr)
 	}
 	return sb.String(), nil
 }
@@ -1147,14 +1148,14 @@ func (s *aiService) toolPlanNetworkChange(ctx context.Context, namespace string,
 	}
 
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("## 变更计划 (ID: %s)\n\n", plan.ID))
-	sb.WriteString(fmt.Sprintf("**风险等级**: %s\n\n", plan.RiskLevel))
+	fmt.Fprintf(&sb, "## 变更计划 (ID: %s)\n\n", plan.ID)
+	fmt.Fprintf(&sb, "**风险等级**: %s\n\n", plan.RiskLevel)
 	sb.WriteString(plan.Summary)
 	sb.WriteString("\n\n### 变更明细\n")
 	for _, c := range plan.Changes {
-		sb.WriteString(fmt.Sprintf("- [%s] %s\n", c.Action, c.Resource))
+		fmt.Fprintf(&sb, "- [%s] %s\n", c.Action, c.Resource)
 	}
-	sb.WriteString(fmt.Sprintf("\n> 有效期至: %s\n", plan.ExpiresAt.Format(time.RFC3339)))
+	fmt.Fprintf(&sb, "\n> 有效期至: %s\n", plan.ExpiresAt.Format(time.RFC3339))
 	sb.WriteString("> 确认执行请调用 apply_network_change，传入 plan_id")
 	return sb.String(), nil
 }
@@ -1209,8 +1210,9 @@ func (s *aiService) Debug(ctx context.Context, req *DebugRequest, out StreamWrit
 
 	msgs := []llm.Message{{Role: llm.RoleUser, Content: req.Question}}
 
+	var resp *llm.Response
 	for i := 0; i < s.maxToolCalls; i++ {
-		resp, err := s.llm.Complete(ctx, &llm.Request{
+		resp, err = s.llm.Complete(ctx, &llm.Request{
 			System:    system,
 			Messages:  msgs,
 			Tools:     debugTools,
@@ -1303,10 +1305,10 @@ func (s *aiService) toolListSnapshots(ctx context.Context, namespace string, inp
 		return "该时间范围内没有快照记录。", nil
 	}
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("共 %d 个快照：\n", len(snaps)))
+	fmt.Fprintf(&sb, "共 %d 个快照：\n", len(snaps))
 	for _, sn := range snaps {
-		sb.WriteString(fmt.Sprintf("- [%s] %s  触发: %s  操作者: %s\n",
-			sn.ID, sn.CapturedAt.Format("2006-01-02 15:04:05"), sn.TriggerType, sn.TriggerBy))
+		fmt.Fprintf(&sb, "- [%s] %s  触发: %s  操作者: %s\n",
+			sn.ID, sn.CapturedAt.Format("2006-01-02 15:04:05"), sn.TriggerType, sn.TriggerBy)
 	}
 	return sb.String(), nil
 }
@@ -1382,12 +1384,12 @@ func diffPolicies(fromJSON, toJSON string) string {
 	var sb strings.Builder
 	for name := range fromMap {
 		if _, exists := toMap[name]; !exists {
-			sb.WriteString(fmt.Sprintf("- 删除: policy/%s\n", name))
+			fmt.Fprintf(&sb, "- 删除: policy/%s\n", name)
 		}
 	}
 	for name := range toMap {
 		if _, exists := fromMap[name]; !exists {
-			sb.WriteString(fmt.Sprintf("+ 新增: policy/%s [%s]\n", name, toMap[name]))
+			fmt.Fprintf(&sb, "+ 新增: policy/%s [%s]\n", name, toMap[name])
 		}
 	}
 	return sb.String()
@@ -1436,10 +1438,10 @@ func (s *aiService) toolListWorkspaces(ctx context.Context) (string, error) {
 		return "", err
 	}
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("共 %d 个工作区：\n", len(workspaces)))
+	fmt.Fprintf(&sb, "共 %d 个工作区：\n", len(workspaces))
 	for _, ws := range workspaces {
-		sb.WriteString(fmt.Sprintf("- [%s] %s (命名空间: %s, ID: %s)\n",
-			ws.Status, ws.DisplayName, ws.Namespace, ws.ID))
+		fmt.Fprintf(&sb, "- [%s] %s (命名空间: %s, ID: %s)\n",
+			ws.Status, ws.DisplayName, ws.Namespace, ws.ID)
 	}
 	return sb.String(), nil
 }
@@ -1525,14 +1527,14 @@ func (s *aiService) toolListEnrollmentTokens(ctx context.Context, namespace stri
 		return "", err
 	}
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("共 %d 个注册 Token：\n", len(list.Items)))
+	fmt.Fprintf(&sb, "共 %d 个注册 Token：\n", len(list.Items))
 	for _, t := range list.Items {
 		expiry := ""
 		if !t.Spec.Expiry.IsZero() {
 			expiry = " 过期: " + t.Spec.Expiry.Format("2006-01-02 15:04:05")
 		}
-		sb.WriteString(fmt.Sprintf("- %s (限制: %d 台设备, 已绑定: %d 台)%s\n",
-			t.Name, t.Spec.UsageLimit, len(t.Spec.BoundPeers), expiry))
+		fmt.Fprintf(&sb, "- %s (限制: %d 台设备, 已绑定: %d 台)%s\n",
+			t.Name, t.Spec.UsageLimit, len(t.Spec.BoundPeers), expiry)
 	}
 	return sb.String(), nil
 }

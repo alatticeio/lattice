@@ -147,6 +147,27 @@ func (c *Client) UpdateNodeSepc(ctx context.Context, namespace, name string, upd
 	return c.Update(ctx, &node)
 }
 
+// GetNetworkMapForPeer fetches the network map for a peer by namespace and name,
+// bypassing enrollment token validation. Used for JWT-authenticated requests (sandbox agents).
+func (c *Client) GetNetworkMapForPeer(ctx context.Context, namespace, name string) (*infra.Message, error) {
+	var nodeConfig corev1.ConfigMap
+	if err := c.Get(ctx, types.NamespacedName{
+		Namespace: namespace,
+		Name:      fmt.Sprintf("%s-config", name),
+	}, &nodeConfig); err != nil {
+		if errors.IsNotFound(err) {
+			return &infra.Message{}, nil
+		}
+		return nil, err
+	}
+	data := nodeConfig.Data["config.json"]
+	var message *infra.Message
+	if err := json.Unmarshal([]byte(data), &message); err != nil {
+		return nil, fmt.Errorf("parse network map: %w", err)
+	}
+	return message, nil
+}
+
 // GetNetworkMap get network map when node init
 func (c *Client) GetNetworkMap(ctx context.Context, tokenStr, name string) (*infra.Message, error) {
 	logger := c.log

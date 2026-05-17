@@ -33,12 +33,12 @@ type IntentPlanView struct {
 
 // IntentHistoryItem is a single applied plan summary for the history list.
 type IntentHistoryItem struct {
-	ID          string     `json:"id"`
-	Intent      string     `json:"intent"`
-	Summary     string     `json:"summary"`
-	RiskLevel   string     `json:"riskLevel"`
-	AppliedAt   *time.Time `json:"appliedAt"`
-	AppliedBy   string     `json:"appliedBy"`
+	ID        string     `json:"id"`
+	Intent    string     `json:"intent"`
+	Summary   string     `json:"summary"`
+	RiskLevel string     `json:"riskLevel"`
+	AppliedAt *time.Time `json:"appliedAt"`
+	AppliedBy string     `json:"appliedBy"`
 }
 
 // IntentService translates natural language intent into CRD change plans.

@@ -250,10 +250,31 @@ func (r *PeerReconciler) performCleanup(ctx context.Context, node *v1alpha1.Latt
 // ensureKeys generates a WireGuard key pair and PeerId when they are absent.
 // Does not depend on Spec.Network; safe to call during initialization.
 // Returns (true, nil) when a spec patch was written.
+//
+// Sandbox agents register with their own public key (Spec.PublicKey set,
+// Spec.PrivateKey empty). In that case we skip key generation and only
+// derive PeerId from the provided public key so that ICE signal routing
+// uses the same identity the sandbox actually signs with.
 func (r *PeerReconciler) ensureKeys(ctx context.Context, peer *v1alpha1.LatticePeer) (bool, error) {
 	if peer.Spec.PrivateKey != "" {
+		// Full key pair already present — nothing to do.
 		return false, nil
 	}
+	if peer.Spec.PublicKey != "" {
+		// Client-provided public key (sandbox agent): only compute PeerId.
+		if peer.Spec.PeerId != "" {
+			return false, nil
+		}
+		return r.updateSpec(ctx, peer, func(node *v1alpha1.LatticePeer) error {
+			key, err := wgtypes.ParseKey(node.Spec.PublicKey)
+			if err != nil {
+				return fmt.Errorf("parse public key: %w", err)
+			}
+			node.Spec.PeerId = fmt.Sprintf("%d", infra.FromKey(key).ToUint64())
+			return nil
+		})
+	}
+	// No key at all — generate a full key pair.
 	return r.updateSpec(ctx, peer, func(node *v1alpha1.LatticePeer) error {
 		key, err := wgtypes.GeneratePrivateKey()
 		if err != nil {

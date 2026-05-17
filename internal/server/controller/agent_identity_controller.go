@@ -54,14 +54,10 @@ func (r *AgentIdentityReconciler) Reconcile(ctx context.Context, req reconcile.R
 		return reconcile.Result{}, nil
 	}
 
-	if identity.Spec.ExpiresAt == nil {
-		return reconcile.Result{}, nil // no TTL set
-	}
-
 	now := time.Now()
-	expiresAt := identity.Spec.ExpiresAt.Time
 
-	if now.After(expiresAt) {
+	// Check expiry before activating.
+	if identity.Spec.ExpiresAt != nil && now.After(identity.Spec.ExpiresAt.Time) {
 		patch := client.MergeFrom(identity.DeepCopy())
 		identity.Status.Phase = v1alpha1.AgentPhaseExpired
 		if err := r.client.Status().Patch(ctx, &identity, patch); err != nil {
@@ -71,8 +67,22 @@ func (r *AgentIdentityReconciler) Reconcile(ctx context.Context, req reconcile.R
 		return reconcile.Result{}, nil
 	}
 
+	// Transition new / pending identities to Active.
+	if identity.Status.Phase == "" || identity.Status.Phase == v1alpha1.AgentPhasePending {
+		patch := client.MergeFrom(identity.DeepCopy())
+		identity.Status.Phase = v1alpha1.AgentPhaseActive
+		if err := r.client.Status().Patch(ctx, &identity, patch); err != nil {
+			return reconcile.Result{}, err
+		}
+		r.logger.Info("agent identity activated", "name", identity.Name, "namespace", identity.Namespace)
+	}
+
+	if identity.Spec.ExpiresAt == nil {
+		return reconcile.Result{}, nil // no TTL set, nothing more to do
+	}
+
 	// Requeue just after the expiry time.
-	requeueAfter := expiresAt.Sub(now) + time.Second
+	requeueAfter := identity.Spec.ExpiresAt.Sub(now) + time.Second
 	return reconcile.Result{RequeueAfter: requeueAfter}, nil
 }
 

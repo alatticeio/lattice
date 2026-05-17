@@ -28,7 +28,7 @@ import (
 	"github.com/alatticeio/lattice/internal/server/models"
 	"github.com/golang-jwt/jwt/v5"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"sigs.k8s.io/controller-runtime/pkg/client"
+	k8sclient "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 // ── Public types ──────────────────────────────────────────────────────────────
@@ -75,6 +75,8 @@ type AgentRegistrationService interface {
 	CreateEnrollmentToken(ctx context.Context, req EnrollmentTokenRequest) (*EnrollmentTokenResponse, error)
 	RegisterAgent(ctx context.Context, req AgentRegisterRequest) (*AgentRegisterResponse, error)
 	RevokeAgent(ctx context.Context, namespace, agentName string) error
+	// ValidateAgentJWT parses and validates a signed agent JWT, returning its claims.
+	ValidateAgentJWT(token string) (*models.AgentClaims, error)
 }
 
 // ── Implementation ────────────────────────────────────────────────────────────
@@ -83,7 +85,7 @@ type agentRegistrationService struct {
 	logger    *log.Logger
 	jwtSecret string
 	store     store.Store
-	k8s       client.Client
+	k8s       k8sclient.Client
 }
 
 // NewAgentRegistrationService returns a new AgentRegistrationService.
@@ -91,7 +93,7 @@ type agentRegistrationService struct {
 func NewAgentRegistrationService(
 	jwtSecret string,
 	st store.Store,
-	k8s client.Client,
+	k8s k8sclient.Client,
 ) AgentRegistrationService {
 	return &agentRegistrationService{
 		logger:    log.GetLogger("agent-registration"),
@@ -150,6 +152,16 @@ func (s *agentRegistrationService) RegisterAgent(ctx context.Context, req AgentR
 	_ = json.Unmarshal([]byte(tok.AllowedTools), &allowedTools)
 
 	// 3. Create LatticePeer (Agent registers its own public key)
+	// Auto-join the peer to the first available network in the namespace so the
+	// controller can allocate a VPN IP. Without a network association the peer
+	// stays un-addressed and the sandbox binary can never start.
+	var networkRef *string
+	networkList := &v1alpha1.LatticeNetworkList{}
+	if listErr := s.k8s.List(ctx, networkList, k8sclient.InNamespace(tok.AllowedNamespace)); listErr == nil && len(networkList.Items) > 0 {
+		name := networkList.Items[0].Name
+		networkRef = &name
+	}
+
 	peer := &v1alpha1.LatticePeer{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      req.AgentName,
@@ -160,9 +172,10 @@ func (s *agentRegistrationService) RegisterAgent(ctx context.Context, req AgentR
 		},
 		Spec: v1alpha1.LatticePeerSpec{
 			PublicKey: req.PublicKey,
+			Network:   networkRef,
 		},
 	}
-	if err := s.k8s.Create(ctx, peer); err != nil {
+	if err = s.k8s.Create(ctx, peer); err != nil {
 		return nil, fmt.Errorf("create LatticePeer: %w", err)
 	}
 
@@ -185,14 +198,14 @@ func (s *agentRegistrationService) RegisterAgent(ctx context.Context, req AgentR
 			EnforcementMode:   v1alpha1.EnforcementEnforce,
 		},
 	}
-	if err := s.k8s.Create(ctx, identity); err != nil {
+	if err = s.k8s.Create(ctx, identity); err != nil {
 		// Rollback peer
 		_ = s.k8s.Delete(ctx, peer)
 		return nil, fmt.Errorf("create AgentIdentity: %w", err)
 	}
 
 	// 5. Mark token as used (single-use)
-	if err := s.store.AgentEnrollmentTokens().MarkUsed(ctx, req.EnrollmentToken, time.Now()); err != nil {
+	if err = s.store.AgentEnrollmentTokens().MarkUsed(ctx, req.EnrollmentToken, time.Now()); err != nil {
 		s.logger.Warn("failed to mark enrollment token used", "err", err)
 	}
 
@@ -208,13 +221,36 @@ func (s *agentRegistrationService) RegisterAgent(ctx context.Context, req AgentR
 
 func (s *agentRegistrationService) RevokeAgent(ctx context.Context, namespace, agentName string) error {
 	identity := &v1alpha1.AgentIdentity{}
-	identity.Name = agentName
-	identity.Namespace = namespace
-	if err := s.k8s.Delete(ctx, identity); client.IgnoreNotFound(err) != nil {
-		return fmt.Errorf("delete AgentIdentity: %w", err)
+	if err := s.k8s.Get(ctx, k8sclient.ObjectKey{Namespace: namespace, Name: agentName}, identity); err != nil {
+		return k8sclient.IgnoreNotFound(err)
+	}
+	if identity.Status.Phase == v1alpha1.AgentPhaseRevoked {
+		return nil
+	}
+	patch := k8sclient.MergeFrom(identity.DeepCopy())
+	identity.Status.Phase = v1alpha1.AgentPhaseRevoked
+	if err := s.k8s.Status().Patch(ctx, identity, patch); err != nil {
+		return fmt.Errorf("patch AgentIdentity status: %w", err)
 	}
 	s.logger.Info("agent revoked", "name", agentName, "namespace", namespace)
 	return nil
+}
+
+func (s *agentRegistrationService) ValidateAgentJWT(tokenStr string) (*models.AgentClaims, error) {
+	claims := &models.AgentClaims{}
+	token, err := jwt.ParseWithClaims(tokenStr, claims, func(t *jwt.Token) (interface{}, error) {
+		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", t.Header["alg"])
+		}
+		return []byte(s.jwtSecret), nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	if !token.Valid {
+		return nil, fmt.Errorf("invalid agent JWT")
+	}
+	return claims, nil
 }
 
 func (s *agentRegistrationService) issueAgentJWT(agentName, namespace string, allowedTools []string) (string, error) {

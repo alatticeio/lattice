@@ -64,7 +64,7 @@ func (u *userService) AddUser(ctx context.Context, dto *dto.UserDto) error {
 			Username: dto.Username,
 			Password: hashedPassword,
 		}
-		if err := s.Users().Create(ctx, newUser); err != nil {
+		if err = s.Users().Create(ctx, newUser); err != nil {
 			return err
 		}
 		ws, err := s.Workspaces().GetByNamespace(ctx, dto.Namespace)
@@ -96,14 +96,15 @@ func (u *userService) OnboardExternalUser(ctx context.Context, provider, subject
 		return nil, err
 	}
 	if identity != nil {
-		user, err := u.store.Users().GetByID(ctx, identity.UserID)
+		var user *models.User
+		user, err = u.store.Users().GetByID(ctx, identity.UserID)
 		if err != nil {
 			return nil, err
 		}
 		// Promote to admin if newly added to whitelist.
 		if targetRole == dto.SystemRolePlatformAdmin && user.SystemRole != dto.SystemRolePlatformAdmin {
 			user.SystemRole = dto.SystemRolePlatformAdmin
-			if err := u.store.Users().Update(ctx, user); err != nil {
+			if err = u.store.Users().Update(ctx, user); err != nil {
 				u.log.Warn("failed to promote external user to platform_admin", "email", email, "err", err)
 			}
 		}
@@ -215,7 +216,8 @@ func (u *userService) InitAdmin(ctx context.Context, admins []config.AdminConfig
 			return err
 		}
 		if existing == nil {
-			hashed, err := utils.EncryptPassword(admin.Password)
+			var hashed string
+			hashed, err = utils.EncryptPassword(admin.Password)
 			if err != nil {
 				u.log.Error("admin password hash failed", err, "username", admin.Username)
 				continue

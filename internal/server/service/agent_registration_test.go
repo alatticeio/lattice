@@ -19,8 +19,11 @@ import (
 	"testing"
 	"time"
 
+	latticev1 "github.com/alatticeio/lattice/api/v1alpha1"
 	"github.com/alatticeio/lattice/internal/server/service"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
 
@@ -96,6 +99,53 @@ func TestRegisterAgent_ValidToken(t *testing.T) {
 	}
 	if resp.AgentIdentityName != "agent-001" {
 		t.Errorf("expected AgentIdentityName=agent-001, got %q", resp.AgentIdentityName)
+	}
+}
+
+func TestRevokeAgent_SetsRevokedPhase(t *testing.T) {
+	identity := &latticev1.AgentIdentity{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "agent-001",
+			Namespace: "ws-a",
+		},
+		Status: latticev1.AgentIdentityStatus{
+			Phase: latticev1.AgentPhaseActive,
+		},
+	}
+	k8s := fake.NewClientBuilder().
+		WithScheme(newTestScheme()).
+		WithObjects(identity).
+		WithStatusSubresource(&latticev1.AgentIdentity{}).
+		Build()
+	// Pre-populate status (fake client requires explicit status creation when WithStatusSubresource is used).
+	identity.Status.Phase = latticev1.AgentPhaseActive
+	_ = k8s.Status().Update(context.Background(), identity)
+
+	st := newTestDB(t)
+	svc := service.NewAgentRegistrationService("test-secret", st, k8s)
+
+	err := svc.RevokeAgent(context.Background(), "ws-a", "agent-001")
+	if err != nil {
+		t.Fatalf("unexpected error revoking agent: %v", err)
+	}
+
+	got := &latticev1.AgentIdentity{}
+	if err := k8s.Get(context.Background(), client.ObjectKey{Namespace: "ws-a", Name: "agent-001"}, got); err != nil {
+		t.Fatalf("AgentIdentity should still exist after revocation: %v", err)
+	}
+	if got.Status.Phase != latticev1.AgentPhaseRevoked {
+		t.Errorf("expected phase Revoked, got %q", got.Status.Phase)
+	}
+}
+
+func TestRevokeAgent_NotFound_IsNoop(t *testing.T) {
+	k8s := fake.NewClientBuilder().WithScheme(newTestScheme()).Build()
+	st := newTestDB(t)
+	svc := service.NewAgentRegistrationService("test-secret", st, k8s)
+
+	err := svc.RevokeAgent(context.Background(), "ws-a", "nonexistent")
+	if err != nil {
+		t.Errorf("expected no error for missing AgentIdentity, got: %v", err)
 	}
 }
 

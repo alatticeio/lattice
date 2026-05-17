@@ -84,7 +84,7 @@ func (s *GormStore) NetworkSnapshots() store.NetworkSnapshotRepository { return 
 func (s *GormStore) AgentEnrollmentTokens() store.AgentEnrollmentTokenRepository {
 	return s.agentEnrollmentTokens
 }
-func (s *GormStore) Seed() store.SeedRepository { return s.seed }
+func (s *GormStore) Seed() store.SeedRepository                  { return s.seed }
 func (s *GormStore) RefreshTokens() store.RefreshTokenRepository { return s.refreshTokens }
 
 // Tx executes fn within a database transaction, providing a temporary Store for all Repository access.

@@ -330,8 +330,7 @@ func (p *ProbeFactory) NewProbe(remoteId infra.PeerIdentity) (*Probe, error) {
 		}
 	})
 
-	var makeLrpDialer func() infra.Dialer
-	makeLrpDialer = func() infra.Dialer {
+	makeLrpDialer := func() infra.Dialer {
 		return NewLrpDialer(&LrpDialerConfig{
 			LocalId:        p.localId,
 			RemoteId:       remoteId,

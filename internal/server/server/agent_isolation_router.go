@@ -28,14 +28,17 @@ import (
 )
 
 // agentIsolationRouter registers the Agent Isolation admin API.
-// All routes require standard user authentication.
+// /register is public (authenticated via enrollment token in request body).
+// All other routes require standard user authentication.
 // Routes return 402 when the feature is disabled (agentRegService == nil).
 func (s *Server) agentIsolationRouter() {
+	// Public: enrollment token is the authentication mechanism for registration.
+	s.POST("/api/v1/agent-isolation/register", s.handleAgentRegister())
+
 	g := s.Group("/api/v1/agent-isolation")
 	g.Use(middleware.AuthMiddleware(s.revocationList))
 	{
 		g.POST("/enrollment-tokens", s.handleCreateEnrollmentToken())
-		g.POST("/register", s.handleAgentRegister())
 		g.DELETE("/agents/:name", s.handleIsolationAgentRevoke())
 	}
 }
@@ -113,7 +116,7 @@ func (s *Server) handleAgentRegister() gin.HandlerFunc {
 	}
 }
 
-// handleIsolationAgentRevoke revokes an agent by deleting its AgentIdentity CRD.
+// handleIsolationAgentRevoke revokes an agent by setting its AgentIdentity phase to Revoked.
 //
 // DELETE /api/v1/agent-isolation/agents/:name?namespace=<ns>
 func (s *Server) handleIsolationAgentRevoke() gin.HandlerFunc {
