@@ -12,28 +12,28 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package cmd
+package sandbox
 
 import (
-	"fmt"
-	"os"
-
 	"github.com/spf13/cobra"
 )
 
-var rootCmd = &cobra.Command{
-	Use:   "lattice-agent-sandbox",
-	Short: "Zero-privilege AI agent sandbox for Lattice",
-	Long: `lattice-agent-sandbox starts AI agents in a gVisor-based sandbox
-with user-space networking and policy enforcement.
+var (
+	sandboxName         string
+	sandboxServerURL    string
+	sandboxToken        string
+	sandboxProxyAddr    string
+	sandboxForwardRules []string
+	sandboxEgressAllow  string
+	sandboxEgressDeny   bool
+)
 
-No root access, kernel modules, or TUN devices are required.`,
-}
-
-// Execute runs the root command.
-func Execute() {
-	if err := rootCmd.Execute(); err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+// SandboxCmd returns the top-level `sandbox` cobra command.
+func SandboxCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "sandbox",
+		Short: "Manage sandboxed agent environments (Pro)",
 	}
+	cmd.AddCommand(startCmd())
+	return cmd
 }

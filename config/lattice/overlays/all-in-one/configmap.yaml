@@ -10,7 +10,7 @@ data:
       env: "production"
       init_admins:
         - username: "admin"
-          password: "changeme"   # ⚠️ 请修改默认密码
+          password: "123456"   # ⚠️ 生产环境请修改默认密码
 
     jwt:
       secret: "replace-with-random-secret"  # ⚠️ 请替换为随机密钥
@@ -33,3 +33,6 @@ data:
       model: "mimo-v2.5-pro"       # MiMo 模型名；留空则使用 provider 默认值（anthropic 默认 claude-sonnet-4-6）
       base-url: "https://api.xiaomimimo.com/anthropic"  # 自定义 API 端点
       max-tool-calls: 5
+      agent-isolation:
+        enabled: true
+        enforcement-mode: enforce

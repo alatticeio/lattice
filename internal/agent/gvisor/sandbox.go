@@ -228,6 +228,10 @@ func (s *Sandbox) ID() string { return s.id }
 // LocalIP returns the VPN IP address.
 func (s *Sandbox) LocalIP() string { return s.localIP }
 
+// Netstack returns the underlying shim.Netstack for use with shim components
+// such as ForwardListener.
+func (s *Sandbox) Netstack() *shim.Netstack { return s.ns }
+
 // Close shuts down the sandbox, its netstack, and the WireGuard bridge.
 func (s *Sandbox) Close() error {
 	s.mu.Lock()

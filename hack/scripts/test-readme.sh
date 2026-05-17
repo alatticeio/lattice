@@ -2,8 +2,8 @@
 # test-readme.sh — Run README CLI test suite locally or in CI.
 #
 # Usage:
-#   bash scripts/test-readme.sh              # build k3s image if not present
-#   bash scripts/test-readme.sh --force-build # always rebuild both images
+#   bash hack/scripts/test-readme.sh              # build k3s image if not present
+#   bash hack/scripts/test-readme.sh --force-build # always rebuild both images
 #
 # Env vars (set by CI to override image resolution):
 #   K3S_IMAGE   — lattice-k3s image to use (e.g. ghcr.io/alatticeio/lattice-k3s:pr-42)

@@ -20,6 +20,7 @@ import (
 	"errors"
 	"os"
 	"sync/atomic"
+	"time"
 
 	"golang.zx2c4.com/wireguard/tun"
 	"gvisor.dev/gvisor/pkg/buffer"
@@ -39,41 +40,56 @@ type tunAdapter struct {
 	inject func(packet []byte) error
 	mtu    int32
 	closed atomic.Bool
+	events chan tun.Event
 }
 
 // NewTUNAdapter creates a tun.Device backed by the gVisor channel endpoint.
 // The inject callback is invoked by tunAdapter.Write with decrypted IP packets
 // from wireguard-go; it should inject them into the gVisor netstack (e.g. via
 // channel.Endpoint.InjectInbound).
+//
+// events is pre-populated with EventUp and then closed so that wireguard-go's
+// RoutineTUNEventReader goroutine exits cleanly instead of blocking forever on
+// a nil channel.
 func NewTUNAdapter(ch *channel.Endpoint, inject func(packet []byte) error) tun.Device {
-	return &tunAdapter{ch: ch, inject: inject, mtu: 1500}
+	events := make(chan tun.Event, 1)
+	events <- tun.EventUp
+	close(events)
+	return &tunAdapter{ch: ch, inject: inject, mtu: 1500, events: events}
 }
 
 // Read reads one packet from the gVisor channel endpoint and places it into
 // bufs[0] at the given offset. Returns the count of packets read (0 or 1).
+//
+// gVisor's channel.Endpoint.Read is non-blocking (returns nil when empty).
+// We loop with a 1ms sleep to avoid a 100% CPU busy-spin in wireguard-go's
+// TUN reader goroutine. 1ms is acceptable latency for an encrypted overlay.
 func (t *tunAdapter) Read(bufs [][]byte, sizes []int, offset int) (int, error) {
-	if t.closed.Load() {
-		return 0, errors.New("tun: closed")
-	}
+	for {
+		if t.closed.Load() {
+			return 0, errors.New("tun: closed")
+		}
 
-	pkt := t.ch.Read()
-	if pkt == nil {
-		return 0, nil
-	}
-	defer pkt.DecRef()
+		pkt := t.ch.Read()
+		if pkt == nil {
+			time.Sleep(time.Millisecond)
+			continue
+		}
+		defer pkt.DecRef()
 
-	data := pkt.ToView()
-	if data == nil || data.Size() == 0 {
-		return 0, nil
-	}
+		data := pkt.ToView()
+		if data == nil || data.Size() == 0 {
+			continue
+		}
 
-	n := data.Size()
-	if n+offset > len(bufs[0]) {
-		n = len(bufs[0]) - offset
+		n := data.Size()
+		if n+offset > len(bufs[0]) {
+			n = len(bufs[0]) - offset
+		}
+		copy(bufs[0][offset:], data.AsSlice()[:n])
+		sizes[0] = n
+		return 1, nil
 	}
-	copy(bufs[0][offset:], data.AsSlice()[:n])
-	sizes[0] = n
-	return 1, nil
 }
 
 // Write injects decrypted IP packets from wireguard-go into the gVisor
@@ -122,8 +138,10 @@ func (t *tunAdapter) MTU() (int, error) { return int(t.mtu), nil }
 // Name returns a human-readable name.
 func (t *tunAdapter) Name() (string, error) { return "gvisor-tun", nil }
 
-// Events returns nil — no eventfd support.
-func (t *tunAdapter) Events() <-chan tun.Event { return nil }
+// Events returns the pre-populated event channel. wireguard-go's
+// RoutineTUNEventReader reads EventUp from it and exits when the channel
+// closes, preventing a goroutine leak.
+func (t *tunAdapter) Events() <-chan tun.Event { return t.events }
 
 // BatchSize returns 1 — we do not batch.
 func (t *tunAdapter) BatchSize() int { return 1 }

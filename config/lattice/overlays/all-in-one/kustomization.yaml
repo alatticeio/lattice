@@ -27,8 +27,6 @@ resources:
   - deployment.yaml
   - service.yaml
   - ip_pool.yaml
-  # HTTPS/TLS ingress with cert-manager
-  - ../../../deploy/k3s/ingress.yaml
 
 
 images:
