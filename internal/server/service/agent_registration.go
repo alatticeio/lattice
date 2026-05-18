@@ -171,6 +171,7 @@ func (s *agentRegistrationService) RegisterAgent(ctx context.Context, req AgentR
 			},
 		},
 		Spec: v1alpha1.LatticePeerSpec{
+			AppId:     req.AgentName,
 			PublicKey: req.PublicKey,
 			Network:   networkRef,
 		},

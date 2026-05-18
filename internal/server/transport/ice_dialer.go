@@ -58,6 +58,7 @@ type iceDialer struct {
 	rPwd              string
 	closeOnce         sync.Once
 	offerOnce         sync.Once
+	gatherOnce        sync.Once // guards the single GatherCandidates() call
 	closed            atomic.Bool
 	showLog           bool
 	getLocalPeer      func() *infra.Peer
@@ -71,6 +72,12 @@ type iceDialer struct {
 	closeChan chan struct{}
 	cancel    context.CancelFunc
 	ackChan   chan struct{} // nolint
+
+	// pendingCandidates stores remote ICE candidates that arrived before the local
+	// ICE agent was initialized (race between fast responder and slower getAgent()).
+	// They are replayed into the agent once it becomes available in Prepare().
+	// Protected by mu.
+	pendingCandidates []ice.Candidate
 
 	// filteringMux owns the shared v4 UDP socket and exposes UDPMux/UDPMuxSrflx
 	// interfaces for ICE agent construction. filteringMux6 is the v6 counterpart;
@@ -139,8 +146,15 @@ func (i *iceDialer) Handle(ctx context.Context, remoteId infra.PeerIdentity, pac
 		}
 		// cancel send syn
 		i.cancel()
-		// start send offer
-		return agent.GatherCandidates()
+		// start send offer — guard with gatherOnce so that retransmitted ACKs
+		// (from the responder resending ACK on SYN retransmit) don't trigger a
+		// second GatherCandidates call, which pion returns as an error
+		// ("attempting to gather candidates during gathering state").
+		var gatherErr error
+		i.gatherOnce.Do(func() {
+			gatherErr = agent.GatherCandidates()
+		})
+		return gatherErr
 	case grpc.PacketType_HANDSHAKE_SYN:
 		// If already fully closed, the remote peer restarted after our ICE cleanup.
 		// Trigger probe.restart() so a fresh dialer is created to handle the peer's
@@ -195,36 +209,54 @@ func (i *iceDialer) Handle(ctx context.Context, remoteId infra.PeerIdentity, pac
 		if err != nil {
 			return err
 		}
+		// Drain any candidates that arrived concurrently while getAgent() was
+		// running (initiator racing to send OFFERs before we finish setup).
+		var pending []ice.Candidate
 		i.mu.Lock()
 		i.agent = agent
+		pending = i.pendingCandidates
+		i.pendingCandidates = nil
 		i.mu.Unlock()
 
 		// send ack to remote (includes our own peer info)
 		if err := i.sendPacket(ctx, i.remoteId, grpc.PacketType_HANDSHAKE_ACK, nil); err != nil {
 			return err
 		}
-		// responder also gathers candidates
-		return agent.GatherCandidates()
+		// responder also gathers candidates (gatherOnce ensures idempotency)
+		var gatherErr error
+		i.gatherOnce.Do(func() {
+			gatherErr = agent.GatherCandidates()
+		})
+		if gatherErr != nil {
+			return gatherErr
+		}
+		// Replay any candidates buffered before the agent was ready.
+		for _, c := range pending {
+			if err := agent.AddRemoteCandidate(c); err != nil {
+				i.log.Warn("replay pending candidate failed", "err", err)
+			}
+		}
+		if len(pending) > 0 {
+			i.log.Debug("replayed pending candidates", "count", len(pending))
+			i.offerOnce.Do(func() {
+				close(i.offerReady)
+			})
+		}
+		return nil
 	case grpc.PacketType_OFFER, grpc.PacketType_ANSWER:
 		if i.closed.Load() {
 			i.log.Debug("receive offer: dialer closed, dropping", "remoteId", remoteId)
 			return nil
 		}
-		i.mu.Lock()
-		agent := i.agent
-		i.mu.Unlock()
-		if agent == nil {
-			i.log.Debug("receive offer: agent nil, dropping", "remoteId", remoteId)
-			return nil
-		}
 
-		i.log.Debug("receive offer", "remoteId", remoteId)
 		offer := packet.GetOffer()
 
 		// Always ensure remote ICE credentials are set — credentialsInited may
 		// already be true from an earlier ACK/SYN (which don't carry ICE creds).
 		// Without this check a late OFFER could skip the credential assignment,
 		// leaving rUfrag empty and causing StartDial("") to fail.
+		// Do this before the agent-nil check so credentials are captured even
+		// when the agent is not yet ready.
 		if i.rUfrag == "" {
 			i.mu.Lock()
 			if i.rUfrag == "" {
@@ -255,6 +287,20 @@ func (i *iceDialer) Handle(ctx context.Context, remoteId infra.PeerIdentity, pac
 			return err
 		}
 
+		// Check agent under the same lock used by Prepare() to avoid a TOCTOU
+		// race: if the agent is not ready yet, buffer the candidate for replay
+		// once Prepare() sets i.agent, rather than dropping it.
+		i.mu.Lock()
+		agent := i.agent
+		if agent == nil {
+			i.pendingCandidates = append(i.pendingCandidates, candidate)
+			i.mu.Unlock()
+			i.log.Debug("receive offer: agent not ready, buffering candidate", "remoteId", remoteId)
+			return nil
+		}
+		i.mu.Unlock()
+
+		i.log.Debug("receive offer", "remoteId", remoteId)
 		if err = agent.AddRemoteCandidate(candidate); err != nil {
 			return err
 		}
@@ -313,14 +359,41 @@ func (i *iceDialer) Prepare(ctx context.Context, remoteId infra.PeerIdentity) er
 		if err != nil {
 			return fmt.Errorf("getAgent failed: %w", err)
 		}
+		var pending []ice.Candidate
 		i.mu.Lock()
 		if i.agent == nil {
 			i.agent = agent
+			// Drain any candidates that arrived before the agent was ready.
+			pending = i.pendingCandidates
+			i.pendingCandidates = nil
 		} else {
 			// Another goroutine beat us; discard the redundant agent.
 			_ = agent.Close()
 		}
 		i.mu.Unlock()
+
+		// Replay buffered candidates outside the lock (AddRemoteCandidate may block).
+		for _, c := range pending {
+			if err := agent.AddRemoteCandidate(c); err != nil {
+				i.log.Warn("replay pending candidate failed", "err", err)
+			}
+		}
+		if len(pending) > 0 {
+			i.log.Debug("replayed pending candidates", "count", len(pending))
+			i.offerOnce.Do(func() {
+				close(i.offerReady)
+			})
+		}
+
+		// Always start gathering candidates once the agent is ready.
+		// If Handle(ACK) arrived while getAgent() was still running it returned
+		// early (agent was nil) and skipped GatherCandidates.  gatherOnce
+		// ensures it is called exactly once even if Handle(ACK) races here.
+		var gatherErr error
+		i.gatherOnce.Do(func() { gatherErr = agent.GatherCandidates() })
+		if gatherErr != nil {
+			return fmt.Errorf("GatherCandidates (prepare): %w", gatherErr)
+		}
 	}
 
 	// send syn
