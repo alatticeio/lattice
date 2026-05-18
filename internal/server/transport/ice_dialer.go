@@ -79,6 +79,13 @@ type iceDialer struct {
 	// Protected by mu.
 	pendingCandidates []ice.Candidate
 
+	// gatheredCandidates caches local ICE candidates emitted by OnCandidate so
+	// they can be resent to the remote peer when a late or retransmitted ACK/SYN
+	// arrives after GatherCandidates() has already completed.  Without this, the
+	// remote side never receives our OFFER and ICE cannot make progress.
+	// Protected by mu.
+	gatheredCandidates []ice.Candidate
+
 	// filteringMux owns the shared v4 UDP socket and exposes UDPMux/UDPMuxSrflx
 	// interfaces for ICE agent construction. filteringMux6 is the v6 counterpart;
 	// nil when IPv6 is unavailable.
@@ -151,9 +158,17 @@ func (i *iceDialer) Handle(ctx context.Context, remoteId infra.PeerIdentity, pac
 		// second GatherCandidates call, which pion returns as an error
 		// ("attempting to gather candidates during gathering state").
 		var gatherErr error
+		var gatherRanNow bool
 		i.gatherOnce.Do(func() {
+			gatherRanNow = true
 			gatherErr = agent.GatherCandidates()
 		})
+		if !gatherRanNow {
+			// GatherCandidates already ran (Prepare() fired it before ACK arrived).
+			// The remote peer may have missed our OFFERs if its subscription was not
+			// yet ready.  Resend cached candidates so it can complete ICE setup.
+			go i.resendCandidates(ctx)
+		}
 		return gatherErr
 	case grpc.PacketType_HANDSHAKE_SYN:
 		// If already fully closed, the remote peer restarted after our ICE cleanup.
@@ -198,6 +213,10 @@ func (i *iceDialer) Handle(ctx context.Context, remoteId infra.PeerIdentity, pac
 		if existingAgent != nil {
 			i.log.Debug("SYN retransmit during ICE setup, resending ACK", "remoteId", remoteId)
 			_ = i.sendPacket(ctx, i.remoteId, grpc.PacketType_HANDSHAKE_ACK, nil)
+			// Also resend our cached candidates: the initiator may have restarted
+			// its dialer (new gatherOnce) and is waiting for our OFFER to unblock
+			// its Dial().  Without this, only one side runs ICE and checks fail.
+			go i.resendCandidates(ctx)
 			return nil
 		}
 
@@ -572,6 +591,9 @@ func (i *iceDialer) getAgent(remoteId infra.PeerIdentity) (*ice.Agent, error) {
 		if candidate == nil {
 			return
 		}
+		i.mu.Lock()
+		i.gatheredCandidates = append(i.gatheredCandidates, candidate)
+		i.mu.Unlock()
 		if err = i.sendPacket(context.TODO(), remoteId, grpc.PacketType_OFFER, candidate); err != nil {
 			i.log.Error("Send candidate", err)
 		}
@@ -641,6 +663,25 @@ func (i *iceDialer) sendPacket(ctx context.Context, remoteId infra.PeerIdentity,
 		return err
 	}
 	return i.sender(ctx, remoteId.ID(), data)
+}
+
+// resendCandidates retransmits all locally gathered ICE candidates to the
+// remote peer.  Called when a late ACK or a SYN-retransmit arrives after
+// GatherCandidates() has already completed, ensuring the remote side receives
+// our OFFER even if it missed the original transmission.
+func (i *iceDialer) resendCandidates(ctx context.Context) {
+	i.mu.Lock()
+	cached := make([]ice.Candidate, len(i.gatheredCandidates))
+	copy(cached, i.gatheredCandidates)
+	i.mu.Unlock()
+	for _, c := range cached {
+		if err := i.sendPacket(ctx, i.remoteId, grpc.PacketType_OFFER, c); err != nil {
+			i.log.Warn("resend candidate failed", "err", err)
+		}
+	}
+	if len(cached) > 0 {
+		i.log.Debug("resent cached candidates", "remoteId", i.remoteId, "count", len(cached))
+	}
 }
 
 func (i *iceDialer) Close() error {
