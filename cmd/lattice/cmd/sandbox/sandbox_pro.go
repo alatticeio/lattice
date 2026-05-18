@@ -18,14 +18,11 @@ package sandbox
 
 import (
 	"context"
-	"encoding/binary"
 	"fmt"
-	"io"
 	"net"
 	"os"
 	"os/signal"
 	"strings"
-	"sync"
 	"syscall"
 	"time"
 
@@ -218,10 +215,11 @@ func runStart(_ *cobra.Command, _ []string) error {
 	}
 
 	if sandboxProxyAddr != "" {
-		socks5, err := startSOCKS5Proxy(sandboxProxyAddr, sb)
+		socks5, err := shimfwd.NewSocks5Server(sb, sandboxProxyAddr)
 		if err != nil {
 			return fmt.Errorf("start socks5 proxy: %w", err)
 		}
+		go socks5.Serve()
 		defer socks5.Close()
 		fmt.Printf("SOCKS5 proxy listening on %s\n", sandboxProxyAddr)
 	}
@@ -274,190 +272,6 @@ func runStart(_ *cobra.Command, _ []string) error {
 	fmt.Println("\nShutting down...")
 	_ = node.Stop()
 	return nil
-}
-
-// SOCKS5 protocol constants (RFC 1928).
-const (
-	socks5Version     = 0x05
-	socks5AuthNone    = 0x00
-	socks5CmdConnect  = 0x01
-	socks5AddrIPv4    = 0x01
-	socks5AddrDomain  = 0x03
-	socks5AddrIPv6    = 0x04
-	socks5ReplyOK     = 0x00
-	socks5ReplyErr    = 0x01
-	socks5ReplyCmd    = 0x07
-	socks5ReplyAddr   = 0x08
-)
-
-// socks5Server is a minimal SOCKS5 proxy (no-auth, CONNECT only) that
-// tunnels TCP connections through the gVisor sandbox netstack.
-type socks5Server struct {
-	ln   net.Listener
-	dial func(ctx context.Context, network, addr string) (net.Conn, error)
-
-	ctx    context.Context
-	cancel context.CancelFunc
-	wg     sync.WaitGroup
-}
-
-// startSOCKS5Proxy creates and starts a SOCKS5 proxy server listening on
-// addr. All connections are tunneled through sb.DialContext (gVisor overlay).
-func startSOCKS5Proxy(addr string, sb *gvisor.Sandbox) (*socks5Server, error) {
-	ln, err := net.Listen("tcp", addr)
-	if err != nil {
-		return nil, fmt.Errorf("socks5 listen %s: %w", addr, err)
-	}
-	ctx, cancel := context.WithCancel(context.Background())
-	s := &socks5Server{
-		ln:     ln,
-		dial:   sb.DialContext,
-		ctx:    ctx,
-		cancel: cancel,
-	}
-	go s.serve()
-	return s, nil
-}
-
-func (s *socks5Server) serve() {
-	for {
-		conn, err := s.ln.Accept()
-		if err != nil {
-			select {
-			case <-s.ctx.Done():
-				return
-			default:
-			}
-			continue
-		}
-		s.wg.Add(1)
-		go func() {
-			defer s.wg.Done()
-			s.handle(conn)
-		}()
-	}
-}
-
-func (s *socks5Server) Close() error {
-	s.cancel()
-	s.ln.Close()
-	s.wg.Wait()
-	return nil
-}
-
-func (s *socks5Server) handle(client net.Conn) {
-	defer client.Close()
-
-	// RFC 1928 handshake: version + auth negotiation.
-	var buf [258]byte
-	if _, err := io.ReadFull(client, buf[:2]); err != nil {
-		return
-	}
-	if buf[0] != socks5Version {
-		return
-	}
-	nauth := int(buf[1])
-	if nauth > 0 {
-		if _, err := io.ReadFull(client, buf[:nauth]); err != nil {
-			return
-		}
-	}
-	// No authentication required.
-	client.Write([]byte{socks5Version, socks5AuthNone})
-
-	// Request: version, cmd, reserved, addr-type, dst-addr, dst-port.
-	if _, err := io.ReadFull(client, buf[:4]); err != nil {
-		return
-	}
-	if buf[0] != socks5Version || buf[1] != socks5CmdConnect {
-		s.sendReply(client, socks5ReplyCmd, nil)
-		return
-	}
-	host, err := readSOCKS5Addr(client, buf[3])
-	if err != nil {
-		s.sendReply(client, socks5ReplyAddr, nil)
-		return
-	}
-	var port [2]byte
-	if _, err := io.ReadFull(client, port[:]); err != nil {
-		return
-	}
-	target := net.JoinHostPort(host, fmt.Sprintf("%d", binary.BigEndian.Uint16(port[:])))
-
-	// Dial through gVisor overlay.
-	dialCtx, cancel := context.WithTimeout(s.ctx, 30*time.Second)
-	defer cancel()
-	remote, err := s.dial(dialCtx, "tcp", target)
-	if err != nil {
-		s.sendReply(client, socks5ReplyErr, nil)
-		return
-	}
-	defer remote.Close()
-
-	s.sendReply(client, socks5ReplyOK, remote.LocalAddr())
-
-	// Bidirectional relay.
-	var wg sync.WaitGroup
-	wg.Add(2)
-	go func() { defer wg.Done(); io.Copy(remote, client); remote.Close() }()
-	go func() { defer wg.Done(); io.Copy(client, remote); client.Close() }()
-	wg.Wait()
-}
-
-func readSOCKS5Addr(r io.Reader, addrType byte) (string, error) {
-	switch addrType {
-	case socks5AddrIPv4:
-		var ip [4]byte
-		if _, err := io.ReadFull(r, ip[:]); err != nil {
-			return "", err
-		}
-		return net.IP(ip[:]).String(), nil
-	case socks5AddrDomain:
-		var n [1]byte
-		if _, err := io.ReadFull(r, n[:]); err != nil {
-			return "", err
-		}
-		b := make([]byte, n[0])
-		if _, err := io.ReadFull(r, b); err != nil {
-			return "", err
-		}
-		return string(b), nil
-	case socks5AddrIPv6:
-		var ip [16]byte
-		if _, err := io.ReadFull(r, ip[:]); err != nil {
-			return "", err
-		}
-		return net.IP(ip[:]).String(), nil
-	default:
-		return "", fmt.Errorf("socks5: unknown address type %d", addrType)
-	}
-}
-
-func (s *socks5Server) sendReply(conn net.Conn, reply byte, addr net.Addr) {
-	var buf [22]byte
-	buf[0] = socks5Version
-	buf[1] = reply
-	// reserved: buf[2] = 0
-	switch a := addr.(type) {
-	case *net.TCPAddr:
-		if ip4 := a.IP.To4(); ip4 != nil {
-			buf[3] = socks5AddrIPv4
-			copy(buf[4:8], ip4)
-			binary.BigEndian.PutUint16(buf[8:10], uint16(a.Port))
-			conn.Write(buf[:10])
-			return
-		}
-		if ip6 := a.IP.To16(); ip6 != nil {
-			buf[3] = socks5AddrIPv6
-			copy(buf[4:20], ip6)
-			binary.BigEndian.PutUint16(buf[20:22], uint16(a.Port))
-			conn.Write(buf[:22])
-			return
-		}
-	}
-	// Fallback: IPv4 zero.
-	buf[3] = socks5AddrIPv4
-	conn.Write(buf[:10])
 }
 
 func parseForwardRule(s string) (shimfwd.ForwardRule, error) {
