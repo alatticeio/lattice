@@ -133,9 +133,9 @@ nfpms:
     section: net
     priority: optional
     contents:
-      - src: ./packaging/lattice.service
+      - src: ./deploy/packaging/lattice.service
         dst: /usr/lib/systemd/system/lattice.service
-      - src: ./packaging/config.yaml
+      - src: ./deploy/packaging/config.yaml
         dst: /etc/lattice/config.yaml
         type: "config|noreplace"
     overrides:
@@ -146,8 +146,8 @@ nfpms:
         dependencies:
           - systemd
     scripts:
-      postinstall: ./packaging/scripts/lattice-post-install.sh
-      postremove: ./packaging/scripts/lattice-post-remove.sh
+      postinstall: ./deploy/packaging/scripts/lattice-post-install.sh
+      postremove: ./deploy/packaging/scripts/lattice-post-remove.sh
 
   # latticed server package
   - id: "latticed-nfpms"
@@ -166,7 +166,7 @@ nfpms:
     section: net
     priority: optional
     contents:
-      - src: ./packaging/latticed.service
+      - src: ./deploy/packaging/latticed.service
         dst: /usr/lib/systemd/system/latticed.service
     overrides:
       rpm:
@@ -176,8 +176,8 @@ nfpms:
         dependencies:
           - systemd
     scripts:
-      postinstall: ./packaging/scripts/latticed-post-install.sh
-      postremove: ./packaging/scripts/latticed-post-remove.sh
+      postinstall: ./deploy/packaging/scripts/latticed-post-install.sh
+      postremove: ./deploy/packaging/scripts/latticed-post-remove.sh
 
   # lattice-pro package
   - id: "lattice-pro-nfpms"
@@ -196,9 +196,9 @@ nfpms:
     section: net
     priority: optional
     contents:
-      - src: ./packaging/lattice.service
+      - src: ./deploy/packaging/lattice.service
         dst: /usr/lib/systemd/system/lattice.service
-      - src: ./packaging/config.yaml
+      - src: ./deploy/packaging/config.yaml
         dst: /etc/lattice/config.yaml
         type: "config|noreplace"
     overrides:
@@ -209,8 +209,8 @@ nfpms:
         dependencies:
           - systemd
     scripts:
-      postinstall: ./packaging/scripts/lattice-post-install.sh
-      postremove: ./packaging/scripts/lattice-post-remove.sh
+      postinstall: ./deploy/packaging/scripts/lattice-post-install.sh
+      postremove: ./deploy/packaging/scripts/lattice-post-remove.sh
 
   # latticed-pro package
   - id: "latticed-pro-nfpms"
@@ -229,7 +229,7 @@ nfpms:
     section: net
     priority: optional
     contents:
-      - src: ./packaging/latticed.service
+      - src: ./deploy/packaging/latticed.service
         dst: /usr/lib/systemd/system/latticed.service
     overrides:
       rpm:
@@ -239,8 +239,8 @@ nfpms:
         dependencies:
           - systemd
     scripts:
-      postinstall: ./packaging/scripts/latticed-post-install.sh
-      postremove: ./packaging/scripts/latticed-post-remove.sh
+      postinstall: ./deploy/packaging/scripts/latticed-post-install.sh
+      postremove: ./deploy/packaging/scripts/latticed-post-remove.sh
 
 brews:
   - name: lattice

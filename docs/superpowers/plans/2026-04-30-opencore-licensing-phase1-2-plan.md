@@ -322,7 +322,7 @@ func TestValidate_valid(t *testing.T) {
 	claims := Claims{
 		RegisteredClaims: jwt.RegisteredClaims{
 			Subject:   "cust-001",
-			Issuer:    "license.lattice.run",
+			Issuer:    "license.alattice.io",
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(24 * time.Hour)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
 		},
@@ -728,7 +728,7 @@ func TestManager_HasFeature(t *testing.T) {
 	claims := Claims{
 		RegisteredClaims: jwt.RegisteredClaims{
 			Subject:   "cust-010",
-			Issuer:    "license.lattice.run",
+			Issuer:    "license.alattice.io",
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(24 * time.Hour)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
 		},

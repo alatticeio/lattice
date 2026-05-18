@@ -346,7 +346,7 @@ func (d *ICEDialer) GatherCandidates() error {
     agent, _ := ice.NewAgent(&ice.AgentConfig{
         Urls: []*stun.URI{{
             Scheme: stun.SchemeTypeSTUN,
-            Host:   "stun.lattice.run",
+            Host:   "stun.alattice.io",
             Port:   3478,
         }},
         NetworkTypes: []ice.NetworkType{ice.NetworkTypeUDP4},

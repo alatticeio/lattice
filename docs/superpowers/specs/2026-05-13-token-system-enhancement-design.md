@@ -43,7 +43,7 @@ lattice://join?token=<token>&server=<server_url>&name=<name>
 示例：
 
 ```
-lattice://join?token=a1b2c3d4e5f6...&server=https://console.lattice.run&name=my-agent
+lattice://join?token=a1b2c3d4e5f6...&server=https://console.alattice.io&name=my-agent
 ```
 
 ### 1.2 QR 码生成
@@ -61,11 +61,11 @@ QR 码尺寸约 300×300 px，足够容纳一个 500 字符的 URL（`lattice://
 新增 `cmd/lattice/cmd/join.go`：
 
 ```
-$ lattice join "lattice://join?token=a1b2c3&server=https://console.lattice.run&name=my-agent"
+$ lattice join "lattice://join?token=a1b2c3&server=https://console.alattice.io&name=my-agent"
 
   → 解析 URL
   → 写入 lattice.yaml:
-      server_url: https://console.lattice.run
+      server_url: https://console.alattice.io
       auth_token: a1b2c3  (或 agent.enrollment_token: a1b2c3)
       agent.name: my-agent
   → lattice up
@@ -208,7 +208,7 @@ SSO 登录 → JWT → 创建 token（记录 `CreatedBy` = SSO user ID）。
    → POST /api/v1/invitations/create
 
 2. 用户 B 收到邀请链接（邮件 / 链接复制）
-   → https://console.lattice.run/invite/<hmac_token>
+   → https://console.alattice.io/invite/<hmac_token>
 
 3. 用户 B 打开链接 → SSO 登录（Dex OIDC）
    → 验证 OIDC identity → 寻找或创建 Lattice 用户
@@ -223,7 +223,7 @@ SSO 登录 → JWT → 创建 token（记录 `CreatedBy` = SSO user ID）。
 
 **关键设计**：
 
-- 邀请链接 `https://console.lattice.run/invite/<token>` 在 SSO 回调后，若邀请仍有效，自动生成一个绑定到该用户 SSO identity 的 agent token
+- 邀请链接 `https://console.alattice.io/invite/<token>` 在 SSO 回调后，若邀请仍有效，自动生成一个绑定到该用户 SSO identity 的 agent token
 - 一次邀请 → 一个专属 token → 一次使用（one-time）
 - Token 的 `CreatedBy` 记录为 SSO identity，`UsageLimit=1`
 - 前端展示："用户 B 已接受邀请，agent token 已生成"
@@ -249,7 +249,7 @@ SSO 登录 → JWT → 创建 token（记录 `CreatedBy` = SSO user ID）。
   "data": {
     "workspaceId": "ws-xxx",
     "agentToken": "a1b2c3...",
-    "joinURL": "lattice://join?token=a1b2c3...&server=https://console.lattice.run&name=laptop-b",
+    "joinURL": "lattice://join?token=a1b2c3...&server=https://console.alattice.io&name=laptop-b",
     "qrURL": "..."
   }
 }
@@ -263,7 +263,7 @@ SSO 登录 → JWT → 创建 token（记录 `CreatedBy` = SSO user ID）。
 
 ```
 1. 管理员生成 workspace 入网 QR 码
-   → QR 码指向：https://console.lattice.run/join?workspace=<ws_id>
+   → QR 码指向：https://console.alattice.io/join?workspace=<ws_id>
 
 2. 新用户扫描 QR 码（手机浏览器）
    → 打开 join 页面
@@ -297,7 +297,7 @@ SSO 登录 → JWT → 创建 token（记录 `CreatedBy` = SSO user ID）。
 **Workspace 加入 QR 码**：
 
 ```
-https://console.lattice.run/join?workspace=<ws_id>
+https://console.alattice.io/join?workspace=<ws_id>
 ```
 
 与 agent token QR 码（`lattice://join?token=...`）不同：
@@ -325,7 +325,7 @@ Token 审计日志关联 SSO identity：
   - 已登录 → 展示 workspace 信息和 agent 配置
 - 接受邀请后 → 调用 `POST /api/v1/invitations/accept-and-provision`
 - 展示生成的 `lattice://join` URL + QR 码 + 复制按钮
-- 可选：显示 CLI 安装指引（`curl -sSL https://get.lattice.run | bash`）
+- 可选：显示 CLI 安装指引（`curl -sSL https://get.alattice.io | bash`）
 
 ### 3.6 场景四：`lattice login` 双重 Token
 
@@ -338,7 +338,7 @@ Token 审计日志关联 SSO identity：
 
 ```bash
 $ lattice init
-  → Server URL: https://console.lattice.run
+  → Server URL: https://console.alattice.io
 
 $ lattice login
   → Username: alice@example.com
@@ -581,7 +581,7 @@ UI 分组展示：**平台内置**（`source: builtin`，不可管理）+ **外�
         "usedCount": 3,
         "expiresAt": "2026-05-20T14:00:00Z",
         "status": "active",
-        "qrURL": "lattice://join?token=a1b2c3...&server=https://console.lattice.run"
+        "qrURL": "lattice://join?token=a1b2c3...&server=https://console.alattice.io"
       },
       {
         "type": "enrollment",

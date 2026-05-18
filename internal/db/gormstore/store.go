@@ -33,6 +33,8 @@ type GormStore struct {
 	agentEnrollmentTokens store.AgentEnrollmentTokenRepository
 	refreshTokens         store.RefreshTokenRepository
 	seed                  store.SeedRepository
+	toolSpans             store.ToolSpanRepository
+	flowEvents            store.FlowEventRepository
 }
 
 // New creates the gormStore: first runs AutoMigrate, then initializes each sub-Repository.
@@ -62,6 +64,8 @@ func newStore(db *gorm.DB) *GormStore {
 		seed:                  newSeedRepo(db),
 		agentEnrollmentTokens: NewAgentEnrollmentTokenRepo(db),
 		refreshTokens:         newRefreshTokenRepo(db),
+		toolSpans:             NewToolSpanRepo(db),
+		flowEvents:            NewFlowEventRepo(db),
 	}
 }
 
@@ -86,6 +90,8 @@ func (s *GormStore) AgentEnrollmentTokens() store.AgentEnrollmentTokenRepository
 }
 func (s *GormStore) Seed() store.SeedRepository                  { return s.seed }
 func (s *GormStore) RefreshTokens() store.RefreshTokenRepository { return s.refreshTokens }
+func (s *GormStore) ToolSpans() store.ToolSpanRepository         { return s.toolSpans }
+func (s *GormStore) FlowEvents() store.FlowEventRepository       { return s.flowEvents }
 
 // Tx executes fn within a database transaction, providing a temporary Store for all Repository access.
 func (s *GormStore) Tx(ctx context.Context, fn func(store.Store) error) error {

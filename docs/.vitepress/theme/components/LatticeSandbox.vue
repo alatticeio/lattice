@@ -32,18 +32,19 @@ onMounted(() => {
   // Simulated demo experience
   const lines = [
     '$ lattice --version\r\n',
-    'lattice v0.2.0\r\n\n',
+    'lattice v0.3.0\r\n\n',
     '$ latticed start --dev\r\n',
     'INF Starting LatticeD all-in-one...\r\n',
     'INF NATS server started on :4222\r\n',
     'INF Web UI available at http://localhost:8080\r\n\n',
-    '$ lattice join --token wf_demo_xxxxxxxx\r\n',
-    'INF Establishing secure tunnel...\r\n',
-    'INF Peer enrolled: 10.42.0.1\r\n',
+    '$ lattice sandbox start --name agent-001 --token lt_demo\r\n',
+    'INF Registering sandbox via NATS name=agent-001\r\n',
+    'INF gVisor sandbox initialized localIP=10.42.0.5\r\n',
+    'INF ICE tunnel established peer=10.42.0.1\r\n',
     'INF Tunnel status: READY\r\n\n',
-    '$ lattice policy create allow-ssh --port 22 --target app=web\r\n',
-    'INF Policy "allow-ssh" created\r\n',
-    'INF Policy now active on 3 nodes\r\n',
+    '$ lattice policy create allow-tools --port 443 --target app=tools\r\n',
+    'INF Policy "allow-tools" created\r\n',
+    'INF Policy active on 2 nodes\r\n',
   ]
 
   let i = 0
@@ -87,7 +88,7 @@ onUnmounted(() => {
       <span class="dot red"></span>
       <span class="dot yellow"></span>
       <span class="dot green"></span>
-      <span class="title">Lattice Sandbox — try it live</span>
+      <span class="title">Lattice Sandbox — lattice sandbox start</span>
     </div>
     <div ref="terminalEl" class="sandbox-terminal"></div>
   </div>

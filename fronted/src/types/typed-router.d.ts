@@ -238,9 +238,37 @@ declare module 'vue-router/auto-routes' {
       Record<never, never>,
       | never
     >,
+    '/sandbox/AgentDetailDrawer': RouteRecordInfo<
+      '/sandbox/AgentDetailDrawer',
+      '/sandbox/AgentDetailDrawer',
+      Record<never, never>,
+      Record<never, never>,
+      | never
+    >,
     '/sandbox/audit': RouteRecordInfo<
       '/sandbox/audit',
       '/sandbox/audit',
+      Record<never, never>,
+      Record<never, never>,
+      | never
+    >,
+    '/sandbox/components/NetworkFlowTable': RouteRecordInfo<
+      '/sandbox/components/NetworkFlowTable',
+      '/sandbox/components/NetworkFlowTable',
+      Record<never, never>,
+      Record<never, never>,
+      | never
+    >,
+    '/sandbox/components/SubAgentsPanel': RouteRecordInfo<
+      '/sandbox/components/SubAgentsPanel',
+      '/sandbox/components/SubAgentsPanel',
+      Record<never, never>,
+      Record<never, never>,
+      | never
+    >,
+    '/sandbox/components/TracesSplitPanel': RouteRecordInfo<
+      '/sandbox/components/TracesSplitPanel',
+      '/sandbox/components/TracesSplitPanel',
       Record<never, never>,
       Record<never, never>,
       | never
@@ -503,9 +531,33 @@ declare module 'vue-router/auto-routes' {
       views:
         | never
     }
+    'src/pages/sandbox/AgentDetailDrawer.vue': {
+      routes:
+        | '/sandbox/AgentDetailDrawer'
+      views:
+        | never
+    }
     'src/pages/sandbox/audit.vue': {
       routes:
         | '/sandbox/audit'
+      views:
+        | never
+    }
+    'src/pages/sandbox/components/NetworkFlowTable.vue': {
+      routes:
+        | '/sandbox/components/NetworkFlowTable'
+      views:
+        | never
+    }
+    'src/pages/sandbox/components/SubAgentsPanel.vue': {
+      routes:
+        | '/sandbox/components/SubAgentsPanel'
+      views:
+        | never
+    }
+    'src/pages/sandbox/components/TracesSplitPanel.vue': {
+      routes:
+        | '/sandbox/components/TracesSplitPanel'
       views:
         | never
     }

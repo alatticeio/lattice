@@ -1,8 +1,14 @@
 ---
-title: Zero-Trust AI Agent Networking
+title: Agent Enrollment API
 ---
 
-# Zero-Trust AI Agent Networking
+# Agent Enrollment API
+
+::: info Two ways to give AI agents a Lattice identity
+**This page covers the HTTP Enrollment API** — agents call `POST /api/v1/agent-enroll` and receive a WireGuard config.
+
+For the **CLI sandbox** (`lattice sandbox start`) — which uses gVisor user-space isolation and requires zero privileges — see [Agent Platform → Sandbox](/agent/sandbox).
+:::
 
 AI agents introduce a new security threat: a compromised agent can **lateral move** across your infrastructure after a prompt injection attack. Lattice solves this at the network layer with WireGuard + Policy — **every agent gets its own identity with time-bound, network-isolated access.**
 

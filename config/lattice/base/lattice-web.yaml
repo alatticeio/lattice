@@ -59,7 +59,7 @@ metadata:
 spec:
   ingressClassName: traefik  # <--- 改为 traefik (k3d 默认)
   rules:
-    - host: lattice.run
+    - host: alattice.io
       http:
         paths:
           - path: /

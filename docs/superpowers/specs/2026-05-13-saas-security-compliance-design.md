@@ -32,10 +32,10 @@ metadata:
 spec:
   tls:
   - hosts:
-    - console.lattice.run
+    - console.alattice.io
     secretName: lattice-tls
   rules:
-  - host: console.lattice.run
+  - host: console.alattice.io
     http:
       paths:
       - path: /
@@ -392,7 +392,7 @@ API 使用 `Authorization: Bearer` header，天然不受 CSRF 影响（浏览器
 在 `cors.go` 中确保 CORS 跨域白名单：
 
 ```go
-config.AllowOrigins = []string{"https://console.lattice.run"} // 不可以用 *
+config.AllowOrigins = []string{"https://console.alattice.io"} // 不可以用 *
 ```
 
 ---

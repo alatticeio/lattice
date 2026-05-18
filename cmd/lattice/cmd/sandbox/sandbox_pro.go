@@ -18,7 +18,6 @@ package sandbox
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"log"
@@ -26,9 +25,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"strings"
-	"sync"
 	"syscall"
 	"time"
 
@@ -79,72 +76,16 @@ func registerStartFlags(cmd *cobra.Command) {
 	_ = cmd.MarkFlagRequired("token")
 }
 
-// sandboxCredentials holds the persisted registration state for crash recovery.
-type sandboxCredentials struct {
-	PrivateKey string `json:"privateKey"`
-	JWT        string `json:"jwt"`
-}
-
-func sandboxCredentialsFile() string {
-	dir := os.Getenv("LATTICE_CONFIG_DIR")
-	if dir == "" {
-		dir = "/etc/lattice"
-	}
-	return filepath.Join(dir, "sandbox-credentials.json")
-}
-
-func loadSandboxCredentials() (*sandboxCredentials, error) {
-	data, err := os.ReadFile(sandboxCredentialsFile())
-	if err != nil {
-		return nil, err
-	}
-	var creds sandboxCredentials
-	if err = json.Unmarshal(data, &creds); err != nil {
-		return nil, err
-	}
-	if creds.PrivateKey == "" || creds.JWT == "" {
-		return nil, fmt.Errorf("incomplete credentials")
-	}
-	return &creds, nil
-}
-
-func saveSandboxCredentials(privKey wgtypes.Key, jwt string) error {
-	creds := sandboxCredentials{PrivateKey: privKey.String(), JWT: jwt}
-	data, err := json.Marshal(creds)
-	if err != nil {
-		return err
-	}
-	_ = os.MkdirAll(filepath.Dir(sandboxCredentialsFile()), 0o755)
-	return os.WriteFile(sandboxCredentialsFile(), data, 0o600)
-}
+// PRO-only flags (not available in community edition).
+var (
+	sandboxProxyAddr    string
+	sandboxForwardRules []string
+	sandboxEgressAllow  string
+	sandboxEgressDeny   bool
+)
 
 // auditLogPath is where the sandbox writes JSONL audit events.
 const auditLogPath = "/tmp/lattice-audit.jsonl"
-
-// fileAuditWriter implements shim.AuditWriter by appending JSON lines to a file.
-type fileAuditWriter struct {
-	mu sync.Mutex
-	f  *os.File
-}
-
-func newFileAuditWriter(path string) (*fileAuditWriter, error) {
-	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
-	if err != nil {
-		return nil, err
-	}
-	return &fileAuditWriter{f: f}, nil
-}
-
-func (w *fileAuditWriter) Write(event shimfwd.AuditEvent) error {
-	data, err := json.Marshal(event)
-	if err != nil {
-		return err
-	}
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	_, err = fmt.Fprintf(w.f, "%s\n", data)
-	return err
-}
 
 func runStart(_ *cobra.Command, _ []string) error {
 	// Build egress policy from flags.

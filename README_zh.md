@@ -15,7 +15,7 @@ Lattice 构建身份感知（Identity-Aware）的虚拟化网络层，在一个�
 | **网络编排** | 解决跨云、跨 NAT 的异构节点自动化互联 | WireGuard 隧道自动化、ICE/STUN NAT 穿透、LRP 中继、K8s CRD 拓扑编排 |
 | **Agent 编排** | 实现意图驱动的 AI Agent 运行时安全隔离与流量审计 | MCP 协议、身份注册、eBPF 策略执行、意图引擎、Agent 沙箱 |
 
-了解更多：[lattice.run](https://lattice.run)
+了解更多：[alattice.io](https://alattice.io)
 
 ---
 
@@ -89,27 +89,36 @@ Lattice 采用"控制面与数据面分离"的标准分布式架构，自托管�
 - **AI 对话面板**：Web UI 内嵌 SSE 流式 AI 对话
 - **合规审计**：workspace 级别的安全策略审计
 
-### Roadmap（设计完成，待实现）
+### AI Agent Sandbox（已实现）
 
-**Phase 1 — Agent 运行时沙箱（社区版）** ([设计文档](docs/superpowers/specs/2026-05-11-agent-sandbox-and-ecosystem-design.md))
-- `lattice-agent-sandbox`：标准化 Agent 执行环境，cgroup 隔离
-- PID ↔ TUN 绑定：eBPF `cgroup/connect4` 强制进程流量走 WireGuard
+`lattice sandbox start` 是内置于 `lattice` 主二进制的零特权沙箱命令，社区版与 PRO 版均可用。
+
+**社区版**：gVisor 用户态网络栈 + NATS 注册 + ICE/LRP 打洞 + 本地文件审计
+**PRO 版**：新增出站策略过滤、入站端口转发、HTTP 正向代理、NATS 中心化审计
+
+```bash
+# 启动沙箱（首次需 enrollment token，重启后自动从 /etc/lattice/ 恢复凭证）
+lattice sandbox start \
+  --name my-agent \
+  --server-url https://lattice.company.com \
+  --token lt-enroll-xxx
+```
+
+核心能力：
+- **零特权**：无需 root、CAP_NET_ADMIN、内核模块；gVisor `pkg/tcpip` 替代内核 TUN
+- **一等节点**：与普通节点共享 NATS 信令 + ICE 打洞 + LRP relay 基础设施
+- **工具调用追踪**：每次工具调用自动记录 `tool_spans`，可通过 `/api/v1/agent-isolation/audit/traces` 查询
+- **Sub-agent 委派**：父 Agent 调用 `POST /api/v1/agent-isolation/delegate` 派生子 Agent，权限不超过父级
+- **凭证持久化**：重启后自动恢复身份，不消耗 enrollment token
+
+### Roadmap（待实现）
+
+- PID ↔ TUN 绑定：eBPF `cgroup/connect4` 强制 AI 进程流量走 WireGuard（彻底封堵 eth0 直连）
 - Sidecar 意图拦截：seccomp notify，零侵入拦截 Agent 外联
-
-**Phase 2 — 零特权深度隔离（PRO）**
-- **gVisor (runsc) 沙箱**：OCI 原生，无需 TUN、无需 eBPF、无需 root
-  - wireguard-go 直接附着 gVisor netstack link endpoint，纯用户态闭环
-  - Sentry 层 socket 拦截替代内核 eBPF TC hook
-- **`lattice-shim`**：独立 Go 库，gVisor netstack ⟷ wireguard-go 桥接，零 Lattice 依赖
-- **eBPF 流量镜像**：保留用于内核路径基础设施节点（高性能策略场景）
-
-**Phase 3 — 生态与可视化（社区版）**
 - 全局拓扑图：D3.js 力导向图，P2P/LRP 连接路径实时展示
-- 个人玩家模式：`lattice quickstart` 一键启动，零配置自建 Tailscale
 
-> **eBPF 定位说明**：引入 gVisor 后策略执行分为双轨——AI Agent 走 gVisor Sentry 纯用户态
-> 策略，基础设施节点继续走内核 TUN + eBPF TC ingress（PRO）或 iptables（社区版）。
-> eBPF 仍是 Lattice PRO 的核心差异化能力，只是不用于 Agent 沙箱路径。
+> **eBPF 定位**：基础设施节点继续走内核 TUN + eBPF TC ingress（PRO）或 iptables（社区版）。
+> Agent 沙箱路径走 gVisor 用户态策略，两条路径互不干扰。
 
 ---
 
@@ -145,6 +154,9 @@ kubectl apply -k https://github.com/alatticeio/lattice/config/lattice/overlays/a
 | 网络意图引擎 (自然语言 → 变更计划) | ✅ | ❌ | ❌ | ❌ |
 | 写操作审批工作流 | ✅ 内置 | N/A | N/A | N/A |
 | eBPF 内核级流量策略 | ✅ (PRO) | ❌ | ❌ | ❌ |
+| gVisor 零特权沙箱 | ✅ (社区版 + PRO) | ❌ | ❌ | ❌ |
+| 工具调用追踪 (tool_spans + 调用树) | ✅ | ❌ | ❌ | ❌ |
+| Sub-agent 委派 API | ✅ | ❌ | ❌ | ❌ |
 | Agent 运行时沙箱 (PID/TUN 绑定) | 🔜 | ❌ | ❌ | ❌ |
 | 合规对话 (Compliance-as-Conversation) | 🔜 | ❌ | ❌ | ❌ |
 

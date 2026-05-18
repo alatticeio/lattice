@@ -33,6 +33,9 @@ type AgentEnrollmentToken struct {
 	ExpiresAt time.Time
 	// CreatedBy is the user ID of the admin who created this token.
 	CreatedBy string `gorm:"size:64"`
+	// ParentAgentID carries the parent agent's ID through the delegation flow.
+	// Set by DelegateToken, read by RegisterAgent to populate JWT and AgentIdentity.
+	ParentAgentID string `gorm:"size:128"`
 }
 
 func (AgentEnrollmentToken) TableName() string { return "la_agent_enrollment_tokens" }

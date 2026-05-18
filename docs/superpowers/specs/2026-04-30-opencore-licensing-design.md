@@ -136,7 +136,7 @@ Library: `github.com/golang-jwt/jwt/v5` with `ed25519.PublicKey` verifier.
 {
   "jti": "uuid",
   "sub": "customer-uuid",
-  "iss": "license.lattice.run",
+  "iss": "license.alattice.io",
   "iat": 1746000000,
   "exp": 1777536000,
   "customer_name": "Acme Corp",
@@ -191,7 +191,7 @@ The server resolves the license file in priority order:
 
 2. **Online Heartbeat** (optional, Standard/Enterprise):
    - Configured via `lattice.yaml`: `license.heartbeat.enabled: true` (default: `false` for air-gapped compatibility)
-   - Endpoint configurable: `license.heartbeat.url` (default: `https://license.lattice.run/api/v1/heartbeat`)
+   - Endpoint configurable: `license.heartbeat.url` (default: `https://license.alattice.io/api/v1/heartbeat`)
    - Every 24 hours: `POST` with `{ license_id, instance_id, version, node_count, ts }`
    - Server response includes authoritative `server_time`; client stores this as `last_known_server_time`
    - `200 OK` → normal
@@ -237,7 +237,7 @@ Enterprise customers in regulated environments (finance, government, defense) th
 ## License Server (Your Side)
 
 ```
-license.lattice.run
+license.alattice.io
 ├── Portal: customer self-service purchase, license download, renewal (see Phase 4)
 ├── Generate license: sign Ed25519 JWT with current private key
 ├── Admin dashboard: customer list, activation status, usage stats

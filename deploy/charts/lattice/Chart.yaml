@@ -4,8 +4,8 @@ description: A self-hosted WireGuard mesh orchestration platform
 type: application
 version: 0.1.0
 appVersion: "0.1.0"
-icon: https://lattice.run/icon.png
-home: https://lattice.run
+icon: https://alattice.io/icon.png
+home: https://alattice.io
 sources:
   - https://github.com/alatticeio/lattice
 keywords:

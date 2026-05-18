@@ -1,474 +1,396 @@
-# Lattice Agent Platform 整合设计
+# Lattice Agent Platform 整合实现参考
 
-> 日期: 2026-05-16
-> 性质: 实现规范（结合现有代码的差量设计）
+> 日期: 2026-05-16（更新: 2026-05-18）
+> 性质: 实现参考文档（基于已合入 `dev` 分支的代码）
 > 关联: `2026-05-16-lattice-future-vision-and-roadmap.md`
 >       `2026-05-16-agent-sandbox-security-review-and-observability.md`
+>       `2026-05-18-sandbox-agent-architecture.md`（沙箱架构详细文档）
 
 ---
 
-## 零、现状盘点（先搞清楚已有什么）
+## 零、实现状态总览
 
-读代码后发现，现有实现比设计文档描述的更完善。下表是真实状态：
+本 PR（`dev` 分支）基于 `2026-05-16` 的差量设计，完成了 Agent Platform 的四项核心功能。下表是**实际完成状态**：
 
-| 能力 | 现状 | 结论 |
-|------|------|------|
-| AllowedTools 强制检查 | **已实现**，`ai.go:726` CheckToolAccess | 不需要重新设计 |
-| 工具调用日志 | **已实现**，logToolAudit（无 traceID） | 需要加 traceID |
-| gVisor AuditWriter 接入 | **已实现**，写到本地 `/tmp/lattice-audit.jsonl` | 需要改为上报控制面 |
-| gVisor 社区版 | **直接返回错误**，`start_sandbox_community.go` | 需要移入 Community |
-| AgentIdentity parentRef | **不存在** | 需要新增 CRD 字段 |
-| Delegate API（sub-agent） | **不存在** | 需要新增 |
-| tool_spans / flow_events 表 | **不存在** | 需要新增 |
-| Lattice Trace traceID | **不存在** | 需要新增 |
+| 能力 | 设计状态 | 实现状态 | 关键文件 |
+|------|---------|---------|---------|
+| gVisor 移入 Community（P1） | 社区版返回 "Pro feature" 错误 | **已实现**，`//go:build !pro` 完整 gVisor 沙箱 | `cmd/lattice/cmd/sandbox/sandbox_community.go` |
+| MCP Trace 可观测性（P2） | 无 traceID，无持久化 | **已实现**，`la_tool_spans` 表 + `ExecuteTool` 包裹 | `internal/server/models/tool_span.go`、`service/ai.go` |
+| Sub-agent Delegate API（P3） | 无 `parentRef`、无 Delegate 端点 | **已实现**，CRD 字段 + `DelegateToken()` + HTTP 端点 | `api/v1alpha1/agent_identity_types.go`、`service/agent_registration.go` |
+| NATS 流量审计（P4，PRO） | AuditWriter 写本地文件 | **服务端已实现**（`AuditConsumer` + `la_flow_events`），沙箱侧仍写本地文件 | `internal/server/controller/audit_consumer.go`（`//go:build pro`） |
 
-**结论：现有设计方向正确，不需要推翻，只需要差量补齐。**
+> **P4 进度说明**：服务端订阅 `lattice.audit.flow` 并持久化到 `la_flow_events` 表已就绪，
+> 但沙箱侧的 `natsAuditWriter`（负责发布到 NATS）尚未完成，PRO sandbox 目前也写本地文件。
+> 数据模型和服务端管道已打通，等待沙箱侧接入。
 
 ---
 
-## 一、最应该先做哪个
+## 一、gVisor 社区版（P1）
 
-按**投入产出比**排序：
-
-### 第一优先：gVisor 移入 Community（1-2 天）
-
-**为什么第一**：Community 版 sandbox 直接 `return nil, errors.New("gVisor agent sandbox is a Lattice Pro feature")`，用户根本感受不到沙箱价值，后续所有推广都是空谈。改动最小，影响最大。
-
-**改动范围**：
-- `cmd/lattice-agent-sandbox/cmd/start_sandbox_community.go` — 实现真正的沙箱（去掉 `//go:build !pro`，提取 gVisor 基础功能到 Community）
-- `cmd/lattice-agent-sandbox/cmd/start_sandbox_pro.go` — 保留 PRO 专属增强（加密审计、NATS trace 上报）
-- 分界线：Community = gVisor 网络隔离 + 本地文件审计；PRO = 中心化审计 + traceID + 加密参数
-
-### 第二优先：MCP Trace Middleware（3-5 天）
-
-**为什么第二**：工具调用日志已有，缺的是 `traceID`、持久化到 DB、查询 API。这是 Lattice Trace 的基础，不做后面所有可观测性都是空的。
-
-**改动范围**：
-- 新增 `tool_spans` DB 表（GORM model）
-- 在 `ai.go` ExecuteTool 前后生成 traceID、记录 span
-- 新增查询 API `GET /api/v1/audit/traces`
-
-### 第三优先：Sub-agent Delegate API（5-7 天）
-
-**为什么第三**：Multi-agent 是最核心的未来场景，但依赖前两个（需要 traceID 才能追溯调用链）。
-
-**改动范围**：
-- `AgentIdentity` CRD 新增 `parentRef` + `spawnableRoles`
-- `AgentRegistrationService` 新增 `Delegate()` 方法
-- 新增 API `POST /api/v1/agent-isolation/delegate`
-
-### 第四优先：gVisor AuditWriter → 控制面上报（5-7 天）
-
-**为什么第四**：AuditWriter 已接入，只是写到本地文件。改为上报到控制面才能中心化查询并与 tool_spans 关联。
-
-**改动范围**：
-- `start_sandbox_pro.go` fileAuditWriter → HTTP/NATS 上报审计事件
-- `flow_events` DB 表
-- 控制面新增接收审计事件的 endpoint
-
----
-
-## 二、差量设计
-
-### 2.1 gVisor Community 化
-
-**原则**：去掉 build tag 二元对立，改为三段式：
+### 文件结构
 
 ```
-Community:  gVisor 网络隔离 + 本地文件审计（已有逻辑，移走 build tag）
-PRO 扩展:   中心化审计上报 + 加密参数 + NATS traceID 订阅
+cmd/lattice/cmd/sandbox/
+├── sandbox.go            # 公共 flags（--name, --server-url, --token）
+├── sandbox_shared.go     # 共享：sandboxCredentials、fileAuditWriter（无 build tag）
+├── sandbox_community.go  # //go:build !pro — 完整社区版沙箱
+└── sandbox_pro.go        # //go:build pro  — PRO 专属增强
 ```
 
-**`start_sandbox_community.go` 新实现**（去掉 `//go:build !pro`，改为公共基础实现）：
+### 社区版 vs PRO 能力分界
 
-```go
-// 不再有 build tag，成为所有版本共用的基础沙箱实现。
-// PRO 版通过 start_sandbox_pro.go（build tag: pro）在此基础上注入增强能力。
+| 能力 | Community | PRO |
+|------|-----------|-----|
+| gVisor 用户态网络栈 | ✅ | ✅ |
+| NATS 注册 + ICE/LRP 连接 | ✅ | ✅ |
+| 凭证持久化（重启免重注册） | ✅ | ✅ |
+| 本地文件审计（`/tmp/lattice-audit-<name>.jsonl`） | ✅ | ✅（自定义路径） |
+| 出站策略过滤（`EgressFilter`，`--egress-allow`） | ❌ | ✅ |
+| 入站端口转发（`--forward`） | ❌ | ✅ |
+| HTTP 正向代理（`--proxy-addr`） | ❌ | ✅ |
 
-func createSandbox(sandboxName, localIP, agentJWT string,
-    wgEnabled bool, privateKey wgtypes.Key, peers []wgtypes.PeerConfig,
-    opts ...SandboxOption,  // PRO 版通过 opts 注入增强 AuditWriter/PolicyChecker
-) (*sandboxCloser, error) {
+### 社区版沙箱启动流程
 
-    // 默认：本地文件审计
-    auditWriter := newFileAuditWriter("/tmp/lattice-audit-" + sandboxName + ".jsonl")
+```
+1. 加载 /etc/lattice/sandbox-credentials.json（容器重启恢复路径）
+   ├── 成功 → ResumeSandboxViaNATS(jwt, privKey)
+   │   ├── OK  → 跳过注册，直接获取 VPN IP
+   │   └── 失败 → 降级走新注册
+   └── 不存在 → 走新注册
 
-    // PRO 版覆盖 auditWriter（通过 opts 注入）
-    for _, opt := range opts {
-        opt.apply(&auditWriter)
-    }
+2. 新注册：
+   a. wgtypes.GeneratePrivateKey()
+   b. RegisterSandboxViaNATS(serverURL, token, name, privKey)
+      → 返回 infra.Peer{Address, Token, LrpUrl, ...}
+   c. saveSandboxCredentials(privKey, peer.Token) → 0600 权限
 
-    cfg := gvisor.Config{
-        ID:          sandboxName,
-        LocalIP:     localIP,
-        AuditWriter: auditWriter,
-    }
-    // ... 其余 WireGuard 配置逻辑不变
+3. 若 peer.LrpUrl != "" → 开启 LRP relay
+
+4. fileAuditWriter → /tmp/lattice-audit-<name>.jsonl
+
+5. gvisor.New(Config{ID, LocalIP, AuditWriter, PolicyChecker: nil})
+   // Community 不传 PolicyChecker，放行全部出站
+
+6. gvisor.NewTUNAdapter(sb.Channel(), InjectIntoChannel)
+
+7. agent.NewNode(ctx, NodeConfig{CustomTUN, CurrentPeer, ...})
+   // 与普通节点共享 NATS signaling + ICE + LRP 基础设施
+
+8. node.Start(ctx) → go StartHeartbeat(30s) → go 周期 RefreshConfig(15s)
+
+9. 阻塞等待 SIGINT/SIGTERM → node.Stop()
+```
+
+### 凭证文件格式
+
+```json
+{
+  "privateKey": "base64-wg-private-key",
+  "jwt": "eyJ..."
 }
 ```
 
-**`start_sandbox_pro.go`**（`//go:build pro`）：只负责注入 PRO 增强：
-
-```go
-//go:build pro
-
-func init() {
-    // PRO 版在 cobra 的 PersistentPreRunE 中注入增强 opts
-    // 如: 加密 AuditWriter、NATS traceID 订阅
-}
-```
+路径：`$LATTICE_CONFIG_DIR/sandbox-credentials.json`（默认 `/etc/lattice/sandbox-credentials.json`），权限 `0600`。
 
 ---
 
-### 2.2 MCP Trace Middleware（最重要的新增）
+## 二、MCP Trace 可观测性（P2）
 
-#### 2.2.1 DB 表（新增）
+### DB 模型
 
 ```go
 // internal/server/models/tool_span.go
+// 表名: la_tool_spans
 
 type ToolSpan struct {
-    ID          uint      `gorm:"primaryKey;autoIncrement"`
-    TraceID     string    `gorm:"uniqueIndex;size:36"`   // UUID
-    AgentID     string    `gorm:"index;size:128"`
-    ParentID    string    `gorm:"index;size:128"`        // sub-agent 场景
-    Namespace   string    `gorm:"size:128"`
-    Tool        string    `gorm:"size:128"`
-    ArgsHash    string    `gorm:"size:64"`               // sha256（Community）
-    ArgsEncData []byte    // 加密密文（PRO，nil = 未加密）
-    ArgsEncKey  []byte    // RSA 加密的 data key（PRO）
-    Status      string    `gorm:"size:32"`               // ok | error | blocked
-    ErrorMsg    string
-    DurationMs  int64
-    StartedAt   time.Time `gorm:"index"`
+    Model                              // ID, CreatedAt, UpdatedAt, DeletedAt
+    TraceID    string    `gorm:"uniqueIndex;size:36" json:"traceId"`
+    AgentID    string    `gorm:"index;size:128"      json:"agentId"`
+    ParentID   string    `gorm:"index;size:128"      json:"parentId,omitempty"`   // sub-agent 场景
+    Namespace  string    `gorm:"size:128"            json:"namespace"`
+    Tool       string    `gorm:"size:128"            json:"tool"`
+    Status     string    `gorm:"size:32"             json:"status"` // ok | error | blocked
+    ErrorMsg   string    `gorm:"type:text"           json:"errorMsg,omitempty"`
+    DurationMs int64     `json:"durationMs"`
+    StartedAt  time.Time `gorm:"index"               json:"startedAt"`
 }
 ```
 
-#### 2.2.2 在 ExecuteTool 注入 traceID
+> 注：设计阶段提到的 `ArgsHash`/`ArgsEncData`/`ArgsEncKey` 在实现中未采用，以保持简洁性。
+> 如需参数记录，后续可以单独添加。
 
-`ai.go` ExecuteTool 当前结构：
+### ExecuteTool 中的 traceID 注入
 
-```go
-// 现有代码（已有）
-if s.agentIsolation != nil {
-    if err := s.agentIsolation.CheckToolAccess(ctx, namespace, name); err != nil {
-        s.logToolAudit(ctx, namespace, name, AuditActionAgentToolBlocked)
-        return "", err
-    }
-}
-s.logToolAudit(ctx, namespace, name, AuditActionAgentToolCall)
-```
-
-**改动**：在 CheckToolAccess 前后包一层 Trace：
+`internal/server/service/ai.go`（`ExecuteTool` 方法，约 759 行起）：
 
 ```go
-// 新增：生成 traceID，注入 ctx
 traceID := uuid.New().String()
-ctx = context.WithValue(ctx, traceIDKey{}, traceID)
 start := time.Now()
-
 status := "ok"
+
+// RBAC 检查
 if s.agentIsolation != nil {
     if err := s.agentIsolation.CheckToolAccess(ctx, namespace, name); err != nil {
-        status = "blocked"
-        s.writeToolSpan(ctx, namespace, name, traceID, start, status, err.Error())
         s.logToolAudit(ctx, namespace, name, AuditActionAgentToolBlocked)
+        s.writeToolSpan(ctx, namespace, name, traceID, start, "blocked", err.Error())
         return "", err
     }
 }
 s.logToolAudit(ctx, namespace, name, AuditActionAgentToolCall)
 
-result, err := s.dispatchTool(ctx, namespace, name, input) // 提取 switch 到独立函数
-
+result, err := s.dispatchTool(...)    // 执行工具
 if err != nil {
     status = "error"
 }
 s.writeToolSpan(ctx, namespace, name, traceID, start, status, errorMsg(err))
-return result, err
 ```
 
+`writeToolSpan` 从 context 读取 `AgentClaims`，提取 `AgentID` 和 `ParentAgentID`：
+
 ```go
-// 新增方法
 func (s *aiService) writeToolSpan(ctx context.Context, namespace, tool, traceID string,
     start time.Time, status, errMsg string) {
-
     claims := agentClaimsFromContext(ctx)
     agentID, parentID := "", ""
     if claims != nil {
         agentID = claims.AgentID
-        parentID = claims.ParentAgentID // 新增字段，见 2.3
+        parentID = claims.ParentAgentID
     }
-
     span := &models.ToolSpan{
-        TraceID:    traceID,
-        AgentID:    agentID,
-        ParentID:   parentID,
-        Namespace:  namespace,
-        Tool:       tool,
-        ArgsHash:   "", // TODO: 从 input 计算
-        Status:     status,
-        ErrorMsg:   errMsg,
-        DurationMs: time.Since(start).Milliseconds(),
-        StartedAt:  start,
+        TraceID: traceID, AgentID: agentID, ParentID: parentID,
+        Namespace: namespace, Tool: tool, Status: status,
+        ErrorMsg: errMsg, DurationMs: time.Since(start).Milliseconds(),
+        StartedAt: start,
     }
-    if s.toolSpanStore != nil {
-        _ = s.toolSpanStore.Write(span)
-    }
+    _ = s.toolSpanRepo.Write(ctx, span)
 }
 ```
 
-#### 2.2.3 查询 API（新增）
+`SetToolSpanRepo(svc, repo)` 是注入点，服务启动时由 `server.go` 调用。
 
-```
-GET /api/v1/audit/traces?agentId=xxx&from=RFC3339&to=RFC3339&limit=50
-GET /api/v1/audit/traces/:traceId
-GET /api/v1/audit/agents/:agentId/calltree    # 含 sub-agent 调用树
-```
+### 查询 API
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/api/v1/agent-isolation/audit/traces` | 分页列表，支持 `agentId`、`from`、`to`（RFC3339）、`limit`（默认 50） |
+| GET | `/api/v1/agent-isolation/audit/traces/:id` | 按 traceId 查单条 |
+
+> 注：设计阶段规划的 `/calltree` 端点（调用树查询）**未在此次实现**，父子关系已记录在
+> `ParentID` 字段，调用树查询可在后续通过在存储层递归 `ParentID` 实现。
 
 ---
 
-### 2.3 Sub-agent Delegate API
+## 三、Sub-agent Delegate API（P3）
 
-#### 2.3.1 AgentIdentity CRD 新增字段
+### CRD 新增字段（`api/v1alpha1/agent_identity_types.go`）
 
 ```go
-// api/v1alpha1/agent_identity_types.go
-
 type AgentIdentitySpec struct {
-    // ... 现有字段不变 ...
+    PeerRef           string          // 关联的 LatticePeer 名称
+    AllowedTools      []string        // 工具白名单
+    AllowedNamespaces []string        // 允许操作的 namespace 列表
+    Sandbox           SandboxMode     // none | pod | gvisor | microvm
+    AuditLevel        AuditLevel      // none | write | full
+    EnforcementMode   EnforcementMode // disabled | audit | enforce
 
-    // ParentRef 指向父 AgentIdentity 的名称（sub-agent 场景）。
-    // 空字符串表示顶级 Agent。
-    // +optional
-    ParentRef string `json:"parentRef,omitempty"`
-
-    // SpawnableRoles 是该 Agent 被允许创建的子 Agent 角色名列表。
-    // 子 Agent 继承角色模板的权限，不受父 Agent 自身权限限制。
-    // 空列表表示不允许创建任何子 Agent。
-    // +optional
+    // 新增：sub-agent 场景
+    ParentRef      string   `json:"parentRef,omitempty"`
     SpawnableRoles []string `json:"spawnableRoles,omitempty"`
 }
 ```
 
-#### 2.3.2 AgentClaims 新增 ParentAgentID
+### JWT Claims（`internal/server/models/agent_claims.go`）
 
 ```go
-// internal/server/models/agent_claims.go
-
 type AgentClaims struct {
     jwt.RegisteredClaims
     AgentID       string   `json:"agent_id"`
     Namespace     string   `json:"namespace"`
     AllowedTools  []string `json:"allowed_tools"`
-    ParentAgentID string   `json:"parent_agent_id,omitempty"` // 新增
+    ParentAgentID string   `json:"parent_agent_id,omitempty"` // sub-agent 场景
 }
 ```
 
-#### 2.3.3 Delegate API
-
-```go
-// internal/server/service/agent_registration.go
-
-type DelegateRequest struct {
-    // ParentJWT 是父 Agent 的 JWT（由父进程传入）。
-    ParentJWT      string   `json:"parentJWT"`
-    // AgentName 是子 Agent 的期望名称。
-    AgentName      string   `json:"agentName"`
-    // RequestedTools 是子 Agent 请求的工具列表。
-    // 若父 Agent 走 delegate 派生，服务端会校验 RequestedTools ⊆ parent.AllowedTools。
-    RequestedTools []string `json:"requestedTools"`
-    // RoleName 非空时走 SpawnableRoles 路径（子权限可大于父）。
-    // 服务端校验 parent.SpawnableRoles 包含此角色名。
-    RoleName string `json:"roleName,omitempty"`
-}
-
-type DelegateResponse struct {
-    // EnrollmentToken 是一次性的子 Agent 注册 Token。
-    // 子 Agent 用此 Token 调用 RegisterAgent 注册自己，获得独立 WireGuard 身份。
-    EnrollmentToken string    `json:"enrollmentToken"`
-    ExpiresAt       time.Time `json:"expiresAt"`
-}
-
-// AgentRegistrationService 新增接口方法：
-type AgentRegistrationService interface {
-    // ... 现有方法 ...
-    DelegateToken(ctx context.Context, req DelegateRequest) (*DelegateResponse, error)
-}
-```
-
-**实现逻辑**：
+### DelegateToken 逻辑（`internal/server/service/agent_registration.go`）
 
 ```
-DelegateToken(req):
-  1. 解析 parentJWT → parentClaims（ValidateAgentJWT）
-  2. 分支判断：
-     a. req.RoleName 非空
-        → 查 K8s AgentIdentity(parentClaims.AgentID).Spec.SpawnableRoles
-        → 校验包含 req.RoleName
-        → 从角色模板取 allowedTools（不受父级限制）
-     b. req.RoleName 为空
+DelegateToken(req DelegateRequest):
+  1. ValidateAgentJWT(req.ParentJWT) → parentClaims
+
+  2. 权限计算（两路径）：
+     a. req.RoleName 非空（SpawnableRoles 路径）
+        → Get K8s AgentIdentity(parentClaims.AgentID)
+        → 校验 parentIdentity.Spec.SpawnableRoles 包含 req.RoleName
+        → Get AgentIdentity(req.RoleName) 作为角色模板
+        → allowedTools = roleTemplate.Spec.AllowedTools
+        → 子权限可以超过父级（管理员预授权）
+
+     b. req.RoleName 为空（派生路径）
         → 校验 req.RequestedTools ⊆ parentClaims.AllowedTools
         → allowedTools = req.RequestedTools
+        → 子权限严格不超过父级
+
   3. 创建一次性 EnrollmentToken（TTL=15min）
-     → 额外携带 parentAgentID = parentClaims.AgentID
-  4. 子 Agent 用此 Token 调用 RegisterAgent
-     → RegisterAgent 读出 parentAgentID，写入 AgentIdentity.Spec.ParentRef
-     → 签发的子 JWT 携带 ParentAgentID claim
+     → AgentEnrollmentToken.ParentAgentID = parentClaims.AgentID
+
+  4. 子 Agent 用此 Token 调用 POST /api/v1/agent-isolation/register
+     → RegisterAgent 读出 ParentAgentID → 写入 AgentIdentity.Spec.ParentRef
+     → 签发的子 Agent JWT 携带 parent_agent_id claim
 ```
 
-**HTTP endpoint**：
+### HTTP 端点
 
 ```
 POST /api/v1/agent-isolation/delegate
 Authorization: Bearer <parent-agent-jwt>
+
 {
-  "agentName": "sub-executor-001",
+  "agentName":      "sub-executor-001",
   "requestedTools": ["exec", "read"],
-  "roleName": ""    // 或填角色名走 SpawnableRoles 路径
+  "roleName":       ""               // 填角色名则走 SpawnableRoles 路径
+}
+
+响应:
+{
+  "code": 200,
+  "data": {
+    "enrollmentToken": "abc123...",
+    "expiresAt": "2026-05-18T14:15:00Z"
+  }
 }
 ```
 
-#### 2.3.4 SDK 集成（子 Agent 侧零感知）
+### 完整 API 路由表（`internal/server/server/agent_isolation_router.go`）
 
-```python
-# lattice-sdk-python
-
-class LatticeAgent:
-    def spawn(self, name: str, tools: list[str] | None = None, role: str | None = None):
-        """父 Agent 调用，创建子 Agent。子进程自动继承环境变量。"""
-        # 调用 DelegateToken API 获取一次性 token
-        token = self._delegate(name, tools, role)
-        # 在子进程环境中注入 token
-        env = {
-            **os.environ,
-            "LATTICE_ENROLLMENT_TOKEN": token,
-            "LATTICE_PARENT_AGENT_ID": self.agent_id,
-            "LATTICE_SERVER_URL": self.server_url,
-        }
-        return subprocess.Popen(["python", "sub_agent.py"], env=env)
-
-# 子 Agent 侧：自动检测环境变量，完成注册
-class LatticeAgent:
-    def __init__(self):
-        if token := os.getenv("LATTICE_ENROLLMENT_TOKEN"):
-            self._register_with_token(token)  # 走正常注册流程，自动携带 parentRef
-```
+| 方法 | 路径 | 认证 | 说明 |
+|------|------|------|------|
+| POST | `/api/v1/agent-isolation/register` | 无（enrollment token 在 body）| Agent 用一次性 token 注册，换取 JWT |
+| POST | `/api/v1/agent-isolation/enrollment-tokens` | 用户 JWT | 创建一次性 enrollment token |
+| DELETE | `/api/v1/agent-isolation/agents/:name` | 用户 JWT | 吊销 Agent（Patch AgentIdentity status → Revoked） |
+| GET | `/api/v1/agent-isolation/audit/traces` | 用户 JWT | 列出工具调用 span |
+| GET | `/api/v1/agent-isolation/audit/traces/:id` | 用户 JWT | 查单条 span |
+| POST | `/api/v1/agent-isolation/delegate` | Agent JWT | 派生子 Agent enrollment token |
 
 ---
 
-### 2.4 gVisor AuditWriter → 控制面上报（PRO）
+## 四、NATS 流量审计（P4，PRO）
 
-**流量事件表**：
+### 服务端（已就绪）
+
+**`la_flow_events` 表**（`internal/server/models/flow_event.go`）：
 
 ```go
-// internal/server/models/flow_event.go
-
 type FlowEvent struct {
-    ID        uint      `gorm:"primaryKey;autoIncrement"`
-    TraceID   string    `gorm:"index;size:36"`   // 关联 tool_spans.trace_id
-    AgentID   string    `gorm:"index;size:128"`
-    Direction string    `gorm:"size:16"`          // egress | ingress
-    DstIP     string    `gorm:"size:64"`
-    DstPort   int
-    Bytes     int64
-    Ts        time.Time `gorm:"index"`
+    Model
+    TraceID   string    `gorm:"index;size:36"  json:"traceId"`   // 关联 la_tool_spans
+    AgentID   string    `gorm:"index;size:128" json:"agentId"`
+    Direction string    `gorm:"size:16"        json:"direction"` // egress | ingress
+    DstIP     string    `gorm:"size:64"        json:"dstIp"`
+    DstPort   int       `json:"dstPort"`
+    Bytes     int64     `json:"bytes"`
+    Ts        time.Time `gorm:"index"          json:"ts"`
 }
 ```
 
-**PRO AuditWriter 改为 NATS 上报**：
+**NATS 订阅**（`internal/server/controller/audit_consumer.go`，`//go:build pro`）：
 
 ```go
-// start_sandbox_pro.go 中替换 fileAuditWriter
+// 订阅 lattice.audit.flow，收到消息后写入 la_flow_events
+type AuditConsumer struct {
+    nc         *nats.Conn
+    flowEvents store.FlowEventRepository
+    sub        *nats.Subscription
+}
 
+// FlowAuditMsg 是沙箱侧发布的消息格式
+type FlowAuditMsg struct {
+    AgentID   string `json:"agentId"`
+    TraceID   string `json:"traceId"`    // 关联对应的工具调用 span
+    Direction string `json:"direction"`
+    DstIP     string `json:"dstIp"`
+    DstPort   int    `json:"dstPort"`
+    Bytes     int64  `json:"bytes"`
+    Ts        string `json:"ts"`         // RFC3339Nano
+}
+```
+
+服务端通过 `initFlowAuditConsumer(natsURL, store)`（`audit_consumer_pro.go`，`//go:build pro`）在启动时初始化订阅。
+
+### 沙箱侧（待实现）
+
+目前 PRO sandbox 也使用 `fileAuditWriter` 写本地文件。后续需要实现 `natsAuditWriter`：
+
+```go
+// 待实现（cmd/lattice/cmd/sandbox/sandbox_pro.go）
 type natsAuditWriter struct {
     nc      *nats.Conn
     agentID string
 }
 
-func (w *natsAuditWriter) WriteAudit(agentID string, event shim.AuditEvent) error {
+func (w *natsAuditWriter) Write(event shimfwd.AuditEvent) error {
     payload, _ := json.Marshal(FlowAuditMsg{
-        TraceID: activeTraceID(agentID), // 从内存 map 读取当前 traceID
-        AgentID: agentID,
-        Event:   event,
+        AgentID:   w.agentID,
+        TraceID:   "", // 需要从全局 traceID 上下文读取
+        Direction: "egress",
+        DstIP:     event.DstIP,
+        DstPort:   event.DstPort,
+        Bytes:     event.Bytes,
+        Ts:        time.Now().UTC().Format(time.RFC3339Nano),
     })
     return w.nc.Publish("lattice.audit.flow", payload)
 }
 ```
 
-**控制面订阅**（`internal/server/controller/audit_consumer.go`）：
+> 主要挑战：sandbox 进程与控制面的 `writeToolSpan` 在不同进程，traceID 需要通过某种方式（如通过 JWT context 注入或环境变量）传递到 AuditWriter。
 
-```go
-// 订阅 NATS，写入 flow_events 表
-nc.Subscribe("lattice.audit.flow", func(msg *nats.Msg) {
-    var m FlowAuditMsg
-    json.Unmarshal(msg.Data, &m)
-    flowEventStore.Write(&models.FlowEvent{
-        TraceID: m.TraceID,
-        AgentID: m.AgentID,
-        DstIP:   m.Event.DstIP,
-        DstPort: m.Event.DstPort,
-        Bytes:   m.Event.Bytes,
-        Ts:      time.Now(),
-    })
-})
+---
+
+## 五、AgentIdentity CRD 完整字段参考
+
+```yaml
+apiVersion: lattice.io/v1alpha1
+kind: AgentIdentity
+metadata:
+  name: my-agent
+  namespace: default
+spec:
+  peerRef: my-agent                          # 关联的 LatticePeer 名称
+  allowedTools:
+    - list_peers
+    - check_connectivity
+    - create_policy
+  allowedNamespaces:
+    - default
+  sandbox: gvisor                            # none | pod | gvisor | microvm
+  auditLevel: write                          # none | write | full
+  enforcementMode: enforce                   # disabled | audit | enforce
+  parentRef: ""                              # 父 AgentIdentity（sub-agent 场景）
+  spawnableRoles: []                         # 允许派生的角色模板名称列表
+status:
+  phase: Active                              # Active | Revoked | Expired
 ```
 
 ---
 
-## 三、需要改动的现有设计总结
+## 六、前端 AgentDetailDrawer
 
-| 文件/模块 | 变动类型 | 说明 |
-|-----------|---------|------|
-| `start_sandbox_community.go` | 重写 | 去掉 "Pro feature" 错误，实现真正的社区版沙箱 |
-| `start_sandbox_pro.go` | 瘦身 | 只保留 PRO 增强（加密审计、NATS 上报） |
-| `agent_identity_types.go` | 新增字段 | `parentRef`、`spawnableRoles` |
-| `agent_claims.go` | 新增字段 | `ParentAgentID` |
-| `agent_registration.go` | 新增方法 | `DelegateToken()` |
-| `ai.go` (ExecuteTool) | 微改 | 包一层 traceID 生成 + writeToolSpan |
-| `agent_isolation_router.go` | 新增路由 | `POST /delegate`、`GET /audit/traces` |
-| DB migrations | 新增 | `tool_spans`、`flow_events` 表 |
-| `agent_enrollment.go` (model) | 新增字段 | `ParentAgentID` 透传 |
+`fronted/src/composables/useAgentDetailDrawer.ts` 提供模块级单例状态管理：
 
-**不需要改的**：
-- `AgentIsolationService.CheckToolAccess` — 已经正确实现
-- `AgentRegistrationService.RegisterAgent` / `CreateEnrollmentToken` — 只需要加 Delegate 方法
-- `gvisor/sandbox.go` — Config.AuditWriter 接口已经预留好，不需要改
-- LatticePolicy CRD — 网络层策略已完整
+| Tab | 数据来源 | 功能 |
+|-----|---------|------|
+| Traces | `GET /api/v1/agent-isolation/audit/traces` | 工具调用记录列表，点击查看单条详情 |
+| Network | `GET /api/v1/agent-isolation/audit/traces/:id` 关联 flow events | gVisor 出站流量（PRO） |
+| Sub-agents | 本地过滤 `listSandboxes()` | 展示子 Agent 列表，触发 Delegate 对话框 |
+
+Delegate 对话框调用 `POST /api/v1/agent-isolation/delegate`（需要父 Agent JWT），返回一次性 enrollment token 供子 Agent 使用。
 
 ---
 
-## 四、实现顺序与工作量估算
+## 七、未实现项（遗留 Roadmap）
 
-```
-Sprint 1（本周）: gVisor 移入 Community
-  改动: start_sandbox_community.go 重写
-  工作量: 1-2 天
-  验收: make test-e2e 无需 IS_PRO=true 沙箱测试也通过
-
-Sprint 2（下周）: MCP Trace Middleware
-  改动: ToolSpan model + DB migration + ExecuteTool 包装 + 查询 API
-  工作量: 3-5 天
-  验收: 每次工具调用可在 /api/v1/audit/traces 查到记录
-
-Sprint 3（2 周后）: Sub-agent Delegate API
-  改动: CRD 字段 + AgentClaims + DelegateToken + HTTP endpoint
-  工作量: 5-7 天
-  验收: 子 Agent 用 delegate token 注册，AgentIdentity.parentRef 正确填写，
-        calltree API 能还原父子关系
-
-Sprint 4（3 周后）: AuditWriter → 控制面上报（PRO）
-  改动: natsAuditWriter + NATS 订阅 + flow_events 表
-  工作量: 5-7 天
-  验收: 工具调用的网络流量能在 /api/v1/audit/traces/:id 里看到关联的流事件
-```
-
-**总计**：约 4 个 Sprint，3-4 周完成 Q2 2026 所有 P0/P1 项。
-
----
-
-## 五、验收标准（Q2 2026 完成后）
-
-1. **Community 用户** 可以用 `lattice-agent-sandbox start` 启动真正的 gVisor 沙箱，网络流量受 WireGuard 隔离，操作被记录到本地审计文件
-2. **每次 MCP 工具调用** 在控制面可以查到：谁调用的、什么工具、结果、耗时
-3. **Claude Code 类场景**：父 Agent 调用 `delegate` API 获得子 Token，子 Agent 以独立 WireGuard 身份注册，权限不超过父级（或来自管理员授权的 role template）
-4. **PRO 版**：工具调用记录包含 traceID，gVisor 流量事件关联到对应工具调用
+| 功能 | 原因 | 建议时机 |
+|------|------|---------|
+| `/calltree` 查询端点 | 未在此次 Sprint 实现；`ParentID` 字段已就绪 | 下次迭代，存储层递归查询 |
+| sandbox 侧 `natsAuditWriter` | 需要解决跨进程 traceID 传递问题 | P4 完整版 |
+| PID ↔ TUN 绑定（eBPF `cgroup/connect4`） | 需要 root + 内核 5.10+ | 长期 Roadmap |
+| Sidecar 意图拦截（seccomp notify） | 架构复杂，需单独设计 | 长期 Roadmap |

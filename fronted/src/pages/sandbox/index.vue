@@ -8,6 +8,8 @@ import {
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { useSandboxStore } from '@/stores/useSandboxStore'
+import { useAgentDetailDrawer } from '@/composables/useAgentDetailDrawer'
+import AgentDetailDrawer from './AgentDetailDrawer.vue'
 import { toast } from 'vue-sonner'
 
 definePage({
@@ -16,6 +18,7 @@ definePage({
 
 const { t } = useI18n()
 const store = useSandboxStore()
+const drawer = useAgentDetailDrawer()
 
 onMounted(() => store.fetchSandboxes())
 
@@ -72,7 +75,12 @@ async function handleRevoke(name: string) {
           </TableRow>
         </TableHeader>
         <TableBody>
-          <TableRow v-for="s in store.sandboxes" :key="s.name">
+          <TableRow
+          v-for="s in store.sandboxes"
+          :key="s.name"
+          class="cursor-pointer hover:bg-muted/50"
+          @click="drawer.openDrawer(s)"
+        >
             <TableCell class="font-medium">{{ s.name }}</TableCell>
             <TableCell>
               <Badge :class="statusClass(s.status)" variant="secondary">
@@ -94,5 +102,6 @@ async function handleRevoke(name: string) {
         </TableBody>
       </Table>
     </div>
+    <AgentDetailDrawer />
   </div>
 </template>

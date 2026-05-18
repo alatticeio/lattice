@@ -10,10 +10,10 @@ spec:
   ingressClassName: nginx
   tls:
   - hosts:
-    - console.lattice.run
+    - console.alattice.io
     secretName: lattice-tls
   rules:
-  - host: console.lattice.run
+  - host: console.alattice.io
     http:
       paths:
       - path: /

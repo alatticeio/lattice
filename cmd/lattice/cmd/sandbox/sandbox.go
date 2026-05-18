@@ -19,13 +19,9 @@ import (
 )
 
 var (
-	sandboxName         string
-	sandboxServerURL    string
-	sandboxToken        string
-	sandboxProxyAddr    string
-	sandboxForwardRules []string
-	sandboxEgressAllow  string
-	sandboxEgressDeny   bool
+	sandboxName      string
+	sandboxServerURL string
+	sandboxToken     string
 )
 
 // SandboxCmd returns the top-level `sandbox` cobra command.

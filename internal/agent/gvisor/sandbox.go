@@ -1,5 +1,3 @@
-//go:build pro
-
 // Copyright 2026 The Lattice Authors, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -134,7 +132,7 @@ func New(cfg Config) (*Sandbox, error) {
 		ep.Outbound = func(packet []byte) error {
 			view := buffer.NewViewWithData(packet)
 			var buf buffer.Buffer
-			buf.Append(view)
+			_ = buf.Append(view)
 			pkt := stack.NewPacketBuffer(stack.PacketBufferOptions{
 				Payload: buf,
 			})

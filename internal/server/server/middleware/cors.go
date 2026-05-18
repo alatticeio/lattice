@@ -6,7 +6,7 @@ import "github.com/gin-gonic/gin"
 // The wildcard "*" is intentionally omitted: when AllowCredentials is true,
 // the CORS spec requires a specific origin, not "*".
 var allowedOrigins = map[string]bool{
-	"https://console.lattice.run": true,
+	"https://console.alattice.io": true,
 	"http://localhost:5173":       true,
 }
 
