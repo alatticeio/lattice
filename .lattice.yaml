@@ -3,7 +3,7 @@ enable-lrp: false
 help: false
 level: debug
 listen: :8080
-management-url: http://lattice.run
+management-url: https://alattice.io
 save: true
 server-url: ""
 show-system-log: false

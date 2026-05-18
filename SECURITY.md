@@ -6,7 +6,7 @@ We take the security of Lattice seriously. If you discover a security vulnerabil
 
 **Do not report security vulnerabilities through public GitHub issues.**
 
-Instead, report via email to: **info@lattice.run**
+Instead, report via email to: **info@alattice.io**
 
 You should receive a response within 48 hours. If you do not, please follow up to ensure we received your original message.
 

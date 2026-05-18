@@ -15,7 +15,7 @@ internal/web/dist/*
 !internal/web/dist/placeholder
 !internal/web/dist/.gitkeep
 *.tsbuildinfo
-docs/design/
+
 docs/node_modules/
 docs/.vitepress/cache/
 *.out

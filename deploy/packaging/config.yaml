@@ -1,0 +1,3 @@
+# packaging/config.yaml
+# Lattice configuration template.
+# Copy to /etc/lattice/config.yaml and edit as needed.

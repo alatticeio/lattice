@@ -16,7 +16,7 @@
 
 Lattice is a self-hosted platform built around **two core pillars**: a **network orchestration engine** that connects any device — servers, containers, IoT, Kubernetes pods — into an encrypted WireGuard overlay mesh, and an **AI agent sandbox** that gives every AI agent a zero-trust WireGuard identity with kernel-level isolation and natural-language policy management.
 
-[**Website**](https://lattice.run) · [**Documentation**](https://lattice.run/docs) · [**Issues**](https://github.com/alatticeio/lattice/issues)
+[**Website**](https://alattice.io) · [**Documentation**](https://alattice.io/docs) · [**Issues**](https://github.com/alatticeio/lattice/issues)
 
 </div>
 
@@ -51,10 +51,11 @@ Give every AI agent a secure network identity — kernel-level isolation, natura
 | **Zero-Trust Enrollment** | Single-use Enrollment Token (TTL + usage limit) → auto-create LatticePeer + AgentIdentity → issue JWT — no manual key setup |
 | **Agent Isolation Enforcement** | `ExecuteTool()` path enforces: is the identity expired/revoked? is the namespace whitelisted? is the tool whitelisted? Audit mode logs violations; enforce mode blocks them |
 | **Agent JWT Auth Middleware** | HS256-signed, 365-day expiry, injected into Gin context; human users and agents share the same API, context auto-detects the caller |
-| **gVisor Sandbox (PRO)** | `lattice-agent-sandbox` CLI + `internal/agent/gvisor/` runtime: user-space kernel (runsc), zero privileges, no TUN, no eBPF; channel endpoint bridges WireGuard; policy adapter hooks into Lattice policy layer |
+| **gVisor Sandbox** | `lattice sandbox start` CLI + `internal/agent/gvisor/` runtime: user-space netstack (pkg/tcpip), zero privileges, no TUN, no eBPF; full ICE/LRP peer connectivity shared with regular agents; Community: network isolation + local audit; PRO: adds egress policy, port forwarding, HTTP proxy, centralized NATS audit |
 | **MCP Server** | `lattice-mcp` binary for Claude Desktop / Cursor; 14 tools (read: list_peers, list_policies, check_connectivity, etc.; write: create_policy, delete_peer, etc. with human approval) |
 | **Intent Engine (PRO)** | Natural language → LLM extracts CRD change plan → Markdown diff preview → approve → apply — full human-in-the-loop workflow |
-| **Tool Call Audit** | Every agent tool call writes an audit log (allowed/blocked); test coverage in `ai_audit_test.go` |
+| **Tool Call Audit & Trace** | Every agent tool call records a `tool_spans` entry (traceID, agentID, tool, status, durationMs); query via `GET /api/v1/agent-isolation/audit/traces`; PRO: gVisor flow events linked to traces |
+| **Sub-agent Delegation** | Parent agent calls `POST /api/v1/agent-isolation/delegate` to spawn a child agent with scoped tool permissions; child registers independently with its own WireGuard identity; call tree queryable via API |
 
 ---
 
@@ -78,7 +79,7 @@ Give every AI agent a secure network identity — kernel-level isolation, natura
 |------------|---------|-----------|---------|----------|
 | Agent zero-trust enrollment (TTL + network isolation presets) | ✅ | ❌ | ❌ | ❌ |
 | AgentIdentity CRD + RBAC | ✅ | ❌ | ❌ | ❌ |
-| gVisor user-space kernel sandbox | ✅ (PRO) | ❌ | ❌ | ❌ |
+| gVisor user-space kernel sandbox | ✅ (Community + PRO) | ❌ | ❌ | ❌ |
 | MCP Server (AI assistant manages network via natural language) | ✅ | ❌ | ❌ | ❌ |
 | Intent Engine (natural language → CRD → approve → apply) | ✅ (PRO) | ❌ | ❌ | ❌ |
 | Tool call audit logging | ✅ | ❌ | ❌ | ❌ |
@@ -171,33 +172,46 @@ ping 10.100.0.2    # Ping a peer to confirm the tunnel is up
 ### CLI: Start a sandboxed agent
 
 ```bash
-lattice-agent-sandbox start \
+# Community: gVisor network isolation + local audit
+lattice sandbox start \
   --name my-agent \
-  --mode gvisor \
   --server-url https://lattice.company.com \
   --token lt-enroll-xxx
+
+# PRO: adds egress policy, inbound port forwarding, HTTP proxy
+lattice sandbox start \
+  --name my-agent \
+  --server-url https://lattice.company.com \
+  --token lt-enroll-xxx \
+  --egress-allow 10.100.0.0/24 \
+  --egress-default-deny \
+  --forward 8080:127.0.0.1:8080 \
+  --proxy-addr 127.0.0.1:1080
 ```
 
-On start, the agent completes zero-trust enrollment automatically (generate WireGuard keypair → `POST /api/v1/agent-isolation/register` → receive IP → create gVisor sandbox), then blocks until SIGINT/SIGTERM.
+On start, the sandbox completes zero-trust enrollment via NATS (generate WireGuard keypair → register with enrollment token → receive VPN IP → connect via ICE/LRP), then runs as a full Lattice overlay node backed by gVisor's user-space network stack. No root, no TUN device, no eBPF required. Credentials are persisted across container restarts.
 
-In sandbox mode, all outbound traffic goes through the gVisor user-space network stack. Policy checks are enforced by the Lattice policy adapter — no host iptables/eBPF required.
-
-### REST API: Agent enrollment
+### REST API: Agent enrollment and management
 
 ```bash
 # Create an enrollment token
 curl -X POST https://lattice.company.com/api/v1/agent-isolation/enrollment-tokens \
   -H "Authorization: Bearer $HUMAN_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"namespace":"default","allowedTools":["list_peers","check_connectivity"],"allowedNamespaces":["default"],"ttl":"1h"}'
-
-# Agent registers with the token and receives a JWT
-curl -X POST https://lattice.company.com/api/v1/agent-isolation/register \
-  -H "Content-Type: application/json" \
-  -d '{"token":"<enrollment-token>","agentName":"code-executor","sandboxMode":"none"}'
+  -d '{"namespace":"default","allowedTools":["list_peers","check_connectivity"],"ttlSeconds":3600}'
 
 # Revoke an agent
 curl -X DELETE "https://lattice.company.com/api/v1/agent-isolation/agents/code-executor?namespace=default" \
+  -H "Authorization: Bearer $HUMAN_TOKEN"
+
+# Delegate a sub-agent (parent agent spawns a child with scoped permissions)
+curl -X POST https://lattice.company.com/api/v1/agent-isolation/delegate \
+  -H "Authorization: Bearer $AGENT_JWT" \
+  -H "Content-Type: application/json" \
+  -d '{"agentName":"sub-executor","requestedTools":["exec","read"],"ttlSeconds":900}'
+
+# Query tool call traces
+curl "https://lattice.company.com/api/v1/agent-isolation/audit/traces?agentId=my-agent" \
   -H "Authorization: Bearer $HUMAN_TOKEN"
 ```
 
