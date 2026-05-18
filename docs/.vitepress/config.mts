@@ -2,7 +2,7 @@ import { defineConfig } from 'vitepress'
 
 export default defineConfig({
   title: 'Lattice',
-  description: 'Self-hosted WireGuard mesh orchestration platform',
+  description: 'WireGuard overlay network for AI workloads and infrastructure',
   cleanUrls: true,
   vite: {
     ssr: {
@@ -10,6 +10,7 @@ export default defineConfig({
     },
   },
   base: '/',
+  srcExclude: ['superpowers/**', 'demo/**'],
   ignoreDeadLinks: [
     /^http:\/\/localhost/,
     /^\/demo(?:\/|$)/,
@@ -21,10 +22,10 @@ export default defineConfig({
     nav: [
       { text: 'Docs', link: '/guide/quickstart' },
       { text: 'Deploy', link: '/deploy/all-in-one' },
+      { text: 'Agent', link: '/agent/' },
       { text: 'AI', link: '/ai/' },
       { text: 'Blog', link: '/blog/' },
       { text: 'Compare', link: '/comparison' },
-      { text: 'Console', link: 'https://alattice.io' },
     ],
     sidebar: {
       // ── User-facing docs ──────────────────────────────────────────────────
@@ -32,8 +33,13 @@ export default defineConfig({
       '/deploy/': userSidebar(),
       '/config/': userSidebar(),
       '/features/': userSidebar(),
-      '/ai/': userSidebar(),
       '/faq/': userSidebar(),
+
+      // ── Agent Platform ────────────────────────────────────────────────────
+      '/agent/': agentSidebar(),
+
+      // ── AI capabilities ───────────────────────────────────────────────────
+      '/ai/': aiSidebar(),
 
       // ── Internal / developer docs ─────────────────────────────────────────
       '/design/': designSidebar(),
@@ -43,7 +49,7 @@ export default defineConfig({
       { icon: 'github', link: 'https://github.com/alatticeio/lattice' },
     ],
     footer: {
-      message: 'Built with Lattice',
+      message: 'Built with Lattice · <a href="https://alattice.io">Console</a>',
       copyright: '© 2026 The Lattice Authors',
     },
   },
@@ -66,17 +72,6 @@ function userSidebar() {
         { text: 'Helm Chart', link: '/deploy/helm' },
         { text: 'K8s Operator', link: '/deploy/k8s-operator' },
         { text: 'Configuration', link: '/config/reference' },
-      ],
-    },
-    {
-      text: 'AI',
-      items: [
-        { text: 'Overview', link: '/ai/' },
-        { text: 'MCP Server & ChatOps', link: '/ai/mcp-server' },
-        { text: 'Agent Enrollment', link: '/ai/agent-enrollment' },
-        { text: 'Intent Engine (Pro)', link: '/ai/intent-engine' },
-        { text: 'Time-Travel Debugging (Pro)', link: '/ai/debugging' },
-        { text: 'Compliance (Pro)', link: '/ai/compliance' },
       ],
     },
     {
@@ -120,6 +115,7 @@ function userSidebar() {
       text: 'FAQ',
       items: [
         { text: 'eBPF & Agent Sandbox', link: '/faq/ebpf-sandbox' },
+        { text: 'AI Agent Security — Capability Verification', link: '/competitiveness' },
       ],
     },
     {
@@ -133,24 +129,46 @@ function userSidebar() {
   ]
 }
 
+function agentSidebar() {
+  return [
+    {
+      text: 'Agent Platform',
+      items: [
+        { text: 'Overview', link: '/agent/' },
+        { text: 'Sandbox (Community)', link: '/agent/sandbox' },
+        { text: 'Sandbox (Pro)', link: '/agent/sandbox-pro' },
+        { text: 'Sub-agent Delegate API', link: '/agent/delegate-api' },
+      ],
+    },
+  ]
+}
+
+function aiSidebar() {
+  return [
+    {
+      text: 'AI Capabilities',
+      items: [
+        { text: 'Overview', link: '/ai/' },
+        { text: 'MCP Server & ChatOps', link: '/ai/mcp-server' },
+        { text: 'Agent Enrollment API', link: '/ai/agent-enrollment' },
+        { text: 'Intent Engine (Pro)', link: '/ai/intent-engine' },
+        { text: 'Time-Travel Debugging (Pro)', link: '/ai/debugging' },
+        { text: 'Compliance (Pro)', link: '/ai/compliance' },
+      ],
+    },
+  ]
+}
+
 function designSidebar() {
   return [
     {
       text: 'Architecture',
       items: [
         { text: 'Overview', link: '/design/architecture' },
+        { text: 'Sandbox Architecture', link: '/design/sandbox' },
         { text: 'ICE Connection', link: '/design/ice-connection' },
-        { text: 'LRP Relay', link: '/design/lrp' },
         { text: 'ICE + WireGuard Mux', link: '/design/ice-wireguard-mux' },
         { text: 'WRRP / QUIC', link: '/design/wrrp-quic' },
-      ],
-    },
-    {
-      text: 'Development',
-      items: [
-        { text: 'Build Reference', link: '/design/build-reference' },
-        { text: 'CI/CD Reference', link: '/design/ci-cd-reference' },
-        { text: 'Performance Testing', link: '/design/performance-testing-plan' },
       ],
     },
     {
