@@ -23,7 +23,7 @@ The Sandbox is the recommended approach for AI agent workloads — it runs entir
 | Local file audit (`/tmp/lattice-audit-<name>.jsonl`) | ✅ | ✅ |
 | Egress policy filtering (`EgressFilter`, `--egress-allow`) | ❌ | ✅ |
 | Inbound port forwarding (`--forward`) | ❌ | ✅ |
-| HTTP forward proxy (`--proxy-addr`) | ❌ | ✅ |
+| SOCKS5 proxy (`--proxy-addr`) | ❌ | ✅ |
 | NATS flow audit (server-side `la_flow_events`) | ❌ | ✅ |
 
 ## Sub-agent Architecture
@@ -33,5 +33,5 @@ Agents can delegate identity to child agents via the **Delegate API** — a pare
 ## Quick Navigation
 
 - [Sandbox (Community)](/agent/sandbox) — full guide: startup flow, CLI reference, credential persistence, AI framework integration
-- [Sandbox (Pro)](/agent/sandbox-pro) — EgressFilter, ForwardListener, HTTP proxy, NATS audit
+- [Sandbox (Pro)](/agent/sandbox-pro) — EgressFilter, ForwardListener, SOCKS5 proxy, NATS audit
 - [Sub-agent Delegate API](/agent/delegate-api) — CRD fields, HTTP endpoint, curl and Python examples

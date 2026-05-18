@@ -47,7 +47,7 @@ cmd/lattice/cmd/sandbox/
 | 本地文件审计（`/tmp/lattice-audit-<name>.jsonl`） | ✅ | ✅（自定义路径） |
 | 出站策略过滤（`EgressFilter`，`--egress-allow`） | ❌ | ✅ |
 | 入站端口转发（`--forward`） | ❌ | ✅ |
-| HTTP 正向代理（`--proxy-addr`） | ❌ | ✅ |
+| SOCKS5 代理（`--proxy-addr`） | ❌ | ✅ |
 
 ### 社区版沙箱启动流程
 

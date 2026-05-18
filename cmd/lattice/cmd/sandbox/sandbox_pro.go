@@ -18,14 +18,14 @@ package sandbox
 
 import (
 	"context"
+	"encoding/binary"
 	"fmt"
 	"io"
-	"log"
 	"net"
-	"net/http"
 	"os"
 	"os/signal"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -67,7 +67,7 @@ func registerStartFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&sandboxName, "name", "", "Sandbox identifier (required)")
 	cmd.Flags().StringVar(&sandboxServerURL, "server-url", "", "Lattice control plane URL (required)")
 	cmd.Flags().StringVar(&sandboxToken, "token", "", "Enrollment token (required)")
-	cmd.Flags().StringVar(&sandboxProxyAddr, "proxy-addr", "", "HTTP forward proxy listen address (e.g. 127.0.0.1:1080)")
+	cmd.Flags().StringVar(&sandboxProxyAddr, "proxy-addr", "", "SOCKS5 proxy listen address (e.g. 127.0.0.1:1080)")
 	cmd.Flags().StringArrayVar(&sandboxForwardRules, "forward", nil, "Inbound forward rule: overlayPort:targetAddr")
 	cmd.Flags().StringVar(&sandboxEgressAllow, "egress-allow", "", "Comma-separated allowed egress CIDRs")
 	cmd.Flags().BoolVar(&sandboxEgressDeny, "egress-default-deny", false, "Whitelist egress mode")
@@ -218,10 +218,12 @@ func runStart(_ *cobra.Command, _ []string) error {
 	}
 
 	if sandboxProxyAddr != "" {
-		if startErr := startHTTPProxy(ctx, sb, sandboxProxyAddr); startErr != nil {
-			return fmt.Errorf("start proxy: %w", startErr)
+		socks5, err := startSOCKS5Proxy(sandboxProxyAddr, sb)
+		if err != nil {
+			return fmt.Errorf("start socks5 proxy: %w", err)
 		}
-		fmt.Printf("HTTP proxy listening on %s\n", sandboxProxyAddr)
+		defer socks5.Close()
+		fmt.Printf("SOCKS5 proxy listening on %s\n", sandboxProxyAddr)
 	}
 
 	var fwdRules []shimfwd.ForwardRule
@@ -274,82 +276,188 @@ func runStart(_ *cobra.Command, _ []string) error {
 	return nil
 }
 
-// startHTTPProxy starts a minimal HTTP forward proxy that routes requests
-// through the gVisor sandbox network (WireGuard overlay).
-func startHTTPProxy(_ context.Context, sb *gvisor.Sandbox, addr string) error {
-	transport := &http.Transport{
-		DialContext: func(ctx context.Context, network, address string) (net.Conn, error) {
-			dialCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
-			defer cancel()
-			return sb.DialContext(dialCtx, network, address)
-		},
-	}
+// SOCKS5 protocol constants (RFC 1928).
+const (
+	socks5Version     = 0x05
+	socks5AuthNone    = 0x00
+	socks5CmdConnect  = 0x01
+	socks5AddrIPv4    = 0x01
+	socks5AddrDomain  = 0x03
+	socks5AddrIPv6    = 0x04
+	socks5ReplyOK     = 0x00
+	socks5ReplyErr    = 0x01
+	socks5ReplyCmd    = 0x07
+	socks5ReplyAddr   = 0x08
+)
+
+// socks5Server is a minimal SOCKS5 proxy (no-auth, CONNECT only) that
+// tunnels TCP connections through the gVisor sandbox netstack.
+type socks5Server struct {
+	ln   net.Listener
+	dial func(ctx context.Context, network, addr string) (net.Conn, error)
+
+	ctx    context.Context
+	cancel context.CancelFunc
+	wg     sync.WaitGroup
+}
+
+// startSOCKS5Proxy creates and starts a SOCKS5 proxy server listening on
+// addr. All connections are tunneled through sb.DialContext (gVisor overlay).
+func startSOCKS5Proxy(addr string, sb *gvisor.Sandbox) (*socks5Server, error) {
 	ln, err := net.Listen("tcp", addr)
 	if err != nil {
-		return fmt.Errorf("proxy listen %s: %w", addr, err)
+		return nil, fmt.Errorf("socks5 listen %s: %w", addr, err)
 	}
-	srv := &http.Server{
-		Addr:    addr,
-		Handler: &httpForwardProxy{transport: transport},
+	ctx, cancel := context.WithCancel(context.Background())
+	s := &socks5Server{
+		ln:     ln,
+		dial:   sb.DialContext,
+		ctx:    ctx,
+		cancel: cancel,
 	}
-	log.Printf("[sandbox] HTTP proxy listening on %s", addr)
-	go func() {
-		if serveErr := srv.Serve(ln); serveErr != nil && serveErr != http.ErrServerClosed {
-			log.Printf("[sandbox] proxy error: %v", serveErr)
+	go s.serve()
+	return s, nil
+}
+
+func (s *socks5Server) serve() {
+	for {
+		conn, err := s.ln.Accept()
+		if err != nil {
+			select {
+			case <-s.ctx.Done():
+				return
+			default:
+			}
+			continue
 		}
-	}()
+		s.wg.Add(1)
+		go func() {
+			defer s.wg.Done()
+			s.handle(conn)
+		}()
+	}
+}
+
+func (s *socks5Server) Close() error {
+	s.cancel()
+	s.ln.Close()
+	s.wg.Wait()
 	return nil
 }
 
-// httpForwardProxy is a minimal HTTP forward proxy that routes requests
-// through gVisor's netstack (WireGuard overlay).
-type httpForwardProxy struct {
-	transport *http.Transport
+func (s *socks5Server) handle(client net.Conn) {
+	defer client.Close()
+
+	// RFC 1928 handshake: version + auth negotiation.
+	var buf [258]byte
+	if _, err := io.ReadFull(client, buf[:2]); err != nil {
+		return
+	}
+	if buf[0] != socks5Version {
+		return
+	}
+	nauth := int(buf[1])
+	if nauth > 0 {
+		if _, err := io.ReadFull(client, buf[:nauth]); err != nil {
+			return
+		}
+	}
+	// No authentication required.
+	client.Write([]byte{socks5Version, socks5AuthNone})
+
+	// Request: version, cmd, reserved, addr-type, dst-addr, dst-port.
+	if _, err := io.ReadFull(client, buf[:4]); err != nil {
+		return
+	}
+	if buf[0] != socks5Version || buf[1] != socks5CmdConnect {
+		s.sendReply(client, socks5ReplyCmd, nil)
+		return
+	}
+	host, err := readSOCKS5Addr(client, buf[3])
+	if err != nil {
+		s.sendReply(client, socks5ReplyAddr, nil)
+		return
+	}
+	var port [2]byte
+	if _, err := io.ReadFull(client, port[:]); err != nil {
+		return
+	}
+	target := net.JoinHostPort(host, fmt.Sprintf("%d", binary.BigEndian.Uint16(port[:])))
+
+	// Dial through gVisor overlay.
+	dialCtx, cancel := context.WithTimeout(s.ctx, 30*time.Second)
+	defer cancel()
+	remote, err := s.dial(dialCtx, "tcp", target)
+	if err != nil {
+		s.sendReply(client, socks5ReplyErr, nil)
+		return
+	}
+	defer remote.Close()
+
+	s.sendReply(client, socks5ReplyOK, remote.LocalAddr())
+
+	// Bidirectional relay.
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() { defer wg.Done(); io.Copy(remote, client); remote.Close() }()
+	go func() { defer wg.Done(); io.Copy(client, remote); client.Close() }()
+	wg.Wait()
 }
 
-func (p *httpForwardProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if r.Method == http.MethodConnect {
-		// HTTPS tunnel via CONNECT.
-		dst, err := p.transport.DialContext(r.Context(), "tcp", r.Host)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadGateway)
-			return
+func readSOCKS5Addr(r io.Reader, addrType byte) (string, error) {
+	switch addrType {
+	case socks5AddrIPv4:
+		var ip [4]byte
+		if _, err := io.ReadFull(r, ip[:]); err != nil {
+			return "", err
 		}
-		defer dst.Close()
-		hijacker, ok := w.(http.Hijacker)
-		if !ok {
-			http.Error(w, "hijacking not supported", http.StatusInternalServerError)
-			return
+		return net.IP(ip[:]).String(), nil
+	case socks5AddrDomain:
+		var n [1]byte
+		if _, err := io.ReadFull(r, n[:]); err != nil {
+			return "", err
 		}
-		client, _, err := hijacker.Hijack()
-		if err != nil {
-			return
+		b := make([]byte, n[0])
+		if _, err := io.ReadFull(r, b); err != nil {
+			return "", err
 		}
-		defer client.Close()
-		if _, err = client.Write([]byte("HTTP/1.0 200 Connection established\r\n\r\n")); err != nil {
-			return
+		return string(b), nil
+	case socks5AddrIPv6:
+		var ip [16]byte
+		if _, err := io.ReadFull(r, ip[:]); err != nil {
+			return "", err
 		}
-		go func() { _, _ = io.Copy(dst, client) }()
-		_, _ = io.Copy(client, dst)
-		return
+		return net.IP(ip[:]).String(), nil
+	default:
+		return "", fmt.Errorf("socks5: unknown address type %d", addrType)
 	}
+}
 
-	// Plain HTTP forward proxy.
-	r.RequestURI = ""
-	r.Header.Del("Proxy-Connection")
-	resp, err := p.transport.RoundTrip(r)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadGateway)
-		return
-	}
-	defer resp.Body.Close()
-	for k, vs := range resp.Header {
-		for _, v := range vs {
-			w.Header().Add(k, v)
+func (s *socks5Server) sendReply(conn net.Conn, reply byte, addr net.Addr) {
+	var buf [22]byte
+	buf[0] = socks5Version
+	buf[1] = reply
+	// reserved: buf[2] = 0
+	switch a := addr.(type) {
+	case *net.TCPAddr:
+		if ip4 := a.IP.To4(); ip4 != nil {
+			buf[3] = socks5AddrIPv4
+			copy(buf[4:8], ip4)
+			binary.BigEndian.PutUint16(buf[8:10], uint16(a.Port))
+			conn.Write(buf[:10])
+			return
+		}
+		if ip6 := a.IP.To16(); ip6 != nil {
+			buf[3] = socks5AddrIPv6
+			copy(buf[4:20], ip6)
+			binary.BigEndian.PutUint16(buf[20:22], uint16(a.Port))
+			conn.Write(buf[:22])
+			return
 		}
 	}
-	w.WriteHeader(resp.StatusCode)
-	_, _ = io.Copy(w, resp.Body)
+	// Fallback: IPv4 zero.
+	buf[3] = socks5AddrIPv4
+	conn.Write(buf[:10])
 }
 
 func parseForwardRule(s string) (shimfwd.ForwardRule, error) {

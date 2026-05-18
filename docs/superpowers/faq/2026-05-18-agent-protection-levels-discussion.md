@@ -32,7 +32,7 @@ Lattice 控制面
 
 ```
 AI Agent 进程
-    │  HTTP_PROXY=http://127.0.0.1:1080  或  sb.DialContext()
+    │  ALL_PROXY=socks5://127.0.0.1:1080  或  sb.DialContext()
     ▼
 lattice sandbox start 进程
     ┌─────────────────────────────────┐
@@ -44,7 +44,7 @@ lattice sandbox start 进程
     └─────────────────────────────────┘
 ```
 
-- 需要 AI 进程配合：设 `HTTP_PROXY` 或用 SDK 走 gVisor 的 netstack
+- 需要 AI 进程配合：设 `ALL_PROXY` 或用 SDK 走 gVisor 的 netstack
 - gVisor 是进程内运行，不需要容器
 - 当前 E2E 部署形态是一个 K8s Pod，但代码架构上只是一个普通进程
 
@@ -52,7 +52,7 @@ lattice sandbox start 进程
 
 ```
 AI Agent 进程
-    ├─→ 路径 1: HTTP_PROXY → gVisor → WireGuard   ✅ 加密隔离
+    ├─→ 路径 1: SOCKS5 proxy → gVisor → WireGuard   ✅ 加密隔离
     └─→ 路径 2: 直接 connect("eth0")               ❌ 不受控
 ```
 
@@ -126,7 +126,7 @@ gVisor `pkg/tcpip` 只拦截主动走它的流量，AI 进程直接连 eth0 就�
 | tool_spans 可观测（每次工具调用记录 span） | Community + PRO |
 | Sub-agent 委派（Delegate API，权限 ≤ 父级） | Community + PRO |
 | MCP Server（14 工具，读执行/写审批） | Community + PRO |
-| EgressFilter（CIDR 出站策略）+ ForwardListener + HTTP proxy | PRO |
+| EgressFilter（CIDR 出站策略）+ ForwardListener + SOCKS5 proxy | PRO |
 | NATS 流量审计（flow_events，服务端已就绪） | PRO 服务端 |
 
 ### 待实现（Roadmap）

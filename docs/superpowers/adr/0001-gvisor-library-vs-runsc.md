@@ -32,7 +32,7 @@ Lattice 沙箱 Pod
   ├─────────────────────────────────┤
   │  内核 TCP/IP（eth0, lo）        │   另一套协议栈
   │     ↕                           │
-  │  HTTP proxy / ForwardListener   │   ← 桥接层（翻译官）
+  │  SOCKS5 proxy / ForwardListener │   ← 桥接层（翻译官）
   │     ↕                           │
   │  wget / nginx / agent tools     │
   └─────────────────────────────────┘
@@ -41,7 +41,7 @@ Lattice 沙箱 Pod
 ### 入向和出向
 
 - **入向**：远端 WireGuard 加密包 → UDP socket → wireguard-go 解密 → gVisor channel（"收包"）→ netstack → ForwardListener → 转发给 nginx
-- **出向**：wget → HTTP proxy（127.0.0.1:1080）→ `sb.DialContext` → gVisor netstack 生成 TCP SYN → channel → wireguard-go 读包加密 → UDP 发出
+- **出向**：wget → SOCKS5 proxy（127.0.0.1:1080）→ `sb.DialContext` → gVisor netstack 生成 TCP SYN → channel → wireguard-go 读包加密 → UDP 发出
 
 ### 为什么需要 proxy/ForwardListener？
 

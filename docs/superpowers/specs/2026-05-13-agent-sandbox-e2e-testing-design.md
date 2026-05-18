@@ -219,7 +219,7 @@ if agent == nil {
 
 ### 5. companion nginx 监听端口 80 vs 8080
 
-**现象：** sandbox 通过 HTTP proxy 请求 `companionVPNIP:8080` 返回 502。
+**现象：** sandbox 通过 SOCKS5 proxy 请求 `companionVPNIP:8080` 返回 502。
 **根因：** nginx 默认监听 80，但测试用的端口是 8080。
 **修复：** `test/e2e/agent_sandbox_test.go` companion container 的 Command 增加 sed 替换：
 
@@ -262,26 +262,22 @@ func (w *fileAuditWriter) Write(event shimfwd.AuditEvent) error {
 
 **根因分析：**
 
-1. Scenario 5 通过 sandbox HTTP proxy（`127.0.0.1:1080`）发送 `wget --timeout=3 http://companionVPNIP:8080`。
-2. HTTP proxy 的 transport 使用 `sb.DialContext`（即 `gonet.DialContextTCP`）拨号。
+1. Scenario 5 通过 sandbox SOCKS5 proxy（`127.0.0.1:1080`）发送 `wget --timeout=3 http://companionVPNIP:8080`。
+2. SOCKS5 proxy 使用 `sb.DialContext`（即 `gonet.DialContextTCP`）拨号。
 3. DENY 策略生效后，companion 的 iptables 将 sandbox 发来的 TCP SYN DROP 掉，不返回任何响应。
 4. `gonet.DialContextTCP` 等待 SYN-ACK，gVisor TCP 重传超时约 **127 秒**。
 5. wget 的 `--timeout=3` 到期后客户端断开，但 Go HTTP server 不一定立即取消请求 context。
 6. 在测试窗口内（30s Eventually + 10s Consistently），`gonet.DialContextTCP` 尚未超时，AfterDial 钩子未被调用，因此没有 drop 事件写入。
 
-**修复：** `sandbox_pro.go` `startHTTPProxy` 给 DialContext 包装 5 秒超时：
+**修复：** `sandbox_pro.go` SOCKS5 代理给 DialContext 包装超时（`context.WithTimeout`）：
 
 ```go
-transport := &http.Transport{
-    DialContext: func(ctx context.Context, network, address string) (net.Conn, error) {
-        dialCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
-        defer cancel()
-        return sb.DialContext(dialCtx, network, address)
-    },
-}
+dialCtx, cancel := context.WithTimeout(s.ctx, 30*time.Second)
+defer cancel()
+remote, err := s.dial(dialCtx, "tcp", target)
 ```
 
-**效果：** TCP SYN 被 DROP 后，5 秒内 DialContext 以超时 error 返回 → AfterDial 钩子以 `err != nil` 被调用 → `verdict="drop"` 写入 audit log。Scenario 6 在测试窗口内可以观察到 drop 事件。
+**效果：** TCP SYN 被 DROP 后，DialContext 以超时 error 返回 → AfterDial 钩子以 `err != nil` 被调用 → `verdict="drop"` 写入 audit log。Scenario 6 在测试窗口内可以观察到 drop 事件。
 
 ---
 
