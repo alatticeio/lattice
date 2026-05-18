@@ -183,10 +183,14 @@ func transferToPeer(peer *latticev1alpha1.LatticePeer) *infra.Peer {
 	if peer.Spec.PeerId != "" {
 		peerID, _ = strconv.ParseUint(peer.Spec.PeerId, 10, 64)
 	}
+	appID := peer.Spec.AppId
+	if appID == "" {
+		appID = peer.Name
+	}
 	p := &infra.Peer{
 		PeerID:        peerID,
 		Name:          peer.Name,
-		AppID:         peer.Spec.AppId,
+		AppID:         appID,
 		Platform:      peer.Spec.Platform,
 		InterfaceName: peer.Spec.InterfaceName,
 		Address:       peer.Status.AllocatedAddress,
