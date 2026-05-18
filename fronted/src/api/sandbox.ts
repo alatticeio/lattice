@@ -9,10 +9,12 @@ function wsID(): string {
 export interface SandboxAgent {
   name: string
   sandboxId: string
+  namespace: string
   mode: 'gvisor' | 'cgroup'
   status: 'online' | 'offline'
   vpnIP: string
   publicKey: string
+  allowedTools: string[]
   trafficRx: number
   trafficTx: number
   createdAt: string
@@ -72,3 +74,61 @@ export const revokeToken = (token: string): Promise<void> =>
 
 export const listTrafficAudit = (params: TrafficAuditParams = {}): Promise<TrafficAuditEvent[]> =>
   request.get(`/workspaces/${wsID()}/audit-logs`, { ...params, type: 'traffic' })
+
+// ── ToolSpan / FlowEvent types (agent-platform-integrated) ────────
+
+export interface ToolSpan {
+  traceId: string
+  agentId: string
+  parentId?: string
+  namespace: string
+  tool: string
+  status: 'ok' | 'error' | 'blocked'
+  errorMsg?: string
+  durationMs: number
+  startedAt: string
+}
+
+export interface FlowEvent {
+  traceId: string
+  agentId: string
+  direction: 'egress' | 'ingress'
+  dstIp: string
+  dstPort: number
+  bytes: number
+  ts: string
+}
+
+export interface TraceListParams {
+  agentId?: string
+  from?: string
+  to?: string
+  limit?: number
+}
+
+export interface DelegateInput {
+  agentName: string
+  allowedTools: string[]
+  ttlSeconds: number
+  namespace: string
+  parentAgentId: string
+}
+
+export interface DelegateResult {
+  token: string
+  expiresAt: string
+}
+
+// ── ToolSpan / FlowEvent API functions ────────────────────────────
+
+export const listTraces = (agentId: string, params?: { from?: string; to?: string; limit?: number }): Promise<ToolSpan[]> =>
+  request.get('/agent-isolation/audit/traces', { agentId, ...params })
+
+export const getTrace = (traceId: string): Promise<ToolSpan> =>
+  request.get(`/agent-isolation/audit/traces/${traceId}`)
+
+export const listFlowEvents = (traceId: string): Promise<FlowEvent[]> =>
+  request.get('/agent-isolation/flow-events', { traceId })
+
+export const createDelegateToken = (input: DelegateInput): Promise<DelegateResult> =>
+  request.post('/agent-isolation/enrollment-tokens', input)

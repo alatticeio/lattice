@@ -15,25 +15,25 @@
     "badge": "AI-Native Networking",
     "title": "Zero-Trust Runtime for AI Agents",
     "subtitle": "Lattice gives every AI agent a zero-privilege sandbox and WireGuard-encrypted network access to your infrastructure — from launch to mesh, a single command.",
-    "cta_primary": "lattice-agent-sandbox start",
+    "cta_primary": "lattice sandbox start",
     "cta_secondary": "View Console"
   },
   "terminal": {
     "title": "lattice — control-plane",
     "status": "AI SANDBOX ONLINE",
-    "line1": "$ lattice-agent-sandbox start --name my-agent",
-    "line2": "  → Creating gVisor sandbox...      ✓",
-    "line3": "  → Attaching WireGuard tunnel...   ✓",
-    "line4": "  → Registering with control plane.. ✓",
-    "line5": "  Agent \"my-agent\" is online at 10.100.0.5",
-    "line6": "# Allowed egress (allowlist hit)",
-    "line7": "$ curl https://api.internal",
-    "line8": "  → PolicyCache.Allow() → ✓ → wireguard-go encrypt",
-    "line9": "  → P2P/Relay → remote decrypt → 200 OK",
-    "line10": "# Blocked egress (no match)",
-    "line11": "$ curl https://evil.com",
-    "line12": "  → PolicyCache.Allow() → ✗ → EACCES",
-    "line13": "  → auditCh → /api/v1/audit/batch → alert"
+    "line1": "$ lattice sandbox start --name my-agent --token lt-enroll-xxx",
+    "line2": "  → NATS enrollment...              ✓",
+    "line3": "  → WireGuard keypair generated     ✓",
+    "line4": "  → VPN IP assigned: 10.100.0.5    ✓",
+    "line5": "  Agent \"my-agent\" online, ICE P2P connected",
+    "line6": "# Tool call tracking (tool_spans)",
+    "line7": "$ ExecuteTool(\"list_peers\")",
+    "line8": "  → CheckToolAccess ✓ → execute → 38ms",
+    "line9": "  → tool_span: traceId=a1b2, status=ok",
+    "line10": "# RBAC enforcement (blocked)",
+    "line11": "$ ExecuteTool(\"delete_peer\")",
+    "line12": "  → CheckToolAccess ✗ → blocked",
+    "line13": "  → tool_span: status=blocked → /audit/traces"
   },
   "features": {
     "label": "Capabilities",
@@ -43,50 +43,54 @@
     "tag_roadmap": "Roadmap",
     "ai_sandbox": {
       "title": "Zero-Privilege Sandbox",
-      "desc": "Run AI agents in gVisor user-space kernel — no root, no CAP_NET_ADMIN. Each agent gets its own Go netstack, PID-to-TUN binding, and full egress control."
+      "desc": "Available in Community + PRO. `lattice sandbox start` requires no root or CAP_NET_ADMIN. gVisor pkg/tcpip replaces the kernel TUN, with full ICE/LRP identity and credential persistence across restarts."
     },
     "ai_sidecar": {
       "title": "Sidecar Egress Interception",
       "desc": "Dual-layer enforcement with seccomp notify + eBPF fast path. Every socket operation checks PolicyCache — allowlist hit goes through, miss returns EACCES with audit."
     },
+    "ai_traces": {
+      "title": "Tool Call Tracing + Sub-agent Delegation",
+      "desc": "Every tool call automatically records a tool_span (traceId, agentId, duration, status). Parent agents spawn children via the Delegate API with scoped permissions; full call trees are queryable."
+    },
     "ai_intent": {
-      "title": "Intent-Driven Network Management",
-      "desc": "Describe network needs in natural language — \"allow frontend to access api on 8080\" — AI generates a change plan with diff preview and RBAC approval."
+      "title": "MCP Server + Intent Engine",
+      "desc": "Built-in MCP Server with 14 tools — Claude, Cursor, and other AI assistants manage your network (reads execute directly, writes require approval). Intent Engine translates natural language to CRD change plans with diff preview and approval (PRO)."
     },
     "net_wg": {
       "title": "WireGuard Encrypted Mesh",
-      "desc": "NAT-traversing P2P direct connections + LRP relay fallback. WireGuard end-to-end encryption, ICE/STUN auto hole-punching, zero-config cross-cluster bridging."
+      "desc": "NAT-traversing P2P + LRP relay fallback. WireGuard end-to-end encryption, ICE/STUN auto hole-punching, zero-config cross-cluster bridging, built-in IPAM for automatic VPN IP allocation."
     },
     "net_ebpf": {
       "title": "eBPF High-Performance Policy",
-      "desc": "Kernel-level LPM Trie + Port Hash policy engine, TC ingress/egress hooks, million-rule matching. Line-rate east-west traffic handling for infrastructure nodes."
+      "desc": "Kernel-level TC ingress/egress hooks, LPM Trie + Port Hash policy engine supporting millions of rules. Line-rate east-west traffic handling for infrastructure nodes (PRO)."
     },
     "net_audit": {
-      "title": "Global Traffic Audit",
-      "desc": "Dual-path aggregation: gVisor Go layer + eBPF ring buffer. Batch-report to the control plane, real-time anomaly alerting. Every allow/drop event is traceable."
+      "title": "Full-Stack Observability",
+      "desc": "tool_spans record every MCP tool call (Community); gVisor egress flow events (flow_events) are reported to the control plane via NATS (PRO). Every allow/block can be correlated back to a tool invocation."
     }
   },
   "architecture": {
     "label": "Architecture",
     "title": "From Sandbox Launch to Encrypted Communication",
-    "subtitle": "Zero-privilege architecture: agent processes run inside gVisor user-space kernel, WireGuard encryption happens entirely in user space — no root required.",
-    "step_1_title": "Create Sandbox",
-    "step_1_desc": "lattice-agent-sandbox start generates WireGuard keypair, creates gVisor OCI container, Go netstack takes over the network stack.",
-    "step_2_title": "Register + Policy Injection",
-    "step_2_desc": "Agent registers with the control plane, creating LatticePeer + AgentIdentity(Sandbox=gvisor), injecting PolicyChecker and AuditWriter hooks.",
-    "step_3_title": "Agent Runtime & Enforcement",
-    "step_3_desc": "Every socket op intercepted by Sentry netstack → PolicyCache lookup → forward/WG encrypt/send or deny/EACCES/audit.",
-    "terminal_comment": "# Allowed traffic (allow verdict path)",
-    "terminal_line1": "agent-1 socket → Sentry netstack → Allow",
-    "terminal_line2": "  → wireguard-go ChaCha20 encrypt",
+    "subtitle": "Zero-privilege architecture: gVisor pkg/tcpip userspace netstack handles all network operations; wireguard-go performs encryption — no root required.",
+    "step_1_title": "NATS Zero-Trust Enrollment",
+    "step_1_desc": "`lattice sandbox start` generates a WireGuard keypair and completes zero-trust enrollment over NATS. The control plane creates LatticePeer + AgentIdentity, assigns a VPN IP, issues an Agent JWT, and persists credentials to /etc/lattice/.",
+    "step_2_title": "gVisor Netstack Takeover",
+    "step_2_desc": "gVisor pkg/tcpip userspace netstack + TUNAdapter bridge to wireguard-go. SandboxProvisioner manages WireGuard peers with no iptables, TUN device, or kernel dependencies. PRO adds EgressFilter and ForwardListener.",
+    "step_3_title": "Agent Runtime & Observability",
+    "step_3_desc": "FilteringUDPMux multiplexes UDP :51820; ICE direct connect or LRP relay fallback. Tool calls go through CheckToolAccess RBAC, results are written to tool_spans, and parent_agent_id tracks the full call tree.",
+    "terminal_comment": "# Allowed traffic path (Community + PRO)",
+    "terminal_line1": "agent-1 → gVisor pkg/tcpip netstack",
+    "terminal_line2": "  → TUNAdapter → wireguard-go encrypt",
     "terminal_line3": "  → UDP :51820 → FilteringUDPMux",
     "terminal_line4": "  → ICE P2P / LRP Relay → remote peer",
     "terminal_line5": "  → decrypt → target ✓",
-    "terminal_comment2": "# Blocked traffic (drop verdict path)",
-    "terminal_line6": "agent-1 socket → Sentry netstack → Deny",
-    "terminal_line7": "  → EACCES returned to caller",
-    "terminal_line8": "  → ns.auditCh → AuditBatcher",
-    "terminal_line9": "  → POST /api/v1/audit/batch → alert"
+    "terminal_comment2": "# Egress blocked path (PRO EgressFilter)",
+    "terminal_line6": "agent-1 → gVisor netstack → EgressFilter",
+    "terminal_line7": "  → CIDR denylist hit → reject",
+    "terminal_line8": "  → AuditWriter → /tmp/lattice-audit.jsonl",
+    "terminal_line9": "  → [PRO] NATS lattice.audit.flow → flow_events"
   },
   "pricing": {
     "label": "Pricing",
@@ -97,12 +101,12 @@
     "community_desc": "For individual developers and AI agent explorers",
     "community_cta": "View on GitHub",
     "community_feat_1": "WireGuard Encrypted Mesh: unlimited nodes",
-    "community_feat_2": "CRD-Native K8s Controller",
-    "community_feat_3": "NATS Signaling + ICE/STUN P2P",
-    "community_feat_4": "LRP Relay",
-    "community_feat_5": "Agent Sandbox (cgroup): PID binding + resource limits",
-    "community_feat_6": "Sidecar Egress Interception: seccomp + eBPF fast path",
-    "community_feat_7": "Global Topology Visualization",
+    "community_feat_2": "CRD-Native K8s Operator (13 CRDs)",
+    "community_feat_3": "NATS Signaling + ICE/STUN P2P + LRP Relay",
+    "community_feat_4": "gVisor Zero-Privilege Sandbox (no root / TUN / iptables)",
+    "community_feat_5": "Tool Call Tracing (tool_spans) + Audit Query API",
+    "community_feat_6": "Sub-agent Delegation API + Call Tree",
+    "community_feat_7": "MCP Server (14 tools, write ops require approval)",
     "pro_name": "Pro",
     "pro_price": "Contact Us",
     "pro_period": "",
@@ -111,30 +115,30 @@
     "pro_disclaimer": "30-day free trial, no credit card required",
     "pro_badge": "Recommended",
     "pro_feat_all": "Everything in Community",
-    "pro_feat_1": "gVisor Zero-Privilege Sandbox: Go netstack replaces TUN",
-    "pro_feat_2": "eBPF TC Policy Engine (LPM/Port) + Traffic Mirror Audit",
-    "pro_feat_3": "Intent Engine: natural language network change plans",
-    "pro_feat_4": "Compliance Audit Scanning + Anomaly Alerts",
-    "pro_feat_5": "Kubernetes Cluster Peering",
-    "pro_feat_6": "SSO/OIDC + RBAC + Approval Workflows",
-    "pro_feat_7": "Audit Logs + Webhook Notifications",
-    "pro_feat_8": "Firecracker MicroVM Sandbox (future)",
-    "pro_feat_locked_1": "gVisor Zero-Privilege Sandbox Isolation",
-    "pro_feat_locked_2": "eBPF Traffic Audit + Anomaly Alerts",
+    "pro_feat_1": "Egress policy filtering (EgressFilter + CIDR allowlist) + inbound port forwarding + HTTP proxy",
+    "pro_feat_2": "Centralized NATS flow audit (flow_events) + tool_spans correlation",
+    "pro_feat_3": "eBPF TC policy engine (kernel-level LPM/Port matching)",
+    "pro_feat_4": "Intent Engine: natural language → CRD change plan + diff preview + approval",
+    "pro_feat_5": "Kubernetes Cluster Peering (ClusterPeering CRD)",
+    "pro_feat_6": "SSO/OIDC + advanced RBAC + approval workflows",
+    "pro_feat_7": "Metrics push (VictoriaMetrics) + Webhook alerts",
+    "pro_feat_8": "Firecracker MicroVM Sandbox (roadmap)",
+    "pro_feat_locked_1": "Egress policy filtering (EgressFilter)",
+    "pro_feat_locked_2": "eBPF TC policy engine",
     "pro_feat_locked_3": "Intent Engine (natural language network management)",
     "enterprise_text": "Need large-scale deployment?",
     "enterprise_link": "Contact Enterprise Sales →"
   },
   "cta": {
     "title": "Build a Secure Runtime for Your AI Agents",
-    "subtitle": "One command to launch a sandbox. Zero privilege. End-to-end encryption. Start building the zero-trust network for your AI agents.",
-    "button_primary": "lattice-agent-sandbox start",
+    "subtitle": "One command to launch a sandbox. Zero privilege. End-to-end encryption. Every tool call traced. Start building zero-trust networks for your AI agents.",
+    "button_primary": "lattice sandbox start",
     "button_secondary": "View Console",
     "badge_1": "Zero Privilege",
     "badge_2": "gVisor Isolation",
     "badge_3": "WireGuard Encryption",
-    "badge_4": "cgroup Limits",
-    "badge_5": "Sidecar Interception",
+    "badge_4": "Tool Call Tracing",
+    "badge_5": "Sub-agent Delegation",
     "badge_6": "Traffic Audit"
   },
   "footer": {
@@ -145,14 +149,14 @@
     "all_healthy": "All Healthy",
     "avg_latency": "Avg Latency",
     "sync": "Last Sync",
-    "data_plane": "Data Plane"
+    "data_plane": "Sandbox Data Plane"
   },
   "advantages": {
     "item_1": "Zero-Privilege — runs as normal user",
-    "item_2": "gVisor user-space kernel isolation",
+    "item_2": "gVisor userspace kernel isolation",
     "item_3": "WireGuard end-to-end encryption",
-    "item_4": "Natural language network management",
-    "item_5": "eBPF high-performance policy engine",
-    "item_6": "Full traffic audit and traceability"
+    "item_4": "Full tool call traceability",
+    "item_5": "Sub-agent delegation + call tree",
+    "item_6": "Natural language network management (PRO)"
   }
 }

@@ -17,6 +17,7 @@ declare global {
   const defineAsyncComponent: typeof import('vue').defineAsyncComponent
   const defineComponent: typeof import('vue').defineComponent
   const definePage: typeof import('vue-router/experimental').definePage
+  const drawerKey: typeof import('../composables/useAgentDetailDrawer').drawerKey
   const effectScope: typeof import('vue').effectScope
   const getCurrentInstance: typeof import('vue').getCurrentInstance
   const getCurrentScope: typeof import('vue').getCurrentScope
@@ -64,6 +65,7 @@ declare global {
   const triggerRef: typeof import('vue').triggerRef
   const unref: typeof import('vue').unref
   const useAction: typeof import('../composables/useApi').useAction
+  const useAgentDetailDrawer: typeof import('../composables/useAgentDetailDrawer').useAgentDetailDrawer
   const useAiStore: typeof import('../stores/useAiStore').useAiStore
   const useAppConfig: typeof import('../composables/useAppConfig').useAppConfig
   const useAttrs: typeof import('vue').useAttrs
@@ -71,6 +73,7 @@ declare global {
   const useCssModule: typeof import('vue').useCssModule
   const useCssVars: typeof import('vue').useCssVars
   const useDashboardStore: typeof import('../stores/useDashboard').useDashboardStore
+  const useDrawer: typeof import('../composables/useAgentDetailDrawer').useDrawer
   const useId: typeof import('vue').useId
   const useMcpServerStore: typeof import('../stores/useMcpServerStore').useMcpServerStore
   const useModel: typeof import('vue').useModel
@@ -103,6 +106,9 @@ declare global {
   // @ts-ignore
   export type { Component, Slot, Slots, ComponentPublicInstance, ComputedRef, DirectiveBinding, ExtractDefaultPropTypes, ExtractPropTypes, ExtractPublicPropTypes, InjectionKey, PropType, Ref, ShallowRef, MaybeRef, MaybeRefOrGetter, VNode, WritableComputedRef } from 'vue'
   import('vue')
+  // @ts-ignore
+  export type { UseAgentDetailDrawer } from '../composables/useAgentDetailDrawer'
+  import('../composables/useAgentDetailDrawer')
   // @ts-ignore
   export type { Theme, ColorScheme, RadiusValue, FontFamily, AppConfig } from '../composables/useAppConfig'
   import('../composables/useAppConfig')
