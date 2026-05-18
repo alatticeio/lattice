@@ -17,6 +17,7 @@ import (
 	managementnats "github.com/alatticeio/lattice/internal/server/nats"
 	"github.com/alatticeio/lattice/internal/server/resource"
 	"github.com/alatticeio/lattice/internal/server/vo"
+	"github.com/google/uuid"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -119,6 +120,7 @@ type aiService struct {
 	auditSvc       AuditService                    // optional, nil = no agent tool audit logging
 	workspaceCtrl  WorkspaceManager                // optional, workspace CRUD via AI
 	tokenCtrl      TokenManager                    // optional, enrollment token CRUD via AI
+	toolSpanRepo   store.ToolSpanRepository        // optional, nil = no span recording
 }
 
 // SetSnapStore attaches the NetworkSnapshot repository to an existing AIService.
@@ -157,6 +159,13 @@ func SetTokenCtrl(svc AIService, ctrl TokenManager) {
 	}
 }
 
+// SetToolSpanRepo attaches a ToolSpanRepository to the AIService for traceID recording.
+func SetToolSpanRepo(svc AIService, repo store.ToolSpanRepository) {
+	if as, ok := svc.(*aiService); ok {
+		as.toolSpanRepo = repo
+	}
+}
+
 // logToolAudit writes an audit entry for an agent tool call (allowed or blocked).
 // It is a no-op when auditSvc is nil or when called from a non-agent (human) context.
 func (s *aiService) logToolAudit(ctx context.Context, namespace, toolName, action string) {
@@ -175,6 +184,32 @@ func (s *aiService) logToolAudit(ctx context.Context, namespace, toolName, actio
 		ResourceName: toolName,
 		UserID:       agentID,
 	})
+}
+
+// writeToolSpan persists a tool call span when toolSpanRepo is configured.
+func (s *aiService) writeToolSpan(ctx context.Context, namespace, tool, traceID string,
+	start time.Time, status, errMsg string) {
+	if s.toolSpanRepo == nil {
+		return
+	}
+	claims := agentClaimsFromContext(ctx)
+	agentID, parentID := "", ""
+	if claims != nil {
+		agentID = claims.AgentID
+		parentID = claims.ParentAgentID
+	}
+	span := &models.ToolSpan{
+		TraceID:    traceID,
+		AgentID:    agentID,
+		ParentID:   parentID,
+		Namespace:  namespace,
+		Tool:       tool,
+		Status:     status,
+		ErrorMsg:   errMsg,
+		DurationMs: time.Since(start).Milliseconds(),
+		StartedAt:  start,
+	}
+	_ = s.toolSpanRepo.Write(ctx, span)
 }
 
 // NewAIService is the existing constructor (unchanged signature for compatibility).
@@ -721,16 +756,29 @@ func (s *aiService) ListTools(namespace string) []llm.Tool {
 	}
 }
 func (s *aiService) ExecuteTool(ctx context.Context, namespace, name string, input json.RawMessage) (string, error) {
-	// Agent isolation: nil-safe, no-op when feature is disabled.
+	traceID := uuid.New().String()
+	start := time.Now()
+
 	if s.agentIsolation != nil {
 		if err := s.agentIsolation.CheckToolAccess(ctx, namespace, name); err != nil {
 			s.logToolAudit(ctx, namespace, name, AuditActionAgentToolBlocked)
+			s.writeToolSpan(ctx, namespace, name, traceID, start, "blocked", err.Error())
 			return "", err
 		}
 	}
-	// Log allowed tool calls (after isolation check passes).
 	s.logToolAudit(ctx, namespace, name, AuditActionAgentToolCall)
 
+	result, err := s.dispatchTool(ctx, namespace, name, input)
+	status, errMsg := "ok", ""
+	if err != nil {
+		status, errMsg = "error", err.Error()
+	}
+	s.writeToolSpan(ctx, namespace, name, traceID, start, status, errMsg)
+	return result, err
+}
+
+// dispatchTool routes a tool call to its handler.
+func (s *aiService) dispatchTool(ctx context.Context, namespace, name string, input json.RawMessage) (string, error) {
 	switch name {
 	case "list_peers":
 		return s.toolListPeers(ctx, namespace)

@@ -85,6 +85,15 @@ type AgentIdentitySpec struct {
 	// After this time the controller transitions the phase to Expired.
 	// Nil means the identity never expires.
 	ExpiresAt *metav1.Time `json:"expiresAt,omitempty"`
+
+	// ParentRef is the name of the parent AgentIdentity (sub-agent scenario).
+	// Empty means this is a top-level agent.
+	// +optional
+	ParentRef string `json:"parentRef,omitempty"`
+
+	// SpawnableRoles lists role template names this agent is allowed to spawn as sub-agents.
+	// +optional
+	SpawnableRoles []string `json:"spawnableRoles,omitempty"`
 }
 
 // AgentIdentityStatus defines the observed state of an AgentIdentity.

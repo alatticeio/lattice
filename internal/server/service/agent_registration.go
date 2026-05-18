@@ -68,6 +68,26 @@ type AgentRegisterResponse struct {
 	AgentIdentityName string `json:"agentIdentityName"`
 }
 
+// DelegateRequest is the input for creating a sub-agent enrollment token.
+type DelegateRequest struct {
+	// ParentJWT is the parent agent's signed JWT.
+	ParentJWT string
+	// AgentName is the desired name for the sub-agent.
+	AgentName string
+	// RequestedTools is the tool whitelist for the sub-agent.
+	// Must be a subset of the parent's AllowedTools (when RoleName is empty).
+	RequestedTools []string
+	// RoleName, if non-empty, uses the parent's SpawnableRoles path.
+	RoleName string
+}
+
+// DelegateResponse is the result of a successful DelegateToken call.
+type DelegateResponse struct {
+	// EnrollmentToken is a short-lived one-time token for the sub-agent to register.
+	EnrollmentToken string    `json:"enrollmentToken"`
+	ExpiresAt       time.Time `json:"expiresAt"`
+}
+
 // AgentRegistrationService manages Agent lifecycle: enrollment tokens,
 // registration (WireGuard peer + AgentIdentity creation + JWT issuance),
 // and revocation.
@@ -75,8 +95,8 @@ type AgentRegistrationService interface {
 	CreateEnrollmentToken(ctx context.Context, req EnrollmentTokenRequest) (*EnrollmentTokenResponse, error)
 	RegisterAgent(ctx context.Context, req AgentRegisterRequest) (*AgentRegisterResponse, error)
 	RevokeAgent(ctx context.Context, namespace, agentName string) error
-	// ValidateAgentJWT parses and validates a signed agent JWT, returning its claims.
-	ValidateAgentJWT(token string) (*models.AgentClaims, error)
+	ValidateAgentJWT(tokenStr string) (*models.AgentClaims, error)
+	DelegateToken(ctx context.Context, req DelegateRequest) (*DelegateResponse, error)
 }
 
 // ── Implementation ────────────────────────────────────────────────────────────
@@ -185,19 +205,23 @@ func (s *agentRegistrationService) RegisterAgent(ctx context.Context, req AgentR
 	if sandboxMode == "" {
 		sandboxMode = v1alpha1.SandboxNone
 	}
+	identitySpec := v1alpha1.AgentIdentitySpec{
+		PeerRef:           req.AgentName,
+		AllowedTools:      allowedTools,
+		AllowedNamespaces: []string{tok.AllowedNamespace},
+		Sandbox:           sandboxMode,
+		AuditLevel:        v1alpha1.AuditLevelWrite,
+		EnforcementMode:   v1alpha1.EnforcementEnforce,
+	}
+	if tok.ParentAgentID != "" {
+		identitySpec.ParentRef = tok.ParentAgentID
+	}
 	identity := &v1alpha1.AgentIdentity{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      req.AgentName,
 			Namespace: tok.AllowedNamespace,
 		},
-		Spec: v1alpha1.AgentIdentitySpec{
-			PeerRef:           req.AgentName,
-			AllowedTools:      allowedTools,
-			AllowedNamespaces: []string{tok.AllowedNamespace},
-			Sandbox:           sandboxMode,
-			AuditLevel:        v1alpha1.AuditLevelWrite,
-			EnforcementMode:   v1alpha1.EnforcementEnforce,
-		},
+		Spec: identitySpec,
 	}
 	if err = s.k8s.Create(ctx, identity); err != nil {
 		// Rollback peer
@@ -211,7 +235,7 @@ func (s *agentRegistrationService) RegisterAgent(ctx context.Context, req AgentR
 	}
 
 	// 6. Issue Agent JWT
-	agentJWT, err := s.issueAgentJWT(req.AgentName, tok.AllowedNamespace, allowedTools)
+	agentJWT, err := s.issueAgentJWT(req.AgentName, tok.AllowedNamespace, allowedTools, tok.ParentAgentID)
 	if err != nil {
 		return nil, fmt.Errorf("issue JWT: %w", err)
 	}
@@ -222,6 +246,8 @@ func (s *agentRegistrationService) RegisterAgent(ctx context.Context, req AgentR
 
 func (s *agentRegistrationService) RevokeAgent(ctx context.Context, namespace, agentName string) error {
 	identity := &v1alpha1.AgentIdentity{}
+	identity.Name = agentName
+	identity.Namespace = namespace
 	if err := s.k8s.Get(ctx, k8sclient.ObjectKey{Namespace: namespace, Name: agentName}, identity); err != nil {
 		return k8sclient.IgnoreNotFound(err)
 	}
@@ -254,7 +280,7 @@ func (s *agentRegistrationService) ValidateAgentJWT(tokenStr string) (*models.Ag
 	return claims, nil
 }
 
-func (s *agentRegistrationService) issueAgentJWT(agentName, namespace string, allowedTools []string) (string, error) {
+func (s *agentRegistrationService) issueAgentJWT(agentName, namespace string, allowedTools []string, parentAgentID string) (string, error) {
 	now := time.Now()
 	claims := &models.AgentClaims{
 		RegisteredClaims: jwt.RegisteredClaims{
@@ -263,10 +289,90 @@ func (s *agentRegistrationService) issueAgentJWT(agentName, namespace string, al
 			ExpiresAt: jwt.NewNumericDate(now.Add(365 * 24 * time.Hour)),
 			Issuer:    "lattice-agent-registration",
 		},
-		AgentID:      agentName,
-		Namespace:    namespace,
-		AllowedTools: allowedTools,
+		AgentID:       agentName,
+		Namespace:     namespace,
+		AllowedTools:  allowedTools,
+		ParentAgentID: parentAgentID,
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	return token.SignedString([]byte(s.jwtSecret))
+}
+
+func (s *agentRegistrationService) DelegateToken(ctx context.Context, req DelegateRequest) (*DelegateResponse, error) {
+	// 1. 验证父 Agent JWT
+	parentClaims, err := s.ValidateAgentJWT(req.ParentJWT)
+	if err != nil {
+		return nil, fmt.Errorf("invalid parent JWT: %w", err)
+	}
+
+	var allowedTools []string
+
+	if req.RoleName != "" {
+		// SpawnableRoles 路径：子权限由管理员预授权的角色模板决定
+		if s.k8s == nil {
+			return nil, fmt.Errorf("k8s client required for SpawnableRoles")
+		}
+		parentIdentity := &v1alpha1.AgentIdentity{}
+		if err = s.k8s.Get(ctx, k8sclient.ObjectKey{
+			Namespace: parentClaims.Namespace,
+			Name:      parentClaims.AgentID,
+		}, parentIdentity); err != nil {
+			return nil, fmt.Errorf("lookup parent AgentIdentity: %w", err)
+		}
+		found := false
+		for _, r := range parentIdentity.Spec.SpawnableRoles {
+			if r == req.RoleName {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return nil, fmt.Errorf("role %q not in parent's spawnableRoles", req.RoleName)
+		}
+		roleIdentity := &v1alpha1.AgentIdentity{}
+		if err = s.k8s.Get(ctx, k8sclient.ObjectKey{
+			Namespace: parentClaims.Namespace,
+			Name:      req.RoleName,
+		}, roleIdentity); err != nil {
+			return nil, fmt.Errorf("lookup role template %q: %w", req.RoleName, err)
+		}
+		allowedTools = roleIdentity.Spec.AllowedTools
+	} else {
+		// 派生路径：子权限 ⊆ 父权限
+		parentToolSet := make(map[string]bool, len(parentClaims.AllowedTools))
+		for _, t := range parentClaims.AllowedTools {
+			parentToolSet[t] = true
+		}
+		for _, t := range req.RequestedTools {
+			if !parentToolSet[t] {
+				return nil, fmt.Errorf("tool %q not permitted by parent", t)
+			}
+		}
+		allowedTools = req.RequestedTools
+	}
+
+	// 2. 生成一次性 enrollment token（TTL=15min），携带 parentAgentID
+	raw := make([]byte, 32)
+	if _, err = rand.Read(raw); err != nil {
+		return nil, fmt.Errorf("generate token: %w", err)
+	}
+	token := hex.EncodeToString(raw)
+
+	toolsJSON, _ := json.Marshal(allowedTools)
+	expiresAt := time.Now().Add(15 * time.Minute)
+
+	tok := &models.AgentEnrollmentToken{
+		Token:            token,
+		AllowedNamespace: parentClaims.Namespace,
+		AllowedTools:     string(toolsJSON),
+		ExpiresAt:        expiresAt,
+		CreatedBy:        parentClaims.AgentID,
+		ParentAgentID:    parentClaims.AgentID,
+	}
+	if err = s.store.AgentEnrollmentTokens().Create(ctx, tok); err != nil {
+		return nil, fmt.Errorf("store delegate token: %w", err)
+	}
+
+	s.logger.Info("delegate token created", "parent", parentClaims.AgentID, "child", req.AgentName)
+	return &DelegateResponse{EnrollmentToken: token, ExpiresAt: expiresAt}, nil
 }

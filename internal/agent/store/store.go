@@ -37,6 +37,8 @@ type Store interface {
 	AgentEnrollmentTokens() AgentEnrollmentTokenRepository
 	Seed() SeedRepository
 	RefreshTokens() RefreshTokenRepository
+	ToolSpans() ToolSpanRepository
+	FlowEvents() FlowEventRepository
 
 	Close() error
 }
@@ -243,4 +245,17 @@ type RefreshTokenRepository interface {
 // SeedRepository handles demo seed data lifecycle.
 type SeedRepository interface {
 	Clear(ctx context.Context, workspaceID string) error
+}
+
+// ToolSpanRepository records and queries MCP tool call spans.
+type ToolSpanRepository interface {
+	Write(ctx context.Context, span *models.ToolSpan) error
+	Get(ctx context.Context, traceID string) (*models.ToolSpan, error)
+	List(ctx context.Context, agentID string, from, to time.Time, limit int) ([]*models.ToolSpan, error)
+}
+
+// FlowEventRepository records and queries gVisor network flow events.
+type FlowEventRepository interface {
+	Write(ctx context.Context, e *models.FlowEvent) error
+	ListByTrace(ctx context.Context, traceID string) ([]*models.FlowEvent, error)
 }

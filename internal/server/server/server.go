@@ -93,6 +93,7 @@ type Server struct {
 	presence        *managementnats.NodePresenceStore
 	monitor         *monitor.Monitor
 	licenseVerifier license.Verifier
+	auditConsumer   interface{ Close() } // PRO: flow audit NATS consumer; nil in community
 }
 
 // ServerConfig is the server configuration.
@@ -236,6 +237,10 @@ func NewServer(ctx context.Context, serverConfig *ServerConfig) (*Server, error)
 	tokCtrl := controller.NewTokenController(client, st)
 	service.SetWorkspaceCtrl(aiSvc, wsCtrl)
 	service.SetTokenCtrl(aiSvc, tokCtrl)
+	service.SetToolSpanRepo(aiSvc, st.ToolSpans())
+
+	// PRO: start flow audit consumer (no-op in community edition).
+	flowAuditConsumer := initFlowAuditConsumer(cfg.SignalingURL, st)
 
 	// ── License Verification (Pro validates JWT, Community returns StatusNotFound) ──
 	var lv license.Verifier
@@ -316,6 +321,7 @@ func NewServer(ctx context.Context, serverConfig *ServerConfig) (*Server, error)
 		agentRegService:        agentRegSvc,
 		licenseVerifier:        lv,
 		monitor:                mon,
+		auditConsumer:          flowAuditConsumer,
 	}
 
 	// initAdmins: runs after DB is ready; only warns on failure, does not block startup.
@@ -525,6 +531,9 @@ func (s *Server) Heartbeat(content []byte) ([]byte, error) {
 }
 
 func (s *Server) Shutdown(ctx context.Context) error {
+	if s.auditConsumer != nil {
+		s.auditConsumer.Close()
+	}
 	return nil
 }
 

@@ -1,3 +1,5 @@
+//go:build !pro
+
 // Copyright 2026 The Lattice Authors, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,24 +14,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package sandbox
+package server
 
-import (
-	"github.com/spf13/cobra"
-)
+import "github.com/alatticeio/lattice/internal/agent/store"
 
-var (
-	sandboxName      string
-	sandboxServerURL string
-	sandboxToken     string
-)
-
-// SandboxCmd returns the top-level `sandbox` cobra command.
-func SandboxCmd() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "sandbox",
-		Short: "Manage sandboxed agent environments (Pro)",
-	}
-	cmd.AddCommand(startCmd())
-	return cmd
+// initFlowAuditConsumer is a no-op in Community edition.
+func initFlowAuditConsumer(_ string, _ store.Store) interface{ Close() } {
+	return nil
 }

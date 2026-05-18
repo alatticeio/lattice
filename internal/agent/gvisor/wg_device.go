@@ -1,5 +1,3 @@
-//go:build pro
-
 // Copyright 2026 The Lattice Authors, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -119,7 +117,7 @@ func InjectIntoChannel(ch *channel.Endpoint) func([]byte) error {
 	return func(packet []byte) error {
 		view := buffer.NewViewWithData(packet)
 		var buf buffer.Buffer
-		buf.Append(view)
+		_ = buf.Append(view)
 		pkt := stack.NewPacketBuffer(stack.PacketBufferOptions{
 			Payload: buf,
 		})

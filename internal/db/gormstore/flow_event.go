@@ -12,24 +12,29 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package sandbox
+package gormstore
 
 import (
-	"github.com/spf13/cobra"
+	"context"
+
+	"github.com/alatticeio/lattice/internal/server/models"
+	"gorm.io/gorm"
 )
 
-var (
-	sandboxName      string
-	sandboxServerURL string
-	sandboxToken     string
-)
+type flowEventRepo struct{ db *gorm.DB }
 
-// SandboxCmd returns the top-level `sandbox` cobra command.
-func SandboxCmd() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "sandbox",
-		Short: "Manage sandboxed agent environments (Pro)",
-	}
-	cmd.AddCommand(startCmd())
-	return cmd
+func NewFlowEventRepo(db *gorm.DB) *flowEventRepo {
+	return &flowEventRepo{db: db}
+}
+
+func (r *flowEventRepo) Write(ctx context.Context, e *models.FlowEvent) error {
+	return r.db.WithContext(ctx).Create(e).Error
+}
+
+func (r *flowEventRepo) ListByTrace(ctx context.Context, traceID string) ([]*models.FlowEvent, error) {
+	var events []*models.FlowEvent
+	return events, r.db.WithContext(ctx).
+		Where("trace_id = ?", traceID).
+		Order("ts asc").
+		Find(&events).Error
 }

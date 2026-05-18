@@ -16,6 +16,8 @@ package server
 
 import (
 	"context"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/alatticeio/lattice/api/v1alpha1"
@@ -40,6 +42,9 @@ func (s *Server) agentIsolationRouter() {
 	{
 		g.POST("/enrollment-tokens", s.handleCreateEnrollmentToken())
 		g.DELETE("/agents/:name", s.handleIsolationAgentRevoke())
+		g.GET("/audit/traces", s.handleListTraces())
+		g.GET("/audit/traces/:id", s.handleGetTrace())
+		g.POST("/delegate", s.handleDelegate())
 	}
 }
 
@@ -136,6 +141,108 @@ func (s *Server) handleIsolationAgentRevoke() gin.HandlerFunc {
 			return
 		}
 		resp.OK(c, nil)
+	}
+}
+
+// handleListTraces returns a paginated list of tool call spans.
+//
+// GET /api/v1/agent-isolation/audit/traces?agentId=xxx&from=RFC3339&to=RFC3339&limit=50
+func (s *Server) handleListTraces() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if s.store == nil {
+			resp.PaymentRequired(c, "trace store not configured")
+			return
+		}
+		agentID := c.Query("agentId")
+		var from, to time.Time
+		if v := c.Query("from"); v != "" {
+			t, err := time.Parse(time.RFC3339, v)
+			if err != nil {
+				resp.BadRequest(c, "invalid from: "+err.Error())
+				return
+			}
+			from = t
+		}
+		if v := c.Query("to"); v != "" {
+			t, err := time.Parse(time.RFC3339, v)
+			if err != nil {
+				resp.BadRequest(c, "invalid to: "+err.Error())
+				return
+			}
+			to = t
+		}
+		limit := 50
+		if v := c.Query("limit"); v != "" {
+			if n, err := strconv.Atoi(v); err == nil && n > 0 {
+				limit = n
+			}
+		}
+		spans, err := s.store.ToolSpans().List(c.Request.Context(), agentID, from, to, limit)
+		if err != nil {
+			resp.Error(c, err.Error())
+			return
+		}
+		resp.OK(c, spans)
+	}
+}
+
+// handleGetTrace returns a single tool call span by traceId.
+//
+// GET /api/v1/agent-isolation/audit/traces/:id
+func (s *Server) handleGetTrace() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if s.store == nil {
+			resp.PaymentRequired(c, "trace store not configured")
+			return
+		}
+		traceID := c.Param("id")
+		span, err := s.store.ToolSpans().Get(c.Request.Context(), traceID)
+		if err != nil {
+			resp.Error(c, err.Error())
+			return
+		}
+		resp.OK(c, span)
+	}
+}
+
+// handleDelegate creates a sub-agent enrollment token from a parent Agent JWT.
+//
+// POST /api/v1/agent-isolation/delegate
+// Authorization: Bearer <parent-agent-jwt>
+// Body: { "agentName": "sub-001", "requestedTools": ["read"], "roleName": "" }
+func (s *Server) handleDelegate() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if s.agentRegService == nil {
+			resp.PaymentRequired(c, "agent isolation is not enabled")
+			return
+		}
+		authHeader := c.GetHeader("Authorization")
+		if !strings.HasPrefix(authHeader, "Bearer ") {
+			resp.Unauthorized(c, "Bearer token required")
+			return
+		}
+		parentJWT := strings.TrimPrefix(authHeader, "Bearer ")
+
+		var req struct {
+			AgentName      string   `json:"agentName"      binding:"required"`
+			RequestedTools []string `json:"requestedTools"`
+			RoleName       string   `json:"roleName"`
+		}
+		if err := c.ShouldBindJSON(&req); err != nil {
+			resp.BadRequest(c, "invalid request: "+err.Error())
+			return
+		}
+		result, err := s.agentRegService.DelegateToken(c.Request.Context(), service.DelegateRequest{
+			ParentJWT:      parentJWT,
+			AgentName:      req.AgentName,
+			RequestedTools: req.RequestedTools,
+			RoleName:       req.RoleName,
+		})
+		if err != nil {
+			resp.Error(c, err.Error())
+			return
+		}
+		resp.OK(c, result)
 	}
 }
 

@@ -28,6 +28,9 @@ type AgentClaims struct {
 	// AllowedTools is a snapshot of the tool whitelist at issuance time.
 	// The live check always re-reads the AgentIdentity CRD; this is for audit purposes.
 	AllowedTools []string `json:"allowed_tools"`
+	// ParentAgentID is the AgentID of the parent agent (sub-agent scenario).
+	// Empty for top-level agents.
+	ParentAgentID string `json:"parent_agent_id,omitempty"`
 }
 
 // IsAgentToken returns true if this is an agent JWT (as opposed to a user JWT).
