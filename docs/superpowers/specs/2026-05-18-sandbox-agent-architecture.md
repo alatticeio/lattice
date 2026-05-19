@@ -25,7 +25,7 @@
 | 审计日志 | eBPF ring buffer（PRO） | JSONL 文件（`/tmp/lattice-audit-<name>.jsonl`） |
 | 出站策略 | eBPF TC ingress（PRO）/ iptables | `EgressFilter`（PRO sandbox only） |
 | 入站转发 | 无 | `ForwardListener`（PRO） |
-| HTTP 代理 | 无 | HTTP forward proxy（PRO） |
+| SOCKS5 代理 | 无 | SOCKS5 proxy（PRO） |
 | ICE / LRP | ✅ 完整支持 | ✅ 完整支持（共享同一套基础设施） |
 
 ---
@@ -138,7 +138,7 @@ internal/agent/gvisor/
         AuditWriter:   auditWriter,     // 文件（当前）/ NATS（待实现）
     })
 
-8b. 可选：startHTTPProxy(ctx, sb, proxyAddr)    // --proxy-addr
+8b. 可选：startSOCKS5Proxy(proxyAddr, sb)    // --proxy-addr
     可选：ForwardListener 绑定 --forward 规则
 ```
 
@@ -196,12 +196,11 @@ func (f *EgressFilter) Check(dst net.IP, port uint16, proto string) error {
 
 `ForwardListener` 在 gVisor netstack 内监听 `overlayIP:port`，接受连接后将流量转发到宿主机上的 `targetAddr`。这使其他 overlay peers 可以访问 sandbox 宿主机上运行的服务。
 
-### HTTP Forward Proxy（PRO）
+### SOCKS5 Proxy（PRO）
 
-`--proxy-addr 127.0.0.1:1080` 启动一个 HTTP 正向代理，所有请求通过 `sb.DialContext()` 走 gVisor overlay（因此经过 WireGuard 加密）：
+`--proxy-addr 127.0.0.1:1080` 启动一个 SOCKS5 代理（RFC 1928，无认证，CONNECT only），所有 TCP 连接通过 `sb.DialContext()` 走 gVisor overlay（WireGuard 加密）。
 
-- **HTTP**：转发请求，去除 `Proxy-Connection` 头
-- **HTTPS (CONNECT)**：Hijack 连接，建立 TCP 隧道
+客户端设置 `ALL_PROXY=socks5://127.0.0.1:1080` 即可让 HTTP 客户端、数据库驱动等任意 TCP 应用通过 overlay 通信。
 
 ---
 

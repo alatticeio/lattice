@@ -1,15 +1,16 @@
 #!/usr/bin/env sh
 # Lattice Agent Quick Install Script
-# Usage: curl -sSL https://get.lattice.io | sh -s -- --server <SERVER_URL> --token <TOKEN> --name <NODE_NAME>
+# Usage: curl -fsSL <SERVER_URL>/install.sh | sh -s -- --server <SERVER_URL> --token <TOKEN> --name <NODE_NAME>
 #
-# Copyright 2024 The Lattice Authors.
+# Copyright 2026 The Lattice Authors.
 # Licensed under the Apache License, Version 2.0
 
 set -e
 
-LATTICE_VERSION="${LATTICE_VERSION:-latest}"
-CDN_BASE="${CDN_BASE:-https://dl.lattice.io}"
 INSTALL_DIR="${INSTALL_DIR:-/usr/local/bin}"
+LATTICE_CONFIG_DIR="${LATTICE_CONFIG_DIR:-/etc/lattice}"
+LATTICE_VERSION="${LATTICE_VERSION:-latest}"
+GITHUB_RELEASES="https://github.com/alatticeio/lattice/releases"
 
 # ── parse args ───────────────────────────────────────────────────────────────
 SERVER_URL=""
@@ -55,42 +56,60 @@ esac
 
 # ── resolve version ──────────────────────────────────────────────────────────
 if [ "$LATTICE_VERSION" = "latest" ]; then
-  LATTICE_VERSION="$(curl -fsSL "${CDN_BASE}/stable.txt")"
+  LATTICE_VERSION="$(curl -fsSL "${GITHUB_RELEASES}/latest" | grep -o '"tag_name":"[^"]*"' | cut -d'"' -f4)"
   if [ -z "$LATTICE_VERSION" ]; then
-    echo "Failed to resolve latest version from ${CDN_BASE}/stable.txt"
+    echo "Failed to resolve latest version from GitHub Releases"
     exit 1
   fi
+  echo "Latest version: ${LATTICE_VERSION}"
 fi
 
-BINARY_URL="${CDN_BASE}/releases/${LATTICE_VERSION}/lattice-agent-${OS}-${ARCH}"
-echo "Downloading Lattice Agent ${LATTICE_VERSION} for ${OS}/${ARCH}..."
-TMP_FILE="$(mktemp /tmp/lattice-agent.XXXXXX)"
-curl -fsSL -o "$TMP_FILE" "$BINARY_URL"
-chmod +x "$TMP_FILE"
-mv "$TMP_FILE" "${INSTALL_DIR}/lattice-agent"
+# ── download binary ──────────────────────────────────────────────────────────
+# GoReleaser produces: lattice_v1.0.0_linux_amd64.tar.gz
+ARCHIVE_NAME="lattice_${LATTICE_VERSION}_${OS}_${ARCH}.tar.gz"
+DOWNLOAD_URL="${GITHUB_RELEASES}/download/${LATTICE_VERSION}/${ARCHIVE_NAME}"
 
-echo "Installed to ${INSTALL_DIR}/lattice-agent"
+echo "Downloading Lattice ${LATTICE_VERSION} for ${OS}/${ARCH}..."
+TMP_DIR="$(mktemp -d /tmp/lattice-install.XXXXXX)"
+trap 'rm -rf "$TMP_DIR"' EXIT
+
+if ! curl -fsSL --connect-timeout 30 -o "${TMP_DIR}/${ARCHIVE_NAME}" "$DOWNLOAD_URL"; then
+  echo "Download failed from ${DOWNLOAD_URL}"
+  echo "Check available releases at: ${GITHUB_RELEASES}"
+  exit 1
+fi
+
+tar -xzf "${TMP_DIR}/${ARCHIVE_NAME}" -C "$TMP_DIR"
+mkdir -p "$INSTALL_DIR"
+mv "${TMP_DIR}/lattice" "${INSTALL_DIR}/lattice"
+chmod +x "${INSTALL_DIR}/lattice"
+
+echo "Installed ${INSTALL_DIR}/lattice"
+
+# ── create config dir ────────────────────────────────────────────────────────
+mkdir -p "$LATTICE_CONFIG_DIR"
 
 # ── start agent ──────────────────────────────────────────────────────────────
 if [ "$OS" = "linux" ] && command -v systemctl >/dev/null 2>&1; then
-  cat > /etc/systemd/system/lattice-agent.service <<EOF
+  cat > /etc/systemd/system/lattice-agent.service <<SYSTEMD
 [Unit]
 Description=Lattice Agent
 After=network.target
 
 [Service]
-ExecStart=${INSTALL_DIR}/lattice-agent up --server-url "${SERVER_URL}" --token "${TOKEN}" --name "${NODE_NAME}" --save
+ExecStart=${INSTALL_DIR}/lattice up --server-url "${SERVER_URL}" --token "${TOKEN}" --name "${NODE_NAME}" --save
 Restart=on-failure
 RestartSec=5s
+Environment="LATTICE_CONFIG_DIR=${LATTICE_CONFIG_DIR}"
 
 [Install]
 WantedBy=multi-user.target
-EOF
+SYSTEMD
   systemctl daemon-reload
   systemctl enable --now lattice-agent
-  echo "Lattice Agent started via systemd. Run: journalctl -u lattice-agent -f"
+  echo "Lattice Agent started via systemd. Check: journalctl -u lattice-agent -f"
 elif [ "$OS" = "darwin" ]; then
-  cat > ~/Library/LaunchAgents/io.lattice.agent.plist <<EOF
+  cat > ~/Library/LaunchAgents/io.lattice.agent.plist <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -98,22 +117,27 @@ elif [ "$OS" = "darwin" ]; then
   <key>Label</key>      <string>io.lattice.agent</string>
   <key>ProgramArguments</key>
   <array>
-    <string>${INSTALL_DIR}/lattice-agent</string>
+    <string>${INSTALL_DIR}/lattice</string>
     <string>up</string>
     <string>--server-url</string> <string>${SERVER_URL}</string>
     <string>--token</string>      <string>${TOKEN}</string>
     <string>--name</string>       <string>${NODE_NAME}</string>
     <string>--save</string>
   </array>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>LATTICE_CONFIG_DIR</key>
+    <string>${LATTICE_CONFIG_DIR}</string>
+  </dict>
   <key>RunAtLoad</key>  <true/>
   <key>KeepAlive</key>  <true/>
 </dict>
 </plist>
-EOF
+PLIST
   launchctl load ~/Library/LaunchAgents/io.lattice.agent.plist
   echo "Lattice Agent started via launchd."
 else
-  echo "Run manually: ${INSTALL_DIR}/lattice-agent up --server-url '${SERVER_URL}' --token '${TOKEN}' --name '${NODE_NAME}' --save"
+  echo "Run manually: ${INSTALL_DIR}/lattice up --server-url '${SERVER_URL}' --token '${TOKEN}' --name '${NODE_NAME}' --save"
 fi
 
-echo "Done. Your node '${NODE_NAME}' should appear in the Dashboard within 30 seconds."
+echo "Done. Node '${NODE_NAME}' should appear in the Dashboard within 30 seconds."

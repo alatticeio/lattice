@@ -563,7 +563,7 @@ func registerStartFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&sandboxName, "name", "", "Sandbox identifier (required)")
 	cmd.Flags().StringVar(&sandboxServerURL, "server-url", "", "Lattice control plane URL")
 	cmd.Flags().StringVar(&sandboxToken, "token", "", "Enrollment token")
-	cmd.Flags().StringVar(&sandboxProxyAddr, "proxy-addr", "", "HTTP forward proxy listen address")
+	cmd.Flags().StringVar(&sandboxProxyAddr, "proxy-addr", "", "SOCKS5 proxy listen address")
 	cmd.Flags().StringArrayVar(&sandboxForwardRules, "forward", nil, "Inbound forward rule: overlayPort:targetAddr")
 	cmd.Flags().StringVar(&sandboxEgressAllow, "egress-allow", "", "Comma-separated allowed egress CIDRs")
 	cmd.Flags().BoolVar(&sandboxEgressDeny, "egress-default-deny", false, "Whitelist egress mode")
@@ -629,7 +629,7 @@ func registerStartFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&sandboxName, "name", "", "Sandbox identifier (required)")
 	cmd.Flags().StringVar(&sandboxServerURL, "server-url", "", "Lattice control plane URL (required)")
 	cmd.Flags().StringVar(&sandboxToken, "token", "", "Enrollment token (required)")
-	cmd.Flags().StringVar(&sandboxProxyAddr, "proxy-addr", "", "HTTP forward proxy listen address (e.g. 127.0.0.1:1080)")
+	cmd.Flags().StringVar(&sandboxProxyAddr, "proxy-addr", "", "SOCKS5 proxy listen address (e.g. 127.0.0.1:1080)")
 	cmd.Flags().StringArrayVar(&sandboxForwardRules, "forward", nil, "Inbound forward rule: overlayPort:targetAddr")
 	cmd.Flags().StringVar(&sandboxEgressAllow, "egress-allow", "", "Comma-separated allowed egress CIDRs")
 	cmd.Flags().BoolVar(&sandboxEgressDeny, "egress-default-deny", false, "Whitelist egress mode")
@@ -728,7 +728,7 @@ func runStart(_ *cobra.Command, _ []string) error {
 		if err := sb.StartProxy(sandboxProxyAddr); err != nil {
 			return fmt.Errorf("start proxy: %w", err)
 		}
-		fmt.Printf("HTTP proxy listening on %s\n", sandboxProxyAddr)
+		fmt.Printf("SOCKS5 proxy listening on %s\n", sandboxProxyAddr)
 	}
 
 	var fwdRules []shimfwd.ForwardRule

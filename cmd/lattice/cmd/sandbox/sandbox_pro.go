@@ -19,10 +19,7 @@ package sandbox
 import (
 	"context"
 	"fmt"
-	"io"
-	"log"
 	"net"
-	"net/http"
 	"os"
 	"os/signal"
 	"strings"
@@ -67,7 +64,7 @@ func registerStartFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&sandboxName, "name", "", "Sandbox identifier (required)")
 	cmd.Flags().StringVar(&sandboxServerURL, "server-url", "", "Lattice control plane URL (required)")
 	cmd.Flags().StringVar(&sandboxToken, "token", "", "Enrollment token (required)")
-	cmd.Flags().StringVar(&sandboxProxyAddr, "proxy-addr", "", "HTTP forward proxy listen address (e.g. 127.0.0.1:1080)")
+	cmd.Flags().StringVar(&sandboxProxyAddr, "proxy-addr", "", "SOCKS5 proxy listen address (e.g. 127.0.0.1:1080)")
 	cmd.Flags().StringArrayVar(&sandboxForwardRules, "forward", nil, "Inbound forward rule: overlayPort:targetAddr")
 	cmd.Flags().StringVar(&sandboxEgressAllow, "egress-allow", "", "Comma-separated allowed egress CIDRs")
 	cmd.Flags().BoolVar(&sandboxEgressDeny, "egress-default-deny", false, "Whitelist egress mode")
@@ -218,10 +215,13 @@ func runStart(_ *cobra.Command, _ []string) error {
 	}
 
 	if sandboxProxyAddr != "" {
-		if startErr := startHTTPProxy(ctx, sb, sandboxProxyAddr); startErr != nil {
-			return fmt.Errorf("start proxy: %w", startErr)
+		socks5, err := shimfwd.NewSocks5Server(sb, sandboxProxyAddr)
+		if err != nil {
+			return fmt.Errorf("start socks5 proxy: %w", err)
 		}
-		fmt.Printf("HTTP proxy listening on %s\n", sandboxProxyAddr)
+		go socks5.Serve()
+		defer socks5.Close()
+		fmt.Printf("SOCKS5 proxy listening on %s\n", sandboxProxyAddr)
 	}
 
 	var fwdRules []shimfwd.ForwardRule
@@ -272,84 +272,6 @@ func runStart(_ *cobra.Command, _ []string) error {
 	fmt.Println("\nShutting down...")
 	_ = node.Stop()
 	return nil
-}
-
-// startHTTPProxy starts a minimal HTTP forward proxy that routes requests
-// through the gVisor sandbox network (WireGuard overlay).
-func startHTTPProxy(_ context.Context, sb *gvisor.Sandbox, addr string) error {
-	transport := &http.Transport{
-		DialContext: func(ctx context.Context, network, address string) (net.Conn, error) {
-			dialCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
-			defer cancel()
-			return sb.DialContext(dialCtx, network, address)
-		},
-	}
-	ln, err := net.Listen("tcp", addr)
-	if err != nil {
-		return fmt.Errorf("proxy listen %s: %w", addr, err)
-	}
-	srv := &http.Server{
-		Addr:    addr,
-		Handler: &httpForwardProxy{transport: transport},
-	}
-	log.Printf("[sandbox] HTTP proxy listening on %s", addr)
-	go func() {
-		if serveErr := srv.Serve(ln); serveErr != nil && serveErr != http.ErrServerClosed {
-			log.Printf("[sandbox] proxy error: %v", serveErr)
-		}
-	}()
-	return nil
-}
-
-// httpForwardProxy is a minimal HTTP forward proxy that routes requests
-// through gVisor's netstack (WireGuard overlay).
-type httpForwardProxy struct {
-	transport *http.Transport
-}
-
-func (p *httpForwardProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if r.Method == http.MethodConnect {
-		// HTTPS tunnel via CONNECT.
-		dst, err := p.transport.DialContext(r.Context(), "tcp", r.Host)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadGateway)
-			return
-		}
-		defer dst.Close()
-		hijacker, ok := w.(http.Hijacker)
-		if !ok {
-			http.Error(w, "hijacking not supported", http.StatusInternalServerError)
-			return
-		}
-		client, _, err := hijacker.Hijack()
-		if err != nil {
-			return
-		}
-		defer client.Close()
-		if _, err = client.Write([]byte("HTTP/1.0 200 Connection established\r\n\r\n")); err != nil {
-			return
-		}
-		go func() { _, _ = io.Copy(dst, client) }()
-		_, _ = io.Copy(client, dst)
-		return
-	}
-
-	// Plain HTTP forward proxy.
-	r.RequestURI = ""
-	r.Header.Del("Proxy-Connection")
-	resp, err := p.transport.RoundTrip(r)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadGateway)
-		return
-	}
-	defer resp.Body.Close()
-	for k, vs := range resp.Header {
-		for _, v := range vs {
-			w.Header().Add(k, v)
-		}
-	}
-	w.WriteHeader(resp.StatusCode)
-	_, _ = io.Copy(w, resp.Body)
 }
 
 func parseForwardRule(s string) (shimfwd.ForwardRule, error) {

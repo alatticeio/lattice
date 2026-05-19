@@ -34,7 +34,7 @@ title: AI Agent Security — Capability Verification
 |--------|------|---------|
 | CIDR 白名单 (`--egress-allow`) | ✅ PRO 已实现 | `sandbox_pro.go:92-105` — `net.ParseCIDR` |
 | 默认 deny + Drop | ✅ PRO 已实现 | `sandbox_pro.go:73` — `--egress-default-deny` |
-| HTTP CONNECT 正向代理 | ✅ PRO 已实现 | `sandbox_pro.go:279-353` — `httpForwardProxy` |
+| SOCKS5 正向代理 | ✅ PRO 已实现 | `sandbox_pro.go` — `socks5Server`（RFC 1928） |
 | ForwardListener（端口转发） | ✅ PRO 已实现 | `sandbox_pro.go:236` — `shimfwd.NewForwardListener` |
 | Community 版 egress 控制 | ❌ 完全没有 | `sandbox_community.go:56-63` 只有 `--name/--server-url/--token` |
 | **域名级过滤** | ❌ 未实现 | `PolicyAdapter.Allow` 签名只有 `dstIP + dstPort`（`shim_adapter.go:44`），没有 DNS 解析 |
@@ -78,7 +78,7 @@ title: AI Agent Security — Capability Verification
 | TTL 自动过期（设 phase=Expired） | ✅ | ✅ | `agent_identity_controller.go:60` |
 | CIDR EgressFilter (`--egress-allow`) | ❌ | ✅ | `sandbox_pro.go:92-105` |
 | ForwardListener (`--forward`) | ❌ | ✅ | `sandbox_pro.go:236` |
-| HTTP CONNECT 代理 (`--proxy-addr`) | ❌ | ✅ | `sandbox_pro.go:279-353` |
+| SOCKS5 代理 (`--proxy-addr`) | ❌ | ✅ | `sandbox_pro.go` — `socks5Server` |
 | NATS 服务端流量审计 (`la_flow_events`) | ❌ | ✅ | `audit_consumer_pro.go` |
 | Sandbox→NATS 审计推送 (`natsAuditWriter`) | ❌ | ❌ | 已规划，标注"待实现" |
 | 域名级 egress 过滤 | ❌ | ❌ | 不存在 |

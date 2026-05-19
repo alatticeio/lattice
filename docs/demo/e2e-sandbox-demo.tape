@@ -194,7 +194,7 @@ Sleep 300ms
 Type@0 "INF ForwardListener started overlay:8080 → 127.0.0.1:8080"
 Enter
 Sleep 200ms
-Type@0 "INF HTTP proxy listening on 127.0.0.1:1080"
+Type@0 "INF SOCKS5 proxy listening on 127.0.0.1:1080"
 Enter
 Sleep 400ms
 Type@0 "INF ICE tunnel established peer=10.42.0.1"
@@ -234,7 +234,7 @@ Type@0.05 "# ── Scenario 2: Sandbox reaches companion nginx via WireGuard �
 Enter
 Sleep 500ms
 
-Type@0.03 "$ http_proxy=http://127.0.0.1:1080 \\"
+Type@0.03 "$ ALL_PROXY=socks5://127.0.0.1:1080 \\"
 Enter
 Type@0.03 "  wget -q -O - --timeout=5 http://10.42.0.1:8080"
 Sleep 300ms
@@ -288,7 +288,7 @@ Type@0.05 "# ── Scenario 4: Non-lattice IP is BLOCKED by default ──"
 Enter
 Sleep 500ms
 
-Type@0.03 "$ http_proxy=http://127.0.0.1:1080 \\"
+Type@0.03 "$ ALL_PROXY=socks5://127.0.0.1:1080 \\"
 Enter
 Type@0.03 "  wget -q -O - --timeout=3 http://1.2.3.4:80"
 Sleep 300ms
@@ -325,7 +325,7 @@ Type@0 "# Policy change propagates to enforcer (iptables/eBPF)..."
 Enter
 Sleep 1s
 
-Type@0.03 "$ http_proxy=http://127.0.0.1:1080 \\"
+Type@0.03 "$ ALL_PROXY=socks5://127.0.0.1:1080 \\"
 Enter
 Type@0.03 "  wget -q -O - --timeout=3 http://10.42.0.1:8080"
 Sleep 300ms

@@ -66,7 +66,7 @@ lattice sandbox start \
 ping <sandbox-overlay-ip>
 
 # 在 sandbox 容器内（出站走 gVisor overlay）
-curl --proxy socks5://127.0.0.1:1080 http://10.100.0.2:8080   # PRO: HTTP proxy
+curl --proxy socks5://127.0.0.1:1080 http://10.100.0.2:8080   # PRO: SOCKS5 proxy
 ```
 
 ---
@@ -82,7 +82,7 @@ lattice sandbox start [flags]
   --token string        Enrollment token（首次启动）
 
 PRO 专属:
-  --proxy-addr string          HTTP 正向代理监听地址（如 127.0.0.1:1080）
+  --proxy-addr string          SOCKS5 代理监听地址（如 127.0.0.1:1080）
   --forward stringArray        入站端口转发规则：overlayPort:targetAddr
   --egress-allow string        允许出站的 CIDR 列表（逗号分隔）
   --egress-default-deny        启用出站白名单模式（默认放行）
@@ -242,7 +242,7 @@ curl -X POST http://localhost:8080/api/v1/agent-isolation/delegate \
 | Sub-agent Delegate API | ✅ | ✅ |
 | 出站策略过滤（EgressFilter） | ❌ | ✅ |
 | 入站端口转发（ForwardListener） | ❌ | ✅ |
-| HTTP 正向代理（`--proxy-addr`） | ❌ | ✅ |
+| SOCKS5 代理（`--proxy-addr`） | ❌ | ✅ |
 | NATS 中心化审计上报（flow_events） | ❌ | ✅ |
 
 ---

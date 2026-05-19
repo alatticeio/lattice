@@ -24,7 +24,7 @@ title: Sandbox Architecture
 | Audit log | eBPF ring buffer (Pro) | JSONL file (`/tmp/lattice-audit-<name>.jsonl`) |
 | Egress policy | eBPF TC (Pro) / iptables | `EgressFilter` (Pro sandbox only) |
 | Inbound forwarding | None | `ForwardListener` (Pro) |
-| HTTP proxy | None | HTTP forward proxy (Pro) |
+| SOCKS5 proxy | None | SOCKS5 proxy (Pro) |
 | ICE / LRP | ✅ Full support | ✅ Full support (shared infrastructure) |
 
 ## Network Architecture

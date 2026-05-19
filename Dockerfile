@@ -41,7 +41,7 @@ ARG TARGETSERVICE
 #   latticed (all-in-one)  -> 同上，另需 ca-certificates（HTTPS 出向请求）
 #   manager   (K8s operator) -> 仅需 ca-certificates
 RUN if [ "$TARGETSERVICE" = "lattice" ] || [ "$TARGETSERVICE" = "latticed" ]; then \
-        apk add --no-cache wireguard-tools iptables iproute2 ca-certificates; \
+        apk add --no-cache wireguard-tools iptables iproute2 ca-certificates curl; \
     else \
         apk add --no-cache ca-certificates; \
     fi
