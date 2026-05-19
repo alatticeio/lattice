@@ -34,4 +34,5 @@ Agents can delegate identity to child agents via the **Delegate API** — a pare
 
 - [Sandbox (Community)](/agent/sandbox) — full guide: startup flow, CLI reference, credential persistence, AI framework integration
 - [Sandbox (Pro)](/agent/sandbox-pro) — EgressFilter, ForwardListener, SOCKS5 proxy, NATS audit
+- [Sandbox Deployment Guide](/agent/sandbox-deployment) — 三种部署模式：裸机二进制、Docker Compose、Kubernetes Sidecar
 - [Sub-agent Delegate API](/agent/delegate-api) — CRD fields, HTTP endpoint, curl and Python examples

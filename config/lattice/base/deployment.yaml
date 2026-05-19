@@ -62,48 +62,6 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: turn
-  labels:
-    k8s-app: turn
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      k8s-app: lattice-turn
-  template:
-    metadata:
-      labels:
-        k8s-app: lattice-turn
-    spec:
-      initContainers:
-        - name: wait-for-nats
-          image: curlimages/curl:latest
-          imagePullPolicy: IfNotPresent
-          command:
-            - '/bin/sh'
-            - '-c'
-            - |
-              until curl -f http://lattice-nats-service:8222/varz; do
-                echo "Waiting for nats server..."
-                sleep 2
-              done
-      containers:
-        - name: lattice-turn
-          image: manager:latest
-          imagePullPolicy: IfNotPresent
-          ports:
-            - containerPort: 3478
-              protocol: UDP
-              hostPort: 3478
-          args:
-            - "start"
-            - "turn"
-            - "--level=debug"
-            - "--public-ip=81.68.109.143"
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
   name: lrper
   labels:
     k8s-app: lattice-lrper

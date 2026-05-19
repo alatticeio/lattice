@@ -47,6 +47,7 @@ config:
     secret: ""  # auto-generated if empty
     expireHours: 24
   signalingUrl: ""  # defaults to embedded NATS within the pod
+  stunUrl: "stun.alattice.io:3478"  # STUN server address (host:port)
   database:
     dsn: "data/lattice.db"  # SQLite path
 

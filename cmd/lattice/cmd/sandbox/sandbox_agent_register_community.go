@@ -12,25 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//go:build !pro
+
 package sandbox
 
-import (
-	"github.com/spf13/cobra"
-)
+import "github.com/spf13/cobra"
 
-var (
-	sandboxName      string
-	sandboxServerURL string
-	sandboxToken     string
-)
-
-// SandboxCmd returns the top-level `sandbox` cobra command.
-func SandboxCmd() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "sandbox",
-		Short: "Manage sandboxed agent environments (Pro)",
-	}
-	cmd.AddCommand(startCmd())
-	registerAgentCmd(cmd)
-	return cmd
-}
+// registerAgentCmd is a no-op in community builds.
+func registerAgentCmd(_ *cobra.Command) {}

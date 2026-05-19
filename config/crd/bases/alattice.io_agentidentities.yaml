@@ -86,6 +86,11 @@ spec:
                   Nil means the identity never expires.
                 format: date-time
                 type: string
+              parentRef:
+                description: |-
+                  ParentRef is the name of the parent AgentIdentity (sub-agent scenario).
+                  Empty means this is a top-level agent.
+                type: string
               peerRef:
                 description: PeerRef is the name of the LatticePeer this agent is
                   bound to. Required.
@@ -95,6 +100,12 @@ spec:
                 description: Sandbox controls the hosting isolation mode for this
                   agent.
                 type: string
+              spawnableRoles:
+                description: SpawnableRoles lists role template names this agent is
+                  allowed to spawn as sub-agents.
+                items:
+                  type: string
+                type: array
             required:
             - peerRef
             type: object
