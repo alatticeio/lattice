@@ -1,0 +1,41 @@
+# Lattice AI Agent Sandbox — docker-compose template
+#
+# Pattern: sandbox sidecar + user agent container sharing the sandbox network.
+# The agent's HTTP_PROXY routes all traffic through gVisor → WireGuard overlay.
+#
+# Usage:
+#   1. Fill in LATTICE_SERVER_URL and LATTICE_TOKEN below.
+#   2. Replace "your-ai-agent" with your own agent image.
+#   3. Run: docker compose -f docker-compose.sandbox.yml up -d
+
+services:
+  # ── Sandbox sidecar: provides SOCKS5 proxy + WireGuard overlay identity ──
+  sandbox:
+    image: ghcr.io/alatticeio/lattice-sandbox:latest
+    restart: unless-stopped
+    environment:
+      LATTICE_SERVER_URL: "https://lattice.example.com"   # <-- CHANGE ME
+      LATTICE_TOKEN: "lt-xxxxxxxx"                        # <-- CHANGE ME
+      LATTICE_NAME: "ai-agent-01"
+      PROXY_ADDR: "127.0.0.1:1080"
+      FORWARD_RULES: "8080:127.0.0.1:8080"               # forward overlay:8080 → local app
+      EGRESS_ALLOW: "10.0.0.0/8"                         # allow overlay IPs
+      EGRESS_DEFAULT_DENY: "true"                         # block everything else
+    volumes:
+      - sandbox-creds:/etc/lattice  # persist credentials across restarts
+    # No privileged mode, no NET_ADMIN — gVisor runs in userspace.
+
+  # ── Your AI agent: shares sandbox network namespace ─────────────────────
+  agent:
+    image: your-ai-agent:latest   # <-- CHANGE ME to your agent image
+    restart: unless-stopped
+    network_mode: "service:sandbox"   # share sandbox's netns
+    environment:
+      ALL_PROXY: "socks5://127.0.0.1:1080"   # route HTTP through sandbox
+      HTTPS_PROXY: "socks5://127.0.0.1:1080"
+      NO_PROXY: "127.0.0.1,localhost"
+    depends_on:
+      - sandbox
+
+volumes:
+  sandbox-creds:

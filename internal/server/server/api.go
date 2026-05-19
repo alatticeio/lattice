@@ -50,6 +50,11 @@ func (s *Server) apiRouter() error {
 			c.JSON(503, gin.H{"error": "Dex OIDC is not configured"})
 		})
 	}
+	// Health check — used by K8s readiness/liveness probes
+	s.GET("/health", func(c *gin.Context) {
+		c.JSON(200, gin.H{"status": "ok"})
+	})
+
 	// Attach monitoring
 	s.GET("/metrics", gin.WrapH(promhttp.Handler()))
 	api := s.Group("/api/v1")
