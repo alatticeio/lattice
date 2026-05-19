@@ -433,6 +433,11 @@ func deploySandboxPod(clientset *kubernetes.Clientset, ns, name, sandboxImage, s
 		"--token", enrollmentToken,
 		"--proxy-addr", "127.0.0.1:1080",
 		"--forward", "8080:127.0.0.1:8080",
+		// Allow overlay traffic (any 10.x.x.x) and deny everything else.
+		// This activates the EgressFilter so gVisor writes drop audit events
+		// when connections to non-overlay IPs are attempted through the proxy.
+		"--egress-allow", "10.0.0.0/8",
+		"--egress-default-deny",
 	}
 
 	_, err := clientset.CoreV1().Pods(ns).Create(context.Background(), &corev1.Pod{

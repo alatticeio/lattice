@@ -187,9 +187,13 @@ var _ = Describe("Agent Sandbox", Ordered, func() {
 	// ─── Scenario 4: Non-lattice IP is blocked ───
 	It("sandbox cannot reach non-lattice IP addresses", func() {
 		podName := waitForPodRunningReady(clientset, testNS, sandboxName, "30s")
+		// Route through the SOCKS5 proxy so the request enters gVisor where the
+		// EgressFilter (--egress-default-deny) blocks non-overlay destinations and
+		// writes drop audit events for Scenario 6.
 		Consistently(func() error {
 			_, err := execInPod(clientset, restConfig, testNS, podName,
-				[]string{"wget", "-q", "-O", "-", "--timeout=3", "http://1.2.3.4:80"})
+				[]string{"sh", "-c",
+					`curl -s --socks5-hostname 127.0.0.1:1080 --max-time 3 "http://1.2.3.4:80"`})
 			if err == nil {
 				return fmt.Errorf("expected connection to fail but succeeded")
 			}
