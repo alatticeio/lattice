@@ -1,0 +1,180 @@
+name: Helm Deploy Test
+
+on:
+  push:
+    branches: [dev, feat/sandbox-runsc]
+  pull_request:
+    types: [labeled, opened, synchronize, reopened]
+    branches:
+      - master
+      - main
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io/alatticeio
+  CLUSTER_NAME: lattice-helm-e2e
+  E2E_KUBECONFIG: /tmp/lattice-helm-e2e.kubeconfig
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  helm-deploy-test:
+    if: |
+      (github.event_name == 'push' && github.ref == 'refs/heads/dev') ||
+      (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'run-e2e'))
+
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Install Helm
+        run: |
+          curl -fsSL -o /tmp/get-helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
+          chmod +x /tmp/get-helm.sh
+          /tmp/get-helm.sh
+
+      - name: Compute build variables
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            TAG="pr-${{ github.event.pull_request.number }}"
+          else
+            TAG="${{ github.ref_name }}"
+          fi
+          echo "TAG=$TAG" >> "$GITHUB_ENV"
+
+      - name: Setup pnpm
+        run: npm install -g pnpm@10.32.1
+
+      - name: Build latticed image
+        run: |
+          make docker-build SERVICE=latticed TAG=$TAG REGISTRY=$REGISTRY
+
+      - name: Setup k3d cluster
+        uses: AbsaOSS/k3d-action@v2
+        with:
+          cluster-name: ${{ env.CLUSTER_NAME }}
+          args: >-
+            --agents 0
+            --no-lb
+            --k3s-arg "--disable=traefik@server:*"
+            --k3s-arg "--disable=metrics-server@server:*"
+
+      - name: Export kubeconfig
+        run: |
+          k3d kubeconfig get $CLUSTER_NAME > $E2E_KUBECONFIG
+          echo "KUBECONFIG=$E2E_KUBECONFIG" >> "$GITHUB_ENV"
+
+      - name: Import image into k3d
+        run: |
+          k3d image import $REGISTRY/latticed:$TAG -c $CLUSTER_NAME
+          echo "====> Verify image in k3d node..."
+          docker exec k3d-$CLUSTER_NAME-server-0 ctr -n k8s.io images ls | grep latticed || true
+
+      - name: Deploy with Helm
+        run: |
+          kubectl --kubeconfig=$E2E_KUBECONFIG create namespace lattice-system --dry-run=client -o yaml | \
+            kubectl --kubeconfig=$E2E_KUBECONFIG apply -f -
+
+          PVC_DISABLED=false
+          if ! kubectl --kubeconfig=$E2E_KUBECONFIG get storageclass 2>/dev/null | grep -q '(default)'; then
+            echo "No default StorageClass, disabling PVC..."
+            PVC_DISABLED=true
+          fi
+
+          helm upgrade --install lattice deploy/charts/lattice \
+            --kubeconfig=$E2E_KUBECONFIG \
+            --namespace lattice-system \
+            --set image.repository=$REGISTRY/latticed \
+            --set "image.tag=$TAG" \
+            --set image.pullPolicy=Never \
+            --set persistence.enabled="$PVC_DISABLED" \
+            --set coturn.enabled=false \
+            --set config.jwt.secret="test-secret-key-32bytes-long!" \
+            --set config.app.env="test"
+
+      - name: Verify deployment
+        run: |
+          NS=lattice-system
+          KC="kubectl --kubeconfig=$E2E_KUBECONFIG"
+
+          echo "===== Wait for pod to start (30s) ====="
+          sleep 30
+
+          echo "===== Resources ====="
+          $KC get all -n $NS -o wide || true
+
+          echo "===== Pod describe ====="
+          $KC describe pod -n $NS -l app.kubernetes.io/name=lattice | tail -40 || true
+
+          echo "===== Pod logs ====="
+          $KC logs -n $NS -l app.kubernetes.io/name=lattice --tail=100 || true
+
+          echo "===== Wait for pod ready (120s) ====="
+          $KC wait --for=condition=ready pod -l app.kubernetes.io/name=lattice -n $NS --timeout=120s || true
+
+          echo "===== Final pod status ====="
+          $KC get pod -n $NS -l app.kubernetes.io/name=lattice -o wide
+          $KC describe pod -n $NS -l app.kubernetes.io/name=lattice | tail -30
+
+          echo "===== Final pod logs ====="
+          $KC logs -n $NS -l app.kubernetes.io/name=lattice --tail=100 || true
+
+          # Fail if pod is not ready
+          READY=$($KC get pod -n $NS -l app.kubernetes.io/name=lattice -o jsonpath='{.items[0].status.conditions[?(@.type=="Ready")].status}')
+          if [ "$READY" != "True" ]; then
+            echo "❌ Pod failed to become ready"
+            exit 1
+          fi
+          echo "✅ Pod is ready"
+
+      - name: Smoke test (API health)
+        run: |
+          KC="kubectl --kubeconfig=$E2E_KUBECONFIG"
+
+          # Port-forward for API access.
+          $KC port-forward -n lattice-system svc/lattice 8080:8080 &
+          PF_PID=$!
+          sleep 3
+
+          # Login.
+          echo "====> Testing API login..."
+          LOGIN_RESP=$(curl -sf --max-time 10 -X POST http://localhost:8080/api/v1/users/login \
+            -H 'Content-Type: application/json' \
+            -d '{"username":"admin","password":"123456"}')
+          echo "$LOGIN_RESP" | grep -q '"token"' && echo "✅ Login OK"
+
+          # Create workspace.
+          TOKEN=$(echo "$LOGIN_RESP" | grep -o '"token":"[^"]*"' | cut -d'"' -f4)
+          echo "====> Testing workspace creation..."
+          WS_RESP=$(curl -sf --max-time 10 -X POST http://localhost:8080/api/v1/workspaces/add \
+            -H "Authorization: Bearer $TOKEN" \
+            -H 'Content-Type: application/json' \
+            -d '{"slug":"helm-e2e-test","namespace":"wf-helm-e2e","displayName":"Helm E2E","maxNodeCount":5}')
+          echo "$WS_RESP" | grep -q '"code":200' && echo "✅ Workspace OK"
+
+          # Cleanup port-forward.
+          kill $PF_PID 2>/dev/null || true
+
+      - name: Collect failure logs
+        if: failure()
+        run: |
+          KC="kubectl --kubeconfig=$E2E_KUBECONFIG"
+          echo "===== Pod logs ====="
+          $KC logs -n lattice-system -l app.kubernetes.io/name=lattice --tail=200 || true
+          echo "===== Events ====="
+          $KC get events -n lattice-system --sort-by='.lastTimestamp' || true
+
+      - name: Cleanup k3d cluster
+        if: always()
+        run: k3d cluster delete $CLUSTER_NAME 2>/dev/null || true

@@ -259,6 +259,58 @@ test-e2e-load: ## 仅构建并导入 lattice agent 镜像（适合镜像变更�
 	$(MAKE) docker-build SERVICE=lattice TAG=$(TAG)
 	k3d image import $(LOCAL_AGENT_IMAGE) -c $(LOCAL_CLUSTER_NAME)
 
+# ─────────────────────────────────────────────────────────────
+#  GVisor runsc Rootfs 构建（gVisor 模式 E2E 测试用）
+# ─────────────────────────────────────────────────────────────
+GVISOR_ROOTFS_IMAGE ?= lattice-gvisor-rootfs:e2e
+GVISOR_ROOTFS_DIR   ?= /tmp/lattice-gvisor-rootfs
+RUNSC_VERSION        ?= 20250519.1
+RUNSC_URL            ?= https://storage.googleapis.com/gvisor/releases/release/20250519.1/x86_64/runsc
+
+.PHONY: e2e-install-runsc
+e2e-install-runsc: ## 下载 runsc 并安装到 k3d E2E 节点
+	@echo "====> 下载 runsc ..."
+	@mkdir -p /tmp/runsc-bin
+	@if [ ! -f /tmp/runsc-bin/runsc ]; then \
+		curl -fsSL -o /tmp/runsc-bin/runsc https://storage.googleapis.com/gvisor/releases/release/latest/x86_64/runsc || \
+		curl -fsSL -o /tmp/runsc-bin/runsc $(RUNSC_URL); \
+		chmod +x /tmp/runsc-bin/runsc; \
+		file /tmp/runsc-bin/runsc | grep -q ELF || { echo "❌ runsc 不是有效 ELF 二进制"; exit 1; }; \
+	fi
+	@echo "====> 拷贝 runsc 到 k3d 节点 ($(LOCAL_CLUSTER_NAME)-server-0)..."
+	@k3d node list $(LOCAL_CLUSTER_NAME) 2>/dev/null | grep -q server-0 || \
+		{ echo "❌ k3d 集群 $(LOCAL_CLUSTER_NAME) 不存在，请先运行 make e2e-setup"; exit 1; }
+	$(CONTAINER_TOOL) cp /tmp/runsc-bin/runsc k3d-$(LOCAL_CLUSTER_NAME)-server-0:/usr/local/bin/runsc
+	$(CONTAINER_TOOL) exec -u root k3d-$(LOCAL_CLUSTER_NAME)-server-0 chmod +x /usr/local/bin/runsc
+	@echo "✅ runsc 已安装到 k3d 节点"
+	@# Verify
+	@$(CONTAINER_TOOL) exec k3d-$(LOCAL_CLUSTER_NAME)-server-0 runsc --version 2>&1 || echo "Warning: runsc --version check failed"
+
+.PHONY: e2e-build-gvisor-rootfs
+e2e-build-gvisor-rootfs: ## 构建 runsc gVisor rootfs 并提取到 $(GVISOR_ROOTFS_DIR)
+	@echo "====> 构建 lattice 二进制 (pro, linux/amd64)..."
+	$(MAKE) build SERVICE=lattice EDITION=pro
+	@echo "====> 构建 rootfs Docker 镜像..."
+	$(CONTAINER_TOOL) build \
+		-t $(GVISOR_ROOTFS_IMAGE) \
+		-f test/e2e/rootfs_test/Dockerfile \
+		.
+	@echo "====> 导出 rootfs → $(GVISOR_ROOTFS_DIR)..."
+	@rm -rf $(GVISOR_ROOTFS_DIR)
+	@mkdir -p $(GVISOR_ROOTFS_DIR)
+	@CONTAINER_ID=$$($(CONTAINER_TOOL) create $(GVISOR_ROOTFS_IMAGE)); \
+		$(CONTAINER_TOOL) export $$CONTAINER_ID | tar -xf - -C $(GVISOR_ROOTFS_DIR); \
+		$(CONTAINER_TOOL) rm $$CONTAINER_ID > /dev/null
+	@echo "✅ Rootfs 已提取到: $(GVISOR_ROOTFS_DIR)"
+
+.PHONY: e2e-import-gvisor-rootfs
+e2e-import-gvisor-rootfs: e2e-build-gvisor-rootfs ## 将 rootfs 拷贝到 k3d E2E 节点
+	@echo "====> 拷贝 rootfs 到 k3d 节点 ($(LOCAL_CLUSTER_NAME)-server-0)..."
+	@k3d node list $(LOCAL_CLUSTER_NAME) 2>/dev/null | grep -q server-0 || \
+		{ echo "❌ k3d 集群 $(LOCAL_CLUSTER_NAME) 不存在，请先运行 make e2e-setup"; exit 1; }
+	$(CONTAINER_TOOL) cp $(GVISOR_ROOTFS_DIR) k3d-$(LOCAL_CLUSTER_NAME)-server-0:$(GVISOR_ROOTFS_DIR)
+	@echo "✅ Rootfs 已拷贝到 k3d 节点 $(GVISOR_ROOTFS_DIR)"
+
 .PHONY: test-e2e-cleanup
 test-e2e-cleanup: ## 清理 E2E 残留的测试 Namespace (前缀 wf-test-)
 	@echo "====> 清理测试 Namespace..."
@@ -433,6 +485,30 @@ deploy-aio: manifests kustomize ## 部署 all-in-one 模式到已有 K8s 集群 
 .PHONY: undeploy-aio
 undeploy-aio: kustomize ## 卸载 all-in-one 部署
 	$(KUSTOMIZE) build config/lattice/overlays/all-in-one --load-restrictor LoadRestrictionsNone | $(KUBECTL) delete -f - --ignore-not-found=true
+
+HELM_RELEASE         ?= lattice
+HELM_NAMESPACE        ?= lattice-system
+HELM_VALUES           ?= deploy/charts/lattice/values.yaml
+
+.PHONY: deploy-helm
+deploy-helm: manifests ## 使用 Helm 部署到已有 K8s 集群 (usage: make deploy-helm IMG=ghcr.io/alatticeio/latticed:v0.1.0)
+	$(KUBECTL) create namespace $(HELM_NAMESPACE) --dry-run=client -o yaml | $(KUBECTL) apply -f -
+	@echo "正在用 Helm 部署 $(HELM_RELEASE)（CRDs 由 Helm crds/ 目录自动安装）(IMG=$(IMG))..."
+	helm upgrade --install $(HELM_RELEASE) deploy/charts/lattice \
+		--namespace $(HELM_NAMESPACE) \
+		-f $(HELM_VALUES) \
+		--set image.repository=$(REGISTRY)/latticed \
+		--set "image.tag=$(TAG)" \
+		--set image.pullPolicy=IfNotPresent \
+		--set config.jwt.secret="$(shell openssl rand -hex 16)" \
+		--wait \
+		--timeout 5m
+	@echo "✅ Helm 部署完成。API: $(KUBECTL) port-forward svc/lattice-api-service 8080:8080 -n $(HELM_NAMESPACE)"
+
+.PHONY: undeploy-helm
+undeploy-helm: ## 卸载 Helm 部署
+	helm uninstall $(HELM_RELEASE) --namespace $(HELM_NAMESPACE) --ignore-not-found
+	@echo "✅ Helm 部署已卸载"
 
 .PHONY: deploy
 deploy: manifests kustomize ## 根据 ENV 部署 (usage: make deploy ENV=production)

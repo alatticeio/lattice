@@ -1,0 +1,31 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: stun
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: stun
+  template:
+    metadata:
+      labels:
+        app: stun
+    spec:
+      containers:
+        - name: coturn
+          image: coturn/coturn:4.6
+          args:
+            - "--stun-only"
+            - "--port=3478"
+          ports:
+            - containerPort: 3478
+              protocol: UDP
+              hostPort: 3478  # 必须 hostPort，coturn 返回的是宿主机 IP
+          resources:
+            requests:
+              cpu: 50m
+              memory: 32Mi
+            limits:
+              cpu: 200m
+              memory: 64Mi

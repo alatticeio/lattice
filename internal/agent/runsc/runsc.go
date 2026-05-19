@@ -158,12 +158,9 @@ func (m *Manager) OCISpec() map[string]any {
 		"--server-url", m.cfg.ServerURL,
 		"--token", m.cfg.Token,
 	}
-	if m.cfg.EgressAllow != "" {
-		pidOneArgs = append(pidOneArgs, "--egress-allow", m.cfg.EgressAllow)
-	}
-	if m.cfg.EgressDeny {
-		pidOneArgs = append(pidOneArgs, "--egress-default-deny")
-	}
+	// NOTE: --egress-allow and --egress-default-deny are NOT passed to the
+	// agent subcommand yet — the agent doesn't register these flags and
+	// egress filtering in gVisor mode is route-based (not filter-based).
 	// Separator: everything after "--" is passed to the AI agent.
 	pidOneArgs = append(pidOneArgs, "--")
 	pidOneArgs = append(pidOneArgs, m.cfg.AgentBinary)

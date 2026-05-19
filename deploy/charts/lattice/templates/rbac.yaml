@@ -6,10 +6,12 @@ metadata:
     {{- include "lattice.labels" . | nindent 4 }}
 rules:
   - apiGroups: [""]
-    resources: ["nodes", "namespaces", "pods"]
+    resources: ["nodes", "namespaces", "pods", "configmaps"]
     verbs: ["get", "list", "watch"]
   - apiGroups: ["alattice.io"]
-    resources: ["latticenetworks", "latticepeers", "latticepolicies", "latticeglobalippools"]
+    resources: ["latticenetworks", "latticepeers", "latticepolicies", "latticeglobalippools",
+                "latticeenrollmenttokens", "latticerelayservers", "latticeclusterpeerings",
+                "latticenetworkpeerings", "latticeendpoints"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
   - apiGroups: ["alattice.io"]
     resources: ["latticenetworks/status", "latticepeers/status", "latticepolicies/status"]
