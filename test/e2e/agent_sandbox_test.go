@@ -146,13 +146,13 @@ var _ = Describe("Agent Sandbox", Ordered, func() {
 	// ─── Scenario 2: Sandbox connects to companion via overlay proxy ───
 	It("sandbox can reach companion nginx via WireGuard overlay", func() {
 		podName := waitForPodRunningReady(clientset, testNS, sandboxName, "30s")
-		// Route wget through the sandbox HTTP proxy (127.0.0.1:1080) which
+		// Route curl through the sandbox SOCKS5 proxy (127.0.0.1:1080) which
 		// dials via gVisor/WireGuard. The sandbox has no kernel WG interface,
 		// so direct wget would fail — the proxy bridges host→gVisor→overlay.
 		Eventually(func() error {
 			output, err := execInPod(clientset, restConfig, testNS, podName,
 				[]string{"sh", "-c", fmt.Sprintf(
-					`http_proxy=http://127.0.0.1:1080 wget -q -O - --timeout=5 "http://%s:8080"`,
+					`curl -s --socks5-hostname 127.0.0.1:1080 --max-time 5 "http://%s:8080"`,
 					companionVPNIP)})
 			if err != nil {
 				return fmt.Errorf("wget failed: %w", err)
@@ -209,11 +209,11 @@ var _ = Describe("Agent Sandbox", Ordered, func() {
 
 		podName := waitForPodRunningReady(clientset, testNS, sandboxName, "30s")
 		// Use Eventually first to wait for propagation, then Consistently to confirm.
-		// Route via the sandbox HTTP proxy so gVisor's policy engine is exercised.
+		// Route via the sandbox SOCKS5 proxy so gVisor's policy engine is exercised.
 		Eventually(func() error {
 			_, err := execInPod(clientset, restConfig, testNS, podName,
 				[]string{"sh", "-c", fmt.Sprintf(
-					`http_proxy=http://127.0.0.1:1080 wget -q -O - --timeout=3 "http://%s:8080"`,
+					`curl -s --socks5-hostname 127.0.0.1:1080 --max-time 3 "http://%s:8080"`,
 					companionVPNIP)})
 			if err == nil {
 				return fmt.Errorf("DENY policy not yet effective")
@@ -224,7 +224,7 @@ var _ = Describe("Agent Sandbox", Ordered, func() {
 		Consistently(func() error {
 			_, err := execInPod(clientset, restConfig, testNS, podName,
 				[]string{"sh", "-c", fmt.Sprintf(
-					`http_proxy=http://127.0.0.1:1080 wget -q -O - --timeout=3 "http://%s:8080"`,
+					`curl -s --socks5-hostname 127.0.0.1:1080 --max-time 3 "http://%s:8080"`,
 					companionVPNIP)})
 			if err == nil {
 				return fmt.Errorf("expected connection to fail under deny policy but succeeded")
