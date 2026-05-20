@@ -191,10 +191,8 @@ var _ = Describe("Agent Sandbox GVisor Integration", Ordered, func() {
 		if sandboxImage == "" {
 			Skip("sandbox image not provided")
 		}
-		// Check if runsc is in the sandbox image; skip gracefully if not
-		// (e.g. community image, or gVisor rootfs not built).
 		if !runscAvailable(sandboxImage) {
-			Skip("runsc not available in sandbox image — gVisor integration tests require runsc + rootfs")
+			Skip("runsc not available in sandbox image")
 		}
 
 		ts := fmt.Sprintf("%d", time.Now().UnixMilli())
@@ -240,16 +238,21 @@ var _ = Describe("Agent Sandbox GVisor Integration", Ordered, func() {
 		GinkgoWriter.Printf("[gvisor e2e] companion VPN IP: %s\n", companionVPNIP)
 		_ = waitForPodRunningReady(clientset, testNS, companionName, "30s")
 
-		// 7. Deploy gvisor sandbox pod
-		sandboxServerURL := "http://lattice-api-service.lattice-system.svc.cluster.local:8080"
+		// 7. Resolve lattice API service IP (gVisor sandbox has no K8s DNS).
+		apiIP := getServiceClusterIP("lattice-system", "lattice-api-service")
+		Expect(apiIP).NotTo(BeEmpty(), "failed to resolve lattice-api-service ClusterIP")
+		sandboxServerURL := fmt.Sprintf("http://%s:8080", apiIP)
+		GinkgoWriter.Printf("[gvisor e2e] server URL: %s\n", sandboxServerURL)
+
+		// 8. Deploy gvisor sandbox pod
 		deployGvisorSandboxPod(clientset, testNS, sandboxName, sandboxImage,
 			sandboxServerURL, enrollmentToken, sandboxID, hostAliases)
 
-		// 8. Wait for sandbox ready
+		// 9. Wait for sandbox ready
 		_ = waitForPodRunningReady(clientset, testNS, sandboxName, "180s")
 		GinkgoWriter.Printf("[gvisor e2e] sandbox pod running\n")
 
-		// 9. Create allow-all policy
+		// 10. Create allow-all policy and wait for WG handshake
 		peer := &latticev1.LatticePeer{}
 		Expect(latticeClient.Get(context.Background(),
 			client.ObjectKey{Namespace: testNS, Name: companionPeerName}, peer)).To(Succeed())
@@ -559,6 +562,16 @@ func deployGvisorSandboxPod(clientset *kubernetes.Clientset, ns, name, sandboxIm
 		},
 	}, metav1.CreateOptions{})
 	Expect(err).NotTo(HaveOccurred(), "failed to create gVisor sandbox Pod %s", name)
+}
+
+// getServiceClusterIP returns the ClusterIP of the given K8s service.
+func getServiceClusterIP(namespace, svcName string) string {
+	svc, err := clientset.CoreV1().Services(namespace).Get(
+		context.Background(), svcName, metav1.GetOptions{})
+	if err != nil || svc == nil {
+		return ""
+	}
+	return svc.Spec.ClusterIP
 }
 
 // ptrHostPathDir returns a pointer to corev1.HostPathDirectoryOrCreate.

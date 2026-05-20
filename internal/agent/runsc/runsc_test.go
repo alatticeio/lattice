@@ -36,7 +36,7 @@ func TestOCISpec(t *testing.T) {
 
 	spec := mgr.OCISpec()
 
-	// network namespace must be present (gVisor sandbox networking)
+	// network namespace must NOT be present (container shares pod netns)
 	linux, ok := spec["linux"].(map[string]any)
 	if !ok {
 		t.Fatal("missing linux section")
@@ -45,14 +45,10 @@ func TestOCISpec(t *testing.T) {
 	if !ok {
 		t.Fatal("missing linux.namespaces")
 	}
-	hasNet := false
 	for _, ns := range namespaces {
 		if ns["type"] == "network" {
-			hasNet = true
+			t.Error("network namespace must not appear in OCI spec (shared pod netns)")
 		}
-	}
-	if !hasNet {
-		t.Error("expected network namespace in OCI spec")
 	}
 
 	// capabilities must include CAP_NET_ADMIN
@@ -68,6 +64,22 @@ func TestOCISpec(t *testing.T) {
 	}
 	if !hasNetAdmin {
 		t.Error("expected CAP_NET_ADMIN in effective capabilities")
+	}
+
+	// TUN device must be present so wireguard-go can create wg0
+	devs, ok := linux["devices"].([]map[string]any)
+	if !ok {
+		t.Fatal("missing linux.devices")
+	}
+	hasTUN := false
+	for _, d := range devs {
+		if d["path"] == "/dev/net/tun" {
+			hasTUN = true
+			break
+		}
+	}
+	if !hasTUN {
+		t.Error("expected /dev/net/tun in OCI spec linux.devices")
 	}
 
 	// process.args must start with "lattice sandbox agent"
@@ -98,11 +110,26 @@ func TestOCISpec(t *testing.T) {
 		}
 	}
 
-	// NO ALL_PROXY env var (runsc mode does not use SOCKS5 proxy)
-	envs, _ := proc["env"].([]string)
-	for _, e := range envs {
-		if len(e) >= 9 && e[:9] == "ALL_PROXY" {
-			t.Error("ALL_PROXY must not appear in runsc OCI spec env")
+	// /etc/resolv.conf must be bind-mounted from the host pod so gVisor
+	// DNS resolution uses the correct CoreDNS nameserver.
+	mounts, ok := spec["mounts"].([]map[string]any)
+	if !ok {
+		t.Fatal("missing mounts section")
+	}
+	hasResolvConf := false
+	hasLatticeCfg := false
+	for _, m := range mounts {
+		switch m["destination"] {
+		case "/etc/resolv.conf":
+			hasResolvConf = true
+		case "/etc/lattice":
+			hasLatticeCfg = true
 		}
+	}
+	if !hasResolvConf {
+		t.Error("expected /etc/resolv.conf bind mount in OCI spec")
+	}
+	if !hasLatticeCfg {
+		t.Error("expected /etc/lattice bind mount in OCI spec (for sandbox credentials)")
 	}
 }

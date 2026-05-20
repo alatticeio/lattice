@@ -46,15 +46,18 @@ func (d *RunscDriver) Start(ctx context.Context) error {
 	cfg := d.cfg
 
 	mgr, err := runsc.NewManager(runsc.Config{
-		SandboxID:   cfg.SandboxName,
-		RootFS:      cfg.RootFS,
-		AgentBinary: cfg.AgentBinary,
-		AgentArgs:   cfg.AgentArgs,
-		BundleDir:   cfg.BundleDir,
-		ServerURL:   cfg.ServerURL,
-		Token:       cfg.Token,
-		EgressAllow: cfg.EgressAllow,
-		EgressDeny:  cfg.EgressDeny,
+		SandboxID:      cfg.SandboxName,
+		RootFS:         cfg.RootFS,
+		AgentBinary:    cfg.AgentBinary,
+		AgentArgs:      cfg.AgentArgs,
+		BundleDir:      cfg.BundleDir,
+		ServerURL:      cfg.ServerURL,
+		Token:          cfg.Token,
+		EgressAllow:    cfg.EgressAllow,
+		EgressDeny:     cfg.EgressDeny,
+		SandboxIP:      cfg.SandboxIP,
+		SandboxGateway: cfg.SandboxGateway,
+		SandboxCIDR:    cfg.SandboxCIDR,
 	})
 	if err != nil {
 		return fmt.Errorf("init runsc manager: %w", err)

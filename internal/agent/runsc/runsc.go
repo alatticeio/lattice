@@ -15,8 +15,10 @@
 // limitations under the License.
 
 // Package runsc manages gVisor runsc sandbox lifecycle for AI agent isolation.
-// The container runs with --network=sandbox so wireguard-go can open a real
-// /dev/net/tun (wg0) and send WireGuard UDP through eth0 to the host.
+// The container runs in sandbox network mode so wireguard-go can open a virtual
+// /dev/net/tun (wg0). eth0 is configured statically by the sandbox agent because
+// K8s CNI has no DHCP. iptables MASQUERADE on the host ensures return traffic is
+// routed back through gVisor's raw packet socket.
 // CAP_NET_ADMIN is virtualised by gVisor — it grants no real host-kernel access.
 package runsc
 
@@ -45,6 +47,11 @@ type Config struct {
 	Token       string
 	EgressAllow string
 	EgressDeny  bool
+
+	// gVisor sandbox network configuration (static IP on virtual eth0).
+	SandboxIP      string // e.g. "10.42.0.200"
+	SandboxGateway string // e.g. "10.42.0.1"
+	SandboxCIDR    string // e.g. "24"
 }
 
 // Manager controls the lifecycle of a runsc container.
@@ -90,10 +97,15 @@ func (m *Manager) Create() error {
 	return nil
 }
 
-// Start launches runsc with --network=sandbox. The container's PID 1 is
-// `lattice sandbox agent` which handles NATS registration, wg0 setup, and
-// execs the AI agent binary. Start returns immediately; use Done() to wait.
+// Start launches runsc in sandbox network mode. It configures iptables
+// MASQUERADE first so that traffic from gVisor's virtual eth0 is SNAT-ed
+// to the pod's IP — this ensures return traffic is routed correctly.
+// Start returns immediately; use Done() to wait.
 func (m *Manager) Start(ctx context.Context) error {
+	if err := m.setupHostNAT(); err != nil {
+		return fmt.Errorf("setup host NAT: %w", err)
+	}
+
 	m.cmd = exec.CommandContext(ctx, "runsc",
 		"--network=sandbox",
 		"run",
@@ -158,6 +170,15 @@ func (m *Manager) OCISpec() map[string]any {
 		"--server-url", m.cfg.ServerURL,
 		"--token", m.cfg.Token,
 	}
+	if m.cfg.SandboxIP != "" {
+		pidOneArgs = append(pidOneArgs, "--sandbox-ip", m.cfg.SandboxIP)
+	}
+	if m.cfg.SandboxGateway != "" {
+		pidOneArgs = append(pidOneArgs, "--sandbox-gw", m.cfg.SandboxGateway)
+	}
+	if m.cfg.SandboxCIDR != "" {
+		pidOneArgs = append(pidOneArgs, "--sandbox-cidr", m.cfg.SandboxCIDR)
+	}
 	// NOTE: --egress-allow and --egress-default-deny are NOT passed to the
 	// agent subcommand yet — the agent doesn't register these flags and
 	// egress filtering in gVisor mode is route-based (not filter-based).
@@ -183,7 +204,30 @@ func (m *Manager) OCISpec() map[string]any {
 			"readonly": true,
 		},
 		"hostname": m.cfg.SandboxID,
+		"mounts": []map[string]any{
+			{
+				"destination": "/etc/resolv.conf",
+				"source":      "/etc/resolv.conf",
+				"type":        "bind",
+				"options":     []string{"ro", "rbind"},
+			},
+			{
+				"destination": "/etc/lattice",
+				"source":      "/etc/lattice",
+				"type":        "bind",
+				"options":     []string{"rw", "rbind"},
+			},
+		},
 		"linux": map[string]any{
+			"devices": []map[string]any{
+				{
+					"path":     "/dev/net/tun",
+					"type":     "c",
+					"major":    int64(10),
+					"minor":    int64(200),
+					"fileMode": int64(0o666),
+				},
+			},
 			"capabilities": map[string][]string{
 				"bounding":    caps,
 				"permitted":   caps,
@@ -193,11 +237,33 @@ func (m *Manager) OCISpec() map[string]any {
 			},
 			"namespaces": []map[string]string{
 				{"type": "pid"},
-				{"type": "network"},
 				{"type": "ipc"},
 				{"type": "uts"},
 				{"type": "mount"},
 			},
 		},
 	}
+}
+
+// setupHostNAT enables IP forwarding and adds a MASQUERADE rule so
+// gVisor's virtual eth0 (sandbox network mode) can reach K8s services.
+//
+// gVisor's --network=sandbox creates a virtual eth0 connected to the host
+// via a raw packet socket. Without MASQUERADE the source IP is the sandbox's
+// internal IP, which the host cannot route back to.
+func (m *Manager) setupHostNAT() error {
+	// Enable IP forwarding (non-fatal if already enabled).
+	_ = os.WriteFile("/proc/sys/net/ipv4/ip_forward", []byte("1"), 0o644)
+
+	// Add a blanket MASQUERADE rule. Use -C to check before adding.
+	check := exec.Command("iptables", "-t", "nat", "-C", "POSTROUTING",
+		"-j", "MASQUERADE")
+	if check.Run() != nil {
+		add := exec.Command("iptables", "-t", "nat", "-A", "POSTROUTING",
+			"-j", "MASQUERADE")
+		if err := add.Run(); err != nil {
+			return fmt.Errorf("iptables MASQUERADE: %w", err)
+		}
+	}
+	return nil
 }

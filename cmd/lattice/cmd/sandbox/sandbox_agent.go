@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/exec"
 	"syscall"
 	"time"
 
@@ -38,6 +39,11 @@ var (
 	agentServerURL string
 	agentToken     string
 	agentReadyWait time.Duration
+
+	// gVisor sandbox virtual eth0 configuration (static, no DHCP in K8s).
+	agentSandboxIP      string
+	agentSandboxGateway string
+	agentSandboxCIDR    string
 )
 
 // agentCmd returns the `lattice sandbox agent` cobra command.
@@ -53,6 +59,9 @@ func agentCmd() *cobra.Command {
 	cmd.Flags().StringVar(&agentServerURL, "server-url", "", "Lattice control plane URL (required)")
 	cmd.Flags().StringVar(&agentToken, "token", "", "Enrollment token (required)")
 	cmd.Flags().DurationVar(&agentReadyWait, "ready-wait", 3*time.Second, "Time to wait for WireGuard peers before exec-ing AI agent")
+	cmd.Flags().StringVar(&agentSandboxIP, "sandbox-ip", "", "Static IP for gVisor virtual eth0 (e.g. 10.42.0.200)")
+	cmd.Flags().StringVar(&agentSandboxGateway, "sandbox-gw", "", "Default gateway for gVisor virtual eth0")
+	cmd.Flags().StringVar(&agentSandboxCIDR, "sandbox-cidr", "", "Subnet prefix length (e.g. 24)")
 	_ = cmd.MarkFlagRequired("name")
 	_ = cmd.MarkFlagRequired("server-url")
 	_ = cmd.MarkFlagRequired("token")
@@ -72,6 +81,15 @@ func runAgent(cmd *cobra.Command, args []string) error {
 	agentconfig.Conf.AppId = agentName
 	agentconfig.Conf.ServerUrl = agentServerURL
 	agentconfig.Conf.WgPort = 51820
+
+	// Configure gVisor's virtual eth0 with a static IP. In --network=sandbox
+	// mode gVisor creates a virtual NIC but DHCP fails (K8s CNI has no DHCP
+	// server). We configure eth0 manually before any network operations.
+	if agentSandboxIP != "" && agentSandboxCIDR != "" {
+		if err := configureEth0(agentSandboxIP, agentSandboxCIDR, agentSandboxGateway); err != nil {
+			return fmt.Errorf("configure gVisor eth0: %w", err)
+		}
+	}
 
 	var privKey wgtypes.Key
 	var currentPeer *infra.Peer
@@ -177,4 +195,34 @@ func runAgent(cmd *cobra.Command, args []string) error {
 	fmt.Printf("[sandbox-agent] exec %s %v\n", agentBinary, agentBinArgs)
 	// syscall.Exec replaces this process image. On success it does not return.
 	return syscall.Exec(agentBinary, append([]string{agentBinary}, agentBinArgs...), os.Environ())
+}
+
+// configureEth0 assigns a static IP to the gVisor virtual eth0 and sets the
+// default route. Used in --network=sandbox mode where DHCP is not available.
+func configureEth0(ip, cidr, gateway string) error {
+	// Diagnostics: list available interfaces.
+	if out, err := exec.Command("ip", "link", "show").CombinedOutput(); err == nil {
+		fmt.Printf("[sandbox-agent] interfaces:\n%s\n", out)
+	}
+
+	// ip addr add <ip>/<cidr> dev eth0
+	addAddr := exec.Command("ip", "addr", "add", ip+"/"+cidr, "dev", "eth0")
+	if out, err := addAddr.CombinedOutput(); err != nil {
+		return fmt.Errorf("ip addr add %s/%s dev eth0: %w\n%s", ip, cidr, err, out)
+	}
+
+	// ip link set eth0 up
+	linkUp := exec.Command("ip", "link", "set", "eth0", "up")
+	if out, err := linkUp.CombinedOutput(); err != nil {
+		return fmt.Errorf("ip link set eth0 up: %w\n%s", err, out)
+	}
+
+	// ip route add default via <gateway> dev eth0
+	if gateway != "" {
+		addRoute := exec.Command("ip", "route", "add", "default", "via", gateway, "dev", "eth0")
+		if out, err := addRoute.CombinedOutput(); err != nil {
+			return fmt.Errorf("ip route add default via %s: %w\n%s", gateway, err, out)
+		}
+	}
+	return nil
 }

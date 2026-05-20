@@ -22,6 +22,23 @@ Lattice is a self-hosted platform built around **two core pillars**: a **network
 
 ---
 
+## Why Now: The AI Security Imperative
+
+Google's [Secure AI Framework (SAIF)](https://safety.google/cybersecurity-advancements/saif/) defines the security baseline for enterprise AI deployment. Among its six core elements, SAIF explicitly calls out **network / endpoint security**, **access management**, and **supply chain isolation** as foundational requirements for any production AI system.
+
+Lattice is purpose-built to address these requirements:
+
+| SAIF Requirement | Lattice Capability |
+|---|---|
+| Network / endpoint security | WireGuard encrypted mesh — all agent traffic is cryptographically isolated end-to-end |
+| Supply chain attack mitigation | gVisor user-space kernel — a compromised agent cannot escape to the host |
+| Access management | Policy layer controls which resources each agent identity can reach |
+| Harmonized platform controls | Single K8s-native control plane governing agents, tunnels, and network policies |
+
+As enterprises adopt AI and begin implementing SAIF, network isolation for AI agents shifts from a nice-to-have to a **compliance requirement**. Lattice provides the infrastructure layer to meet it — self-hosted, auditable, and open-core.
+
+---
+
 ## Two Core Pillars
 
 ### Network Orchestration
