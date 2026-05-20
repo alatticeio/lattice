@@ -1,0 +1,84 @@
+# Production overrides — apply on top of values.yaml:
+#
+#   helm install lattice ./charts/lattice \
+#     -f values.yaml \
+#     -f values.prod.yaml \
+#     --set config.jwt.secret="<32-byte-random>" \
+#     --namespace lattice-system --create-namespace
+#
+# Key differences from default (all-in-one):
+#   - External NATS cluster  →  config.signalingUrl
+#   - MySQL instead of SQLite →  extraEnv.APP_DATABASE_DSN
+#   - 2 replicas              →  replicaCount
+#   - Ingress with TLS        →  ingress.*
+#   - Higher resource limits  →  resources
+#   - No embedded coturn      →  coturn.enabled = false (uses stun.alattice.io)
+
+replicaCount: 2
+
+image:
+  pullPolicy: Always
+
+# Expose the API via Ingress; NATS stays ClusterIP (agents connect via NodePort or LB separately).
+service:
+  type: ClusterIP
+
+ingress:
+  enabled: true
+  className: "nginx"
+  host: lattice.example.com   # ← replace with your domain
+  tls:
+    enabled: true
+    secretName: lattice-tls   # ← cert-manager or pre-created secret
+
+persistence:
+  size: 50Gi
+  storageClass: ""   # ← set to your StorageClass if not using cluster default
+
+config:
+  app:
+    env: "production"
+  jwt:
+    expireHours: 8
+  # External NATS cluster — agents must be able to reach this address.
+  signalingUrl: "nats://nats.lattice-system.svc.cluster.local:4222"
+  # Use the public managed STUN; no need to run coturn in cluster.
+  stunUrl: "stun.alattice.io:3478"
+  # SQLite DSN is ignored when APP_DATABASE_DSN env var is set below.
+  database:
+    dsn: ""
+
+# MySQL / MariaDB connection string passed as env var so it is never written
+# into the ConfigMap (avoids leaking credentials in plain-text YAML).
+# Set via --set or a Kubernetes Secret + envFrom.
+extraEnv:
+  - name: APP_DATABASE_DSN
+    value: "root:changeme@tcp(mariadb.lattice-system.svc.cluster.local:3306)/lattice?charset=utf8mb4&parseTime=True"
+  # Uncomment to pull from a Secret instead:
+  # - name: APP_DATABASE_DSN
+  #   valueFrom:
+  #     secretKeyRef:
+  #       name: lattice-db-secret
+  #       key: dsn
+
+resources:
+  requests:
+    cpu: 500m
+    memory: 512Mi
+  limits:
+    cpu: "2"
+    memory: 1Gi
+
+coturn:
+  enabled: false  # use stun.alattice.io instead
+
+# Spread the 2 replicas across nodes to avoid single-node failure.
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: lattice
+          topologyKey: kubernetes.io/hostname

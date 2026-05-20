@@ -99,6 +99,48 @@ jobs:
             k3d image import $REGISTRY/lattice:${TAG}-pro  -c $CLUSTER_NAME
           fi
 
+      - name: Build sandbox+gVisor image and rootfs (PRO only)
+        if: env.IS_PRO == 'true'
+        run: |
+          echo "====> Downloading runsc..."
+          curl -fsSL -o /tmp/runsc https://storage.googleapis.com/gvisor/releases/release/latest/x86_64/runsc || \
+            curl -fsSL -o /tmp/runsc https://storage.googleapis.com/gvisor/releases/release/20250519.1/x86_64/runsc
+          chmod +x /tmp/runsc
+          # Verify it's a valid ELF binary.
+          file /tmp/runsc | grep -q ELF || { echo "❌ runsc is not a valid ELF binary"; file /tmp/runsc; exit 1; }
+
+          echo "====> Building lattice binary (pro)..."
+          make build SERVICE=lattice EDITION=pro
+
+          echo "====> Building gVisor rootfs Docker image..."
+          docker build \
+            -t lattice-gvisor-rootfs:e2e \
+            -f test/e2e/rootfs_test/Dockerfile \
+            .
+          echo "====> Exporting rootfs..."
+          rm -rf /tmp/lattice-gvisor-rootfs
+          mkdir -p /tmp/lattice-gvisor-rootfs
+          CID=$(docker create lattice-gvisor-rootfs:e2e)
+          docker export $CID | tar -xf - -C /tmp/lattice-gvisor-rootfs
+          docker rm $CID > /dev/null
+          echo "====> Copying rootfs to k3d node..."
+          docker cp /tmp/lattice-gvisor-rootfs k3d-${CLUSTER_NAME}-server-0:/tmp/lattice-gvisor-rootfs
+
+          echo "====> Building sandbox+gVisor image (sandbox + runsc)..."
+          GVISOR_SANDBOX_IMG="${REGISTRY}/lattice:${TAG}-pro-sandbox"
+          mkdir -p /tmp/gvisor-sandbox
+          cp /tmp/runsc /tmp/gvisor-sandbox/runsc
+          cat > /tmp/gvisor-sandbox/Dockerfile <<DOCKERFILE
+          FROM ${REGISTRY}/lattice:${TAG}-pro
+          COPY runsc /usr/local/bin/runsc
+          RUN chmod +x /usr/local/bin/runsc
+          DOCKERFILE
+          docker build -t ${GVISOR_SANDBOX_IMG} /tmp/gvisor-sandbox
+          k3d image import ${GVISOR_SANDBOX_IMG} -c ${CLUSTER_NAME}
+          echo "GVISOR_SANDBOX_IMG=${GVISOR_SANDBOX_IMG}" >> "$GITHUB_ENV"
+
+          echo "✅ Rootfs + sandbox+gvisor image ready"
+
       - name: Deploy Lattice all-in-one
         run: |
           if [ "$IS_PRO" = "true" ]; then
@@ -113,7 +155,7 @@ jobs:
           if [ "$IS_PRO" = "true" ]; then
             make test-e2e \
               LOCAL_AGENT_IMAGE="$REGISTRY/lattice:${TAG}-pro" \
-              LOCAL_SANDBOX_IMAGE="$REGISTRY/lattice:${TAG}-pro" \
+              LOCAL_SANDBOX_IMAGE="${GVISOR_SANDBOX_IMG:-$REGISTRY/lattice:${TAG}-pro}" \
               E2E_KUBECONFIG="$E2E_KUBECONFIG"
           else
             make test-e2e \

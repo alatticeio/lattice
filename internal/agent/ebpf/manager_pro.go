@@ -23,10 +23,10 @@ import (
 	"net"
 	"sync"
 
-	"github.com/cilium/ebpf"
-	"github.com/cilium/ebpf/link"
 	"github.com/alatticeio/lattice/internal/agent/infra"
 	"github.com/alatticeio/lattice/internal/agent/log"
+	"github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/link"
 )
 
 // Manager loads and manages the eBPF TC ingress program for policy enforcement.

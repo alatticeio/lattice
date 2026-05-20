@@ -4,9 +4,12 @@ title: Agent Sandbox (Community)
 
 # Agent Sandbox — Community Edition
 
-`lattice sandbox start` is a zero-privilege sandbox command built into the main `lattice` CLI. It fuses the **gVisor user-space network stack** with the **Lattice WireGuard overlay**, letting AI agent processes run as a regular user while getting a full Lattice network identity.
+`lattice sandbox start` is a zero-privilege sandbox command built into the main `lattice` CLI. It supports two isolation modes:
 
-## Network Architecture
+- **pod mode** (`--mode pod`, default): embeds a gVisor user-space network stack in-process, with an optional SOCKS5 proxy for AI agent traffic.
+- **gvisor mode** (`--mode gvisor`, [Pro](/agent/sandbox-pro)): runs the AI agent inside a gVisor runsc container with syscall-level isolation. See [Pro sandbox docs](/agent/sandbox-pro) for details.
+
+## Network Architecture (pod mode)
 
 ```
                 ┌─────────────────────────────┐
@@ -46,7 +49,7 @@ The sandbox uses the **same signaling path** as a regular node: `NATS → ProbeF
 7. `agent.NewNode(ctx, NodeConfig{CustomTUN, CurrentPeer, ...})` — shares NATS + ICE + LRP infrastructure
 8. `node.Start(ctx)` → heartbeat every 30s, config refresh every 15s
 
-## Quick Start
+## Quick Start (pod mode)
 
 ### Prerequisites
 
@@ -86,11 +89,14 @@ ping 10.42.0.5
 ```
 lattice sandbox start [flags]
 
-Flags:
+Flags (Community):
   --name         string   Sandbox identity name (required)
   --server-url   string   LatticeD URL (default: http://localhost:8080)
   --token        string   Enrollment token (required)
+  --mode         string   Isolation mode: pod (default) | gvisor (Pro only)
 ```
+
+Pro-only flags: see [Agent Sandbox (Pro)](/agent/sandbox-pro).
 
 ## Credential Persistence
 

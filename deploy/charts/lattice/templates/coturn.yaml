@@ -1,0 +1,39 @@
+{{- if .Values.coturn.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "lattice.fullname" . }}-stun
+  labels:
+    {{- include "lattice.labels" . | nindent 4 }}
+    app.kubernetes.io/component: stun
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "lattice.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: stun
+  template:
+    metadata:
+      labels:
+        {{- include "lattice.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: stun
+    spec:
+      containers:
+        - name: coturn
+          image: "{{ .Values.coturn.image.repository }}:{{ .Values.coturn.image.tag }}"
+          imagePullPolicy: {{ .Values.coturn.image.pullPolicy }}
+          args:
+            - "--stun-only"
+            - "--port=3478"
+          ports:
+            - containerPort: 3478
+              protocol: UDP
+              hostPort: 3478
+          resources:
+            requests:
+              cpu: 50m
+              memory: 32Mi
+            limits:
+              cpu: 200m
+              memory: 64Mi
+{{- end }}

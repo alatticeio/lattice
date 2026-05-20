@@ -28,6 +28,11 @@ resources:
   - service.yaml
   - ip_pool.yaml
 
+components:
+  # coturn STUN-only 服务（hostPort 3478/UDP），用于 ICE NAT 穿透。
+  # 若使用外部 STUN 服务，删除此行并在 configmap.yaml 中设置 stun-url。
+  - ../../components/coturn
+
 
 images:
   - name: ghcr.io/alatticeio/latticed

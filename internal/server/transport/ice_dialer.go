@@ -19,11 +19,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	agentconfig "github.com/alatticeio/lattice/internal/agent/config"
 	"github.com/alatticeio/lattice/internal/agent/infra"
 	"github.com/alatticeio/lattice/internal/agent/log"
 	"github.com/alatticeio/lattice/internal/agent/provision"
@@ -560,9 +563,7 @@ func (i *iceDialer) getAgent(remoteId infra.PeerIdentity) (*ice.Agent, error) {
 		ice.WithUDPMux(i.udpMux()),
 		ice.WithUDPMuxSrflx(i.filteringMux.UDPMuxSrflx()),
 		ice.WithNetworkTypes(i.networkTypes()),
-		ice.WithUrls([]*stun.URI{
-			{Scheme: stun.SchemeTypeSTUN, Host: "stun.alattice.io", Port: 3478},
-		}),
+		ice.WithUrls(stunURIs()),
 		ice.WithLoggerFactory(f),
 		ice.WithCandidateTypes([]ice.CandidateType{ice.CandidateTypeHost, ice.CandidateTypeServerReflexive}),
 		ice.WithDisconnectedTimeout(disconnectedTimeout),
@@ -736,4 +737,19 @@ func (i *ICETransport) RemoteAddr() string {
 
 func (i *ICETransport) Type() infra.TransportType {
 	return infra.ICE
+}
+
+// stunURIs parses the stun-url config value (host:port) into a pion stun.URI slice.
+// Falls back to the default public STUN server if the config is empty or malformed.
+func stunURIs() []*stun.URI {
+	addr := agentconfig.Conf.TurnServerURL
+	host, portStr, err := net.SplitHostPort(addr)
+	if err != nil || host == "" {
+		return []*stun.URI{{Scheme: stun.SchemeTypeSTUN, Host: "stun.alattice.io", Port: 3478}}
+	}
+	port, err := strconv.Atoi(portStr)
+	if err != nil || port <= 0 {
+		port = 3478
+	}
+	return []*stun.URI{{Scheme: stun.SchemeTypeSTUN, Host: host, Port: port}}
 }

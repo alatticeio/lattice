@@ -9,8 +9,11 @@
 .aider*
 .claude
 
-# Build outputs (host binaries, not needed in image)
-bin/
+# Build outputs (host binaries, not needed in standard images).
+# Use bin/* rather than bin/ so the ! exception below can see the file.
+bin/*
+# Exception: bin/lattice is needed for gVisor rootfs E2E builds.
+!bin/lattice
 
 # Frontend source & deps (only the built dist/ is needed for go:embed)
 web/node_modules/

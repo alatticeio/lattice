@@ -47,6 +47,7 @@ config:
     secret: ""  # auto-generated if empty
     expireHours: 24
   signalingUrl: ""  # defaults to embedded NATS within the pod
+  stunUrl: "stun.alattice.io:3478"  # STUN server address (host:port)
   database:
     dsn: "data/lattice.db"  # SQLite path
 
@@ -58,6 +59,17 @@ resources:
   limits:
     cpu: 1000m
     memory: 512Mi
+
+# -- Built-in coturn STUN server (optional).
+# Enable when there is no external STUN service available.
+# Requires the node to have a public IP; hostPort 3478/UDP must be open.
+# When enabled, set config.stunUrl to "<node-public-ip>:3478".
+coturn:
+  enabled: false
+  image:
+    repository: coturn/coturn
+    tag: "4.6"
+    pullPolicy: IfNotPresent
 
 # -- Pro edition license (optional).
 license:
