@@ -35,11 +35,6 @@ type DriverConfig struct {
 	AgentBinary string   // AI agent binary inside the container
 	AgentArgs   []string // AI agent arguments
 	BundleDir   string   // writable OCI bundle dir; defaults to /tmp/lattice-runsc/<name>
-
-	// gVisor sandbox virtual eth0 config (static, no DHCP in K8s).
-	SandboxIP      string // e.g. "10.42.0.200"
-	SandboxGateway string // e.g. "10.42.0.1"
-	SandboxCIDR    string // e.g. "24"
 }
 
 // IsolationDriver abstracts the lifecycle of a sandbox isolation backend.

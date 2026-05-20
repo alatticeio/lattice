@@ -405,141 +405,111 @@ curl "http://latticed.lattice-system:8080/api/v1/audit/flow?agentName=agent-001"
 
 ---
 
-## Mode 4: gVisor runsc 模式（Coming Soon）
+## Mode 4: gVisor runsc 模式（Pro）
 
-> **状态：设计完成，待实现。** 详细设计见 [ADR 0002 — Sandbox Isolation Model](/adr/0002-sandbox-isolation-model)。
+runsc 模式提供 syscall 级隔离——AI agent 运行在 gVisor sentry（用户态内核）内部，所有系统调用被拦截。采用**两阶段架构**：
 
-当前的 SOCKS5 sidecar 模式（Mode 2/3）提供的是**网络层隔离**——AI agent 通过代理接入 overlay。对于需要**不可绕过**的隔离场景——例如运行不受信任的第三方 agent 代码——Lattice 正在实现 **runsc（gVisor 容器运行时）模式**。
+- **Phase 1**（pod 内核）：NATS 注册 + WireGuard（wg0）在真实 `/dev/net/tun` 上创建，路由和 iptables 规则直接在 pod 网络命名空间应用。
+- **Phase 2**（gVisor）：runsc 以 `--network=host` 启动 AI agent 作为 PID 1，继承 Phase 1 配置好的 pod 网络栈。
 
-runsc 模式下，AI agent 进程运行在 gVisor sentry（用户态内核）内部，所有 syscall 被拦截。网络层通过 `--pass-fd` 传入的 Unix domain socket 接入 Lattice SOCKS5 代理，**所有 network stack 组件与 pod 模式完全复用**。
+AI agent 流量路径：`gVisor sentry → host kernel passthrough → pod 路由 → wg0 → overlay`
 
-### 设计中的对比
+### runsc 模式部署
+
+runsc 模式需要特权 Pod（创建 gVisor sandbox 需要部分主机能力）和一个预构建的 rootfs。
+
+```yaml
+# gvisor-sandbox-pod.yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: agent-gvisor
+  labels:
+    lattice.io/agent: "true"
+spec:
+  containers:
+    - name: lattice-sandbox
+      image: ghcr.io/alatticeio/lattice:pro-latest
+      command: ["lattice"]
+      args:
+        - sandbox
+        - start
+        - --mode=gvisor
+        - --name=$(AGENT_NAME)
+        - --server-url=http://latticed.lattice-system:8080
+        - --token=$(LATTICE_TOKEN)
+        - --agent-rootfs=/opt/lattice/agent-rootfs
+        - --agent-binary=/usr/local/bin/ai-agent
+        - --egress-allow=10.0.0.0/8
+      env:
+        - name: AGENT_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: LATTICE_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: lattice-enrollment
+              key: token
+      securityContext:
+        privileged: true
+      volumeMounts:
+        - name: lattice-creds
+          mountPath: /etc/lattice
+        - name: gvisor-rootfs
+          mountPath: /opt/lattice/agent-rootfs
+      resources:
+        requests:
+          memory: "128Mi"
+          cpu: "200m"
+        limits:
+          memory: "256Mi"
+          cpu: "500m"
+
+  volumes:
+    - name: lattice-creds
+      emptyDir: {}
+    - name: gvisor-rootfs
+      hostPath:
+        path: /opt/lattice/agent-rootfs
+        type: DirectoryOrCreate
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: lattice-enrollment
+type: Opaque
+stringData:
+  token: lt-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+```
+
+### 准备 rootfs
+
+```bash
+# 构建 rootfs 镜像（包含 AI agent 二进制和必要依赖）
+make e2e-build-gvisor-rootfs
+
+# 导入到 k3d 节点（E2E 测试）
+make e2e-import-gvisor-rootfs
+
+# 生产环境：将 rootfs 拷贝到目标节点
+scp -r /tmp/lattice-gvisor-rootfs node:/opt/lattice/agent-rootfs
+```
+
+rootfs 是一个标准的 Linux 根文件系统（Alpine），里面包含了 AI agent 二进制和运行时依赖（如 `curl`）。详见 `test/e2e/rootfs_test/Dockerfile`。
+
+### runsc 模式 vs SOCKS5 sidecar 对比
 
 | | SOCKS5 Sidecar（pod） | gVisor runsc |
 |---|---|---|
 | **隔离层级** | 网络层（代理自觉接入） | 进程级（syscall 强制拦截） |
-| **AI agent 如何接入** | 设置 `ALL_PROXY` 环境变量 | `ALL_PROXY=socks5://unix:/lattice-socks` |
-| **网络路径** | `agent → socks5(TCP) → netstack → WireGuard` | `agent → socks5(Unix) → netstack → WireGuard` |
-| **能否绕过** | 可以（不设代理，直连） | 不可绕过（所有 syscall 被 gVisor 拦截，仅 loopback） |
-| **DNS 泄漏** | 可能 | 不可能 |
-| **特权要求** | 零特权 | 需安装 runsc 运行时 |
-| **性能开销** | 接近零 | syscall 转译约 5–15% |
-| **复用组件** | — | netstack、Socks5Server、EgressFilter、AuditWriter、ForwardListener、TUNAdapter 全部复用 |
-
-### 设计 CLI
-
-```bash
-# runsc 模式启动（设计阶段，CLI 可能变化）
-lattice sandbox start \
-  --mode gvisor \
-  --name agent-001 \
-  --server-url http://localhost:8080 \
-  --token lt-xxx \
-  --proxy-addr 127.0.0.1:1080 \
-  --agent-rootfs /opt/lattice/agent-rootfs \
-  --agent-binary /usr/local/bin/ai-agent \
-  --agent-args "--model,gpt-4,--verbose" \
-  --forward 8080:127.0.0.1:8080 \
-  --egress-allow 10.0.0.0/8 \
-  --egress-default-deny
-```
-
-**新增 flags（设计）：**
-
-| Flag | 说明 |
-|------|------|
-| `--mode` | 隔离模式：`pod`（默认）\| `gvisor` |
-| `--agent-rootfs` | runsc 容器的根文件系统路径 |
-| `--agent-binary` | agent 入口二进制路径 |
-| `--agent-args` | agent 启动参数（逗号分隔） |
-
-### 出站和入站的分工
-
-两种模式下，出站（agent 主动发起）和入站（外部 peer 连入）都走不同的组件：
-
-| 方向 | pod 模式路径 | runsc 模式路径 |
-|------|------------|---------------|
-| **出站** | `agent → host TCP :1080 → Socks5Server → gVisor netstack → WG` | `agent → fd 3 → socketpair → Socks5Server → gVisor netstack → WG` |
-| **入站** | `WG → gVisor netstack → ForwardListener → host TCP → agent` | `WG → gVisor netstack → ForwardListener → socketpair → fd 3 → agent` |
-
-- **Socks5Server** 处理出站：agent 发起 SOCKS5 CONNECT，代理代它建 gVisor TCP。响应沿同一条 SOCKS5 连接返回，不需要额外通路。
-- **ForwardListener** 处理入站：在 gVisor netstack 上监听 overlay 端口，收到连接后转发给 agent。
-
-两者不是上下游关系，是**并行的两条独立管线**，共用同一个 gVisor netstack。runsc 模式保留分工不变，只把 host TCP 接驳换成同一个 `socketpair`。
-
-### 设计数据流
-
-```
-  pod 模式（当前）:
-  ┌──────────────────────┐              ┌───────────────────────┐
-  │ Socks5Server         │              │ ForwardListener        │
-  │ accept(host TCP)     │              │ accept(gVisor TCP)     │
-  │   ↓ SOCKS5 CONNECT   │              │   ↓                    │
-  │ DialContext(gVisor)  │              │ net.Dial(host TCP)     │
-  │ relay(host ↔ gVisor) │              │ relay(gVisor ↔ host)   │
-  └──────────────────────┘              └───────────────────────┘
-
-  runsc 模式（设计）:
-  ┌──────────────────────┐              ┌───────────────────────┐
-  │ Socks5Server         │              │ ForwardListener        │
-  │ accept(socketpair)   │              │ accept(gVisor TCP)  ← 不变
-  │   ↓ SOCKS5 CONNECT   │              │   ↓                    │
-  │ DialContext(gVisor) ← 不变          │ write(socketpair)      │  ← 替代 net.Dial
-  │ relay(sp ↔ gVisor)   │              │ relay(gVisor ↔ sp)     │
-  └──────────────────────┘              └───────────────────────┘
-```
-
-**关键：** gVisor netstack、EgressFilter、AuditWriter、channel.Endpoint、TUNAdapter、wireguard-go 在两种模式下路径完全一致。唯一变化是 agent 侧的接驳从 host TCP 换成 socketpair。
-
-### 安全边界
-
-runsc 容器内的 AI agent：
-
-- **syscall 强制拦截** — 所有 socket/connect 调用被 gVisor sentry 拦截，仅 loopback 可达
-- **文件系统受限** — gofer 代理的只读 rootfs
-- **无法接触密钥** — WireGuard 私钥、NATS JWT 仅存在于 host 进程
-- **无法逃逸** — 无主机网络、无 `/dev/net/tun`、无 `CAP_NET_ADMIN`
-
-### 设计集成方式
-
-runsc 模式不依赖容器运行时（Docker/K8s）——`lattice sandbox start --mode gvisor` 直接启动 runsc 子进程。因此在 Docker Compose 或 K8s Sidecar 中部署时，sandbox 容器内跑的就是 `lattice sandbox start --mode gvisor`，由它拉起 runsc：
-
-```yaml
-# K8s Sidecar（runsc 模式）
-- name: lattice-sandbox
-  image: ghcr.io/alatticeio/lattice:pro-latest
-  command: ["lattice"]
-  args:
-    - sandbox
-    - start
-    - --mode=gvisor
-    - --name=$(AGENT_NAME)
-    - --server-url=http://latticed:8080
-    - --token=$(LATTICE_TOKEN)
-    - --proxy-addr=127.0.0.1:1080
-    - --agent-rootfs=/opt/lattice/agent-rootfs
-    - --agent-binary=/usr/local/bin/ai-agent
-    - --forward=8080:127.0.0.1:8080
-    - --egress-allow=10.0.0.0/8
-    - --egress-default-deny
-  securityContext:
-    privileged: true  # runsc 需要特权模式启动 sentry
-  volumeMounts:
-    - name: lattice-creds
-      mountPath: /etc/lattice
-```
-
-### 设计迁移路径
-
-从 SOCKS5 sidecar 迁移到 runsc 时，底层组件基本复用：
-
-- `EgressFilter` — 复用，策略检查逻辑不变
-- `AuditWriter` — 复用，审计记录逻辑不变
-- `Socks5Server` — 复用，额外增加 Unix socket 监听（读 socketpair 处理 CONNECT）
-- `ForwardListener` — 复用入口，但不再 `net.Dial` TCP target，而是往 socketpair host-end 写入站连接数据
-- `TUNAdapter` / `wireguard-go` — 零改动
-
-详见 [ADR 0002 — Sandbox Isolation Model](/adr/0002-sandbox-isolation-model)。
+| **AI agent 如何接入** | 设置 `ALL_PROXY` 环境变量 | 直接 `connect(peer-ip:port)`，对 agent 透明 |
+| **WireGuard** | 用户态 wireguard-go（gVisor netstack） | wireguard-go 在 pod 内核上运行 |
+| **能否绕过** | 可以（不设代理，直连） | 不可（所有 syscall 被 gVisor 拦截） |
+| **网络性能** | 接近零开销 | syscall 转译约 5–15% 开销 |
+| **特权要求** | 零特权 | privileged（runsc 需要创建 sandbox） |
+| **TUN 设备** | gVisor 虚拟 TUN | 真实 kernel `/dev/net/tun`（pod 侧） |
 
 ---
 

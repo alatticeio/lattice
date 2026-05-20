@@ -96,15 +96,6 @@ func runStart(_ *cobra.Command, _ []string) error {
 		AgentArgs:    sandboxAgentArgs,
 	}
 
-	// Auto-detect pod network for gVisor sandbox mode: the virtual eth0
-	// inside gVisor needs a static IP because K8s CNI has no DHCP.
-	if sandboxMode == "gvisor" && cfg.SandboxIP == "" {
-		ip, gw, cidr := detectPodNetwork()
-		cfg.SandboxIP = ip
-		cfg.SandboxGateway = gw
-		cfg.SandboxCIDR = cidr
-	}
-
 	if err := validateDriverConfig(sandboxMode, cfg); err != nil {
 		return err
 	}
@@ -117,51 +108,6 @@ func runStart(_ *cobra.Command, _ []string) error {
 	ctx := context.Background()
 	fmt.Printf("Starting sandbox %q in %s mode...\n", sandboxName, driver.Name())
 	return driver.Start(ctx)
-}
-
-// detectPodNetwork discovers the pod's primary IPv4 address and default
-// gateway, then derives a static IP for the gVisor sandbox. We pick a
-// different last octet to avoid conflicting with the pod's real eth0.
-func detectPodNetwork() (sandboxIP, gateway, cidr string) {
-	addrs, err := net.InterfaceAddrs()
-	if err != nil {
-		return
-	}
-	for _, addr := range addrs {
-		ipnet, ok := addr.(*net.IPNet)
-		if !ok || ipnet.IP.To4() == nil || ipnet.IP.IsLoopback() {
-			continue
-		}
-		// Skip link-local addresses (169.254.x.x).
-		if ipnet.IP.IsLinkLocalUnicast() {
-			continue
-		}
-		ones, _ := ipnet.Mask.Size()
-
-		// /32 addresses are typically not the pod's primary IP (e.g. wf0).
-		if ones == 32 {
-			continue
-		}
-
-		cidr = fmt.Sprintf("%d", ones)
-
-		// Use 4-byte representation for safe byte indexing.
-		ip4 := ipnet.IP.To4()
-
-		// Default gateway is typically the first host in the subnet.
-		gw := net.IPv4(ip4[0], ip4[1], ip4[2], 1)
-		gateway = gw.String()
-
-		// Sandbox IP: same subnet, last octet + 100 (capped at 250).
-		last := int(ip4[3]) + 100
-		if last > 250 {
-			last = 250
-		}
-		sb := net.IPv4(ip4[0], ip4[1], ip4[2], byte(last))
-		sandboxIP = sb.String()
-		return
-	}
-	return
 }
 
 // validateDriverConfig checks that required fields are present for the given mode.

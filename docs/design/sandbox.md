@@ -4,30 +4,64 @@ title: Sandbox Architecture
 
 # Sandbox Architecture
 
-> Source: `cmd/lattice/cmd/sandbox/`, `internal/agent/gvisor/`
+> Source: `cmd/lattice/cmd/sandbox/`, `internal/agent/gvisor/`, `internal/agent/runsc/`
 
 ## Overview
 
-`lattice sandbox start` fuses the **gVisor user-space network stack** with the **Lattice WireGuard overlay**. AI agent processes run as ordinary users with no kernel capabilities, yet obtain a full Lattice network identity — NATS registration, ICE hole-punching, LRP relay fallback — identical to a regular node.
+`lattice sandbox start` supports two isolation modes:
 
-## Comparison with Regular Node
+| Mode | Flag | Isolation mechanism | Network stack |
+|------|------|-------------------|---------------|
+| **pod** | `--mode pod` | gVisor user-space netstack (in-process) | gVisor `pkg/tcpip` + TUNAdapter |
+| **gvisor** | `--mode gvisor` | gVisor runsc container (`--network=host`) | Pod kernel WireGuard (real `/dev/net/tun`) |
 
-| Dimension | Regular Node (`lattice up`) | Sandbox (`lattice sandbox start`) |
-|-----------|---------------------------|----------------------------------|
-| Isolation | None (host process) | gVisor user-space netstack |
-| Privilege | root / `CAP_NET_ADMIN` | **Zero-privilege** |
-| Network stack | Kernel TUN (`wf0`) | gVisor `pkg/tcpip` + TUNAdapter |
-| WireGuard | Kernel `wgctrl` | `golang.zx2c4.com/wireguard` (user-space) |
-| Provisioner | `KernelProvisioner` (iptables/eBPF) | `SandboxProvisioner` (no iptables) |
-| Registration | HTTP or NATS | NATS only (`RegisterSandboxViaNATS`) |
-| Credential persistence | None | JSON file (`/etc/lattice/sandbox-credentials.json`) |
-| Audit log | eBPF ring buffer (Pro) | JSONL file (`/tmp/lattice-audit-<name>.jsonl`) |
-| Egress policy | eBPF TC (Pro) / iptables | `EgressFilter` (Pro sandbox only) |
-| Inbound forwarding | None | `ForwardListener` (Pro) |
-| SOCKS5 proxy | None | SOCKS5 proxy (Pro) |
-| ICE / LRP | ✅ Full support | ✅ Full support (shared infrastructure) |
+Both modes give AI agents a full Lattice network identity — NATS registration, ICE hole-punching, LRP relay fallback — identical to a regular node.
 
-## Network Architecture
+## gVisor Mode (runsc): Two-Phase Architecture
+
+gVisor cannot simultaneously provide K8s network access (`--network=host`) and a virtual TUN device (`--network=sandbox`). The solution splits work into two phases:
+
+```
+Phase 1 (pod kernel):                    Phase 2 (runsc container):
+┌──────────────────────────┐            ┌─────────────────────────────┐
+│  bootstrapAgent()        │            │  runsc --network=host        │
+│                          │            │                             │
+│  ① NATS registration    │            │  PID 1: AI agent binary      │
+│  ② wireguard-go → wg0   │            │  (direct exec, no shim)      │
+│     (real /dev/net/tun)  │            │                             │
+│  ③ Routes + iptables    │            │  AI agent connect(peer)      │
+│                          │            │    → gVisor sentry           │
+│  node stays alive ───────┼────────────▶   → host kernel passthrough │
+│                          │            │    → pod routing             │
+└──────────────────────────┘            │    → wg0 → overlay           │
+                                        └─────────────────────────────┘
+```
+
+**Key property**: WireGuard runs on the real kernel, not inside gVisor. The AI agent in gVisor inherits the pod's network namespace via `--network=host`, so its traffic follows the pod's routes into wg0 and the overlay. gVisor's sentry intercepts all syscalls for security isolation, but networking no longer depends on gVisor's internal netstack.
+
+### AI agent traffic path (gVisor mode)
+
+```
+AI agent connect(peer-ip:port)
+  → gVisor sentry (syscall interposition, security policy)
+  → host kernel passthrough (--network=host)
+  → pod routing table
+  → wg0 (real WireGuard, pod kernel)
+  → UDP :51820 → WireGuard peer → overlay
+```
+
+### Security
+
+| Layer | Mechanism |
+|-------|-----------|
+| Syscall isolation | gVisor sentry (all syscalls intercepted) |
+| Network access | Pod iptables/eBPF rules on wg0 |
+| WireGuard keys | On pod kernel, not in gVisor |
+| CAP_NET_ADMIN | Not granted to gVisor container |
+
+## pod Mode (in-process gVisor netstack)
+
+The original architecture uses an in-process gVisor netstack. WireGuard runs in user-space with a TUN adapter bridging gVisor's network stack to the WireGuard device.
 
 ```
                 ┌─────────────────────────────┐
@@ -54,25 +88,42 @@ title: Sandbox Architecture
     Direct P2P                    LRP relay (QUIC/TCP)
 ```
 
-The sandbox uses the **same signaling path** as a regular node. gVisor replaces only the kernel TUN device.
+## Comparison
+
+| Dimension | Regular Node | pod mode | gvisor mode |
+|-----------|-------------|----------|-------------|
+| Isolation | None | gVisor netstack (in-process) | runsc container |
+| Privilege | root / `CAP_NET_ADMIN` | **Zero-privilege** | **Zero-privilege** |
+| Network stack | Kernel TUN (`wf0`) | gVisor `pkg/tcpip` + TUNAdapter | Pod kernel TUN (real wg0) |
+| WireGuard | Kernel `wgctrl` | `wireguard-go` (user-space) | `wireguard-go` (pod kernel) |
+| Provisioner | `KernelProvisioner` (iptables/eBPF) | `SandboxProvisioner` (no iptables) | `KernelProvisioner` (pod iptables/eBPF) |
+| Registration | HTTP or NATS | NATS only | NATS only |
+| Credential persistence | None | JSON file | JSON file |
+| SOCKS5 proxy | None | Optional | None (direct routing) |
+| Inbound forwarding | None | Optional (Pro) | None |
+| Egress policy | eBPF TC (Pro) / iptables | `EgressFilter` (Pro) | Pod iptables/eBPF |
+| ICE / LRP | Full support | Full support | Full support |
 
 ## Code Structure
 
 ```
 cmd/lattice/cmd/sandbox/
-├── sandbox.go              # Command definition (--name, --server-url, --token)
+├── sandbox.go              # Command definition (--name, --server-url, --token, --mode)
 ├── sandbox_shared.go       # No build tag — shared utilities (credential I/O, fileAuditWriter)
-├── sandbox_community.go    # //go:build !pro — full community implementation
-└── sandbox_pro.go          # //go:build pro  — Pro-only extensions
+├── sandbox_community.go    # //go:build !pro — full community implementation (pod mode)
+├── sandbox_pro.go          # //go:build pro  — Pro-only extensions (both modes)
+├── sandbox_agent.go        # //go:build pro  — `lattice sandbox agent` (manual debugging)
+├── driver.go               # DriverConfig, IsolationDriver interface
+├── driver_pod.go           # //go:build pro  — PodDriver (in-process gVisor netstack)
+└── driver_runsc.go         # //go:build pro  — RunscDriver (two-phase bootstrap + runsc)
 
-internal/agent/gvisor/
-├── sandbox.go              # gvisor.New() entry point, Config{ID, LocalIP, PolicyChecker, AuditWriter}
-├── tun_adapter.go          # NewTUNAdapter: gVisor ↔ wireguard-go packet bridge
-├── provisioner.go          # SandboxProvisioner (no iptables, replaces KernelProvisioner)
-└── shimfwd/
-    ├── egress_filter.go    # EgressFilter (CIDR allowlist/denylist, implements PolicyChecker)
-    ├── forward_listener.go # ForwardListener (overlay port → host address forwarding)
-    └── audit_writer.go     # AuditWriter interface + AuditEvent struct
+internal/agent/
+├── gvisor/                 # In-process gVisor netstack (pod mode)
+│   ├── sandbox.go          # gvisor.New() entry point
+│   ├── tun_adapter.go      # TUNAdapter: gVisor ↔ wireguard-go packet bridge
+│   └── provisioner.go      # SandboxProvisioner (no iptables, replaces KernelProvisioner)
+└── runsc/                  # runsc OCI container lifecycle (gvisor mode)
+    └── runsc.go            # Manager: OCI spec generation, runsc start/stop
 ```
 
 ## Community vs Pro Build Tags
@@ -81,7 +132,7 @@ internal/agent/gvisor/
 // sandbox_community.go
 //go:build !pro
 
-// sandbox_pro.go
+// sandbox_pro.go, sandbox_agent.go, driver_pod.go, driver_runsc.go
 //go:build pro
 ```
 

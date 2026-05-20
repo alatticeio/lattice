@@ -17,7 +17,6 @@
 package runsc_test
 
 import (
-	"encoding/json"
 	"testing"
 
 	"github.com/alatticeio/lattice/internal/agent/runsc"
@@ -30,13 +29,11 @@ func TestOCISpec(t *testing.T) {
 		RootFS:      "/rootfs",
 		AgentBinary: "/usr/bin/myagent",
 		AgentArgs:   []string{"--flag", "val"},
-		ServerURL:   "http://ctrl:8080",
-		Token:       "tok-abc",
 	})
 
 	spec := mgr.OCISpec()
 
-	// network namespace must NOT be present (container shares pod netns)
+	// network namespace must NOT be present (container shares pod netns).
 	linux, ok := spec["linux"].(map[string]any)
 	if !ok {
 		t.Fatal("missing linux section")
@@ -51,53 +48,39 @@ func TestOCISpec(t *testing.T) {
 		}
 	}
 
-	// capabilities must include CAP_NET_ADMIN
-	caps, ok := linux["capabilities"].(map[string][]string)
-	if !ok {
-		t.Fatal("missing linux.capabilities")
-	}
-	hasNetAdmin := false
-	for _, c := range caps["effective"] {
-		if c == "CAP_NET_ADMIN" {
-			hasNetAdmin = true
+	// capabilities must NOT include CAP_NET_ADMIN (Phase 1 networking runs
+	// on the pod kernel, not inside gVisor).
+	if caps, ok := linux["capabilities"].(map[string][]string); ok {
+		for _, c := range caps["effective"] {
+			if c == "CAP_NET_ADMIN" {
+				t.Error("CAP_NET_ADMIN must not appear in OCI spec (networking handled by pod kernel)")
+			}
 		}
 	}
-	if !hasNetAdmin {
-		t.Error("expected CAP_NET_ADMIN in effective capabilities")
-	}
 
-	// TUN device must be present so wireguard-go can create wg0
-	devs, ok := linux["devices"].([]map[string]any)
-	if !ok {
-		t.Fatal("missing linux.devices")
-	}
-	hasTUN := false
-	for _, d := range devs {
-		if d["path"] == "/dev/net/tun" {
-			hasTUN = true
-			break
+	// TUN device must NOT be present (real TUN is on the pod kernel).
+	if devs, ok := linux["devices"].([]map[string]any); ok {
+		for _, d := range devs {
+			if d["path"] == "/dev/net/tun" {
+				t.Error("/dev/net/tun must not appear in OCI spec (real TUN is on pod kernel)")
+			}
 		}
 	}
-	if !hasTUN {
-		t.Error("expected /dev/net/tun in OCI spec linux.devices")
-	}
 
-	// process.args must start with "lattice sandbox agent"
+	// process.args must start with the AI agent binary (no longer "lattice sandbox agent").
 	proc, ok := spec["process"].(map[string]any)
 	if !ok {
 		t.Fatal("missing process section")
 	}
 	args, ok := proc["args"].([]string)
-	if !ok {
-		t.Fatal("process.args is not []string")
+	if !ok || len(args) < 1 {
+		t.Fatal("process.args is empty or not []string")
 	}
-	if len(args) < 3 || args[0] != "lattice" || args[1] != "sandbox" || args[2] != "agent" {
-		t.Errorf("expected process.args to start with [lattice sandbox agent], got %v", args)
+	if args[0] != "/usr/bin/myagent" {
+		t.Errorf("expected process.args[0]=/usr/bin/myagent, got %v", args[0])
 	}
-	// --name, --server-url, --token must appear
-	argsJSON, _ := json.Marshal(args)
-	argsStr := string(argsJSON)
-	for _, needle := range []string{"--name", "--server-url", "--token", "--", "/usr/bin/myagent", "--flag"} {
+	// "--flag" and "val" must appear as agent args.
+	for _, needle := range []string{"--flag", "val"} {
 		found := false
 		for _, a := range args {
 			if a == needle {
@@ -106,7 +89,7 @@ func TestOCISpec(t *testing.T) {
 			}
 		}
 		if !found {
-			t.Errorf("expected %q in process.args, got %s", needle, argsStr)
+			t.Errorf("expected %q in process.args, got %v", needle, args)
 		}
 	}
 
@@ -129,7 +112,7 @@ func TestOCISpec(t *testing.T) {
 	if !hasResolvConf {
 		t.Error("expected /etc/resolv.conf bind mount in OCI spec")
 	}
-	if !hasLatticeCfg {
-		t.Error("expected /etc/lattice bind mount in OCI spec (for sandbox credentials)")
+	if hasLatticeCfg {
+		t.Error("/etc/lattice bind mount must not appear (credentials live on pod kernel)")
 	}
 }

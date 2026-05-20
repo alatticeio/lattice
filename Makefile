@@ -288,8 +288,6 @@ e2e-install-runsc: ## 下载 runsc 并安装到 k3d E2E 节点
 
 .PHONY: e2e-build-gvisor-rootfs
 e2e-build-gvisor-rootfs: ## 构建 runsc gVisor rootfs 并提取到 $(GVISOR_ROOTFS_DIR)
-	@echo "====> 构建 lattice 二进制 (pro, linux/amd64)..."
-	$(MAKE) build SERVICE=lattice EDITION=pro
 	@echo "====> 构建 rootfs Docker 镜像..."
 	$(CONTAINER_TOOL) build \
 		-t $(GVISOR_ROOTFS_IMAGE) \
