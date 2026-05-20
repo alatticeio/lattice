@@ -1,4 +1,4 @@
-//go:build pro
+//go:build pro && linux
 
 // Copyright 2026 The Lattice Authors, Inc.
 //

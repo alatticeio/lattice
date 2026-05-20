@@ -19,10 +19,6 @@ builds:
       - windows
     goarch:
       - amd64
-      - arm64
-    ignore:
-      - goos: windows
-        goarch: arm64
 
   # All-in-One 控制面（嵌入 NATS + SQLite，仅 linux）
   - id: "latticed"
@@ -39,14 +35,13 @@ builds:
       - linux
     goarch:
       - amd64
-      - arm64
 
-  # Pro: Edge Agent
+  # Pro: Edge Agent (Linux only — eBPF and sandbox require Linux)
   - id: "lattice-pro"
     binary: "lattice-pro"
     main: "./cmd/lattice/main.go"
-    flags:
-      - -tags pro
+    tags:
+      - pro
     env:
       - CGO_ENABLED=0
     ldflags:
@@ -56,21 +51,15 @@ builds:
       - -X lattice/pkg/version.BuildTime={{.Date}}
     goos:
       - linux
-      - darwin
-      - windows
     goarch:
       - amd64
-      - arm64
-    ignore:
-      - goos: windows
-        goarch: arm64
 
   # Pro: All-in-One 控制面（仅 linux）
   - id: "latticed-pro"
     binary: "latticed-pro"
     main: "./cmd/latticed/main.go"
-    flags:
-      - -tags pro
+    tags:
+      - pro
     env:
       - CGO_ENABLED=0
     ldflags:
@@ -82,7 +71,6 @@ builds:
       - linux
     goarch:
       - amd64
-      - arm64
 
 archives:
   # lattice agent 打包（面向边缘/终端用户）
