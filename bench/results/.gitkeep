@@ -1,0 +1,2 @@
+# This directory stores raw JSON results from manual E2E benchmark runs.
+# CI benchmark history is stored in the gh-pages branch by github-action-benchmark.
