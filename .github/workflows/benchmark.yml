@@ -1,0 +1,77 @@
+name: Benchmark
+
+on:
+  schedule:
+    - cron: '0 2 * * 1'  # every Monday 02:00 UTC
+  push:
+    branches: [dev, master]
+  pull_request:
+    types: [labeled, synchronize, opened]
+    branches: [master, dev]
+  workflow_dispatch:
+
+jobs:
+  component:
+    name: Component benchmarks
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'schedule' ||
+      github.event_name == 'push' ||
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'pull_request' && github.event.label.name == 'run-benchmark')
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Run component benchmarks
+        run: go test -bench=. -benchmem -count=5 ./bench/go/... | tee bench.txt
+
+      - name: Store benchmark result
+        if: github.event_name == 'push' || github.event_name == 'schedule'
+        uses: benchmark-action/github-action-benchmark@v1
+        with:
+          tool: go
+          output-file-path: bench.txt
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          auto-push: ${{ github.ref == 'refs/heads/master' }}
+          comment-on-alert: true
+          alert-threshold: "150%"
+          fail-on-alert: false
+
+  integration:
+    name: Integration benchmarks
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'schedule' ||
+      github.event_name == 'push' ||
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'pull_request' && github.event.label.name == 'run-benchmark')
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Run integration benchmarks
+        run: go test -bench=. -benchmem -count=3 -timeout=300s ./bench/docker/... | tee bench-integration.txt
+
+      - name: Store integration benchmark result
+        if: github.event_name == 'push' || github.event_name == 'schedule'
+        uses: benchmark-action/github-action-benchmark@v1
+        with:
+          name: Integration Benchmarks
+          tool: go
+          output-file-path: bench-integration.txt
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          auto-push: ${{ github.ref == 'refs/heads/master' }}
+          comment-on-alert: true
+          alert-threshold: "200%"
+          fail-on-alert: false
