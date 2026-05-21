@@ -275,6 +275,7 @@ brews:
 
 release:
   prerelease: auto
+  replace_existing_artifacts: true
 
 checksum:
   name_template: "checksums.txt"
