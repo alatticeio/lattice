@@ -1,0 +1,4 @@
+repositoryID: d438a867-7abb-4fec-a53a-65ea19f4ac7f  # 在 Artifact Hub 注册后填入
+owners:
+  - name: Lattice Authors
+    email: maintainers@alatticeio.io
