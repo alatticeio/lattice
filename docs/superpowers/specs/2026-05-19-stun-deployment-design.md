@@ -1,15 +1,18 @@
 # STUN 部署方案 — 用 coturn 替换自研 STUN，统一公网服务
 
-> 生成日期: 2026-05-19
+> 生成日期: 2026-05-19 | 更新: 2026-05-21
 
-## 背景
+## 背景与当前状态
 
-当前 Lattice 的 STUN 服务通过 `lattice start turn` 命令启动（`pion/turn` 内嵌），部署在 `config/lattice/base/deployment.yaml` 中的 `turn` Deployment 里。ICE 拨号器（`internal/server/transport/ice_dialer.go`）硬编码 `stun.alattice.io:3478` 作为 STUN 服务器地址。
+### 已实现
 
-问题：
-- `lattice start turn` 内嵌 TURN 功能过剩（ICE 只用 STUN binding，`WithCandidateTypes` 只收集 Host + ServerReflexive，不用 relay candidate）
-- STUN 地址硬编码在 `ice_dialer.go` 中，改地址需重新编译
-- 自研维护成本：需要自己编译、打包、部署、随 Lattice 发版升级
+- **STUN 地址可配置**: ICE 拨号器（`internal/server/transport/ice_dialer.go:742-748`）从 `stun-url` 配置项读取 STUN 地址，默认 fallback `stun.alattice.io:3478`
+- **Helm chart 集成**: `deploy/charts/lattice/` 中的 `values.yaml` 包含 `config.stunUrl: "stun.alattice.io:3478"`，coturn 组件可选启用（`coturn.enabled: false` 默认关闭）
+
+### 未规划
+
+- coturn 生产部署（`stun.alattice.io` 公网服务尚未上线）
+- `lattice start turn` 子命令仍存在，尚未移除
 
 ## 方案：coturn STUN-only 统一公网服务
 

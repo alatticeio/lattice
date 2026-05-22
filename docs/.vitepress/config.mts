@@ -15,6 +15,7 @@ export default defineConfig({
     /^http:\/\/localhost/,
     /^\/demo(?:\/|$)/,
     /^\/features\//,
+    /superpowers\//,
   ],
   themeConfig: {
     logo: '/logo.svg',

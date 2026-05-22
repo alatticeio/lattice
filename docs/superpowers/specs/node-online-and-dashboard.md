@@ -5,12 +5,12 @@
 ### 整体流程
 
 ```
-管理员                         控制面 (latticed)               节点 (wireflow)
+管理员                         控制面 (latticed)               节点 (lattice)
   |                                  |                               |
   |-- 创建工作空间 -----------------> |                               |
   |-- 生成 Token -----------------> |                               |
   |                                  |                               |
-  |                                  | <-- wireflow up --token ... --|
+  |                                  | <-- lattice up --token ... --|
   |                                  |  (NATS: peer.register)        |
   |                                  |-- 分配 IP, 写入 WireGuard --->|
   |                                  |                               |
@@ -28,7 +28,7 @@
 | `server-url` | 管理 API 地址（节点自注册时用） | `http://localhost:8080` |
 | `database.dsn` | 数据库（空 = 自动使用本地 SQLite） | 留空即可 |
 
-`wireflow.yaml` 最小配置：
+`lattice.yaml` 最小配置：
 
 ```yaml
 signaling-url: "nats://localhost:4222"
@@ -46,31 +46,31 @@ K8s 部署（all-in-one）时，NATS 和 Manager 地址通过 Service 环境变�
 ### 第二步：在管理界面准备好工作空间和 Token
 
 1. 登录管理界面
-2. **工作空间** → 创建一个工作空间（会自动创建对应的 K8s Namespace 和 WireflowNetwork）
+2. **工作空间** → 创建一个工作空间（会自动创建对应的 K8s Namespace 和 LatticeNetwork）
 3. **节点** → 点击「生成入网令牌」→ 复制 Token
 
 ---
 
 ### 第三步：节点启动
 
-在目标机器上执行 `wireflow up`：
+在目标机器上执行 `lattice up`：
 
 ```bash
 # 最简启动（必填三项）
-wireflow up \
+lattice up \
   --token    <从管理界面复制的 Token> \
   --server-url   http://<控制面地址>:8080 \
   --signaling-url nats://<控制面地址>:4222
 
-# 保存配置，下次直接 wireflow up 即可
-wireflow up \
+# 保存配置，下次直接 lattice up 即可
+lattice up \
   --token <token> \
   --server-url http://... \
   --signaling-url nats://... \
   --save
 ```
 
-保存后配置写入 `~/.wireflow/wireflow.yaml`，之后只需运行 `wireflow up`。
+保存后配置写入 `~/.lattice/lattice.yaml`，之后只需运行 `lattice up`。
 
 #### 完整参数说明
 
@@ -109,7 +109,7 @@ wireflow up \
 2. 节点启动时加上：
 
 ```bash
-wireflow up \
+lattice up \
   ... \
   --enable-wrrp \
   --wrrper-url relay.example.com:6266 \
@@ -125,7 +125,7 @@ Dashboard 的流量趋势、吞吐量等数据来自 **VictoriaMetrics**（兼�
 ### 架构
 
 ```
-节点 (wireflow)
+节点 (lattice)
   |-- 每 30s 推送指标 --> VictoriaMetrics (/api/v1/write)
                                |
 控制面 (latticed)             |
@@ -137,7 +137,7 @@ Dashboard 的流量趋势、吞吐量等数据来自 **VictoriaMetrics**（兼�
 
 ### 控制面侧配置
 
-在 `wireflow.yaml` 中添加 `monitor.address`，指向 VictoriaMetrics 的 HTTP 地址：
+在 `lattice.yaml` 中添加 `monitor.address`，指向 VictoriaMetrics 的 HTTP 地址：
 
 ```yaml
 monitor:
@@ -161,13 +161,13 @@ env:
 节点需要开启指标推送，将 WireGuard 流量数据上报到 VictoriaMetrics：
 
 ```bash
-wireflow up \
+lattice up \
   ... \
   --enable-metric \
   --vm-endpoint http://<VictoriaMetrics地址>:8428/api/v1/write
 ```
 
-或写入配置文件 `~/.wireflow/wireflow.yaml`：
+或写入配置文件 `~/.lattice/lattice.yaml`：
 
 ```yaml
 enable-metric: true
@@ -204,10 +204,10 @@ helm install victoria-metrics vm/victoria-metrics-single \
 | 模块 | 数据来源 | 依赖 |
 |------|----------|------|
 | 节点在线状态 | NATS 心跳（内存） | 只需节点正常连接 |
-| 节点列表 / IP | K8s WireflowPeer CRD | 只需控制面正常 |
+| 节点列表 / IP | K8s LatticePeer CRD | 只需控制面正常 |
 | 工作空间流量趋势 | VictoriaMetrics PromQL | 节点 + 控制面均配置 VM |
 | 吞吐量统计卡片 | VictoriaMetrics PromQL | 同上 |
-| 拓扑图 | WireflowPeer + WireflowNetwork CRD | 只需控制面正常 |
+| 拓扑图 | LatticePeer + LatticeNetwork CRD | 只需控制面正常 |
 
 ---
 
@@ -218,7 +218,7 @@ helm install victoria-metrics vm/victoria-metrics-single \
 [ ] NATS 服务可达（latticed 内置或独立部署）
 [ ] 管理界面可登录，工作空间已创建
 [ ] Token 已生成
-[ ] 节点执行 wireflow up --token ... --server-url ... --signaling-url ...
+[ ] 节点执行 lattice up --token ... --server-url ... --signaling-url ...
 [ ] 管理界面「节点」列表出现该节点，状态变为 online
 [ ] (可选) VictoriaMetrics 已部署
 [ ] (可选) 控制面 monitor.address 已配置

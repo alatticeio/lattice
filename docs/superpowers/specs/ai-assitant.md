@@ -1,8 +1,8 @@
-# Wireflow AI Assistant — 设计文档
+# Lattice AI Assistant — 设计文档
 
 ## 1. 背景与目标
 
-Wireflow 是基于 WireGuard 的 Kubernetes 网络管理平台。网络配置的专业门槛（WireGuard 概念、CRD 结构、策略语义）是用户上手最大的障碍。通过引入 AI 能力，可以：
+Lattice 是基于 WireGuard 的 Kubernetes 网络管理平台。网络配置的专业门槛（WireGuard 概念、CRD 结构、策略语义）是用户上手最大的障碍。通过引入 AI 能力，可以：
 
 1. **降低使用门槛**：用自然语言描述网络意图，AI 生成配置
 2. **加速故障排查**：自动分析网络状态，定位连通性问题
@@ -225,7 +225,7 @@ type ContextBuilder struct {
 
 // Build 生成 system prompt，包含：
 // 1. 角色定义和能力说明
-// 2. Wireflow 核心概念解释（WireflowPeer / Network / Policy）
+// 2. Lattice 核心概念解释（LatticePeer / Network / Policy）
 // 3. 当前工作区快照（网络数、Peer 数、策略数、活跃告警）
 // 4. 操作规范（写操作必须先展示预览）
 func (b *ContextBuilder) Build(ctx context.Context, workspaceID string) (string, error)
@@ -234,7 +234,7 @@ func (b *ContextBuilder) Build(ctx context.Context, workspaceID string) (string,
 系统提示词模板（关键部分）：
 
 ```
-你是 Wireflow 的网络管理助手，帮助用户管理基于 WireGuard 的私有网络。
+你是 Lattice 的网络管理助手，帮助用户管理基于 WireGuard 的私有网络。
 
 ## 当前工作区状态
 - 工作区 ID: {workspaceID}
@@ -242,10 +242,10 @@ func (b *ContextBuilder) Build(ctx context.Context, workspaceID string) (string,
 - 活跃 Peer: {activePeerCount} / {totalPeerCount}
 - 策略条数: {policyCount}
 
-## Wireflow 核心概念
-- **WireflowNetwork**: 一个隔离的 WireGuard 网络，每个网络有独立 CIDR（如 10.100.1.0/24）
-- **WireflowPeer**: 网络中的节点，代表一台设备或服务
-- **WireflowPolicy**: 访问控制策略，控制哪些 Peer 之间可以通信（默认拒绝）
+## Lattice 核心概念
+- **LatticeNetwork**: 一个隔离的 WireGuard 网络，每个网络有独立 CIDR（如 10.100.1.0/24）
+- **LatticePeer**: 网络中的节点，代表一台设备或服务
+- **LatticePolicy**: 访问控制策略，控制哪些 Peer 之间可以通信（默认拒绝）
 
 ## 操作规范
 - 查询操作：直接返回结果
@@ -286,8 +286,8 @@ type ToolHandler func(ctx context.Context, input json.RawMessage) (string, error
 
 | 工具名 | 说明 | 影响范围 |
 |--------|------|----------|
-| `create_network` | 创建新的 WireflowNetwork | 创建 CRD |
-| `create_policy` | 创建或更新 WireflowPolicy | 创建/更新 CRD |
+| `create_network` | 创建新的 LatticeNetwork | 创建 CRD |
+| `create_policy` | 创建或更新 LatticePolicy | 创建/更新 CRD |
 | `delete_policy` | 删除策略 | 删除 CRD |
 | `update_peer_labels` | 修改 Peer 标签（用于策略匹配） | 更新 CRD |
 
@@ -360,7 +360,7 @@ data: {"type":"token","content":"api-server "}
 data: {"type":"token","content":"和 redis "}
 data: {"type":"tool_use","tool":"check_connectivity","input":{"from":"api-server","to":"redis"}}
 data: {"type":"token","content":"两个 Peer 均在线，但没有策略允许通信。"}
-data: {"type":"preview","data":{"action":"create","resource":"WireflowPolicy","yamlDiff":"...","confirmToken":"tok_xxx"}}
+data: {"type":"preview","data":{"action":"create","resource":"LatticePolicy","yamlDiff":"...","confirmToken":"tok_xxx"}}
 data: {"type":"done"}
 ```
 
@@ -458,7 +458,7 @@ var defaultRules = []AuditRule{
 │  Dashboard                    [AI 助手] [×] │
 │                                             │
 │  [主内容区]          │  ┌─────────────────┐ │
-│                      │  │  Wireflow AI    │ │
+│                      │  │  Lattice AI    │ │
 │                      │  ├─────────────────┤ │
 │                      │  │                 │ │
 │                      │  │  [对话历史]     │ │
@@ -632,13 +632,13 @@ wf-ai diagnose                 # 专项：连通性检查（带退出码，CI �
 wf-ai audit                    # 专项：安全扫描报告
 ```
 
-> 作为独立二进制 `wf-ai`，而非挂在 `wireflow` 子命令下，便于单独分发和版本管理。
+> 作为独立二进制 `wf-ai`，而非挂在 `lattice` 子命令下，便于单独分发和版本管理。
 
 ### 9.4 交互式 REPL（Ink 组件）
 
 ```
 ╭─────────────────────────────────────────────────────────╮
-│  Wireflow AI                                            │
+│  Lattice AI                                            │
 │  workspace: dev-team · model: deepseek-chat             │
 ├─────────────────────────────────────────────────────────┤
 │                                                         │
@@ -652,8 +652,8 @@ wf-ai audit                    # 专项：安全扫描报告
 │  建议创建以下访问策略：                                  │
 │                                                         │
 │  ╭─ 变更预览 ──────────────────────────────────────╮    │
-│  │ + apiVersion: wireflow.run/v1alpha1              │    │
-│  │ + kind: WireflowPolicy                          │    │
+│  │ + apiVersion: lattice.run/v1alpha1              │    │
+│  │ + kind: LatticePolicy                          │    │
 │  │ + metadata:                                     │    │
 │  │ +   name: api-to-redis                          │    │
 │  │ + spec:                                         │    │
@@ -730,15 +730,15 @@ $ wf-ai audit -w wf-prod
 
 ### 9.7 认证
 
-CLI 读取 `~/.wireflow/wireflow.yaml`（与 Go CLI 共享配置文件），无需单独登录：
+CLI 读取 `~/.lattice/lattice.yaml`（与 Go CLI 共享配置文件），无需单独登录：
 
 ```yaml
-# ~/.wireflow/wireflow.yaml（已有，Go CLI 写入）
-server-url: https://wireflow.example.com
+# ~/.lattice/lattice.yaml（已有，Go CLI 写入）
+server-url: https://lattice.example.com
 auth: <JWT token>
 ```
 
-首次使用若未登录，引导执行 `wireflow` 命令登录后自动共享 token。
+首次使用若未登录，引导执行 `lattice` 命令登录后自动共享 token。
 
 ### 9.8 项目结构
 
@@ -760,7 +760,7 @@ cli/                           # TypeScript 独立包
 │   │   └── Spinner.tsx
 │   ├── api/
 │   │   └── client.ts          # Management Server HTTP 客户端（SSE + REST）
-│   └── config.ts              # 读取 ~/.wireflow/wireflow.yaml
+│   └── config.ts              # 读取 ~/.lattice/lattice.yaml
 ├── package.json
 ├── tsconfig.json
 └── README.md
@@ -846,7 +846,7 @@ management/
 
 - [ ] `cli/` TypeScript 包初始化（tsconfig、package.json、bun 编译配置）
 - [ ] `api/client.ts`：Management Server HTTP 客户端（SSE 流式 + REST）
-- [ ] `config.ts`：读取 `~/.wireflow/wireflow.yaml` 获取 server-url 和 token
+- [ ] `config.ts`：读取 `~/.lattice/lattice.yaml` 获取 server-url 和 token
 - [ ] `commands/chat.tsx`：单次问答（非 TTY 降级为纯文本）
 - [ ] `commands/repl.tsx`：交互式 REPL（Ink App + 多轮对话历史）
 - [ ] `components/`：Header / MessageList / AIMessage / Spinner

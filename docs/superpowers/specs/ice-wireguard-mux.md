@@ -8,7 +8,7 @@
 
 ### 1.1 共享端口模式
 
-Wireflow 使用单一 UDP 端口同时承载两类流量：
+Lattice 使用单一 UDP 端口同时承载两类流量：
 
 - **ICE 信令流量**：STUN binding request/response、connectivity check，由 `UDPMuxDefault.connWorker` 管理
 - **WireGuard 数据流量**：WireGuard 加密数据包，由 `DefaultBind`（`v4conn`）管理
@@ -388,7 +388,7 @@ iceAgent, err := ice.NewAgentWithOptions(
     ice.WithUDPMuxSrflx(i.filteringMux.UDPMuxSrflx()),
     ice.WithNetworkTypes([]ice.NetworkType{ice.NetworkTypeUDP4}),
     ice.WithUrls([]*stun.URI{
-        {Scheme: stun.SchemeTypeSTUN, Host: "stun.wireflow.run", Port: 3478},
+        {Scheme: stun.SchemeTypeSTUN, Host: "stun.lattice.run", Port: 3478},
     }),
     ice.WithCandidateTypes([]ice.CandidateType{
         ice.CandidateTypeHost,
@@ -767,7 +767,7 @@ connWorker: "Dropping packet..." + continue (静默丢弃)
 
 ### 8.2 为何用 `isInitiator` 决定 `StartDial`/`StartAccept`？
 
-v4 将 `tieBreaker` 设为私有（`agent.go:59`），`GetTieBreaker()` 不再存在。ICE RFC 8445 中 tiebreaker 用于**冲突解决**，而 wireflow 的 `isInitiator` 基于 PeerID 大小确保两端始终对角色有一致判断，天然满足 RFC 要求（总有一侧更大），且避免了信令层额外传递 tiebreaker。
+v4 将 `tieBreaker` 设为私有（`agent.go:59`），`GetTieBreaker()` 不再存在。ICE RFC 8445 中 tiebreaker 用于**冲突解决**，而 lattice 的 `isInitiator` 基于 PeerID 大小确保两端始终对角色有一致判断，天然满足 RFC 要求（总有一侧更大），且避免了信令层额外传递 tiebreaker。
 
 ### 8.3 `StartDial`/`StartAccept` vs `Dial`/`Accept`
 

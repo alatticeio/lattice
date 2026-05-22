@@ -1,4 +1,4 @@
-# Wireflow 商业化路线图
+# Lattice 商业化路线图
 
 > 文档目的：记录从当前开发状态到可商业化上线所需完成的所有工作项，按优先级分阶段执行。
 >
@@ -36,8 +36,8 @@
 
 | 操作 | 含义 | 可逆 |
 |------|------|------|
-| **禁用**（Disable） | K8s annotation `wireflow.io/disabled=true`，节点保留但被标记踢出网络 | 是，可重新启用 |
-| **删除**（Delete） | 永久删除 `WireflowPeer` CRD 及关联 ConfigMap | 否 |
+| **禁用**（Disable） | K8s annotation `lattice.io/disabled=true`，节点保留但被标记踢出网络 | 是，可重新启用 |
+| **删除**（Delete） | 永久删除 `LatticePeer` CRD 及关联 ConfigMap | 否 |
 
 后端新增路由：
 - `PUT /api/v1/peers/:name/disable`
@@ -150,10 +150,10 @@ cmd/licensegen/
 
 | 镜像 | 说明 |
 |------|------|
-| `wireflow/latticed:latest` | 管理控制面（社区版） |
-| `wireflow/latticed-pro:latest` | 管理控制面（Pro 版） |
-| `wireflow/wrrper:latest` | 中继服务器 |
-| `wireflow/wireflow:latest` | 节点客户端（可选，通常直接发二进制） |
+| `lattice/latticed:latest` | 管理控制面（社区版） |
+| `lattice/latticed-pro:latest` | 管理控制面（Pro 版） |
+| `lattice/wrrper:latest` | 中继服务器 |
+| `lattice/lattice:latest` | 节点客户端（可选，通常直接发二进制） |
 
 **构建流程**
 - 在 GitHub Actions 中配置 CI/CD，tag 推送时自动构建并发布多架构镜像（`linux/amd64`, `linux/arm64`）。
@@ -163,7 +163,7 @@ cmd/licensegen/
 
 ### 3.2 发布预编译客户端二进制
 
-`wireflow` 节点客户端需要支持多平台安装，参考 Tailscale 的分发方式：
+`lattice` 节点客户端需要支持多平台安装，参考 Tailscale 的分发方式：
 
 - **Linux**：`curl | sh` 一键安装脚本 + APT/YUM 仓库
 - **macOS**：Homebrew tap 或 DMG 包
@@ -178,7 +178,7 @@ K8s 部署是主要场景，需要提供生产可用的 Helm chart：
 
 ```
 helm/
-  wireflow/
+  lattice/
     Chart.yaml
     values.yaml          # 包含 latticed、nats、victoria-metrics 配置
     templates/
@@ -194,9 +194,9 @@ helm/
 **values.yaml 关键配置项**
 ```yaml
 latticed:
-  image: wireflow/latticed-pro:latest
+  image: lattice/latticed-pro:latest
   license:
-    secretName: wireflow-license  # K8s Secret 存放 license 文件
+    secretName: lattice-license  # K8s Secret 存放 license 文件
   config:
     signalingUrl: nats://nats:4222
     monitor:
@@ -219,8 +219,8 @@ victoriaMetrics:
 |------|------|
 | 快速开始 | 10 分钟从零跑起来的完整步骤（基于 Docker Compose） |
 | K8s 部署指南 | 使用 Helm chart 部署到生产集群 |
-| 节点接入指南 | 三个平台（Linux/macOS/Windows）的 `wireflow up` 教程 |
-| 配置参考 | `wireflow.yaml` 所有配置项说明 |
+| 节点接入指南 | 三个平台（Linux/macOS/Windows）的 `lattice up` 教程 |
+| 配置参考 | `lattice.yaml` 所有配置项说明 |
 | 监控配置 | VictoriaMetrics 集成、Dashboard 数据说明 |
 | ACL 策略 | 如何编写和应用网络访问策略 |
 | FAQ | 常见问题（NAT 穿透失败、节点离线等） |

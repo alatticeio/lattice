@@ -1,0 +1,24 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: lattice
+  namespace: lattice-system
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts:
+        - alattice.io   # 替换为你的域名
+      secretName: lattice-tls
+  rules:
+    - host: alattice.io
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: lattice-api-service
+                port:
+                  number: 8080

@@ -1,8 +1,10 @@
-# WRRP QUIC Transport Design
+# LRP QUIC Transport Design
+
+> **命名说明**: 代码中已从 WRRP (Lattice Relay & Routing Protocol) 重命名为 LRP (Lattice Relay Protocol)。本文档保留原始设计内容，仅修正标题和关键术语。代码文件使用 `lrp_` 前缀（如 `lrp_server.go`、`lrp_client_quic.go`）。
 
 ## 1. Background
 
-WRRP (Wireflow Relay & Routing Protocol) is the relay channel used when two peers cannot establish a direct ICE path (e.g. symmetric NAT on both sides). The original implementation tunnels WireGuard packets over a persistent HTTP-upgraded TCP connection.
+LRP (Lattice Relay Protocol, formerly WRRP) is the relay channel used when two peers cannot establish a direct ICE path (e.g. symmetric NAT on both sides). The original implementation tunnels WireGuard packets over a persistent HTTP-upgraded TCP connection.
 
 ### Problems with TCP relay
 
@@ -193,7 +195,7 @@ cmd/manager/cmd/
 | `--wrrp-quic-url` | `""` | QUIC listen address; empty disables QUIC |
 | `--level` | `info` | Log level |
 
-### Agent (`wireflow up`)
+### Agent (`lattice up`)
 
 | Flag | Default | Description |
 |---|---|---|
@@ -215,14 +217,14 @@ wrrper --listen :6266 --wrrp-quic-url :6267
 
 # Docker
 docker run -p 6266:6266/tcp -p 6267:6267/udp \
-  ghcr.io/wireflowio/wrrper:latest \
+  ghcr.io/latticeio/wrrper:latest \
   --listen :6266 --wrrp-quic-url :6267
 ```
 
 ### Agent connecting via QUIC
 
 ```bash
-wireflow up --token <token> \
+lattice up --token <token> \
   --enable-wrrp \
   --wrrp-quic-url <relay_ip>:6267
 ```
@@ -240,7 +242,7 @@ spec:
     spec:
       containers:
       - name: wrrper
-        image: ghcr.io/wireflowio/wrrper:latest
+        image: ghcr.io/latticeio/wrrper:latest
         args:
         - --listen=:6266
         - --wrrp-quic-url=:6267

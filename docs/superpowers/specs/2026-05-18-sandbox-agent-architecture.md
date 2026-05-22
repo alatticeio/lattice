@@ -1,36 +1,54 @@
 # Sandbox Agent 架构参考
 
-> 生成日期: 2026-05-18（基于 `cmd/lattice/cmd/sandbox/`、`internal/agent/gvisor/`）
+> 生成日期: 2026-05-21（基于 `cmd/lattice/cmd/sandbox/`、`internal/agent/gvisor/`、`internal/agent/runsc/`）
 
 ## 概述
 
-`lattice sandbox start` 是内置于主 `lattice` CLI 的零特权沙箱命令，社区版与 PRO 版均可用。它将 **gVisor 用户态网络栈**与 **Lattice WireGuard overlay** 融合，让 AI Agent 进程以普通用户权限运行，同时获得完整的 Lattice 网络身份（NATS 注册 + ICE/LRP 打洞 + LRP relay 回退），与基础设施节点的行为完全一致。
+`lattice sandbox start` 是内置于主 `lattice` CLI 的零特权沙箱命令，PRO 版可用。它支持两种隔离模式，让 AI Agent 进程以普通用户权限运行，同时获得完整的 Lattice 网络身份（NATS 注册 + ICE/LRP 打洞 + LRP relay 回退）。
 
-**社区版**（`//go:build !pro`）：gVisor 网络隔离 + 本地文件审计
-**PRO 版**（`//go:build pro`）：新增出站策略过滤（EgressFilter）、入站端口转发（ForwardListener）、HTTP 正向代理
-
----
-
-## 与普通节点的对比
-
-| 维度 | 普通节点（`lattice up`） | Sandbox（`lattice sandbox start`） |
-|------|------------------------|----------------------------------|
-| 隔离方式 | 无（宿主机进程） | gVisor 用户态网络栈 |
-| 特权需求 | root / `CAP_NET_ADMIN` | **零特权**（普通用户） |
-| 网络栈 | 内核 TUN（`wf0`） | gVisor `pkg/tcpip` + TUNAdapter |
-| WireGuard | 内核 `wgctrl` | `golang.zx2c4.com/wireguard`（用户态） |
-| Provisioner | `KernelProvisioner`（iptables/eBPF） | `SandboxProvisioner`（无 iptables） |
-| 注册方式 | HTTP 或 NATS | **NATS only**（`RegisterSandboxViaNATS`） |
-| 凭证持久化 | 无 | JSON 文件（`/etc/lattice/sandbox-credentials.json`） |
-| 审计日志 | eBPF ring buffer（PRO） | JSONL 文件（`/tmp/lattice-audit-<name>.jsonl`） |
-| 出站策略 | eBPF TC ingress（PRO）/ iptables | `EgressFilter`（PRO sandbox only） |
-| 入站转发 | 无 | `ForwardListener`（PRO） |
-| SOCKS5 代理 | 无 | SOCKS5 proxy（PRO） |
-| ICE / LRP | ✅ 完整支持 | ✅ 完整支持（共享同一套基础设施） |
+| 模式 | 隔离层级 | 网络架构 | 适用场景 |
+|------|---------|---------|---------|
+| **pod 模式**（`--mode pod`） | 网络层（gVisor 用户态网络栈） | gVisor `pkg/tcpip` + TUNAdapter + wireguard-go（用户态） | 零特权环境，Agent 通过 SOCKS5 自觉接入 |
+| **gvisor 模式**（`--mode gvisor`） | syscall 级（runsc 容器） | 两阶段：pod 内核 WireGuard + gVisor `--network=host` | 不受信任代码，syscall 强制拦截 |
 
 ---
 
-## 网络架构
+## gVisor runsc 模式：两阶段架构
+
+gVisor 的 `--network=host` 和 `--network=sandbox` 互斥——一个有 K8s 网络但无法创建 TUN，一个能创建 TUN 但无 eth0。解决方案是将工作拆成两个阶段：
+
+```
+Phase 1（pod 内核）:                Phase 2（runsc --network=host）:
+┌──────────────────────────┐        ┌─────────────────────────────┐
+│  bootstrapAgent()        │        │  runsc container             │
+│                          │        │                             │
+│  ① NATS 注册             │        │  PID 1: AI agent 二进制     │
+│  ② wireguard-go → wg0    │        │  （直接 exec，无 shim）     │
+│     (真实 /dev/net/tun)  │        │                             │
+│  ③ 路由 + iptables       │        │  AI agent connect(peer)     │
+│                          │        │    → gVisor sentry 拦截      │
+│  node 持续存活 ──────────┼────────▶   → host kernel passthrough  │
+│                          │        │    → pod 路由 → wg0 → overlay │
+└──────────────────────────┘        └─────────────────────────────┘
+```
+
+**关键属性**：WireGuard 运行在真实内核上，不在 gVisor 内部。AI agent 通过 `--network=host` 继承 pod 的网络命名空间，其流量经 pod 路由进入 wg0 和 overlay。gVisor sentry 拦截所有 syscall 提供安全隔离，但网络不再依赖 gVisor 内部 netstack。
+
+### 安全边界（gvisor 模式）
+
+| 层级 | 机制 |
+|------|------|
+| Syscall 隔离 | gVisor sentry（所有 syscall 被拦截） |
+| 网络访问 | Pod iptables/eBPF 规则作用在 wg0 |
+| WireGuard 密钥 | 存在于 pod 内核，不在 gVisor 内 |
+| CAP_NET_ADMIN | 不授予 gVisor 容器 |
+| TUN 设备 | gVisor 内部不可用 |
+
+---
+
+## pod 模式：gVisor 用户态网络栈
+
+pod 模式是目前最成熟的模式，在进程内嵌入 gVisor 用户态网络栈：
 
 ```
                     ┌─────────────────────────────┐
@@ -61,146 +79,116 @@ Sandbox 走的是与普通节点**完全相同**的信令路径：`NATS → Prob
 
 ---
 
+## 三种模式对比
+
+| 维度 | 普通节点（`lattice up`） | pod 模式 | gvisor 模式 |
+|------|------------------------|----------|-------------|
+| 隔离方式 | 无（宿主机进程） | gVisor netstack (in-process) | runsc 容器（syscall 拦截） |
+| 特权需求 | root / `CAP_NET_ADMIN` | **零特权**（普通用户） | privileged（runsc 需要） |
+| 网络栈 | 内核 TUN（`wf0`） | gVisor `pkg/tcpip` + TUNAdapter | 真实内核 TUN（pod kernel wg0） |
+| WireGuard | 内核 `wgctrl` | wireguard-go（用户态） | wireguard-go（pod 内核） |
+| Provisioner | `KernelProvisioner` | `SandboxProvisioner` | `KernelProvisioner`（pod iptables/eBPF） |
+| 注册方式 | HTTP 或 NATS | **NATS only** | **NATS only** |
+| 凭证持久化 | 无 | JSON 文件 | JSON 文件 |
+| 出站策略 | eBPF TC / iptables | `EgressFilter`（PRO） | Pod iptables/eBPF |
+| SOCKS5 代理 | 无 | 可选（--proxy-addr） | 无（直接路由） |
+| 入站转发 | 无 | `ForwardListener`（PRO） | 无 |
+| ICE / LRP | ✅ | ✅ | ✅ |
+
+---
+
 ## 代码文件结构
 
 ```
 cmd/lattice/cmd/sandbox/
-├── sandbox.go              # 公共命令定义（--name, --server-url, --token）
-├── sandbox_shared.go       # 无 build tag — 共享工具（凭证读写、fileAuditWriter）
-├── sandbox_community.go    # //go:build !pro — 社区版完整实现
-└── sandbox_pro.go          # //go:build pro  — PRO 专属增强
+├── sandbox.go              # 命令注册（--name, --server-url, --token, --mode）
+├── sandbox_shared.go       # 共享工具（凭证读写、fileAuditWriter）
+├── sandbox_community.go    # //go:build !pro — 社区版（pod 模式）
+├── sandbox_pro.go          # //go:build pro  — PRO 入口 + 参数校验
+├── sandbox_agent.go        # //go:build pro  — `lattice sandbox agent` 子命令（手动调试）
+├── driver.go               # DriverConfig + IsolationDriver 接口
+├── driver_pod.go           # //go:build pro  — PodDriver（进程内 gVisor netstack）
+├── driver_runsc.go         # //go:build pro  — RunscDriver（两阶段 bootstrap + runsc）
+└── sandbox_agent_register*.go  # agent 子命令注册
 
-internal/agent/gvisor/
-├── sandbox.go              # gvisor.New() 入口，Config{ID, LocalIP, PolicyChecker, AuditWriter}
-├── tun_adapter.go          # NewTUNAdapter：gVisor ↔ wireguard-go 的 packet 桥接
-├── provisioner.go          # SandboxProvisioner（无 iptables，替换 KernelProvisioner）
-└── shimfwd/
-    ├── egress_filter.go    # EgressFilter（CIDR allowlist/denylist，实现 PolicyChecker）
-    ├── forward_listener.go # ForwardListener（overlay 端口 → 宿主机地址转发）
-    └── audit_writer.go     # AuditWriter 接口定义 + AuditEvent 结构
+internal/agent/
+├── gvisor/                 # 进程内 gVisor netstack（pod 模式）
+│   ├── sandbox.go          # gvisor.New() 入口
+│   ├── tun_adapter.go      # TUNAdapter：gVisor ↔ wireguard-go 桥接
+│   └── provisioner.go      # SandboxProvisioner（无 iptables）
+├── runsc/                  # runsc OCI 容器生命周期（gvisor 模式）
+│   └── runsc.go            # Manager：OCI spec 生成 + 容器 start/stop
+└── config/
+    └── config.go           # SignalingURL, StunUrl, Port, WgPort 等字段
 ```
+
+### 社区版 vs PRO 编译标签
+
+```go
+// sandbox_community.go
+//go:build !pro
+
+// sandbox_pro.go, sandbox_agent.go, driver_pod.go, driver_runsc.go
+//go:build pro
+```
+
+社区版仅支持 pod 模式（不含 EgressFilter/ForwardListener/HTTP proxy）；gVisor runsc 模式为 PRO 独占。构建：`make EDITION=pro build`。
 
 ---
 
 ## 启动流程
 
-### 社区版（`sandbox_community.go`）
+### pod 模式（`sandbox_pro.go` → `PodDriver.Start()`）
 
 ```
-1. 加载凭证 /etc/lattice/sandbox-credentials.json
+1. 解析 egress 策略（CIDR allowlist/denylist）
+2. 加载凭证 /etc/lattice/sandbox-credentials.json
    ├── 存在 → ResumeSandboxViaNATS(jwt, privKey)
-   │   ├── OK  → 获取当前 overlay IP，跳过注册
-   │   └── 失败（JWT 失效等）→ 降级走新注册
    └── 不存在 → 走新注册
-
-2. 新注册：
-   a. wgtypes.GeneratePrivateKey()
-   b. infra.RegisterSandboxViaNATS(serverURL, token, name, pubKey)
-      → 返回 Peer{Address, Token, LrpUrl}
-   c. saveSandboxCredentials(privKey, peer.Token)  // 0600 权限
-
-3. peer.LrpUrl != "" → agentconfig.Conf.EnableLrp = true
-
-4. newFileAuditWriter("/tmp/lattice-audit-<name>.jsonl")
-
-5. gvisor.New(Config{
-       ID:            sandboxName,
-       LocalIP:       localIP,
-       AuditWriter:   auditWriter,
-       PolicyChecker: nil,   // Community 放行全部出站
-   })
-
-6. gvisor.NewTUNAdapter(sb.Channel(), InjectIntoChannel(sb.Channel()))
-
-7. agent.NewNode(ctx, NodeConfig{
-       CustomTUN:   tunDev,
-       CustomName:  sandboxName,
-       CurrentPeer: currentPeer,   // 跳过 NATS 注册，直接用已获取的 Peer
-       ProvisionerFactory: gvisor.NewSandboxProvisionerFactory(localIP, name),
-   })
-
-8. node.Start(ctx)
-   go node.StartHeartbeat(ctx)        // 30s 心跳，维持控制面在线状态
-   go 周期 RefreshConfig(15s)          // 兜底 NATS push 丢失
-
+3. 新注册：wgtypes.GeneratePrivateKey() → RegisterSandboxViaNATS(...)
+4. gvisor.New(Config{ID, LocalIP, AuditWriter, PolicyChecker})
+5. gvisor.NewTUNAdapter(sb.Channel(), InjectIntoChannel)
+6. agent.NewNode(ctx, NodeConfig{CustomTUN, CurrentPeer, ProvisionerFactory})
+7. node.Start(ctx) + go node.StartHeartbeat(ctx)
+8. 可选：Socks5Server + ForwardListener
 9. 阻塞等待 SIGINT/SIGTERM → node.Stop()
 ```
 
-### PRO 专属（在社区版基础上增加）
+### gvisor 模式（`sandbox_pro.go` → `RunscDriver.Start()`）
 
 ```
-4b. policyChecker := shimfwd.NewEgressFilter(egressPolicy)
-    // egressPolicy 来自 --egress-allow CIDRs + --egress-default-deny
+Phase 1 — bootstrapAgent(ctx) 在 pod 内核:
+  与 pod 模式步骤 2-7 相同，但无需 CustomTUN 和 ProvisionerFactory
+  （使用真实 /dev/net/tun，创建真实的 kernel wg0）
 
-5b. gvisor.New(Config{
-        ...,
-        PolicyChecker: policyChecker,   // 启用出站过滤
-        AuditWriter:   auditWriter,     // 文件（当前）/ NATS（待实现）
-    })
-
-8b. 可选：startSOCKS5Proxy(proxyAddr, sb)    // --proxy-addr
-    可选：ForwardListener 绑定 --forward 规则
+Phase 2 — runsc 容器:
+  1. runsc.NewManager(Config{SandboxID, RootFS, AgentBinary, AgentArgs})
+  2. mgr.Create()  → 写 OCI config.json（PID 1 = AgentBinary）
+  3. mgr.Start(ctx) → runsc --network=host run <sandbox-id>
+  4. 阻塞 select { ctx.Done() / mgr.Done() }
+  5. defer node.Stop()（Phase 1 清理）
 ```
 
----
+### gVisor 模式 CLI
 
-## gVisor 组件详解
-
-### TUNAdapter
-
-`wireguard-go` 需要一个 `tun.Device` 接口来读写原始 IP 数据包。`TUNAdapter` 通过 channel 桥接 gVisor 的内部 packet 管道：
-
-```
-wireguard-go 加密报文
-    → TUNAdapter.Write() → gVisor netstack 入口
-
-gVisor netstack 出口（应用发出的明文包）
-    → TUNAdapter.Read() → wireguard-go 加密 → 发送
+```bash
+lattice sandbox start \
+  --mode gvisor \
+  --name agent-001 \
+  --server-url http://latticed:8080 \
+  --token lt-xxx \
+  --agent-rootfs /opt/lattice/agent-rootfs \
+  --agent-binary /usr/local/bin/ai-agent \
+  --agent-args --model,gpt-4 \
+  --egress-allow 10.0.0.0/8
 ```
 
-### SandboxProvisioner
-
-替代 `KernelProvisioner`，无任何 `ip link`/`ip addr`/iptables 系统调用：
-
-- WireGuard peer 配置应用到 `wireguard-go` 用户态设备
-- 路由管理通过 gVisor netstack 路由表（`netstack.AddRoute`）
-- `SetupNAT` 是空操作（gVisor 内部处理 NAT）
-- 完全无内核依赖，无需任何特权
-
-### EgressFilter（PRO）
-
-实现 `shimfwd.PolicyChecker` 接口，在 gVisor TCP/UDP `dial` 层拦截：
-
-```go
-type EgressFilter struct {
-    allowCIDRs   []*net.IPNet
-    defaultDeny  bool
-}
-
-func (f *EgressFilter) Check(dst net.IP, port uint16, proto string) error {
-    if f.isAllowed(dst) {
-        return nil
-    }
-    if f.defaultDeny {
-        return fmt.Errorf("egress to %s:%d denied by policy", dst, port)
-    }
-    return nil
-}
-```
-
-策略在连接建立前执行，拒绝操作发生在 gVisor 用户态内，不需要内核 netfilter。
-
-### ForwardListener（PRO）
-
-格式：`overlayPort:targetAddr`，例如 `--forward 8080:127.0.0.1:8080`
-
-`ForwardListener` 在 gVisor netstack 内监听 `overlayIP:port`，接受连接后将流量转发到宿主机上的 `targetAddr`。这使其他 overlay peers 可以访问 sandbox 宿主机上运行的服务。
-
-### SOCKS5 Proxy（PRO）
-
-`--proxy-addr 127.0.0.1:1080` 启动一个 SOCKS5 代理（RFC 1928，无认证，CONNECT only），所有 TCP 连接通过 `sb.DialContext()` 走 gVisor overlay（WireGuard 加密）。
-
-客户端设置 `ALL_PROXY=socks5://127.0.0.1:1080` 即可让 HTTP 客户端、数据库驱动等任意 TCP 应用通过 overlay 通信。
+| Flag | 必填 | 描述 |
+|------|------|------|
+| `--mode gvisor` | 是 | 启用 gVisor runsc 隔离 |
+| `--agent-rootfs` | 是 | 容器根文件系统路径 |
+| `--agent-binary` | 是 | 容器内 AI agent 入口二进制 |
+| `--agent-args` | 否 | AI agent 启动参数 |
 
 ---
 
@@ -210,7 +198,7 @@ func (f *EgressFilter) Check(dst net.IP, port uint16, proto string) error {
 // sandbox_shared.go
 type sandboxCredentials struct {
     PrivateKey string `json:"privateKey"`   // base64-encoded WireGuard private key
-    JWT        string `json:"jwt"`          // Agent JWT（365 天有效）
+    JWT        string `json:"jwt"`          // Agent JWT
 }
 
 // 路径：$LATTICE_CONFIG_DIR/sandbox-credentials.json
@@ -218,18 +206,15 @@ type sandboxCredentials struct {
 // 权限：0600
 ```
 
-**为什么需要持久化**：容器每次重启都会丢失内存状态。没有持久化时，每次重启都需要消耗一次性的 enrollment token、生成新的 WireGuard 密钥，导致其他 peers 需要等待下一次 config push 才能识别新公钥。持久化后，重启只需调用 `ResumeSandboxViaNATS` 验证 JWT 即可恢复身份。
-
-**Kubernetes 部署建议**：挂载 `emptyDir` 或 `PersistentVolumeClaim` 到 `/etc/lattice`，保证 Pod 重启期间凭证不丢失。
+两种模式共享同一套凭证持久化机制。在 gVisor 模式下，凭证仅存在于 pod 内核（Phase 1），不会暴露给 gVisor 容器。
 
 ---
 
 ## 审计日志
 
-### 社区版（本地文件）
+### 当前（本地文件）
 
 ```go
-// sandbox_shared.go
 type fileAuditWriter struct{ f *os.File }
 
 func (w *fileAuditWriter) Write(event shimfwd.AuditEvent) error {
@@ -239,57 +224,25 @@ func (w *fileAuditWriter) Write(event shimfwd.AuditEvent) error {
 }
 ```
 
-输出路径：`/tmp/lattice-audit-<sandboxName>.jsonl`
+输出路径（pod 模式）：`/tmp/lattice-audit-<name>.jsonl`
 
-示例输出：
-```json
-{"identity":"my-agent","dst_ip":"10.100.0.2","dst_port":443,"protocol":"tcp","verdict":"allow"}
-```
+### 未规划
 
-### PRO 版（当前：本地文件；规划：NATS 上报）
-
-PRO sandbox 当前也使用 `fileAuditWriter`（路径可通过 `--audit-log` 自定义）。
-
-服务端已就绪：`AuditConsumer`（`//go:build pro`）订阅 NATS `lattice.audit.flow`，写入 `la_flow_events` 表并通过 `traceId` 与 `la_tool_spans` 关联。
-
-**待实现**：sandbox 侧 `natsAuditWriter`，将审计事件发布到 `lattice.audit.flow`。
+- sandbox 侧 `natsAuditWriter`（将审计事件发布到 NATS `lattice.audit.flow`）。服务端 `AuditConsumer` 已就绪，但 sandbox 侧尚未实现。
+- gVisor 模式审计（需设计如何在 gVisor sentry 与 pod 内核间传递审计事件）。
 
 ---
 
-## 心跳与配置刷新
+## 未规划（未来方向）
 
-```go
-go node.StartHeartbeat(ctx)   // 每 30s 向控制面发送心跳
-go func() {
-    ticker := time.NewTicker(15 * time.Second)
-    for {
-        select {
-        case <-ticker.C:
-            node.RefreshConfig()  // 主动 pull 最新 NetworkMap
-        case <-ctx.Done():
-            return
-        }
-    }
-}()
-```
+以下设计在讨论文档中提出，但**当前代码中未实现**：
 
-- **心跳**：保证 sandbox 在其他节点的 `ComputedPeers` 中保持 online，持续收到 NATS push
-- **周期刷新**：兜底 NATS push 丢失场景（网络抖动、重连等）
+- **eBPF/cgroup 内核级强制**（FAQ 中提到的"Phase 1"）——通过 `LD_PRELOAD` + cgroup + eBPF 在内核层强制所有 Agent 流量走 gVisor netstack，消除"Agent 不设代理即可绕过"的漏洞
+- **eBPF TC filter on wf0** —— 将 eBPF 策略附加到 wf0 TUN 接口，在内核层过滤
+- **seccomp notify** —— 通过 seccomp 用户态通知机制精确控制 Agent 的 socket 调用
+- **Sidecar 劫持** —— 在 K8s Pod 内通过 iptables 劫持所有 Agent 出站流量
 
----
-
-## LRP Relay 回退
-
-与普通节点行为完全相同，无额外配置：
-
-```go
-if currentPeer.LrpUrl != "" {
-    agentconfig.Conf.EnableLrp = true
-    agentconfig.Conf.RelayURL = currentPeer.LrpUrl
-}
-```
-
-ICE 直连失败后，`agent.Node` 的状态机自动切换到 LRP relay（QUIC 优先，TCP 回退）。sandbox 的 LRP 路径不经过 gVisor netstack，直接在宿主机网络层处理。
+参见 `docs/faq/ebpf-sandbox.md` 和 `docs/superpowers/adr/0001-gvisor-library-vs-runsc.md`。
 
 ---
 
@@ -299,14 +252,22 @@ ICE 直连失败后，`agent.Node` 的状态机自动切换到 LRP relay（QUIC 
 lattice sandbox start [flags]
 
 必填:
-  --name         Sandbox 标识符（同时作为 AgentIdentity 名称和 LatticePeer 名称）
-  --server-url   Lattice 控制面 URL（首次注册用）
-  --token        Enrollment token（首次注册用，重启后自动从凭证文件恢复）
+  --name            string   Sandbox 标识符
+  --server-url      string   Lattice 控制面 URL
+  --token           string   Enrollment token
 
-PRO 专属:
-  --proxy-addr string       HTTP 正向代理监听地址（如 127.0.0.1:1080）
-  --forward stringArray     入站端口转发规则（格式: overlayPort:targetAddr）
-  --egress-allow string     允许出站的 CIDR 列表（逗号分隔）
-  --egress-default-deny     启用出站白名单模式（不设则默认放行全部出站）
-  --audit-log string        审计日志路径（默认 /tmp/lattice-audit-<name>.jsonl）
+可选:
+  --mode            string   隔离模式：pod（默认）| gvisor（PRO）
+  --ready-wait      duration WireGuard 就绪等待（agent 子命令，默认 3s）
+
+pod 模式（PRO）:
+  --proxy-addr      string   SOCKS5 代理监听地址（如 127.0.0.1:1080）
+  --forward         strings  入站转发规则（格式: overlayPort:targetAddr）
+  --egress-allow    string   允许出站的 CIDR 列表（逗号分隔）
+  --egress-default-deny      启用出站白名单模式
+
+gvisor 模式（PRO）:
+  --agent-rootfs    string   容器根文件系统路径
+  --agent-binary    string   AI agent 入口二进制
+  --agent-args      strings  AI agent 启动参数
 ```

@@ -4,17 +4,11 @@ title: ICE Connection & LRP Relay
 
 # ICE Connection & LRP Relay
 
-> Source: `superpowers/specs/2026-05-01-ice-relay-wireguard-design.md`
+> Source: `superpowers/specs/2026-05-01-ice-relay-wireguard-design.md`, `2026-05-18-ice-handshake-design.md`
 
-## Motivation
+## Overview
 
-Lattice connects nodes across arbitrary network topologies — home LANs, corporate firewalls, cloud VPCs. A WireGuard mesh alone fails behind symmetric NAT. The transport layer addresses this with a **dual-path strategy**: direct P2P via ICE when possible, relay fallback via LRP when NAT traversal fails.
-
-Design priorities:
-1. **Lowest latency wins**: ICE direct path preferred; LRP is the fallback
-2. **Seamless upgrade**: LRP → ICE upgrade happens transparently mid-connection
-3. **Single port**: WireGuard and ICE share UDP port 51820 via a filtering mux
-4. **Multi-transport relay**: LRP supports both TCP (HTTP upgrade) and QUIC (datagram)
+Lattice establishes peer-to-peer WireGuard tunnels using a **dual-path race**: ICE (direct UDP) and LRP (relay fallback). NATS carries signaling messages. Both share UDP `:51820` via `FilteringUDPMux`.
 
 ## Architecture
 
@@ -31,38 +25,102 @@ Design priorities:
       └─────┬─────┘                          └─────┬─────┘
             │                                      │
   ┌─────────▼─────────┐                  ┌─────────▼─────────┐
-  │   FilteringUDPMux  │                  │   FilteringUDPMux  │
-  │   :51820           │                  │   :51820           │
+  │  FilteringUDPMux   │                  │  FilteringUDPMux   │
+  │  :51820            │                  │  :51820            │
   └──┬─────────────┬──┘                  └──┬─────────────┬──┘
      │             │                        │             │
 ┌────▼────┐  ┌─────▼──────┐          ┌────▼────┐  ┌─────▼──────┐
 │ ICE     │  │ LRP Client │          │ ICE     │  │ LRP Client │
-│ Agent   │  │ (TCP/QUIC) │          │ Agent   │  │ (TCP/QUIC) │
+│ Agent   │  │ (QUIC/TCP) │          │ Agent   │  │ (QUIC/TCP) │
 └─────────┘  └─────┬──────┘          └─────────┘  └─────┬──────┘
                    └──────── Relay Server ────────────────┘
 
      Signaling: NATS (lattice.signals.peers.<PeerID>)
 ```
 
-## ICE / NAT Traversal
+## ICE Handshake (4-message via NATS)
 
-Built on [pion/ice v4](https://github.com/pion/ice).
+Initiator is determined by `localId > remoteId` (numeric uint64 comparison).
 
-- STUN servers for reflexive address discovery
-- TURN servers for relay candidates (fallback within ICE)
-- `FilteringUDPMux` demultiplexes STUN and WireGuard packets on the same port
+```
+Initiator (larger ID)                   Responder (smaller ID)
+────────────────────────                ───────────────────────
+Prepare():
+  getAgent() + GatherCandidates()       Prepare():
+  send SYN ──────────────────►            (waits for SYN)
 
-## LRP Relay
+                                        Handle(SYN):
+  ◄─────────────────── ACK               1. extract peer_info
+                                         2. getAgent()
+Handle(ACK):                             3. send ACK
+  GatherCandidates() (if needed)
+  OFFER(candidate) ──────────►          Handle(OFFER):
+  ◄────────── ANSWER(candidate)           AddRemoteCandidate()
 
-LRP (Lattice Relay Protocol) is the outer relay when ICE fails (e.g., symmetric NAT on both sides):
+Dial():                                 Dial():
+  AwaitConnect()                          AwaitConnect()
+  ◄══════ ICE Connected ══════►          ◄══════ ICE Connected ══════►
+```
 
-- TCP transport: HTTP-upgraded persistent connection
-- QUIC transport: datagram-based, eliminates head-of-line blocking
+- **SYN retry**: every 2s via ticker, stops when ACK received
+- **SYN + active agent**: responder resends ACK + candidates
+- **SYN + closed agent**: responder triggers `restart()` (remote restarted)
+
+## Concurrent Race & LRP Fallback
+
+`Probe.discover()` runs both dialers concurrently:
+
+```
+ICE goroutine ─┐
+               ├──► result ← first transport to succeed
+LRP goroutine ─┘
+```
+
+| Outcome | Behavior |
+|---------|----------|
+| ICE wins | Return ICE transport immediately |
+| LRP wins, ICE arrives within 500ms | Close LRP, return ICE |
+| LRP wins, ICE arrives after 500ms | Keep LRP, ICE upgrades later |
+| Both fail | Record failure, retry in 10s or close after 60s |
 
 ## Connection State Machine
 
 ```
-Created → Probing → ICEReady / LRPReady → Failed → Closed
+Created → Probing → ICEReady ─┬→ Failed → Probing (10s retry)
+                 → LRPReady ─┤         → Closed (60s, permanent)
+                              │
+                 LRPReady → ICEReady (transparent upgrade)
 ```
 
-ICE and LRP probe in parallel. First to succeed wins. The state machine handles upgrade (LRP → ICE) and fallback transparently.
+| State | Meaning |
+|-------|---------|
+| `created` | Probe allocated |
+| `probing` | ICE + LRP racing |
+| `ice-ready` | ICE direct connected |
+| `lrp-ready` | LRP relay active |
+| `failed` | All dialers failed |
+| `closed` | Unreachable for 60s |
+
+Callbacks: `Probing→Ready` sets WireGuard endpoint + route + NAT; `LRPReady→ICEReady` only updates endpoint; `→Failed/Closed` removes peer.
+
+## FilteringUDPMux
+
+ICE STUN and WireGuard share UDP `:51820`. Two goroutines read the same `net.UDPConn`:
+
+| Packet | ICE agent | WireGuard |
+|--------|-----------|-----------|
+| STUN (magic `0x2112A442`) | ✅ dispatched | ❌ decrypt fails |
+| WireGuard encrypted | ❌ no ufrag match | ✅ dispatched |
+
+`FilteringUDPMux` inspects bytes 4-7 for the STUN magic cookie and routes accordingly. After ICE succeeds, the agent closes and WG `PersistentKeepalive` maintains NAT.
+
+## Key Files
+
+| File | Role |
+|------|------|
+| `internal/server/transport/state_machine.go` | State machine |
+| `internal/server/transport/ice_dialer.go` | ICE dialer (SYN/ACK/OFFER/ANSWER) |
+| `internal/server/transport/probe.go` | Per-peer probe, discover() race |
+| `internal/server/transport/probe_factory.go` | Probe lifecycle, callbacks |
+| `internal/server/transport/lrp_dialer.go` | LRP relay dialer (QUIC+TCP) |
+| `internal/agent/infra/mux_filter.go` | FilteringUDPMux |
