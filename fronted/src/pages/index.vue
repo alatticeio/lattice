@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import {
-  ArrowRight, Cpu, Zap, Globe, Shield,
-  CheckCircle, ChevronRight, Crown, X, LogOut, LayoutDashboard, Container,
+  ArrowRight, Zap, Globe, Shield,
+  CheckCircle, ChevronRight, Crown, X, LogOut, LayoutDashboard,
+  Network, Container, Cpu, Terminal, BookOpen, Code2, Workflow,
 } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
@@ -14,6 +15,10 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { storeToRefs } from 'pinia'
 import { useUserStore } from '@/stores/user'
+import LatticeTerminal from '@/components/lattice/LatticeTerminal.vue'
+import TopologyCanvas from '@/components/lattice/TopologyCanvas.vue'
+import SectionHeader from '@/components/lattice/SectionHeader.vue'
+import type { TerminalLine } from '@/components/lattice/LatticeTerminal.vue'
 
 definePage({ meta: { layout: 'blank' } })
 
@@ -28,18 +33,58 @@ const avatarFallback = computed(() => {
   return name.slice(0, 2).toUpperCase()
 })
 
-const latency = ref(42)
-const lastSync = ref('')
-let timer: ReturnType<typeof setInterval>
+const terminalLines: TerminalLine[] = [
+  { text: '$ lattice sandbox start --name my-agent --token lt-enroll-xxx', cls: 'prompt' },
+  { text: '  → NATS enrollment...                                              ✓', cls: 'ok' },
+  { text: '  → WireGuard keypair generated                                     ✓', cls: 'ok' },
+  { text: '  → VPN IP assigned: 10.100.0.5                                    ✓', cls: 'ok' },
+  { text: '  Agent "my-agent" online, ICE P2P connected', cls: 'cmd' },
+  { text: '', cls: 'dim' },
+  { text: '# Tool call trace (tool_spans)', cls: 'dim' },
+  { text: '$ ExecuteTool("list_peers")', cls: 'prompt' },
+  { text: '  → CheckToolAccess ✓ → execute → 38ms', cls: 'ok' },
+  { text: '  → tool_span: traceId=a1b2, status=ok', cls: 'cmd' },
+  { text: '', cls: 'dim' },
+  { text: '# RBAC enforcement (blocked)', cls: 'dim' },
+  { text: '$ ExecuteTool("delete_peer")', cls: 'prompt' },
+  { text: '  → CheckToolAccess ✗ → blocked', cls: 'warn' },
+  { text: '  → tool_span: status=blocked → /audit/traces', cls: 'warn' },
+]
 
-onMounted(() => {
-  lastSync.value = new Date().toLocaleTimeString([], { hour12: false })
-  timer = setInterval(() => {
-    latency.value = Math.floor(Math.random() * 8) + 38
-    lastSync.value = new Date().toLocaleTimeString([], { hour12: false })
-  }, 3000)
-})
-onUnmounted(() => clearInterval(timer))
+const features = [
+  { icon: Container, tag: 'stable', titleKey: 'landing.features.ai_sandbox.title', descKey: 'landing.features.ai_sandbox.desc' },
+  { icon: Workflow, tag: 'stable', titleKey: 'landing.features.ai_traces.title', descKey: 'landing.features.ai_traces.desc' },
+  { icon: Terminal, tag: 'stable', titleKey: 'landing.features.ai_mcp.title', descKey: 'landing.features.ai_mcp.desc' },
+  { icon: Globe, tag: 'stable', titleKey: 'landing.features.net_wg.title', descKey: 'landing.features.net_wg.desc' },
+  { icon: Cpu, tag: 'pro', titleKey: 'landing.features.net_ebpf.title', descKey: 'landing.features.net_ebpf.desc' },
+  { icon: Zap, tag: 'pro', titleKey: 'landing.features.ai_intent.title', descKey: 'landing.features.ai_intent.desc' },
+]
+
+const pillarNetwork = [
+  { icon: Globe, titleKey: 'landing.pillars.net_1_title', descKey: 'landing.pillars.net_1_desc' },
+  { icon: Network, titleKey: 'landing.pillars.net_2_title', descKey: 'landing.pillars.net_2_desc' },
+  { icon: Shield, titleKey: 'landing.pillars.net_3_title', descKey: 'landing.pillars.net_3_desc' },
+  { icon: Code2, titleKey: 'landing.pillars.net_4_title', descKey: 'landing.pillars.net_4_desc' },
+]
+
+const pillarAgent = [
+  { icon: Container, titleKey: 'landing.pillars.agent_1_title', descKey: 'landing.pillars.agent_1_desc' },
+  { icon: Shield, titleKey: 'landing.pillars.agent_2_title', descKey: 'landing.pillars.agent_2_desc' },
+  { icon: Workflow, titleKey: 'landing.pillars.agent_3_title', descKey: 'landing.pillars.agent_3_desc' },
+  { icon: BookOpen, titleKey: 'landing.pillars.agent_4_title', descKey: 'landing.pillars.agent_4_desc' },
+]
+
+function tagClass(tag: string) {
+  return tag === 'stable' ? 'lattice-badge lattice-badge-stable'
+    : tag === 'roadmap' ? 'lattice-badge lattice-badge-roadmap'
+    : 'lattice-badge lattice-badge-pro'
+}
+
+function tagLabel(tag: string) {
+  if (tag === 'stable') return t('landing.features.tag_stable')
+  if (tag === 'roadmap') return t('landing.features.tag_roadmap')
+  return 'PRO'
+}
 </script>
 
 <template>
@@ -55,10 +100,10 @@ onUnmounted(() => clearInterval(timer))
         </div>
 
         <nav class="hidden md:flex items-center gap-6 text-sm text-muted-foreground">
-          <a href="#features"      class="hover:text-foreground transition-colors">{{ t('landing.nav.features') }}</a>
-          <a href="#architecture"  class="hover:text-foreground transition-colors">{{ t('landing.nav.architecture') }}</a>
-          <a href="#pricing"       class="hover:text-foreground transition-colors">{{ t('landing.nav.pricing') }}</a>
-          <a href="#quickstart"    class="hover:text-foreground transition-colors">{{ t('landing.nav.quickstart') }}</a>
+          <a href="#pillars"     class="hover:text-foreground transition-colors">{{ t('landing.nav.pillars') }}</a>
+          <a href="#features"    class="hover:text-foreground transition-colors">{{ t('landing.nav.features') }}</a>
+          <a href="#quickstart"  class="hover:text-foreground transition-colors">{{ t('landing.nav.quickstart') }}</a>
+          <a href="#pricing"     class="hover:text-foreground transition-colors">{{ t('landing.nav.pricing') }}</a>
         </nav>
 
         <div class="flex items-center gap-2">
@@ -118,27 +163,11 @@ onUnmounted(() => clearInterval(timer))
     </header>
 
     <!-- ── Hero ───────────────────────────────────────────────────── -->
-    <section class="relative overflow-hidden pt-24 pb-20 px-6">
-      <!-- Subtle grid -->
-      <div class="absolute inset-0 -z-10 [background-image:linear-gradient(to_right,rgba(0,0,0,.04)_1px,transparent_1px),linear-gradient(to_bottom,rgba(0,0,0,.04)_1px,transparent_1px)] dark:[background-image:linear-gradient(to_right,rgba(255,255,255,.04)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,.04)_1px,transparent_1px)] [background-size:48px_48px]" />
-      <!-- Network topology SVG background -->
-      <svg class="absolute inset-0 -z-10 w-full h-full text-indigo-500/10" viewBox="0 0 800 600" preserveAspectRatio="xMidYMid slice" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <line x1="150" y1="80" x2="350" y2="180" stroke="currentColor" stroke-width="1.5" />
-        <line x1="350" y1="180" x2="550" y2="80" stroke="currentColor" stroke-width="1.5" />
-        <line x1="350" y1="180" x2="250" y2="380" stroke="currentColor" stroke-width="1.5" />
-        <line x1="350" y1="180" x2="450" y2="360" stroke="currentColor" stroke-width="1.5" />
-        <line x1="150" y1="80" x2="80" y2="280" stroke="currentColor" stroke-width="1.5" />
-        <line x1="550" y1="80" x2="650" y2="260" stroke="currentColor" stroke-width="1.5" />
-        <line x1="80" y1="280" x2="250" y2="380" stroke="currentColor" stroke-width="1" />
-        <line x1="450" y1="360" x2="650" y2="260" stroke="currentColor" stroke-width="1" />
-        <circle cx="150" cy="80" r="5" fill="currentColor" />
-        <circle cx="350" cy="180" r="7" class="fill-cyan-400/30" />
-        <circle cx="550" cy="80" r="5" fill="currentColor" />
-        <circle cx="80" cy="280" r="4" class="fill-cyan-400/30" />
-        <circle cx="250" cy="380" r="4" fill="currentColor" />
-        <circle cx="450" cy="360" r="4" class="fill-cyan-400/30" />
-        <circle cx="650" cy="260" r="4" fill="currentColor" />
-      </svg>
+    <section class="relative overflow-hidden pt-28 pb-24 px-6">
+      <!-- Topology background -->
+      <div class="absolute inset-0 -z-10 opacity-40">
+        <TopologyCanvas :node-count="14" />
+      </div>
       <!-- Glow -->
       <div class="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-64 bg-indigo-500/10 rounded-full blur-3xl -z-10" />
 
@@ -148,8 +177,9 @@ onUnmounted(() => clearInterval(timer))
           {{ t('landing.hero.badge') }}
         </div>
 
-        <h1 class="text-4xl md:text-[3.5rem] font-black tracking-tighter leading-[1.1] mb-5 bg-gradient-to-r from-gray-900 via-indigo-600 to-cyan-500 bg-clip-text text-transparent dark:from-gray-100 dark:via-indigo-400 dark:to-cyan-300">
-          {{ t('landing.hero.title') }}
+        <h1 class="text-4xl md:text-[3.5rem] font-black tracking-tighter leading-[1.1] mb-5">
+          <span class="lattice-gradient-text block">{{ t('landing.hero.title_line1') }}</span>
+          <span class="text-foreground">{{ t('landing.hero.title_line2') }}</span>
         </h1>
 
         <p class="text-muted-foreground text-base leading-relaxed max-w-xl mx-auto mb-8">
@@ -176,209 +206,125 @@ onUnmounted(() => clearInterval(timer))
       </div>
     </section>
 
-    <!-- ── Live stats terminal ────────────────────────────────────── -->
+    <!-- ── Terminal Demo ──────────────────────────────────────────── -->
     <section class="px-6 pb-20">
       <div class="max-w-3xl mx-auto">
-        <div class="rounded-2xl overflow-hidden border border-indigo-950 shadow-xl shadow-indigo-950/20 bg-gradient-to-b from-[#0f0d2e] to-[#1a1740]">
-          <!-- Title bar -->
-          <div class="flex items-center gap-1.5 px-4 py-2.5 bg-[#1e1b4b] border-b border-indigo-950">
-            <div class="size-3 rounded-full bg-rose-500/70" />
-            <div class="size-3 rounded-full bg-amber-400/70" />
-            <div class="size-3 rounded-full bg-emerald-500/70" />
-            <span class="ml-2 text-[11px] text-indigo-300/60 font-mono flex-1">{{ t('landing.terminal.title') }}</span>
-            <div class="flex items-center gap-1.5">
-              <span class="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              <span class="text-[11px] text-emerald-400 font-mono font-semibold">{{ t('landing.terminal.status') }}</span>
-            </div>
-          </div>
-          <!-- Terminal content -->
-          <div class="p-5 font-mono text-sm leading-7">
-            <p><span class="text-indigo-300/50 select-none">{{ t('landing.terminal.line1') }}</span></p>
-            <p><span class="text-emerald-400/60">{{ t('landing.terminal.line2') }}</span></p>
-            <p><span class="text-emerald-400/60">{{ t('landing.terminal.line3') }}</span></p>
-            <p><span class="text-emerald-400/60">{{ t('landing.terminal.line4') }}</span></p>
-            <p class="mt-1"><span class="text-sky-400">{{ t('landing.terminal.line5') }}</span></p>
-            <p class="mt-3"><span class="text-indigo-300/50 italic">{{ t('landing.terminal.line6') }}</span></p>
-            <p><span class="text-white">{{ t('landing.terminal.line7') }}</span></p>
-            <p><span class="text-emerald-400/60">{{ t('landing.terminal.line8') }}</span></p>
-            <p><span class="text-emerald-400/60">{{ t('landing.terminal.line9') }}</span></p>
-            <p class="mt-3"><span class="text-rose-400/70 italic">{{ t('landing.terminal.line10') }}</span></p>
-            <p><span class="text-white">{{ t('landing.terminal.line11') }}</span></p>
-            <p><span class="text-rose-400/60">{{ t('landing.terminal.line12') }}</span></p>
-            <p><span class="text-rose-400/60">{{ t('landing.terminal.line13') }}</span></p>
-          </div>
-          <!-- Stats row -->
-          <div class="grid grid-cols-3 divide-x divide-white/[0.06]">
-            <div class="px-7 py-6">
-              <p class="text-[10px] font-black uppercase tracking-widest text-indigo-300/40 mb-2">{{ t('landing.stats.active_nodes') }}</p>
-              <p class="text-3xl font-mono font-black text-white">128</p>
-              <p class="text-[11px] text-emerald-400 font-semibold mt-1.5 flex items-center gap-1">
-                <span class="size-1.5 rounded-full bg-emerald-500" /> {{ t('landing.stats.all_healthy') }}
-              </p>
-            </div>
-            <div class="px-7 py-6">
-              <p class="text-[10px] font-black uppercase tracking-widest text-indigo-300/40 mb-2">{{ t('landing.stats.avg_latency') }}</p>
-              <p class="text-3xl font-mono font-black bg-gradient-to-r from-indigo-400 to-cyan-400 bg-clip-text text-transparent transition-all duration-700">
-                {{ latency }}<span class="text-lg text-indigo-300/40 ml-1">ms</span>
-              </p>
-              <p class="text-[11px] text-indigo-300/40 font-mono mt-1.5">{{ t('landing.stats.sync') }} {{ lastSync }}</p>
-            </div>
-            <div class="px-7 py-6">
-              <p class="text-[10px] font-black uppercase tracking-widest text-indigo-300/40 mb-2">{{ t('landing.stats.data_plane') }}</p>
-              <p class="text-3xl font-mono font-black bg-gradient-to-r from-violet-400 to-cyan-400 bg-clip-text text-transparent italic">gVisor</p>
-              <span class="inline-block mt-1.5 text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 ring-1 ring-emerald-500/20">{{ t('landing.features.tag_stable') }}</span>
-            </div>
-          </div>
-        </div>
+        <LatticeTerminal
+          :title="t('landing.terminal.title')"
+          :status="t('landing.terminal.status')"
+          :lines="terminalLines"
+        />
+        <p class="text-center text-xs text-muted-foreground font-mono mt-4">
+          {{ t('landing.terminal.caption') }}
+        </p>
       </div>
     </section>
 
-    <!-- ── Features ───────────────────────────────────────────────── -->
-    <section id="features" class="py-20 px-6 bg-muted/50 border-y border-border">
+    <!-- ── Two Pillars ────────────────────────────────────────────── -->
+    <section id="pillars" class="py-20 px-6 bg-muted/50 border-y border-border">
       <div class="max-w-5xl mx-auto">
-        <div class="text-center mb-12">
-          <p class="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-2">{{ t('landing.features.label') }}</p>
-          <h2 class="text-2xl font-black tracking-tighter text-foreground">{{ t('landing.features.title') }}</h2>
-          <p class="text-muted-foreground text-sm mt-2.5 max-w-lg mx-auto leading-relaxed">
-            {{ t('landing.features.subtitle') }}
-          </p>
-        </div>
+        <SectionHeader
+          :tag="t('landing.pillars.tag')"
+          :title="t('landing.pillars.title')"
+          :subtitle="t('landing.pillars.subtitle')"
+        />
 
-        <!-- Row 1: AI Agent -->
-        <p class="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-4">AI Agent 运行时</p>
-        <div class="grid md:grid-cols-3 gap-4 mb-8">
-          <div class="bg-card border border-border rounded-xl p-6 hover:shadow-md hover:border-border/60 hover:-translate-y-0.5 transition-all duration-200">
-            <div class="size-10 rounded-xl bg-violet-50 dark:bg-violet-500/10 text-violet-600 dark:text-violet-400 flex items-center justify-center mb-4">
-              <Container class="size-5" />
+        <div class="grid md:grid-cols-2 gap-5">
+          <!-- Network Pillar -->
+          <div class="lattice-card p-8">
+            <div class="size-11 rounded-xl bg-primary/10 text-primary flex items-center justify-center mb-5">
+              <Globe class="size-6" />
             </div>
-            <span class="text-[10px] font-bold px-2 py-0.5 rounded-full text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 ring-1 ring-emerald-200 dark:ring-emerald-500/20">{{ t('landing.features.tag_stable') }}</span>
-            <h3 class="text-sm font-bold mt-3 mb-1.5 text-card-foreground">{{ t('landing.features.ai_sandbox.title') }}</h3>
-            <p class="text-xs text-muted-foreground leading-relaxed">{{ t('landing.features.ai_sandbox.desc') }}</p>
-          </div>
-
-          <div class="bg-card border border-border rounded-xl p-6 hover:shadow-md hover:border-border/60 hover:-translate-y-0.5 transition-all duration-200">
-            <div class="size-10 rounded-xl bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center mb-4">
-              <Shield class="size-5" />
-            </div>
-            <span class="text-[10px] font-bold px-2 py-0.5 rounded-full text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 ring-1 ring-emerald-200 dark:ring-emerald-500/20">{{ t('landing.features.tag_stable') }}</span>
-            <h3 class="text-sm font-bold mt-3 mb-1.5 text-card-foreground">{{ t('landing.features.ai_traces.title') }}</h3>
-            <p class="text-xs text-muted-foreground leading-relaxed">{{ t('landing.features.ai_traces.desc') }}</p>
-          </div>
-
-          <div class="bg-card border border-border rounded-xl p-6 hover:shadow-md hover:border-border/60 hover:-translate-y-0.5 transition-all duration-200">
-            <div class="size-10 rounded-xl bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center mb-4">
-              <Zap class="size-5" />
-            </div>
-            <span class="text-[10px] font-bold px-2 py-0.5 rounded-full text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10 ring-1 ring-amber-200 dark:ring-amber-400/20">{{ t('landing.features.tag_roadmap') }}</span>
-            <h3 class="text-sm font-bold mt-3 mb-1.5 text-card-foreground">{{ t('landing.features.ai_intent.title') }}</h3>
-            <p class="text-xs text-muted-foreground leading-relaxed">{{ t('landing.features.ai_intent.desc') }}</p>
-          </div>
-        </div>
-
-        <!-- Row 2: Network Foundation -->
-        <p class="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-4">网络基础层</p>
-        <div class="grid md:grid-cols-3 gap-4">
-          <div class="bg-card border border-border rounded-xl p-6 hover:shadow-md hover:border-border/60 hover:-translate-y-0.5 transition-all duration-200">
-            <div class="size-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center mb-4">
-              <Globe class="size-5" />
-            </div>
-            <span class="text-[10px] font-bold px-2 py-0.5 rounded-full text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 ring-1 ring-emerald-200 dark:ring-emerald-500/20">{{ t('landing.features.tag_stable') }}</span>
-            <h3 class="text-sm font-bold mt-3 mb-1.5 text-card-foreground">{{ t('landing.features.net_wg.title') }}</h3>
-            <p class="text-xs text-muted-foreground leading-relaxed">{{ t('landing.features.net_wg.desc') }}</p>
-          </div>
-
-          <div class="bg-card border border-border rounded-xl p-6 hover:shadow-md hover:border-border/60 hover:-translate-y-0.5 transition-all duration-200">
-            <div class="size-10 rounded-xl bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center mb-4">
-              <Cpu class="size-5" />
-            </div>
-            <span class="text-[10px] font-bold px-2 py-0.5 rounded-full text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10 ring-1 ring-amber-200 dark:ring-amber-400/20">{{ t('landing.features.tag_roadmap') }}</span>
-            <h3 class="text-sm font-bold mt-3 mb-1.5 text-card-foreground">{{ t('landing.features.net_ebpf.title') }}</h3>
-            <p class="text-xs text-muted-foreground leading-relaxed">{{ t('landing.features.net_ebpf.desc') }}</p>
-          </div>
-
-          <div class="bg-card border border-border rounded-xl p-6 hover:shadow-md hover:border-border/60 hover:-translate-y-0.5 transition-all duration-200">
-            <div class="size-10 rounded-xl bg-cyan-50 dark:bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 flex items-center justify-center mb-4">
-              <Shield class="size-5" />
-            </div>
-            <span class="text-[10px] font-bold px-2 py-0.5 rounded-full text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 ring-1 ring-emerald-200 dark:ring-emerald-500/20">{{ t('landing.features.tag_stable') }}</span>
-            <h3 class="text-sm font-bold mt-3 mb-1.5 text-card-foreground">{{ t('landing.features.net_audit.title') }}</h3>
-            <p class="text-xs text-muted-foreground leading-relaxed">{{ t('landing.features.net_audit.desc') }}</p>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- ── Architecture ─────────────────────────────────────────────── -->
-    <section id="architecture" class="py-20 px-6 bg-muted/50 border-y border-border">
-      <div class="max-w-5xl mx-auto">
-        <div class="text-center mb-12">
-          <p class="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-2">{{ t('landing.architecture.label') }}</p>
-          <h2 class="text-2xl font-black tracking-tighter text-foreground">{{ t('landing.architecture.title') }}</h2>
-          <p class="text-muted-foreground text-sm mt-2.5 max-w-md mx-auto">
-            {{ t('landing.architecture.subtitle') }}
-          </p>
-        </div>
-
-        <div class="flex flex-col lg:flex-row gap-5">
-          <!-- Steps -->
-          <div class="lg:w-2/5 bg-card border border-border rounded-xl p-6">
-            <div class="space-y-0">
-              <!-- Step 1 -->
-              <div class="flex items-start gap-3.5 relative">
-                <div class="flex flex-col items-center">
-                  <div class="size-7 rounded-lg bg-primary/10 text-primary flex items-center justify-center text-[11px] font-black shrink-0">01</div>
-                  <div class="w-px flex-1 bg-border min-h-[2.5rem]" />
-                </div>
-                <div class="pb-5">
-                  <p class="text-sm font-semibold text-card-foreground">{{ t('landing.architecture.step_1_title') }}</p>
-                  <p class="text-xs text-muted-foreground mt-0.5 leading-relaxed">{{ t('landing.architecture.step_1_desc') }}</p>
-                </div>
-              </div>
-              <!-- Step 2 -->
-              <div class="flex items-start gap-3.5 relative">
-                <div class="flex flex-col items-center">
-                  <div class="size-7 rounded-lg bg-primary/10 text-primary flex items-center justify-center text-[11px] font-black shrink-0">02</div>
-                  <div class="w-px flex-1 bg-border min-h-[2.5rem]" />
-                </div>
-                <div class="pb-5">
-                  <p class="text-sm font-semibold text-card-foreground">{{ t('landing.architecture.step_2_title') }}</p>
-                  <p class="text-xs text-muted-foreground mt-0.5 leading-relaxed">{{ t('landing.architecture.step_2_desc') }}</p>
-                </div>
-              </div>
-              <!-- Step 3 -->
-              <div class="flex items-start gap-3.5 relative">
-                <div class="flex flex-col items-center">
-                  <div class="size-7 rounded-lg bg-primary/10 text-primary flex items-center justify-center text-[11px] font-black shrink-0">03</div>
+            <h3 class="text-lg font-bold mb-5 text-card-foreground">{{ t('landing.pillars.net_title') }}</h3>
+            <div class="space-y-5">
+              <div v-for="(item, i) in pillarNetwork" :key="'net-' + i" class="flex items-start gap-3.5">
+                <div class="size-9 rounded-lg bg-muted text-muted-foreground flex items-center justify-center shrink-0 mt-0.5">
+                  <component :is="item.icon" class="size-4" />
                 </div>
                 <div>
-                  <p class="text-sm font-semibold text-card-foreground">{{ t('landing.architecture.step_3_title') }}</p>
-                  <p class="text-xs text-muted-foreground mt-0.5 leading-relaxed">{{ t('landing.architecture.step_3_desc') }}</p>
+                  <p class="text-sm font-semibold text-card-foreground">{{ t(item.titleKey) }}</p>
+                  <p class="text-xs text-muted-foreground mt-0.5 leading-relaxed">{{ t(item.descKey) }}</p>
                 </div>
               </div>
             </div>
           </div>
 
-          <!-- Data-path Terminal -->
-          <div class="lg:w-3/5 rounded-xl overflow-hidden border border-[#1e1b4b] bg-[#0f0d2e]">
-            <div class="flex items-center gap-1.5 px-4 py-2.5 bg-[#1e1b4b] border-b border-[#1e1b4b]">
-              <div class="size-2.5 rounded-full bg-rose-500/70" />
-              <div class="size-2.5 rounded-full bg-amber-400/70" />
-              <div class="size-2.5 rounded-full bg-emerald-500/70" />
-              <span class="ml-2 text-[11px] text-indigo-300/60 font-mono">bash</span>
+          <!-- Agent Pillar -->
+          <div class="lattice-card p-8">
+            <div class="size-11 rounded-xl bg-primary/10 text-primary flex items-center justify-center mb-5">
+              <Container class="size-6" />
             </div>
-            <div class="p-5 font-mono text-sm leading-7">
-              <p><span class="text-indigo-300/50 italic">{{ t('landing.architecture.terminal_comment') }}</span></p>
-              <p><span class="text-indigo-300/50">{{ t('landing.architecture.terminal_line1') }}</span></p>
-              <p><span class="text-emerald-400/60">{{ t('landing.architecture.terminal_line2') }}</span></p>
-              <p><span class="text-emerald-400/60">{{ t('landing.architecture.terminal_line3') }}</span></p>
-              <p><span class="text-emerald-400/60">{{ t('landing.architecture.terminal_line4') }}</span></p>
-              <p><span class="text-emerald-400/60">{{ t('landing.architecture.terminal_line5') }}</span></p>
-              <p class="mt-3"><span class="text-rose-400/70 italic">{{ t('landing.architecture.terminal_comment2') }}</span></p>
-              <p><span class="text-rose-400/60">{{ t('landing.architecture.terminal_line6') }}</span></p>
-              <p><span class="text-rose-400/60">{{ t('landing.architecture.terminal_line7') }}</span></p>
-              <p><span class="text-rose-400/60">{{ t('landing.architecture.terminal_line8') }}</span></p>
-              <p><span class="text-rose-400/60">{{ t('landing.architecture.terminal_line9') }}</span></p>
+            <h3 class="text-lg font-bold mb-5 text-card-foreground">{{ t('landing.pillars.agent_title') }}</h3>
+            <div class="space-y-5">
+              <div v-for="(item, i) in pillarAgent" :key="'agent-' + i" class="flex items-start gap-3.5">
+                <div class="size-9 rounded-lg bg-muted text-muted-foreground flex items-center justify-center shrink-0 mt-0.5">
+                  <component :is="item.icon" class="size-4" />
+                </div>
+                <div>
+                  <p class="text-sm font-semibold text-card-foreground">{{ t(item.titleKey) }}</p>
+                  <p class="text-xs text-muted-foreground mt-0.5 leading-relaxed">{{ t(item.descKey) }}</p>
+                </div>
+              </div>
             </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Features Grid ──────────────────────────────────────────── -->
+    <section id="features" class="py-20 px-6">
+      <div class="max-w-5xl mx-auto">
+        <SectionHeader
+          :tag="t('landing.features.label')"
+          :title="t('landing.features.title')"
+          :subtitle="t('landing.features.subtitle')"
+        />
+
+        <div class="grid md:grid-cols-3 gap-4">
+          <div v-for="(feat, i) in features" :key="i" class="lattice-card p-6">
+            <div class="size-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center mb-4">
+              <component :is="feat.icon" class="size-5" />
+            </div>
+            <span :class="tagClass(feat.tag)">{{ tagLabel(feat.tag) }}</span>
+            <h3 class="text-sm font-bold mt-3 mb-1.5 text-card-foreground">{{ t(feat.titleKey) }}</h3>
+            <p class="text-xs text-muted-foreground leading-relaxed">{{ t(feat.descKey) }}</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Quickstart ─────────────────────────────────────────────── -->
+    <section id="quickstart" class="py-20 px-6 bg-muted/50 border-y border-border">
+      <div class="max-w-3xl mx-auto">
+        <SectionHeader
+          :tag="t('landing.quickstart.tag')"
+          :title="t('landing.quickstart.title')"
+          :subtitle="t('landing.quickstart.subtitle')"
+        />
+
+        <div class="space-y-3">
+          <!-- Docker -->
+          <div class="lattice-card p-5">
+            <code class="text-sm font-mono text-card-foreground block mb-2">
+              docker run -d --name lattice-k3s -p 443:443 ghcr.io/alatticeio/lattice-k3s:latest
+            </code>
+            <p class="text-xs text-muted-foreground">{{ t('landing.quickstart.docker_hint') }}</p>
+          </div>
+
+          <!-- K8s -->
+          <div class="lattice-card p-5">
+            <code class="text-sm font-mono text-card-foreground block mb-2">
+              kubectl apply -k https://github.com/alatticeio/lattice/config/lattice/overlays/all-in-one
+            </code>
+            <p class="text-xs text-muted-foreground">{{ t('landing.quickstart.k8s_hint') }}</p>
+          </div>
+
+          <!-- Sandbox -->
+          <div class="lattice-card p-5">
+            <code class="text-sm font-mono text-card-foreground block mb-2">
+              lattice sandbox start --name my-agent --token lt-enroll-xxx
+            </code>
+            <p class="text-xs text-muted-foreground">{{ t('landing.quickstart.sandbox_hint') }}</p>
           </div>
         </div>
       </div>
@@ -397,7 +343,7 @@ onUnmounted(() => clearInterval(timer))
 
         <div class="grid md:grid-cols-2 gap-5">
           <!-- Community -->
-          <div class="bg-card border border-border rounded-2xl p-8 flex flex-col">
+          <div class="lattice-card p-8 flex flex-col">
             <div class="mb-6">
               <p class="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-3">{{ t('landing.pricing.community_name') }}</p>
               <div class="flex items-end gap-1.5 mb-2">
@@ -419,7 +365,7 @@ onUnmounted(() => clearInterval(timer))
               <li class="flex items-center gap-2.5 text-sm text-muted-foreground/50 line-through"><X class="size-4 text-muted-foreground/30 shrink-0" />{{ t('landing.pricing.pro_feat_locked_3') }}</li>
             </ul>
 
-            <a href="https://github.com/francisxys" target="_blank" rel="noopener noreferrer">
+            <a href="https://github.com/alatticeio/lattice" target="_blank" rel="noopener noreferrer">
               <Button variant="outline" class="w-full border-border" size="lg">
                 {{ t('landing.pricing.community_cta') }}
               </Button>
@@ -427,7 +373,7 @@ onUnmounted(() => clearInterval(timer))
           </div>
 
           <!-- Pro -->
-          <div class="relative bg-card border-2 border-primary rounded-2xl p-8 flex flex-col shadow-lg shadow-primary/10">
+          <div class="relative lattice-card ring-2 ring-primary p-8 flex flex-col shadow-lg shadow-primary/10">
             <!-- Badge -->
             <div class="absolute -top-3.5 left-1/2 -translate-x-1/2">
               <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-gradient-to-r from-indigo-600 to-indigo-500 text-white text-[11px] font-bold shadow-sm">
@@ -476,11 +422,8 @@ onUnmounted(() => clearInterval(timer))
     </section>
 
     <!-- ── CTA ────────────────────────────────────────────────────── -->
-    <section id="quickstart" class="py-20 px-6">
+    <section class="py-20 px-6">
       <div class="max-w-xl mx-auto text-center">
-        <div class="size-14 rounded-2xl bg-gradient-to-br from-indigo-600/10 to-cyan-500/10 flex items-center justify-center mx-auto mb-5">
-          <Container class="size-7 text-indigo-500" />
-        </div>
         <h2 class="text-2xl font-black tracking-tighter mb-3 text-foreground">{{ t('landing.cta.title') }}</h2>
         <p class="text-muted-foreground text-sm leading-relaxed mb-7 max-w-sm mx-auto">
           {{ t('landing.cta.subtitle') }}
@@ -502,7 +445,7 @@ onUnmounted(() => clearInterval(timer))
             {{ t('landing.cta.button_secondary') }} <ArrowRight class="size-4" />
           </Button>
         </div>
-        <div class="grid grid-cols-3 gap-2 text-left max-w-xs mx-auto">
+        <div class="flex flex-wrap justify-center gap-x-4 gap-y-2 max-w-xs mx-auto">
           <div class="flex items-center gap-1.5 text-xs text-muted-foreground"><CheckCircle class="size-3.5 text-emerald-500 shrink-0" />{{ t('landing.cta.badge_1') }}</div>
           <div class="flex items-center gap-1.5 text-xs text-muted-foreground"><CheckCircle class="size-3.5 text-emerald-500 shrink-0" />{{ t('landing.cta.badge_2') }}</div>
           <div class="flex items-center gap-1.5 text-xs text-muted-foreground"><CheckCircle class="size-3.5 text-emerald-500 shrink-0" />{{ t('landing.cta.badge_3') }}</div>
@@ -527,7 +470,6 @@ onUnmounted(() => clearInterval(timer))
           <a href="#" class="hover:text-foreground transition-colors">{{ t('landing.nav.docs') }}</a>
           <a href="#pricing" class="hover:text-foreground transition-colors">{{ t('landing.nav.pricing') }}</a>
           <a href="https://github.com/alatticeio/lattice" target="_blank" rel="noopener noreferrer" class="hover:text-foreground transition-colors">{{ t('landing.nav.github') }}</a>
-          <a href="#" class="hover:text-foreground transition-colors">{{ t('landing.nav.community') }}</a>
           <a href="/legal/privacy" class="text-xs text-muted-foreground hover:text-foreground transition-colors">隐私政策</a>
           <a href="/legal/terms" class="text-xs text-muted-foreground hover:text-foreground transition-colors">服务条款</a>
         </div>

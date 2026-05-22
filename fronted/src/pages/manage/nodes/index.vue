@@ -68,7 +68,7 @@ const statusDot: Record<string, string> = {
   disabled: 'bg-slate-400',
 }
 const statusBadge: Record<string, string> = {
-  online:   'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 ring-1 ring-emerald-500/20',
+  online:   'lattice-badge lattice-badge-stable',
   offline:  'bg-rose-500/10 text-rose-600 dark:text-rose-400 ring-1 ring-rose-500/20',
   pending:  'bg-amber-400/10 text-amber-600 dark:text-amber-400 ring-1 ring-amber-400/20',
   disabled: 'bg-slate-400/10 text-slate-500 dark:text-slate-400 ring-1 ring-slate-400/20',

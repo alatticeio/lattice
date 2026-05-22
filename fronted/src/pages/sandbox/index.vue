@@ -59,7 +59,7 @@ async function handleRevoke(name: string) {
       <p>{{ t('common.sandbox.list.empty') }}</p>
     </div>
 
-    <div v-else class="rounded-xl border border-border bg-card overflow-hidden">
+    <div v-else class="lattice-card overflow-hidden">
       <Table>
         <TableHeader>
           <TableRow>

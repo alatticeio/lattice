@@ -1,7 +1,7 @@
 {
   "nav": {
+    "pillars": "Pillars",
     "features": "Features",
-    "architecture": "Architecture",
     "pricing": "Pricing",
     "quickstart": "Quickstart",
     "login": "Login",
@@ -13,89 +13,65 @@
   },
   "hero": {
     "badge": "AI-Native Networking",
-    "title": "Zero-Trust Runtime for AI Agents",
-    "subtitle": "Lattice gives every AI agent a zero-privilege sandbox and WireGuard-encrypted network access to your infrastructure — from launch to mesh, a single command.",
+    "title_line1": "Zero-Trust Runtime",
+    "title_line2": "for AI Agents",
+    "subtitle": "One command to launch a sandbox. Zero privilege. WireGuard end-to-end encryption. Every tool call traced. Give every AI agent its own network identity.",
     "cta_primary": "lattice sandbox start",
     "cta_secondary": "View Console"
   },
   "terminal": {
-    "title": "lattice — control-plane",
-    "status": "AI SANDBOX ONLINE",
-    "line1": "$ lattice sandbox start --name my-agent --token lt-enroll-xxx",
-    "line2": "  → NATS enrollment...              ✓",
-    "line3": "  → WireGuard keypair generated     ✓",
-    "line4": "  → VPN IP assigned: 10.100.0.5    ✓",
-    "line5": "  Agent \"my-agent\" online, ICE P2P connected",
-    "line6": "# Tool call tracking (tool_spans)",
-    "line7": "$ ExecuteTool(\"list_peers\")",
-    "line8": "  → CheckToolAccess ✓ → execute → 38ms",
-    "line9": "  → tool_span: traceId=a1b2, status=ok",
-    "line10": "# RBAC enforcement (blocked)",
-    "line11": "$ ExecuteTool(\"delete_peer\")",
-    "line12": "  → CheckToolAccess ✗ → blocked",
-    "line13": "  → tool_span: status=blocked → /audit/traces"
+    "title": "lattice — sandbox",
+    "status": "ONLINE",
+    "caption": "NATS enrollment → WireGuard keygen → VPN IP → ICE P2P → Tool tracing"
+  },
+  "pillars": {
+    "tag": "Two Pillars",
+    "title": "Network Orchestration + AI Agent Security, One Binary",
+    "subtitle": "Lattice delivers two things on a unified foundation: cross-cloud connectivity and AI agent runtime protection.",
+    "net_title": "Network Orchestration Engine",
+    "agent_title": "AI Agent Sandbox Engine",
+    "net_1_title": "WireGuard Encrypted Mesh",
+    "net_1_desc": "Automated key distribution, IP allocation, tunnel setup",
+    "net_2_title": "ICE/STUN NAT Traversal",
+    "net_2_desc": "P2P direct connect, LRP relay automatic fallback",
+    "net_3_title": "Policy Engine",
+    "net_3_desc": "Declarative allow/deny, iptables or eBPF TC enforcement",
+    "net_4_title": "K8s CRD Orchestration",
+    "net_4_desc": "13 CRDs, declarative network lifecycle management",
+    "agent_1_title": "gVisor Zero-Privilege Sandbox",
+    "agent_1_desc": "Userspace netstack, no root/TUN/iptables required",
+    "agent_2_title": "Zero-Trust Enrollment",
+    "agent_2_desc": "One-time enrollment token → Agent JWT, credential persistence",
+    "agent_3_title": "Tool Trace + Delegation",
+    "agent_3_desc": "tool_spans observability, sub-agent scoped permissions",
+    "agent_4_title": "MCP Server",
+    "agent_4_desc": "14 tools, manage your network via Claude/Cursor in natural language"
   },
   "features": {
     "label": "Capabilities",
-    "title": "AI Agent Runtime + Network Foundation",
-    "subtitle": "Lattice delivers two layers: the upper layer provides zero-privilege sandboxing for AI agents, and the lower layer provides WireGuard-encrypted networking for all workloads.",
+    "title": "6 Core Capabilities",
+    "subtitle": "Community is free forever with all core features. PRO unlocks enterprise security.",
     "tag_stable": "Stable",
     "tag_roadmap": "Roadmap",
-    "ai_sandbox": {
-      "title": "Zero-Privilege Sandbox",
-      "desc": "Available in Community + PRO. `lattice sandbox start` requires no root or CAP_NET_ADMIN. gVisor pkg/tcpip replaces the kernel TUN, with full ICE/LRP identity and credential persistence across restarts."
-    },
-    "ai_sidecar": {
-      "title": "Sidecar Egress Interception",
-      "desc": "Dual-layer enforcement with seccomp notify + eBPF fast path. Every socket operation checks PolicyCache — allowlist hit goes through, miss returns EACCES with audit."
-    },
-    "ai_traces": {
-      "title": "Tool Call Tracing + Sub-agent Delegation",
-      "desc": "Every tool call automatically records a tool_span (traceId, agentId, duration, status). Parent agents spawn children via the Delegate API with scoped permissions; full call trees are queryable."
-    },
-    "ai_intent": {
-      "title": "MCP Server + Intent Engine",
-      "desc": "Built-in MCP Server with 14 tools — Claude, Cursor, and other AI assistants manage your network (reads execute directly, writes require approval). Intent Engine translates natural language to CRD change plans with diff preview and approval (PRO)."
-    },
-    "net_wg": {
-      "title": "WireGuard Encrypted Mesh",
-      "desc": "NAT-traversing P2P + LRP relay fallback. WireGuard end-to-end encryption, ICE/STUN auto hole-punching, zero-config cross-cluster bridging, built-in IPAM for automatic VPN IP allocation."
-    },
-    "net_ebpf": {
-      "title": "eBPF High-Performance Policy",
-      "desc": "Kernel-level TC ingress/egress hooks, LPM Trie + Port Hash policy engine supporting millions of rules. Line-rate east-west traffic handling for infrastructure nodes (PRO)."
-    },
-    "net_audit": {
-      "title": "Full-Stack Observability",
-      "desc": "tool_spans record every MCP tool call (Community); gVisor egress flow events (flow_events) are reported to the control plane via NATS (PRO). Every allow/block can be correlated back to a tool invocation."
-    }
+    "ai_sandbox": { "title": "Zero-Privilege Sandbox", "desc": "gVisor pkg/tcpip userspace netstack, no root, full ICE/LRP identity, credentials persist across restarts." },
+    "ai_traces": { "title": "Tool Call Tracing", "desc": "Every MCP tool call records a tool_span (traceId, agentId, duration, status). Sub-agent delegation with scoped permissions." },
+    "ai_mcp": { "title": "MCP Server", "desc": "14 built-in tools. Claude, Cursor, and other AI assistants manage your network. Reads execute, writes require approval." },
+    "net_wg": { "title": "WireGuard Mesh", "desc": "NAT-traversing P2P + LRP relay, end-to-end encryption, ICE/STUN auto hole-punching, built-in IPAM." },
+    "net_ebpf": { "title": "eBPF Policy Engine", "desc": "Kernel-level TC ingress/egress, LPM Trie + Port Hash, millions of rules, line-rate for infrastructure nodes (PRO)." },
+    "ai_intent": { "title": "Intent Engine", "desc": "Natural language → CRD change plan → diff preview → approve → apply. Full human-in-the-loop workflow (PRO)." }
   },
-  "architecture": {
-    "label": "Architecture",
-    "title": "From Sandbox Launch to Encrypted Communication",
-    "subtitle": "Zero-privilege architecture: gVisor pkg/tcpip userspace netstack handles all network operations; wireguard-go performs encryption — no root required.",
-    "step_1_title": "NATS Zero-Trust Enrollment",
-    "step_1_desc": "`lattice sandbox start` generates a WireGuard keypair and completes zero-trust enrollment over NATS. The control plane creates LatticePeer + AgentIdentity, assigns a VPN IP, issues an Agent JWT, and persists credentials to /etc/lattice/.",
-    "step_2_title": "gVisor Netstack Takeover",
-    "step_2_desc": "gVisor pkg/tcpip userspace netstack + TUNAdapter bridge to wireguard-go. SandboxProvisioner manages WireGuard peers with no iptables, TUN device, or kernel dependencies. PRO adds EgressFilter and ForwardListener.",
-    "step_3_title": "Agent Runtime & Observability",
-    "step_3_desc": "FilteringUDPMux multiplexes UDP :51820; ICE direct connect or LRP relay fallback. Tool calls go through CheckToolAccess RBAC, results are written to tool_spans, and parent_agent_id tracks the full call tree.",
-    "terminal_comment": "# Allowed traffic path (Community + PRO)",
-    "terminal_line1": "agent-1 → gVisor pkg/tcpip netstack",
-    "terminal_line2": "  → TUNAdapter → wireguard-go encrypt",
-    "terminal_line3": "  → UDP :51820 → FilteringUDPMux",
-    "terminal_line4": "  → ICE P2P / LRP Relay → remote peer",
-    "terminal_line5": "  → decrypt → target ✓",
-    "terminal_comment2": "# Egress blocked path (PRO EgressFilter)",
-    "terminal_line6": "agent-1 → gVisor netstack → EgressFilter",
-    "terminal_line7": "  → CIDR denylist hit → reject",
-    "terminal_line8": "  → AuditWriter → /tmp/lattice-audit.jsonl",
-    "terminal_line9": "  → [PRO] NATS lattice.audit.flow → flow_events"
+  "quickstart": {
+    "tag": "Quickstart",
+    "title": "Three Commands, Three Ways to Deploy",
+    "subtitle": "Docker, Kubernetes, or sandbox — pick yours.",
+    "docker_hint": "Visit http://localhost:443 after ~30s",
+    "k8s_hint": "For existing clusters, auto-creates all CRDs and controllers",
+    "sandbox_hint": "Zero-privilege AI agent sandbox, requires enrollment token on first launch"
   },
   "pricing": {
     "label": "Pricing",
     "title": "Choose Your Edition",
-    "subtitle": "Community edition is free forever. Pro unlocks enterprise security capabilities.",
+    "subtitle": "Community edition is free forever. Pro unlocks enterprise security.",
     "community_name": "Community",
     "community_price": "Free",
     "community_desc": "For individual developers and AI agent explorers",
@@ -131,7 +107,7 @@
   },
   "cta": {
     "title": "Build a Secure Runtime for Your AI Agents",
-    "subtitle": "One command to launch a sandbox. Zero privilege. End-to-end encryption. Every tool call traced. Start building zero-trust networks for your AI agents.",
+    "subtitle": "One command to launch a sandbox. Zero privilege. End-to-end encryption. Every tool call traced.",
     "button_primary": "lattice sandbox start",
     "button_secondary": "View Console",
     "badge_1": "Zero Privilege",
@@ -143,20 +119,5 @@
   },
   "footer": {
     "copyright": "© 2026 Lattice. All rights reserved."
-  },
-  "stats": {
-    "active_nodes": "Active Sandboxes",
-    "all_healthy": "All Healthy",
-    "avg_latency": "Avg Latency",
-    "sync": "Last Sync",
-    "data_plane": "Sandbox Data Plane"
-  },
-  "advantages": {
-    "item_1": "Zero-Privilege — runs as normal user",
-    "item_2": "gVisor userspace kernel isolation",
-    "item_3": "WireGuard end-to-end encryption",
-    "item_4": "Full tool call traceability",
-    "item_5": "Sub-agent delegation + call tree",
-    "item_6": "Natural language network management (PRO)"
   }
 }

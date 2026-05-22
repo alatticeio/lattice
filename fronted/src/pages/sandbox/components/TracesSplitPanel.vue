@@ -3,7 +3,6 @@ import { useI18n } from 'vue-i18n'
 import { Copy } from 'lucide-vue-next'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
 import { useDrawer } from '@/composables/useAgentDetailDrawer'
 import { toast } from 'vue-sonner'
 
@@ -118,9 +117,18 @@ async function copyText(text: string) {
             </div>
             <div>
               <p class="text-xs font-medium text-muted-foreground">Status</p>
-              <Badge :class="statusColor(drawer.selectedTrace.value.status).replace('bg-', 'bg-') + '/10 text-' + statusColor(drawer.selectedTrace.value.status).replace('bg-', 'text-').replace('-500', '-600')" variant="secondary">
-                {{ drawer.selectedTrace.value.status }}
-              </Badge>
+              <span
+                v-if="drawer.selectedTrace.value.status === 'ok'"
+                class="lattice-badge lattice-badge-stable"
+              >ok</span>
+              <span
+                v-else-if="drawer.selectedTrace.value.status === 'error'"
+                class="lattice-badge lattice-badge-roadmap"
+              >error</span>
+              <span
+                v-else
+                class="lattice-badge lattice-badge-pro"
+              >blocked</span>
             </div>
             <div>
               <p class="text-xs font-medium text-muted-foreground">Duration</p>

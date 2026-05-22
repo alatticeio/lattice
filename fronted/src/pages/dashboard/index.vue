@@ -5,6 +5,7 @@ import {
   Activity, Server, ShieldCheck, AlertTriangle,
   MoreHorizontal, Globe, Building2, RefreshCw, Container,
 } from 'lucide-vue-next'
+import StatCard from '@/components/lattice/StatCard.vue'
 import { useDashboardStore } from '@/stores/useDashboard'
 import { useWorkspaceStore } from '@/stores/workspace'
 
@@ -38,12 +39,8 @@ const titleKeyByIndex = [
   'settings.dashboard.statAlerts',
   'settings.dashboard.statSandboxes',
 ]
-const colorByIndex = [
-  { badge: 'bg-blue-500/10',    icon: 'text-blue-500',    num: 'text-blue-600 dark:text-blue-400' },
-  { badge: 'bg-emerald-500/10', icon: 'text-emerald-500', num: 'text-emerald-600 dark:text-emerald-400' },
-  { badge: 'bg-primary/10',     icon: 'text-primary',     num: 'text-primary' },
-  { badge: 'bg-amber-500/10',   icon: 'text-amber-500',   num: 'text-amber-600 dark:text-amber-400' },
-  { badge: 'bg-violet-500/10',  icon: 'text-violet-500',  num: 'text-violet-600 dark:text-violet-400' },
+const colorKeyByIndex: Array<'indigo' | 'emerald' | 'amber' | 'violet' | 'cyan'> = [
+  'indigo', 'emerald', 'indigo', 'amber', 'violet',
 ]
 
 // ── stat cards: workspace when active, global otherwise ──────────────
@@ -131,47 +128,22 @@ const BAR_MAX_PX = 64 // px height when at 100% of maxCpu
     </div>
 
     <!-- ── Stat Cards ──────────────────────────────────────────────── -->
-    <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-      <div
-        v-for="(stat, i) in stats"
-        :key="i"
-        class="border-border bg-card text-card-foreground rounded-xl border p-5 shadow-sm hover:shadow-md transition-all"
-      >
-        <div class="flex items-start justify-between">
-          <div class="flex flex-col gap-1">
-            <span class="text-muted-foreground text-sm font-medium">{{ t(titleKeyByIndex[i]) }}</span>
-            <span class="text-2xl font-bold tracking-tight" :class="colorByIndex[i]?.num">
-              <template v-if="store.loading || store.wsLoading">—</template>
-              <template v-else>{{ stat.value }}</template>
-            </span>
-          </div>
-          <div class="rounded-lg p-2" :class="colorByIndex[i]?.badge">
-            <component :is="stat.icon" class="size-4" :class="colorByIndex[i]?.icon" />
-          </div>
-        </div>
-        <div class="mt-3 flex items-center gap-1 text-xs text-muted-foreground">
-          <component :is="stat.icon" class="size-3.5 shrink-0" :class="colorByIndex[i]?.icon" />
-          <span :class="stat.trend === 'up' ? 'text-emerald-600' : 'text-red-500'" class="font-semibold">
-            {{ stat.change }}
-          </span>
-        </div>
-        <svg class="mt-3 w-full" viewBox="0 0 80 28" preserveAspectRatio="none" style="height:28px">
-          <path
-            :d="buildPath(stat.sparkline, 80, 28, 2).line"
-            fill="none"
-            :stroke="stat.trend === 'up' ? '#10b981' : '#ef4444'"
-            stroke-width="1.5"
-            stroke-linecap="round"
-          />
-        </svg>
-      </div>
+    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+      <StatCard
+        v-for="(stat, idx) in stats"
+        :key="idx"
+        :icon="iconByIndex[idx]"
+        :label="t(titleKeyByIndex[idx])"
+        :value="stat.value"
+        :color="colorKeyByIndex[idx]"
+      />
 
       <!-- skeleton when no data yet -->
       <template v-if="stats.length === 0">
         <div
           v-for="i in 5"
           :key="i"
-          class="border-border bg-card rounded-xl border p-5 shadow-sm animate-pulse"
+          class="lattice-card p-6 animate-pulse"
         >
           <div class="h-4 w-24 bg-muted rounded mb-3" />
           <div class="h-8 w-20 bg-muted rounded mb-3" />
