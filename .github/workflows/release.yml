@@ -54,7 +54,7 @@ jobs:
         uses: goreleaser/goreleaser-action@v6
         with:
           version: latest
-          args: release --clean --skip=docker
+          args: release --clean --skip=docker,homebrew
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
@@ -106,6 +106,19 @@ jobs:
               --cache-to "type=gha,mode=max" \
               -f Dockerfile .
           done
+
+      - name: Install oras
+        if: env.IS_RELEASE == 'true'
+        uses: oras-project/setup-oras@v1
+
+      - name: Publish Artifact Hub repo metadata
+        if: env.IS_RELEASE == 'true'
+        run: |
+          oras push ghcr.io/alatticeio/charts/artifacthub-repo:latest \
+            --config /dev/null:application/vnd.cncf.artifacthub.config.v1+json \
+            deploy/charts/lattice/artifacthub-repo.yml:application/vnd.cncf.artifacthub.repository-metadata.layer.v1.yaml
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and push PRO images
         if: env.IS_RELEASE == 'true'

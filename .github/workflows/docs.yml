@@ -42,3 +42,4 @@ jobs:
           external_repository: alatticeio/alatticeio.github.io
           publish_dir: docs/.vitepress/dist
           publish_branch: gh-pages
+          disable_nojekyll: false

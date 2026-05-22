@@ -17,7 +17,7 @@ spec:
           image: coturn/coturn:4.6
           args:
             - "--stun-only"
-            - "--port=3478"
+            - "--listening-port=3478"
           ports:
             - containerPort: 3478
               protocol: UDP

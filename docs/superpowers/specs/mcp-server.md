@@ -1,12 +1,12 @@
-                           # Wireflow MCP Server — 设计文档
+                           # Lattice MCP Server — 设计文档
 
 ## 1. 背景
 
 ### 1.1 现有方案的局限
 
-`docs/design/ai-assistant.md` 设计的是一个**内嵌 AI 助手**：LLM Provider、工具调用、K8s 访问全部耦合在 Wireflow 后端，只能通过 Wireflow 自己的 Dashboard 或 `wf-ai` CLI 使用。
+`docs/design/ai-assistant.md` 设计的是一个**内嵌 AI 助手**：LLM Provider、工具调用、K8s 访问全部耦合在 Lattice 后端，只能通过 Lattice 自己的 Dashboard 或 `wf-ai` CLI 使用。
 
-这意味着：使用 Claude Code、Claude Desktop、Cursor 等外部 AI 工具的用户无法直接让这些工具操作 Wireflow，只能人工切换界面。
+这意味着：使用 Claude Code、Claude Desktop、Cursor 等外部 AI 工具的用户无法直接让这些工具操作 Lattice，只能人工切换界面。
 
 ### 1.2 MCP 是什么
 
@@ -15,9 +15,9 @@
 ```
 Claude Desktop / Claude Code / Cursor / 任何 MCP 客户端
           ↓  MCP 协议 (JSON-RPC 2.0 over stdio / HTTP)
-    Wireflow MCP Server
+    Lattice MCP Server
           ↓  REST / K8s API
-    Wireflow 管理 API + 网络资源
+    Lattice 管理 API + 网络资源
 ```
 
 ### 1.3 与内嵌 AI 助手的关系
@@ -27,15 +27,15 @@ Claude Desktop / Claude Code / Cursor / 任何 MCP 客户端
 | | 内嵌 AI 助手 | MCP Server |
 |---|---|---|
 | 目标用户 | 普通用户，在 Dashboard 操作 | 运维/开发，用自己的 AI 工具 |
-| LLM | Wireflow 统一配置 | 用户自己的 Claude / GPT |
+| LLM | Lattice 统一配置 | 用户自己的 Claude / GPT |
 | 工具调用逻辑 | 耦合在 AIService | 独立暴露，标准化 |
-| 工具扩展性 | 需修改 Wireflow 后端 | 任何 MCP 客户端都可发现并调用 |
+| 工具扩展性 | 需修改 Lattice 后端 | 任何 MCP 客户端都可发现并调用 |
 | 写操作确认 | 前端 UI 确认流 | 由 LLM 在对话中发起确认 |
 | 适用场景 | Web UI、wf-ai CLI | Claude Code、Claude Desktop、Cursor、自定义脚本 |
 
 ### 1.4 目标
 
-1. 让运维工程师可以在 **Claude Code / Claude Desktop** 里直接管理 Wireflow 网络
+1. 让运维工程师可以在 **Claude Code / Claude Desktop** 里直接管理 Lattice 网络
 2. 工具逻辑可复用于内嵌 AI 助手，消除重复实现
 3. 支持 **Pro** 版特有的写入操作（策略创建、Peer 修改），与现有 RBAC 集成
 
@@ -64,7 +64,7 @@ Claude Desktop / Claude Code / Cursor / 任何 MCP 客户端
               └───────────────┬───────────────┘
                               │
 ┌─────────────────────────────▼────────────────────────────────────┐
-│                    Wireflow MCP Server                             │
+│                    Lattice MCP Server                             │
 │                                                                    │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────┐    │
 │  │  Tools       │  │  Resources   │  │  Prompts             │    │
@@ -72,13 +72,13 @@ Claude Desktop / Claude Code / Cursor / 任何 MCP 客户端
 │  └──────┬───────┘  └──────┬───────┘  └──────────────────────┘    │
 │         │                 │                                        │
 │  ┌──────▼─────────────────▼───────────────────────────────────┐   │
-│  │               Wireflow API Client                           │   │
+│  │               Lattice API Client                           │   │
 │  │  Bearer Token 认证，调用 Management Server REST API         │   │
 │  └────────────────────────────┬───────────────────────────────┘   │
 └───────────────────────────────┼────────────────────────────────────┘
                                 │ HTTPS + Bearer Token
                                 ▼
-                   Wireflow Management Server
+                   Lattice Management Server
                    (已有 /api/v1/* REST API)
 ```
 
@@ -88,17 +88,17 @@ Claude Desktop / Claude Code / Cursor / 任何 MCP 客户端
 
 ```bash
 # Claude Desktop / Claude Code 以子进程方式启动 MCP Server
-wireflow-mcp --server-url https://wf.example.com --token <JWT>
+lattice-mcp --server-url https://wf.example.com --token <JWT>
 
-# 或从 ~/.wireflow/config.yaml 自动读取认证信息
-wireflow-mcp
+# 或从 ~/.lattice/config.yaml 自动读取认证信息
+lattice-mcp
 ```
 
 **模式 B：远程 HTTP（团队共享）**
 
 ```bash
 # 以 HTTP 服务方式运行，供团队多人共用
-wireflow-mcp server --listen :3000
+lattice-mcp server --listen :3000
 
 # 客户端配置 URL 即可接入，每个用户携带自己的 Bearer Token
 ```
@@ -117,7 +117,7 @@ MCP Server 是一个**独立进程**，通过 Management Server 的公开 REST A
 
 MCP 协议定义了三类能力：
 
-| 能力 | 说明 | Wireflow 实现 |
+| 能力 | 说明 | Lattice 实现 |
 |------|------|---------------|
 | **Tools** | 可调用的操作，LLM 决定何时调用 | 网络查询、策略管理、连通性检查等 |
 | **Resources** | 可订阅的只读数据，LLM 在上下文中引用 | 网络列表、Peer 列表、拓扑图 |
@@ -133,12 +133,12 @@ MCP 协议定义了三类能力：
 
 #### `list_networks`
 
-列出工作区内所有 WireflowNetwork 及其状态。
+列出工作区内所有 LatticeNetwork 及其状态。
 
 ```json
 {
   "name": "list_networks",
-  "description": "列出 Wireflow 工作区内所有网络，包括 CIDR、状态和节点数量",
+  "description": "列出 Lattice 工作区内所有网络，包括 CIDR、状态和节点数量",
   "inputSchema": {
     "type": "object",
     "properties": {
@@ -168,7 +168,7 @@ MCP 协议定义了三类能力：
 
 #### `list_peers`
 
-列出指定网络内所有 WireflowPeer 及其在线状态。
+列出指定网络内所有 LatticePeer 及其在线状态。
 
 ```json
 {
@@ -189,7 +189,7 @@ MCP 协议定义了三类能力：
 
 #### `list_policies`
 
-列出指定工作区内的所有 WireflowPolicy。
+列出指定工作区内的所有 LatticePolicy。
 
 ```json
 {
@@ -233,7 +233,7 @@ MCP 协议定义了三类能力：
   "allowed": false,
   "reason": "no matching policy",
   "matching_policy": null,
-  "suggestion": "创建一条 WireflowPolicy，selector 匹配 from_peer，egress 允许 to_peer"
+  "suggestion": "创建一条 LatticePolicy，selector 匹配 from_peer，egress 允许 to_peer"
 }
 ```
 
@@ -302,11 +302,11 @@ MCP 协议定义了三类能力：
 
 ### 4.2 写入工具（Pro）
 
-写入工具通过 Wireflow Management Server 的现有鉴权体系控制权限，非 workspace admin 调用将收到 403。LLM 在对话中负责展示变更预览，用户明确回复"确认"后才真正执行。
+写入工具通过 Lattice Management Server 的现有鉴权体系控制权限，非 workspace admin 调用将收到 403。LLM 在对话中负责展示变更预览，用户明确回复"确认"后才真正执行。
 
 #### `create_or_update_policy`
 
-创建或更新 WireflowPolicy。
+创建或更新 LatticePolicy。
 
 ```json
 {
@@ -404,26 +404,26 @@ Resources 是 LLM 可以在上下文窗口中直接引用的只读数据，通�
 ### URI 规范
 
 ```
-wireflow://{workspace_id}/networks
-wireflow://{workspace_id}/networks/{network_name}
-wireflow://{workspace_id}/peers
-wireflow://{workspace_id}/peers/{peer_name}
-wireflow://{workspace_id}/policies
-wireflow://{workspace_id}/topology
-wireflow://{workspace_id}/audit/latest
+lattice://{workspace_id}/networks
+lattice://{workspace_id}/networks/{network_name}
+lattice://{workspace_id}/peers
+lattice://{workspace_id}/peers/{peer_name}
+lattice://{workspace_id}/policies
+lattice://{workspace_id}/topology
+lattice://{workspace_id}/audit/latest
 ```
 
 ### Resource 列表
 
 | URI 模式 | 名称 | MIME Type | 说明 |
 |----------|------|-----------|------|
-| `wireflow://{ws}/networks` | 网络列表 | `application/json` | 所有网络摘要 |
-| `wireflow://{ws}/networks/{name}` | 网络详情 | `application/json` | 单个网络完整状态 |
-| `wireflow://{ws}/peers` | Peer 列表 | `application/json` | 所有 Peer 及状态 |
-| `wireflow://{ws}/peers/{name}` | Peer 详情 | `application/json` | 单个 Peer 完整信息 |
-| `wireflow://{ws}/policies` | 策略列表 | `application/json` | 所有策略 |
-| `wireflow://{ws}/topology` | 拓扑图 | `application/json` | 节点+边的图结构 |
-| `wireflow://{ws}/audit/latest` | 最新审计报告 | `application/json` | 最近一次安全扫描结果 |
+| `lattice://{ws}/networks` | 网络列表 | `application/json` | 所有网络摘要 |
+| `lattice://{ws}/networks/{name}` | 网络详情 | `application/json` | 单个网络完整状态 |
+| `lattice://{ws}/peers` | Peer 列表 | `application/json` | 所有 Peer 及状态 |
+| `lattice://{ws}/peers/{name}` | Peer 详情 | `application/json` | 单个 Peer 完整信息 |
+| `lattice://{ws}/policies` | 策略列表 | `application/json` | 所有策略 |
+| `lattice://{ws}/topology` | 拓扑图 | `application/json` | 节点+边的图结构 |
+| `lattice://{ws}/audit/latest` | 最新审计报告 | `application/json` | 最近一次安全扫描结果 |
 
 ---
 
@@ -514,10 +514,10 @@ MCP Server 以子进程方式运行，通过 stdin/stdout 与客户端通信。C
 ```json
 {
   "mcpServers": {
-    "wireflow": {
-      "command": "wireflow-mcp",
+    "lattice": {
+      "command": "lattice-mcp",
       "env": {
-        "WIREFLOW_SERVER_URL": "https://wireflow.example.com",
+        "WIREFLOW_SERVER_URL": "https://lattice.example.com",
         "WIREFLOW_TOKEN": "eyJ..."
       }
     }
@@ -530,8 +530,8 @@ MCP Server 以子进程方式运行，通过 stdin/stdout 与客户端通信。C
 ```json
 {
   "mcpServers": {
-    "wireflow": {
-      "command": "wireflow-mcp"
+    "lattice": {
+      "command": "lattice-mcp"
     }
   }
 }
@@ -542,8 +542,8 @@ MCP Server 以子进程方式运行，通过 stdin/stdout 与客户端通信。C
 ```json
 {
   "mcpServers": {
-    "wireflow": {
-      "command": "wireflow-mcp",
+    "lattice": {
+      "command": "lattice-mcp",
       "args": ["--workspace", "wf-prod-xxx"]
     }
   }
@@ -557,7 +557,7 @@ MCP Server 以子进程方式运行，通过 stdin/stdout 与客户端通信。C
 ```
 POST /mcp
 Content-Type: application/json
-Authorization: Bearer <wireflow-jwt>
+Authorization: Bearer <lattice-jwt>
 ```
 
 客户端配置：
@@ -565,8 +565,8 @@ Authorization: Bearer <wireflow-jwt>
 ```json
 {
   "mcpServers": {
-    "wireflow": {
-      "url": "https://mcp.wireflow.example.com/mcp",
+    "lattice": {
+      "url": "https://mcp.lattice.example.com/mcp",
       "headers": {
         "Authorization": "Bearer eyJ..."
       }
@@ -575,7 +575,7 @@ Authorization: Bearer <wireflow-jwt>
 }
 ```
 
-HTTP 模式下 MCP Server 可以集成进 Wireflow Management Server，在 `/mcp` 路径注册：
+HTTP 模式下 MCP Server 可以集成进 Lattice Management Server，在 `/mcp` 路径注册：
 
 ```go
 // management/server/api.go
@@ -592,11 +592,11 @@ s.mcpRouter()   // POST /mcp
 
 1. 命令行参数：`--token <JWT>`
 2. 环境变量：`WIREFLOW_TOKEN`
-3. 配置文件：`~/.wireflow/config.yaml`（与 `wireflow` CLI 共享）
+3. 配置文件：`~/.lattice/config.yaml`（与 `lattice` CLI 共享）
 
 ```yaml
-# ~/.wireflow/config.yaml
-server-url: https://wireflow.example.com
+# ~/.lattice/config.yaml
+server-url: https://lattice.example.com
 token: eyJhbGci...
 workspace: wf-default-xxx
 ```
@@ -624,8 +624,8 @@ cli/
 │   │   ├── resources.ts       # Resources 注册
 │   │   └── prompts.ts         # Prompts 注册
 │   ├── api/
-│   │   └── wireflow.ts        # Wireflow Management API 客户端（REST）
-│   ├── config.ts              # 读取 ~/.wireflow/config.yaml
+│   │   └── lattice.ts        # Lattice Management API 客户端（REST）
+│   ├── config.ts              # 读取 ~/.lattice/config.yaml
 │   └── index.ts               # 入口：路由到 mcp / repl / chat / diagnose / audit
 ├── package.json
 └── tsconfig.json
@@ -638,18 +638,18 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js'
 import { z } from 'zod'
-import { WireflowClient } from '../api/wireflow.js'
+import { LatticeClient } from '../api/lattice.js'
 
-export function createServer(client: WireflowClient): McpServer {
+export function createServer(client: LatticeClient): McpServer {
   const server = new McpServer({
-    name: 'wireflow',
+    name: 'lattice',
     version: '1.0.0',
   })
 
   // ── Tools ──────────────────────────────────────────────────────
   server.tool(
     'list_networks',
-    '列出 Wireflow 工作区内所有网络',
+    '列出 Lattice 工作区内所有网络',
     { workspace_id: z.string().optional() },
     async ({ workspace_id }) => {
       const networks = await client.listNetworks(workspace_id)
@@ -675,8 +675,8 @@ export function createServer(client: WireflowClient): McpServer {
 
   // ── Resources ──────────────────────────────────────────────────
   server.resource(
-    'wireflow-networks',
-    new ResourceTemplate('wireflow://{workspace_id}/networks', { list: undefined }),
+    'lattice-networks',
+    new ResourceTemplate('lattice://{workspace_id}/networks', { list: undefined }),
     async (uri) => {
       const ws = uri.pathname.split('/')[1]
       const networks = await client.listNetworks(ws)
@@ -742,7 +742,7 @@ MCP Server 的工具实现（`cli/src/mcp/tools/readonly.ts`）调用 Management
 
 ```
 管理服务端 management/service/ai.go      ← 内嵌 AI 助手用
-CLI 客户端  cli/src/api/wireflow.ts       ← MCP Server / wf-ai CLI 用
+CLI 客户端  cli/src/api/lattice.ts       ← MCP Server / wf-ai CLI 用
 ```
 
 两者通过相同的 REST API 访问相同的数据，避免了直接共享 Go 代码的复杂性。
@@ -751,14 +751,14 @@ CLI 客户端  cli/src/api/wireflow.ts       ← MCP Server / wf-ai CLI 用
 
 ## 10. 使用示例
 
-### Claude Code 里管理 Wireflow
+### Claude Code 里管理 Lattice
 
 ```
 # 在项目根目录配置 MCP
 $ cat .claude/mcp.json
 {
   "mcpServers": {
-    "wireflow": { "command": "wireflow-mcp" }
+    "lattice": { "command": "lattice-mcp" }
   }
 }
 
@@ -790,7 +790,7 @@ $ cat .claude/mcp.json
 
 ```
 # Claude Desktop 配置后，用 Prompt 快速触发
-使用 wireflow 的 security_review prompt，工作区 wf-prod
+使用 lattice 的 security_review prompt，工作区 wf-prod
 
 [Claude 调用 run_audit(workspace_id="wf-prod")]
 → 安全评分：68/100
@@ -829,19 +829,19 @@ cli/src/
 ├── commands/      ← 已有：wf-ai CLI 命令（repl / chat / diagnose / audit）
 ├── components/    ← 已有：Ink 组件
 ├── api/
-│   └── wireflow.ts  ← 已有：Management Server 客户端（MCP 和 CLI 共用）
-└── config.ts      ← 已有：~/.wireflow/config.yaml 读取
+│   └── lattice.ts  ← 已有：Management Server 客户端（MCP 和 CLI 共用）
+└── config.ts      ← 已有：~/.lattice/config.yaml 读取
 ```
 
 ### 12.2 二进制分发
 
 ```
-wireflow-mcp                   ← 新增：MCP Server 可执行文件
+lattice-mcp                   ← 新增：MCP Server 可执行文件
 wf-ai                          ← 已有规划：AI TUI CLI
-wireflow（Go）                  ← 已有：主 CLI
+lattice（Go）                  ← 已有：主 CLI
 ```
 
-三个二进制独立分发，`wireflow-mcp` 也可作为 `wf-ai mcp` 子命令调用（单包多入口）。
+三个二进制独立分发，`lattice-mcp` 也可作为 `wf-ai mcp` 子命令调用（单包多入口）。
 
 ---
 
@@ -856,7 +856,7 @@ wireflow（Go）                  ← 已有：主 CLI
 - [ ] `cli/src/mcp/resources.ts`：7 个 Resource URI
 - [ ] `cli/src/mcp/prompts.ts`：4 个 Prompt 模板
 - [ ] Claude Desktop + Claude Code 配置文档
-- [ ] `bun build --compile` 打包 `wireflow-mcp` 可执行文件
+- [ ] `bun build --compile` 打包 `lattice-mcp` 可执行文件
 
 ### Phase 2：写入工具（1 周）
 

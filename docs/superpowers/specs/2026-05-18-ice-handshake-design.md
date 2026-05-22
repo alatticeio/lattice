@@ -1,246 +1,175 @@
-# ICE Handshake & Transport Design
+# ICE 握手协议与连接建立
 
-> Generated from code: `internal/server/transport/` (2026-05-18)
+> 生成日期: 2026-05-21（基于 `internal/server/transport/` 代码实现）
 
-## Overview
+## 概述
 
-Lattice establishes peer-to-peer WireGuard tunnels by racing two transport dialers concurrently: **ICE** (direct UDP hole-punching) and **LRP** (QUIC relay fallback). The faster transport wins and becomes the WireGuard endpoint; if ICE later succeeds after LRP won, it transparently upgrades the connection.
+Lattice 节点间通过**双路径并发竞争**建立 WireGuard 隧道：
+- **ICE 直连**（首选）：UDP 打洞，pion/ice v4
+- **LRP relay**（回退）：QUIC datagram + TCP HTTP-upgrade，中继转发
 
-## Key Files
-
-| File | Responsibility |
-|------|---------------|
-| `ice_dialer.go` | ICE handshake state machine, agent lifecycle |
-| `lrp_dialer.go` | QUIC relay dialer |
-| `probe.go` | Per-peer probe: races dialers, manages lifecycle |
-| `probe_factory.go` | Creates/caches probes, wires WireGuard callbacks |
-| `state_machine.go` | Peer connection state machine |
-| `wg_configurator.go` | Serializes WireGuard peer/route/NAT operations |
+NATS 作为信令通道传递握手消息。ICE 和 WireGuard 共享同一个 UDP 端口 `:51820`（`FilteringUDPMux` 解复用 STUN 和 WireGuard 流量）。
 
 ---
 
-## Peer State Machine
+## 角色确定
 
 ```
-Created → Probing → ICEReady ─┐
-                └→ LRPReady → ICEReady (upgrade)
-                              │
-Probing/ICEReady/LRPReady → Failed → Probing (retry)
-                                   → Closed (permanent)
+isInitiator(local, remote) = local.ID().ToUint64() > remote.ID().ToUint64()
 ```
 
-### States
+使用 **uint64 数值比较**（非字符串），避免 `"9" > "14"` 的字典序 bug。
 
-| State | Meaning |
-|-------|---------|
-| `Created` | Probe allocated, not yet started |
-| `Probing` | Both dialers racing |
-| `ICEReady` | ICE transport active, WireGuard endpoint set |
-| `LRPReady` | Relay transport active, WireGuard fake endpoint set |
-| `Failed` | All dialers failed; 10s retry or immediate restart |
-| `Closed` | Peer unreachable for 60s; WireGuard peer removed |
-
-### Transition Callbacks (in `probe_factory.go`)
-
-- **`Probing → ICEReady/LRPReady`**: `SetEndpoint` + `ApplyRoute` + `SetupNAT`
-- **`LRPReady → ICEReady`** (upgrade): `SetEndpoint` only — no duplicate `AddPeer`/route/NAT
-- **`→ Failed` or `→ Closed`**: `RemovePeer` from WireGuard
+- **initiator**：较大的 ID → 主动发 SYN、驱动 OFFER/ANSWER、设 PersistentKeepalive
+- **responder**：较小的 ID → 等待 SYN，回复 ACK
 
 ---
 
-## ICE Handshake Protocol
+## 信令消息（4 种，通过 NATS）
 
-### Role Determination
-
-```go
-func isInitiator(localId, remoteId infra.PeerIdentity) bool {
-    return localId.ID().ToUint64() > remoteId.ID().ToUint64()
-}
-```
-
-The peer with the numerically larger `PeerID` is the **initiator**. This is deterministic and symmetric — both sides agree on roles without coordination.
-
-### Message Flow
-
-```
-Initiator                          Responder
-    │                                  │
-    │──── RESTART_NOTIFY ─────────────►│  (non-init notifies it's fresh)
-    │                                  │  (create ICE agent)
-    │──── SYN (+ local peer info) ────►│  (retried every 2s, up to 60s)
-    │                                  │  (create ICE agent, set i.agent)
-    │◄─── ACK (+ local peer info) ─────│  (ACK sent AFTER agent ready)
-    │    cancel SYN ticker             │
-    │    GatherCandidates()            │  GatherCandidates()
-    │──── OFFER (candidate) ──────────►│
-    │◄─── OFFER (candidate) ───────────│
-    │    (exchange continues...)       │
-    │    StartDial(rUfrag, rPwd)       │  StartAccept(rUfrag, rPwd)
-    │    AwaitConnect()                │  AwaitConnect()
-    │         ICE Connected            │
-    │◄════ WireGuard tunnel ══════════►│
-```
-
-### Critical Ordering: ACK After Agent Init
-
-**The responder MUST initialize `i.agent` before sending ACK.**
-
-Upon receiving ACK, the initiator immediately calls `GatherCandidates()` and starts sending OFFERs. These can arrive within 1–2 ms. If ACK is sent before `i.agent` is set, OFFERs are silently dropped:
-
-```go
-// Handle() OFFER case:
-i.mu.Lock()
-agent := i.agent
-i.mu.Unlock()
-if agent == nil {
-    i.log.Debug("receive offer: agent nil, dropping", ...)
-    return nil  // OFFER lost → ICE stalls
-}
-```
-
-**Correct order in SYN handler:**
-```go
-// 1. Create agent
-agent, err := i.getAgent(remoteId)
-// 2. Set i.agent under mutex
-i.mu.Lock()
-i.agent = agent
-i.mu.Unlock()
-// 3. Only then send ACK
-i.sendPacket(ctx, ..., grpc.PacketType_HANDSHAKE_ACK, nil)
-// 4. Responder gathers too
-agent.GatherCandidates()
-```
-
-### SYN Retransmit Handling
-
-SYN is sent every 2s by the initiator. When a SYN arrives while ICE setup is already in progress (`existingAgent != nil`), the responder **resends ACK** instead of creating a new agent. This prevents destroying ongoing candidate exchange:
-
-```go
-if existingAgent != nil {
-    // SYN retransmit — just ACK again
-    _ = i.sendPacket(ctx, ..., grpc.PacketType_HANDSHAKE_ACK, nil)
-    return nil
-}
-```
-
-### Peer Info Exchange
-
-Peer metadata (WireGuard address, AllowedIPs) is piggybacked on SYN and ACK packets (`hs.PeerInfo`). This allows the WireGuard peer entry to be pre-configured (`onPeerKnown`) before ICE candidate exchange completes, reducing connection setup latency.
-
-OFFERs also carry `Current` (peer info) for backward compatibility with older nodes.
+| 消息类型 | 方向 | 载荷 | 触发时机 |
+|----------|------|------|---------|
+| `HANDSHAKE_SYN` | initiator → responder | local peer_info（Address, AllowedIPs） | Prepare() 立即发送，之后每 2s ticker 重发 |
+| `HANDSHAKE_ACK` | responder → initiator | local peer_info | 收到 SYN 后，ICE agent 初始化完成后发送 |
+| `OFFER` | 双向 | local ICE candidate + Current peer_info（向后兼容） | OnCandidate 回调触发，每个 local candidate |
+| `ANSWER` | 双向 | remote ICE candidate | 与 OFFER 共用 Handle 逻辑 |
 
 ---
 
-## Mutex Discipline (`iceDialer`)
+## 握手时序（ICE 成功路径）
 
-`i.agent` is accessed from multiple goroutines: the NATS message handler (Handle), the OnCandidate callback, and Close. **All reads and writes must be under `i.mu`.**
+```
+Initiator (localId 更大)                      Responder (localId 更小)
+══════════════════════════                    ═════════════════════════
 
-| Field | Protection |
-|-------|-----------|
-| `i.agent` | `i.mu` (Mutex) |
-| `i.rUfrag`, `i.rPwd` | `i.mu` (double-checked locking) |
-| `i.cancel` | `i.mu` |
-| `i.credentialsInited` | `atomic.Bool` |
-| `i.closed` | `atomic.Bool` |
+Prepare():                                    Prepare():
+  getAgent() → 创建 ICE agent                   isInitiator = false → 直接返回
+  GatherCandidates()                          （等待 SYN）
 
-### Close Sequence
+  ──────── HANDSHAKE_SYN ────────►
+  (含 peer_info: Address, AllowedIPs)
 
-```go
-func (i *iceDialer) Close() error {
-    i.closeOnce.Do(func() {
-        i.closed.Store(true)      // 1. gate all incoming packets
-        i.mu.Lock()
-        agent := i.agent
-        i.agent = nil             // 2. clear under mutex
-        i.mu.Unlock()
-        close(i.closeChan)        // 3. unblock Dial() → returns ErrDialerClosed
-        agent.Close()             // 4. teardown ICE agent
-    })
-}
+                                          Handle(SYN):
+  ◄─────── HANDSHAKE_ACK ────────           1. 提取 peer_info（只执行一次，防重入）
+  (含 peer_info)                             2. getAgent() → 创建 ICE agent
+                                             3. send ACK
+
+Handle(ACK):
+  1. 提取 peer_info（只执行一次，防重入）
+  2. GatherCandidates()（若未 gather）
+  ──────── OFFER(candidate) ────────►      Handle(OFFER):
+                                              AddRemoteCandidate()
+  ◄──────── ANSWER(candidate) ───────        ◄── 或直接 OFFER（因 GatherCandidates
+                                                在 ACK 后执行，responder 可能先 gather）
+
+Handle(ANSWER/OFFER):
+  AddRemoteCandidate()
+
+Dial():                                      Dial():
+  AwaitConnect()                              AwaitConnect()
+    ↓                                           ↓
+  ◄══════ ICE Connected ═══════►             ◄══════ ICE Connected ═══════►
+
+Agent.Close()                                Agent.Close()
+Set WireGuard endpoint                       Set WireGuard endpoint
 ```
 
-`ErrDialerClosed` from `Dial()` signals `onFailure` to do an immediate `probe.restart()` (no 10s delay), since this is a clean session transition, not a network error.
+### 重传处理
+
+- **SYN 重传**：initiator 每 2s 重发 SYN（ticker），收到 ACK 后取消 ticker
+- **SYN + active agent**（responder）：responder 已有活跃 ICE agent 时收到 SYN → 视为 retransmit，重发 ACK，重发 candidates
+- **SYN + closed agent**（responder）：responder 的 ICE agent 已关闭时收到 SYN → 认为 remote 重启，触发 `restart()` 重建 probe
+- **late ACK/SYN**：重发的 ACK 在 agent 初始化后到达 → `resendCandidates()` 重新发送所有本地 candidates
 
 ---
 
-## `discover()`: Racing Dialers
+## 并发竞争与 LRP 回退
 
-`Probe.discover()` runs ICE and LRP dialers concurrently:
+`Probe.discover()` 并发启动 ICE 和 LRP 两个 dialer：
 
-```go
-// Dialers captured under read-lock BEFORE goroutines spawn.
-// This prevents restart() from swapping p.iceDialer between
-// Prepare() and Dial() calls in the goroutine.
-p.mu.RLock()
-iceD := p.iceDialer
-lrpD := p.lrpDialer
-p.mu.RUnlock()
+```
+discover():
+  ┌─ goroutine: iceD.Prepare() → iceD.Dial()
+  └─ goroutine: lrpD.Prepare() → lrpD.Dial()   (EnableLrp=true 时)
 
-go func() { iceD.Prepare(...); iceD.Dial(...) }()
-go func() { lrpD.Prepare(...); lrpD.Dial(...) }()
+  result  ← 首个成功的 transport
+
+  if result == LRP:
+    ┌─ 等待 500ms，ICE 也可能成功
+    │  if ICE 在 500ms 内成功: 关 LRP，return ICE
+    └─ else: lrpWon=true，ICE 后续成功时 upgrade
+
+  if 所有 dialer 失败: return lastErr
 ```
 
-**Winner selection**: If LRP wins first, `discover()` waits 500ms for ICE. If ICE arrives within that window, LRP is discarded and ICE is used. If not, LRP becomes the active transport and ICE upgrades later via `handleUpgradeTransport`.
+### LRP → ICE 升级
+
+当 LRP 先成功但 ICE 后续到达时，`handleUpgradeTransport()` 透明切换到 ICE 直连，不重设 WireGuard peer（仅更新 endpoint）。
 
 ---
 
-## Probe Lifecycle
-
-### Epoch Counter
-
-Each `restart()` increments `p.epoch`. After `discover()` completes, it checks if the epoch changed. Stale results (from a previous epoch) are discarded:
-
-```go
-if p.epoch.Load() != myEpoch {
-    t.Close()
-    return
-}
-```
-
-### Failure Handling
-
-| Error | Action |
-|-------|--------|
-| `ErrDialerClosed` | Immediate `restart()` |
-| Other error, elapsed < 60s | 10s `time.AfterFunc(restart)` |
-| Other error, elapsed ≥ 60s | Transition to `Closed` |
-
-### Restart Sequence
+## 连接状态机
 
 ```
-restart() {
-    1. restartInProgress.CompareAndSwap(false, true)  // deduplicate
-    2. onBeforeRestart()  // reset peerKnownDone flag
-    3. p.mu.Lock(); p.iceDialer = newIceDialer(); p.lrpDialer = newLrpDialer()
-    4. epoch.Add(1)
-    5. sm.Transition(StateFailed)  // ensure clean state
-    6. p.running.Store(false)
-    7. p.Start(ctx, remoteId)      // begin new discover() goroutine
-}
+                ┌─────── onSuccess(ICE) ────────► ICEReady ─┐
+                │                                            │
+Created → Probing                                            ├→ Failed → Probing (重试)
+                │                                            │         → Closed (60s)
+                └─────── onSuccess(LRP) ────────► LRPReady ─┘
+                                                    │
+                                                    └→ ICEReady (upgrade)
+```
+
+| 状态 | 含义 | 允许转换 |
+|------|------|---------|
+| `created` | Probe 已分配 | `probing` |
+| `probing` | 双路径竞争 | `ice-ready`, `lrp-ready`, `failed` |
+| `ice-ready` | ICE 直连成功 | `failed`, `closed` |
+| `lrp-ready` | LRP relay 成功 | `ice-ready`（升级）, `failed`, `closed` |
+| `failed` | 所有 dialer 失败 | `probing`（10s 后）, `closed` |
+| `closed` | 60s 不可达 | 无 |
+
+### 失败重试策略
+
+| 条件 | 行为 |
+|------|------|
+| `ErrDialerClosed`（remote 重启触发 close） | 立即 restart，不等 10s |
+| 其他错误 | 记录 `firstFailureAt`，10s 后 restart |
+| `firstFailureAt` ≥ 60s | 转 `Closed`，不重试 |
+
+### 状态回调
+
+```
+Probing → ICEReady/LRPReady:  SetEndpoint + ApplyRoute + SetupNAT
+LRPReady → ICEReady (upgrade): SetEndpoint only
+→ Failed / → Closed:           RemovePeer
 ```
 
 ---
 
-## WireGuard Configuration Serialization
+## FilteringUDPMux 共享端口
 
-All WireGuard operations go through `WGConfigurator` (not direct provisioner calls). This serializes `AddPeer`, `SetEndpoint`, `RemovePeer`, `ApplyRoute`, `SetupNAT` calls to prevent races when ICE and LRP complete simultaneously or when transitions fire close together.
+ICE STUN 和 WireGuard 加密流量共享 UDP `:51820`。两个 goroutine 对同一 `net.UDPConn` 的竞争：
 
-`onPeerKnown` (first SYN/ACK with peer info) pre-registers the WireGuard peer entry. The state machine callback (`Probing → ICEReady/LRPReady`) then calls `SetEndpoint` with the actual UDP address, making the tunnel active.
+| 包类型 | ICE agent | WireGuard |
+|--------|-----------|-----------|
+| STUN（magic `0x2112A442`） | ✅ 正确分派 | ❌ decrypt 失败，丢弃 |
+| WireGuard 加密包 | ❌ 无 ufrag 匹配，丢弃 | ✅ 正确处理 |
+
+`FilteringUDPMux` (`internal/agent/infra/mux_filter.go`) 检查字节 4-7 的 STUN magic cookie，将 STUN 分派给 ICE agent，其余给 WireGuard `DefaultBind`。
+
+ICE 连接成功后 agent 关闭，WireGuard 的 `PersistentKeepalive` 维护 NAT 映射。
 
 ---
 
-## ICE Agent Configuration
+## 关键代码文件
 
-```go
-ice.WithDisconnectedTimeout(10 * time.Second)
-ice.WithFailedTimeout(15 * time.Second)
-```
-
-- **Disconnected (not Failed)**: ICE retries keepalives aggressively. `Close()` is NOT triggered on Disconnected — only on Failed.
-- **CandidateTypes**: Host + ServerReflexive (no TURN relay in ICE layer; LRP dialer handles relay fallback at application layer)
-- **Interface filter**: Excludes docker, veth, br-, and `wf*` (WireGuard TUN) to prevent routing loops
-
-### Dial Timeout
-
-`Dial()` uses a 65s timeout (SYN window is 60s + margin). If no OFFER arrives before the initiator stops retrying, `Dial()` returns error → `onFailure()` → `probe.restart()`, preventing permanent deadlock.
+| 文件 | 职责 |
+|------|------|
+| `internal/server/transport/state_machine.go` | `StateMachine` + `PeerState` 枚举 |
+| `internal/server/transport/ice_dialer.go` | ICE dialer：消息处理、agent 生命周期 |
+| `internal/server/transport/probe.go` | `Probe`：双路径竞争、discover() |
+| `internal/server/transport/probe_factory.go` | `ProbeFactory`：probe 创建/缓存、回调 |
+| `internal/server/transport/lrp_dialer.go` | LRP relay dialer（QUIC + TCP） |
+| `internal/server/transport/role.go` | `isInitiator()` 角色判定 |
+| `internal/agent/infra/mux_filter.go` | `FilteringUDPMux`：STUN/WG 解复用 |

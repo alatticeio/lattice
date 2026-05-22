@@ -1,7 +1,7 @@
 {
   "nav": {
-    "features": "功能",
-    "architecture": "架构",
+    "pillars": "两大引擎",
+    "features": "能力",
     "pricing": "定价",
     "quickstart": "快速开始",
     "login": "登录",
@@ -13,84 +13,60 @@
   },
   "hero": {
     "badge": "AI-Native 网络",
-    "title": "AI Agent 的零信任运行环境",
-    "subtitle": "Lattice 为每个 AI Agent 提供零特权沙箱隔离，通过 WireGuard 加密 Mesh 安全接入你的基础设施——从启动到组网，一条命令。",
+    "title_line1": "AI Agent 的",
+    "title_line2": "零信任运行环境",
+    "subtitle": "一条命令启动沙箱，零特权隔离，端到端 WireGuard 加密，工具调用全程可追溯。为每个 AI Agent 赋予独立网络身份。",
     "cta_primary": "lattice sandbox start",
     "cta_secondary": "查看控制台"
   },
   "terminal": {
-    "title": "lattice — control-plane",
-    "status": "AI SANDBOX ONLINE",
-    "line1": "$ lattice sandbox start --name my-agent --token lt-enroll-xxx",
-    "line2": "  → NATS enrollment...              ✓",
-    "line3": "  → WireGuard keypair generated     ✓",
-    "line4": "  → VPN IP assigned: 10.100.0.5    ✓",
-    "line5": "  Agent \"my-agent\" online, ICE P2P connected",
-    "line6": "# 工具调用追踪 (tool_spans)",
-    "line7": "$ ExecuteTool(\"list_peers\")",
-    "line8": "  → CheckToolAccess ✓ → execute → 38ms",
-    "line9": "  → tool_span: traceId=a1b2, status=ok",
-    "line10": "# RBAC 阻止 (enforce mode)",
-    "line11": "$ ExecuteTool(\"delete_peer\")",
-    "line12": "  → CheckToolAccess ✗ → blocked",
-    "line13": "  → tool_span: status=blocked → /audit/traces"
+    "title": "lattice — sandbox",
+    "status": "ONLINE",
+    "caption": "NATS 注册 → WireGuard 密钥生成 → VPN IP 分配 → ICE P2P 连接 → 工具调用追踪"
+  },
+  "pillars": {
+    "tag": "两大引擎",
+    "title": "网络编排 + AI Agent 安全，一个二进制搞定",
+    "subtitle": "Lattice 在一个统一底座上实现两件事：跨云网络互联，和 AI Agent 运行时防护。",
+    "net_title": "网络编排引擎",
+    "agent_title": "AI Agent 沙箱引擎",
+    "net_1_title": "WireGuard 加密 Mesh",
+    "net_1_desc": "密钥分发、IP 分配、隧道建立全程自动化",
+    "net_2_title": "ICE/STUN NAT 穿透",
+    "net_2_desc": "P2P 直连优先，LRP relay 自动回退",
+    "net_3_title": "策略引擎",
+    "net_3_desc": "声明式 allow/deny，iptables 或 eBPF TC 执行",
+    "net_4_title": "K8s CRD 编排",
+    "net_4_desc": "13 个 CRD，声明式管理网络生命周期",
+    "agent_1_title": "gVisor 零特权沙箱",
+    "agent_1_desc": "用户态网络栈，无需 root/TUN/iptables",
+    "agent_2_title": "Zero-Trust 注册",
+    "agent_2_desc": "一次性 enrollment token → Agent JWT，凭证持久化",
+    "agent_3_title": "工具调用追踪 + 委派",
+    "agent_3_desc": "tool_spans 可观测，Sub-agent 权限不超父级",
+    "agent_4_title": "MCP Server",
+    "agent_4_desc": "14 个工具，Claude/Cursor 自然语言管理网络"
   },
   "features": {
-    "label": "核心能力",
-    "title": "AI Agent 安全运行时 + 网络基础层",
-    "subtitle": "Lattice 提供双层能力：上层为 AI Agent 提供零特权沙箱运行环境，下层为所有工作负载提供 WireGuard 加密网络。",
+    "label": "全部能力",
+    "title": "6 大核心能力",
+    "subtitle": "Community 版免费使用全部基础能力，PRO 版解锁企业级安全特性。",
     "tag_stable": "稳定版",
     "tag_roadmap": "路线图",
-    "ai_sandbox": {
-      "title": "零特权沙箱隔离",
-      "desc": "Community + PRO 均可用。`lattice sandbox start` 无需 root/CAP_NET_ADMIN，gVisor `pkg/tcpip` 替代内核 TUN，完整 ICE/LRP 网络身份，凭证持久化跨重启免重注册。"
-    },
-    "ai_sidecar": {
-      "title": "Sidecar 外联拦截",
-      "desc": "seccomp notify + eBPF fast path 双重拦截。Agent 每次 socket 操作向 PolicyCache 查表，白名单命中直通，未命中→EACCES+审计。"
-    },
-    "ai_traces": {
-      "title": "工具调用追踪 + Sub-agent 委派",
-      "desc": "每次工具调用自动记录 tool_span（traceId、agentId、耗时、状态）。父 Agent 调用 Delegate API 派生子 Agent，子权限严格不超父级，完整调用树可查询。"
-    },
-    "ai_intent": {
-      "title": "MCP Server + 意图引擎",
-      "desc": "MCP Server 内置 14 个工具，Claude/Cursor 等 AI 助手直接管理网络（读操作直接执行，写操作需审批）。意图引擎将自然语言转为 CRD 变更计划，Diff 预览 + 审批生效（PRO）。"
-    },
-    "net_wg": {
-      "title": "WireGuard 加密 Mesh",
-      "desc": "NAT 穿透 P2P 直连 + LRP Relay 中继。WireGuard 端到端加密，ICE/STUN 自动打洞，跨集群桥接零配置，内置 IPAM 自动分配 VPN IP。"
-    },
-    "net_ebpf": {
-      "title": "eBPF 高性能策略",
-      "desc": "内核态 TC ingress/egress 挂载，LPM Trie + Port Hash 策略引擎，支持百万规则级匹配。基础设施节点东西向流量线速转发（PRO）。"
-    },
-    "net_audit": {
-      "title": "全链路可观测",
-      "desc": "tool_spans 记录每次 MCP 工具调用（Community）；gVisor 出站流量事件（flow_events）通过 NATS 上报控制面（PRO）。每次 allow/block 均可关联工具调用追溯。"
-    }
+    "ai_sandbox": { "title": "零特权沙箱", "desc": "gVisor pkg/tcpip 用户态网络栈，无 root 运行，完整 ICE/LRP 网络身份，凭证跨重启持久化。" },
+    "ai_traces": { "title": "工具调用追踪", "desc": "每次 MCP 工具调用自动记录 tool_span（traceId、agentId、耗时、状态），Sub-agent 委派权限不超父级。" },
+    "ai_mcp": { "title": "MCP Server", "desc": "内置 14 个工具，Claude/Cursor 等 AI 助手直接管理网络。读操作直接执行，写操作含审批工作流。" },
+    "net_wg": { "title": "WireGuard Mesh", "desc": "NAT 穿透 P2P + LRP relay，端到端加密，ICE/STUN 自动打洞，跨集群桥接零配置，内置 IPAM。" },
+    "net_ebpf": { "title": "eBPF 策略引擎", "desc": "内核级 TC ingress/egress，LPM Trie + Port Hash 百万规则匹配，基础设施节点线速转发（PRO）。" },
+    "ai_intent": { "title": "意图引擎", "desc": "自然语言 → CRD 变更计划 → Diff 预览 → 审批执行，完整 human-in-the-loop 工作流（PRO）。" }
   },
-  "architecture": {
-    "label": "架构",
-    "title": "从沙箱启动到加密通信",
-    "subtitle": "零特权架构：gVisor `pkg/tcpip` 用户态网络栈接管所有网络操作，wireguard-go 完成加密，全程无需 root。",
-    "step_1_title": "NATS Zero-Trust 注册",
-    "step_1_desc": "`lattice sandbox start` 生成 WireGuard 密钥对，通过 NATS 完成 zero-trust enrollment，控制面创建 LatticePeer + AgentIdentity，返回 VPN IP 和 Agent JWT，凭证持久化到 /etc/lattice/。",
-    "step_2_title": "gVisor 网络栈接管",
-    "step_2_desc": "gVisor `pkg/tcpip` 用户态网络栈 + TUNAdapter 桥接 wireguard-go，SandboxProvisioner 管理 WireGuard peers（无 iptables/TUN 设备/内核依赖）。PRO 版注入 EgressFilter 和 ForwardListener。",
-    "step_3_title": "Agent 运行与可观测",
-    "step_3_desc": "FilteringUDPMux 复用 UDP :51820，ICE 直连或 LRP relay 回退。工具调用经 CheckToolAccess 鉴权，结果写入 tool_spans，parent_agent_id 记录完整调用树。",
-    "terminal_comment": "# 允许流量路径 (Community + PRO)",
-    "terminal_line1": "agent-1 → gVisor pkg/tcpip netstack",
-    "terminal_line2": "  → TUNAdapter → wireguard-go encrypt",
-    "terminal_line3": "  → UDP :51820 → FilteringUDPMux",
-    "terminal_line4": "  → ICE P2P / LRP Relay → remote peer",
-    "terminal_line5": "  → decrypt → target ✓",
-    "terminal_comment2": "# 出站阻止路径 (PRO EgressFilter)",
-    "terminal_line6": "agent-1 → gVisor netstack → EgressFilter",
-    "terminal_line7": "  → CIDR denylist hit → reject",
-    "terminal_line8": "  → AuditWriter → /tmp/lattice-audit.jsonl",
-    "terminal_line9": "  → [PRO] NATS lattice.audit.flow → flow_events"
+  "quickstart": {
+    "tag": "快速开始",
+    "title": "三条命令，三种部署方式",
+    "subtitle": "从 Docker 到 K8s 到 Sandbox，任选一种。",
+    "docker_hint": "约 30 秒后访问 http://localhost:443",
+    "k8s_hint": "已有 K8s 集群时使用，自动创建所有 CRD 和控制器",
+    "sandbox_hint": "零特权启动 AI Agent 沙箱，首次需 enrollment token"
   },
   "pricing": {
     "label": "定价",
@@ -131,11 +107,11 @@
   },
   "cta": {
     "title": "为你的 AI Agent 构建安全运行环境",
-    "subtitle": "一条命令启动沙箱，零特权隔离，端到端加密，工具调用全程可追溯。开始为你的 AI Agent 构建零信任网络。",
+    "subtitle": "一条命令启动沙箱，零特权隔离，端到端加密，工具调用全程可追溯。",
     "button_primary": "lattice sandbox start",
     "button_secondary": "查看控制台",
     "badge_1": "零特权",
-    "badge_2": "gVisor 网络隔离",
+    "badge_2": "gVisor 隔离",
     "badge_3": "WireGuard 加密",
     "badge_4": "工具调用追踪",
     "badge_5": "Sub-agent 委派",
@@ -143,20 +119,5 @@
   },
   "footer": {
     "copyright": "© 2026 Lattice. All rights reserved."
-  },
-  "stats": {
-    "active_nodes": "活跃沙箱",
-    "all_healthy": "全部健康",
-    "avg_latency": "平均延迟",
-    "sync": "最后同步",
-    "data_plane": "沙箱数据面"
-  },
-  "advantages": {
-    "item_1": "零特权 — 普通用户运行",
-    "item_2": "gVisor 用户态内核隔离",
-    "item_3": "WireGuard 端到端加密",
-    "item_4": "工具调用全程可追溯",
-    "item_5": "Sub-agent 委派 + 调用树",
-    "item_6": "自然语言网络管理（PRO）"
   }
 }

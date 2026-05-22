@@ -1,6 +1,6 @@
-# Wireflow 定价方案
+# Lattice 定价方案
 
-> 文档目的：定义 Wireflow 产品的商业定价模型、功能分层及授权规则，为 License 实现（2.2）和官网定价页提供依据。
+> 文档目的：定义 Lattice 产品的商业定价模型、功能分层及授权规则，为 License 实现（2.2）和官网定价页提供依据。
 >
 > 当前日期：2026-04-27
 
@@ -8,7 +8,7 @@
 
 ## 一、定价总览
 
-Wireflow 采用 **Open Core** 模型：Community 版永久免费开源，Pro 版通过 License Key 解锁企业级功能。
+Lattice 采用 **Open Core** 模型：Community 版永久免费开源，Pro 版通过 License Key 解锁企业级功能。
 
 | 版本 | 交付形态 | 计费方式 | 适用场景 |
 |------|---------|---------|---------|
@@ -121,7 +121,7 @@ Wireflow 采用 **Open Core** 模型：Community 版永久免费开源，Pro 版
 
 ## 五、SaaS 托管定价（后期推出）
 
-SaaS 版由 Wireflow 官方托管控制面，客户只需部署 wireflow 节点 Agent，无需维护 latticed。
+SaaS 版由 Lattice 官方托管控制面，客户只需部署 lattice 节点 Agent，无需维护 latticed。
 
 ### 套餐（月付）
 
@@ -187,7 +187,7 @@ SaaS 版由 Wireflow 官方托管控制面，客户只需部署 wireflow 节点 
 
 | 决策 | 理由 |
 |------|------|
-| 按节点数而非按用户数计费 | Wireflow 核心价值是网络节点管理，节点数更直接反映用量和价值 |
+| 按节点数而非按用户数计费 | Lattice 核心价值是网络节点管理，节点数更直接反映用量和价值 |
 | Community 不限节点数 | 降低开源用户门槛，开源社区是增长飞轮；节点数限制对已有 WireGuard 用户没有吸引力 |
 | 年付为主 | 提高客户生命周期价值（LTV），减少每月续费流失 |
 | License 绑定实例而非 IP | 实例 ID 更稳定（IP 变化频繁），K8s 环境 Pod IP 尤其不可靠 |

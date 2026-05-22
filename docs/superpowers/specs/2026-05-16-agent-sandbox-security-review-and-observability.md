@@ -284,7 +284,7 @@ func (w *LatticeAuditWriter) OnTraceEvent(evt TraceEvent) {
 **注入到 Sandbox 初始化：**
 
 ```go
-// cmd/lattice-agent-sandbox/cmd/start_sandbox_pro.go
+// cmd/lattice/cmd/sandbox/sandbox_pro.go
 
 auditWriter := &gvisor.LatticeAuditWriter{store: flowStore}
 

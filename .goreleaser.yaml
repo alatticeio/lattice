@@ -6,6 +6,8 @@ builds:
   - id: "lattice"
     binary: "lattice"
     main: "./cmd/lattice/main.go"
+    flags:
+      - -tags pro
     env:
       - CGO_ENABLED=0
     ldflags:
@@ -24,42 +26,8 @@ builds:
   - id: "latticed"
     binary: "latticed"
     main: "./cmd/latticed/main.go"
-    env:
-      - CGO_ENABLED=0
-    ldflags:
-      - -s -w
-      - -X lattice/pkg/version.Version={{.Version}}
-      - -X lattice/pkg/version.GitCommit={{.Commit}}
-      - -X lattice/pkg/version.BuildTime={{.Date}}
-    goos:
-      - linux
-    goarch:
-      - amd64
-
-  # Pro: Edge Agent (Linux only — eBPF and sandbox require Linux)
-  - id: "lattice-pro"
-    binary: "lattice-pro"
-    main: "./cmd/lattice/main.go"
-    tags:
-      - pro
-    env:
-      - CGO_ENABLED=0
-    ldflags:
-      - -s -w
-      - -X lattice/pkg/version.Version={{.Version}}
-      - -X lattice/pkg/version.GitCommit={{.Commit}}
-      - -X lattice/pkg/version.BuildTime={{.Date}}
-    goos:
-      - linux
-    goarch:
-      - amd64
-
-  # Pro: All-in-One 控制面（仅 linux）
-  - id: "latticed-pro"
-    binary: "latticed-pro"
-    main: "./cmd/latticed/main.go"
-    tags:
-      - pro
+    flags:
+      - -tags pro
     env:
       - CGO_ENABLED=0
     ldflags:
@@ -88,147 +56,6 @@ archives:
     builds:
       - latticed
 
-  # lattice-pro archive
-  - id: "lattice-pro-archive"
-    name_template: "lattice-pro_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
-    builds:
-      - lattice-pro
-    format_overrides:
-      - goos: windows
-        format: zip
-
-  # latticed-pro archive
-  - id: "latticed-pro-archive"
-    name_template: "latticed-pro_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
-    builds:
-      - latticed-pro
-
-nfpms:
-  # lattice agent package
-  - id: "lattice-nfpms"
-    package_name: lattice
-    builds:
-      - lattice
-    vendor: alatticeio
-    homepage: https://github.com/alatticeio/lattice
-    maintainer: "alatticeio <maintainers@alatticeio.io>"
-    description: "Lattice edge agent — secure peer-to-peer networking for Kubernetes and bare metal."
-    license: Apache 2.0
-    formats:
-      - rpm
-      - deb
-    bindir: /usr/bin
-    section: net
-    priority: optional
-    contents:
-      - src: ./deploy/packaging/lattice.service
-        dst: /usr/lib/systemd/system/lattice.service
-      - src: ./deploy/packaging/config.yaml
-        dst: /etc/lattice/config.yaml
-        type: "config|noreplace"
-    overrides:
-      rpm:
-        dependencies:
-          - systemd
-      deb:
-        dependencies:
-          - systemd
-    scripts:
-      postinstall: ./deploy/packaging/scripts/lattice-post-install.sh
-      postremove: ./deploy/packaging/scripts/lattice-post-remove.sh
-
-  # latticed server package
-  - id: "latticed-nfpms"
-    package_name: latticed
-    builds:
-      - latticed
-    vendor: alatticeio
-    homepage: https://github.com/alatticeio/lattice
-    maintainer: "alatticeio <maintainers@alatticeio.io>"
-    description: "Lattice all-in-one control plane — embedded NATS + SQLite for single-node deployment."
-    license: Apache 2.0
-    formats:
-      - rpm
-      - deb
-    bindir: /usr/bin
-    section: net
-    priority: optional
-    contents:
-      - src: ./deploy/packaging/latticed.service
-        dst: /usr/lib/systemd/system/latticed.service
-    overrides:
-      rpm:
-        dependencies:
-          - systemd
-      deb:
-        dependencies:
-          - systemd
-    scripts:
-      postinstall: ./deploy/packaging/scripts/latticed-post-install.sh
-      postremove: ./deploy/packaging/scripts/latticed-post-remove.sh
-
-  # lattice-pro package
-  - id: "lattice-pro-nfpms"
-    package_name: lattice-pro
-    builds:
-      - lattice-pro
-    vendor: alatticeio
-    homepage: https://github.com/alatticeio/lattice
-    maintainer: "alatticeio <maintainers@alatticeio.io>"
-    description: "Lattice Pro edge agent — includes Pro features (eBPF, TURN, SSO)."
-    license: Lattice Commercial License
-    formats:
-      - rpm
-      - deb
-    bindir: /usr/bin
-    section: net
-    priority: optional
-    contents:
-      - src: ./deploy/packaging/lattice.service
-        dst: /usr/lib/systemd/system/lattice.service
-      - src: ./deploy/packaging/config.yaml
-        dst: /etc/lattice/config.yaml
-        type: "config|noreplace"
-    overrides:
-      rpm:
-        dependencies:
-          - systemd
-      deb:
-        dependencies:
-          - systemd
-    scripts:
-      postinstall: ./deploy/packaging/scripts/lattice-post-install.sh
-      postremove: ./deploy/packaging/scripts/lattice-post-remove.sh
-
-  # latticed-pro package
-  - id: "latticed-pro-nfpms"
-    package_name: latticed-pro
-    builds:
-      - latticed-pro
-    vendor: alatticeio
-    homepage: https://github.com/alatticeio/lattice
-    maintainer: "alatticeio <maintainers@alatticeio.io>"
-    description: "Lattice Pro all-in-one control plane — includes Pro features (SSO, telemetry, analytics)."
-    license: Lattice Commercial License
-    formats:
-      - rpm
-      - deb
-    bindir: /usr/bin
-    section: net
-    priority: optional
-    contents:
-      - src: ./deploy/packaging/latticed.service
-        dst: /usr/lib/systemd/system/latticed.service
-    overrides:
-      rpm:
-        dependencies:
-          - systemd
-      deb:
-        dependencies:
-          - systemd
-    scripts:
-      postinstall: ./deploy/packaging/scripts/latticed-post-install.sh
-      postremove: ./deploy/packaging/scripts/latticed-post-remove.sh
 
 brews:
   - name: lattice
@@ -252,26 +79,6 @@ brews:
     skip_upload: false
     dependencies: []
 
-  - name: lattice-pro
-    ids:
-      - lattice-pro-archive
-    repository:
-      owner: alatticeio
-      name: homebrew-tap
-      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
-    directory: Formula
-    homepage: https://github.com/alatticeio/lattice
-    description: "Lattice Pro edge agent — secure peer-to-peer networking with Pro features"
-    license: Apache 2.0
-    test: |
-      system "#{bin}/lattice-pro", "version"
-    install: |
-      bin.install "lattice-pro"
-    commit_author:
-      name: alatticeio-bot
-      email: maintainers@alatticeio.io
-    skip_upload: false
-    dependencies: []
 
 release:
   prerelease: auto

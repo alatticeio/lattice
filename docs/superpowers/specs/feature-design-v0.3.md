@@ -1,4 +1,4 @@
-# Wireflow Feature Design v0.3
+# Lattice Feature Design v0.3
 
 > 涵盖本阶段新增的四个子系统：用户成员管理、审计日志、平台管理员权限旁路、Dashboard 监控 API。
 
@@ -268,8 +268,8 @@ if systemRole, _ := c.Get("system_role"); systemRole == "platform_admin" {
 | # | 问题 | 位置 |
 |---|------|------|
 | 1 | PromQL 过滤 `workspace_id`，但 scraper 实际 emit `network_id` | `service/monitor.go` |
-| 2 | 查询 `wireflow_workspace_tunnels` 但该指标从未被推送 | `service/monitor.go` |
-| 3 | 查询 `wireflow_node_uptime_seconds` 但 scraper 未 emit | `scraper_system.go` |
+| 2 | 查询 `lattice_workspace_tunnels` 但该指标从未被推送 | `service/monitor.go` |
+| 3 | 查询 `lattice_node_uptime_seconds` 但 scraper 未 emit | `scraper_system.go` |
 
 ### 4.2 指标清单
 
@@ -277,22 +277,22 @@ if systemRole, _ := c.Get("system_role"); systemRole == "platform_admin" {
 
 | 指标名 | 标签 | Scraper |
 |--------|------|---------|
-| `wireflow_node_cpu_usage_percent` | peer_id, **network_id** | system |
-| `wireflow_node_memory_bytes` | peer_id, **network_id** | system |
-| `wireflow_node_goroutines` | peer_id, **network_id** | system |
-| `wireflow_peer_status` | peer_id, **network_id**, remote_peer_id, endpoint | wireguard |
-| `wireflow_peer_last_handshake_seconds` | peer_id, **network_id**, remote_peer_id | wireguard |
-| `wireflow_peer_traffic_bytes_total` | peer_id, **network_id**, remote_peer_id, direction | wireguard |
-| `wireflow_node_traffic_bytes_total` | peer_id, **network_id**, direction | wireguard |
-| `wireflow_peering_traffic_bytes_total` | peer_id, local_network_id, remote_network_id, direction | wireguard |
-| `wireflow_peer_latency_ms` | peer_id, **network_id**, remote_peer_id, remote_peer_ip | icmp |
-| `wireflow_peer_packet_loss_percent` | peer_id, **network_id**, remote_peer_id | icmp |
+| `lattice_node_cpu_usage_percent` | peer_id, **network_id** | system |
+| `lattice_node_memory_bytes` | peer_id, **network_id** | system |
+| `lattice_node_goroutines` | peer_id, **network_id** | system |
+| `lattice_peer_status` | peer_id, **network_id**, remote_peer_id, endpoint | wireguard |
+| `lattice_peer_last_handshake_seconds` | peer_id, **network_id**, remote_peer_id | wireguard |
+| `lattice_peer_traffic_bytes_total` | peer_id, **network_id**, remote_peer_id, direction | wireguard |
+| `lattice_node_traffic_bytes_total` | peer_id, **network_id**, direction | wireguard |
+| `lattice_peering_traffic_bytes_total` | peer_id, local_network_id, remote_network_id, direction | wireguard |
+| `lattice_peer_latency_ms` | peer_id, **network_id**, remote_peer_id, remote_peer_ip | icmp |
+| `lattice_peer_packet_loss_percent` | peer_id, **network_id**, remote_peer_id | icmp |
 
 #### 新增指标
 
 | 指标名 | 标签 | 说明 |
 |--------|------|------|
-| `wireflow_node_uptime_seconds` | peer_id, **network_id** | 进程启动至今秒数，用于统计在线节点数 |
+| `lattice_node_uptime_seconds` | peer_id, **network_id** | 进程启动至今秒数，用于统计在线节点数 |
 
 > **标签约定**：`network_id` = `workspace.Namespace`（如 `wf-abc123`）。管理层按 workspace UUID 查询时，需先 JOIN DB 获取 Namespace，再用于 PromQL 过滤。
 
@@ -302,26 +302,26 @@ if systemRole, _ := c.Get("system_role"); systemRole == "platform_admin" {
 
 | 面板 | PromQL | 模式 |
 |------|--------|------|
-| 在线节点数 | `count(last_over_time(wireflow_node_uptime_seconds{network_id="$ns"}[5m]))` | instant |
-| 实时吞吐 TX (Mbps) | `sum(irate(wireflow_node_traffic_bytes_total{network_id="$ns",direction="tx"}[2m])) * 8 / 1e6` | instant |
-| 平均延迟 (ms) | `avg(wireflow_peer_latency_ms{network_id="$ns"})` | instant |
-| 丢包率 (%) | `avg(wireflow_peer_packet_loss_percent{network_id="$ns"})` | instant |
-| 吞吐趋势 TX | `sum(irate(wireflow_node_traffic_bytes_total{network_id="$ns",direction="tx"}[5m])) * 8 / 1e6` | range, 1h, step=2m |
-| 吞吐趋势 RX | `sum(irate(wireflow_node_traffic_bytes_total{network_id="$ns",direction="rx"}[5m])) * 8 / 1e6` | range, 1h, step=2m |
-| CPU per node | `last_over_time(wireflow_node_cpu_usage_percent{network_id="$ns"}[5m])` | instant |
-| Memory per node | `last_over_time(wireflow_node_memory_bytes{network_id="$ns"}[5m])` | instant |
-| Top 10 节点 | `topk(10, sum by (peer_id)(increase(wireflow_node_traffic_bytes_total{network_id="$ns"}[24h])))` | instant |
-| 活动隧道数 | `ceil(sum(wireflow_peer_status{network_id="$ns"} == 1) / 2)` | instant |
+| 在线节点数 | `count(last_over_time(lattice_node_uptime_seconds{network_id="$ns"}[5m]))` | instant |
+| 实时吞吐 TX (Mbps) | `sum(irate(lattice_node_traffic_bytes_total{network_id="$ns",direction="tx"}[2m])) * 8 / 1e6` | instant |
+| 平均延迟 (ms) | `avg(lattice_peer_latency_ms{network_id="$ns"})` | instant |
+| 丢包率 (%) | `avg(lattice_peer_packet_loss_percent{network_id="$ns"})` | instant |
+| 吞吐趋势 TX | `sum(irate(lattice_node_traffic_bytes_total{network_id="$ns",direction="tx"}[5m])) * 8 / 1e6` | range, 1h, step=2m |
+| 吞吐趋势 RX | `sum(irate(lattice_node_traffic_bytes_total{network_id="$ns",direction="rx"}[5m])) * 8 / 1e6` | range, 1h, step=2m |
+| CPU per node | `last_over_time(lattice_node_cpu_usage_percent{network_id="$ns"}[5m])` | instant |
+| Memory per node | `last_over_time(lattice_node_memory_bytes{network_id="$ns"}[5m])` | instant |
+| Top 10 节点 | `topk(10, sum by (peer_id)(increase(lattice_node_traffic_bytes_total{network_id="$ns"}[24h])))` | instant |
+| 活动隧道数 | `ceil(sum(lattice_peer_status{network_id="$ns"} == 1) / 2)` | instant |
 
 #### 全域 Dashboard
 
 | 面板 | PromQL |
 |------|--------|
-| 活跃工作空间 | `count(count by (workspace_id)(wireflow_peer_status{workspace_id!=""}))` |
-| 全网在线节点 | `count(count by (node_id)(wireflow_peer_status == 1))` |
-| 全域吞吐 (Gbps) | `sum(irate(wireflow_peer_traffic_bytes_total{direction="tx"}[2m])) * 8 / 1e9` |
-| 各空间在线节点 | `count by (network_id)(last_over_time(wireflow_node_uptime_seconds[5m]))` |
-| 各空间 24h 流量 | `sum by (network_id)(increase(wireflow_node_traffic_bytes_total{direction="tx"}[24h]))` |
+| 活跃工作空间 | `count(count by (workspace_id)(lattice_peer_status{workspace_id!=""}))` |
+| 全网在线节点 | `count(count by (node_id)(lattice_peer_status == 1))` |
+| 全域吞吐 (Gbps) | `sum(irate(lattice_peer_traffic_bytes_total{direction="tx"}[2m])) * 8 / 1e9` |
+| 各空间在线节点 | `count by (network_id)(last_over_time(lattice_node_uptime_seconds[5m]))` |
+| 各空间 24h 流量 | `sum by (network_id)(increase(lattice_node_traffic_bytes_total{direction="tx"}[24h]))` |
 
 ### 4.4 API
 
@@ -432,7 +432,7 @@ Dashboard 页面根据 `active_ws_id` 是否存在自动切换模式，顶部显
 | `management/server/invitation.go` | 邀请管理 REST 路由 |
 | `management/server/audit.go` | 审计日志 REST 路由 |
 | `management/server/dashboard.go` | Dashboard REST 路由（pro build）|
-| `internal/telemetry/scraper_system.go` | 新增 wireflow_node_uptime_seconds |
+| `internal/telemetry/scraper_system.go` | 新增 lattice_node_uptime_seconds |
 | `fronted/src/pages/manage/members/index.vue` | 成员管理页面 |
 | `fronted/src/pages/settings/audit/index.vue` | 审计日志页面 |
 | `fronted/src/pages/dashboard/index.vue` | Dashboard 页面（全域/工作空间自动切换）|

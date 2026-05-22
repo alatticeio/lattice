@@ -8,13 +8,13 @@ Network peering connects WireGuard networks across different workspaces. Once pe
 
 Before creating a peering, both workspaces must satisfy:
 
-1. **Network is Ready** — the `WireflowNetwork` in each workspace must have `Status.Phase = Ready` and a non-empty `Status.ActiveCIDR`.
+1. **Network is Ready** — the `LatticeNetwork` in each workspace must have `Status.Phase = Ready` and a non-empty `Status.ActiveCIDR`.
 2. **A gateway peer exists** in each workspace — one peer must be labeled as the gateway for its network (see below).
 3. **IP forwarding is enabled on the gateway node**:
    ```bash
    sysctl -w net.ipv4.ip_forward=1
    ```
-   This must be set on the host OS of the peer acting as gateway. Wireflow does not configure this automatically.
+   This must be set on the host OS of the peer acting as gateway. Lattice does not configure this automatically.
 
 ---
 
@@ -24,42 +24,42 @@ Each workspace needs exactly one peer acting as the inter-workspace routing hop.
 
 | Label | Value | Meaning |
 |-------|-------|---------|
-| `wireflow.run/gateway` | `"true"` | Designates this peer as a gateway |
-| `wireflow.run/network-{networkName}` | `"true"` | Associates the gateway with a specific network |
+| `lattice.run/gateway` | `"true"` | Designates this peer as a gateway |
+| `lattice.run/network-{networkName}` | `"true"` | Associates the gateway with a specific network |
 
-The default network name is `wireflow-default-net`.
+The default network name is `lattice-default-net`.
 
-### Option A — wireflow CLI
+### Option A — lattice CLI
 
 ```bash
-wireflow peer label <peer-name> \
+lattice peer label <peer-name> \
   -n <namespace> \
-  wireflow.run/gateway=true \
-  "wireflow.run/network-wireflow-default-net=true"
+  lattice.run/gateway=true \
+  "lattice.run/network-lattice-default-net=true"
 ```
 
 Example (workspace namespace `wf-abc123`):
 
 ```bash
-wireflow peer label my-gateway-node \
+lattice peer label my-gateway-node \
   -n wf-abc123 \
-  wireflow.run/gateway=true \
-  "wireflow.run/network-wireflow-default-net=true"
+  lattice.run/gateway=true \
+  "lattice.run/network-lattice-default-net=true"
 ```
 
 ### Option B — kubectl
 
 ```bash
-kubectl label wireflowpeer my-gateway-node \
+kubectl label latticepeer my-gateway-node \
   -n wf-abc123 \
-  wireflow.run/gateway=true \
-  "wireflow.run/network-wireflow-default-net=true"
+  lattice.run/gateway=true \
+  "lattice.run/network-lattice-default-net=true"
 ```
 
 ### Verify
 
 ```bash
-kubectl get wireflowpeer -n wf-abc123 -l wireflow.run/gateway=true
+kubectl get latticepeer -n wf-abc123 -l lattice.run/gateway=true
 ```
 
 ---
@@ -73,7 +73,7 @@ kubectl get wireflowpeer -n wf-abc123 -l wireflow.run/gateway=true
 3. Click **New Peering**.
 4. Fill in the form:
    - **Remote Namespace** (`namespaceB`, required): the K8s namespace of the remote workspace (e.g. `wf-xyz789`).
-   - **Remote Network** (`networkB`, optional): defaults to `wireflow-default-net`.
+   - **Remote Network** (`networkB`, optional): defaults to `lattice-default-net`.
    - **Peering Mode** (`peeringMode`, optional): `gateway` (default) or `mesh`.
    - **Name** (optional): auto-generated if left empty.
 5. Click **Create**.
@@ -86,7 +86,7 @@ curl -X POST https://<management-host>/api/v1/peering \
   -H "Content-Type: application/json" \
   -d '{
     "namespaceB": "wf-xyz789",
-    "networkB": "wireflow-default-net",
+    "networkB": "lattice-default-net",
     "peeringMode": "gateway"
   }'
 ```
@@ -114,7 +114,7 @@ Response:
 ### Check peering status
 
 ```bash
-kubectl get wireflownetworkpeering
+kubectl get latticenetworkpeering
 ```
 
 A healthy peering shows `Phase: Ready`:
@@ -128,11 +128,11 @@ Status transitions: `Pending → Ready` (or `Error` if a gateway is missing).
 
 ### What the controller sets up automatically
 
-Once the `WireflowNetworkPeering` object is created and both gateways are found, the `NetworkPeeringReconciler` performs these steps automatically:
+Once the `LatticeNetworkPeering` object is created and both gateways are found, the `NetworkPeeringReconciler` performs these steps automatically:
 
 1. **Peering-route annotations on both gateways** — instructs local peers to route the remote CIDR through the gateway peer.
-2. **Shadow peers** — creates a synthetic `WireflowPeer` in each namespace representing the remote gateway, with `AllowedIPs` expanded to cover the remote CIDR.
-3. **Policies** — creates `WireflowPolicy` objects that admit gateway ↔ shadow peer communication.
+2. **Shadow peers** — creates a synthetic `LatticePeer` in each namespace representing the remote gateway, with `AllowedIPs` expanded to cover the remote CIDR.
+3. **Policies** — creates `LatticePolicy` objects that admit gateway ↔ shadow peer communication.
 
 After reconciliation, the WireGuard configs on peers are updated automatically on the next `GetNetMap` cycle.
 
@@ -140,11 +140,11 @@ After reconciliation, the WireGuard configs on peers are updated automatically o
 
 ```bash
 # Shadow peers created by the controller
-kubectl get wireflowpeer -n wf-abc123 -l wireflow.run/shadow=true
-kubectl get wireflowpeer -n wf-xyz789 -l wireflow.run/shadow=true
+kubectl get latticepeer -n wf-abc123 -l lattice.run/shadow=true
+kubectl get latticepeer -n wf-xyz789 -l lattice.run/shadow=true
 
 # Peering-route annotation on gateway
-kubectl get wireflowpeer <gateway-name> -n wf-abc123 -o jsonpath='{.metadata.annotations}'
+kubectl get latticepeer <gateway-name> -n wf-abc123 -o jsonpath='{.metadata.annotations}'
 ```
 
 ### Test connectivity
@@ -196,12 +196,12 @@ curl -X DELETE https://<management-host>/api/v1/peering/<peering-name> \
 
 ### What cleanup does
 
-The controller's finalizer (`wireflow.run/peering-finalizer`) handles cleanup:
+The controller's finalizer (`lattice.run/peering-finalizer`) handles cleanup:
 
 1. Removes peering-route annotations from both gateway peers.
 2. Deletes shadow peers (`peering-shadow-{name}`) in both namespaces.
-3. Deletes peering policies (`wireflow-peering-{name}-*`) in both namespaces.
-4. Removes the finalizer and deletes the `WireflowNetworkPeering` object.
+3. Deletes peering policies (`lattice-peering-{name}-*`) in both namespaces.
+4. Removes the finalizer and deletes the `LatticeNetworkPeering` object.
 
 Peers on both sides will stop routing to the remote CIDR on their next `GetNetMap` cycle.
 
@@ -213,19 +213,19 @@ Peers on both sides will stop routing to the remote CIDR on their next `GetNetMa
 
 | Symptom | Cause | Fix |
 |---------|-------|-----|
-| `Status.Phase = Error` with "no gateway peer found" | No peer labeled `wireflow.run/gateway=true` in one of the namespaces | Label a peer as gateway (Step 1) |
-| `Status.Phase = Pending` indefinitely | Network not yet `Ready` (CIDR not allocated) | Check `kubectl get wireflownetwork -n <ns>` |
+| `Status.Phase = Error` with "no gateway peer found" | No peer labeled `lattice.run/gateway=true` in one of the namespaces | Label a peer as gateway (Step 1) |
+| `Status.Phase = Pending` indefinitely | Network not yet `Ready` (CIDR not allocated) | Check `kubectl get latticenetwork -n <ns>` |
 | Peers can't ping across workspaces | `net.ipv4.ip_forward` not enabled on gateway host | Run `sysctl -w net.ipv4.ip_forward=1` on the gateway node |
-| Peering shows `active` but traffic drops | Policy not yet reconciled | Check `kubectl get wireflowpolicy -n <ns>` for `wireflow-peering-{name}-*` objects |
+| Peering shows `active` but traffic drops | Policy not yet reconciled | Check `kubectl get latticepolicy -n <ns>` for `lattice-peering-{name}-*` objects |
 
 ### Check controller logs
 
 ```bash
-kubectl logs -l app=wireflow-controller -n lattice-system --tail=100 | grep peering
+kubectl logs -l app=lattice-controller -n lattice-system --tail=100 | grep peering
 ```
 
 ---
 
 ## Cross-Cluster Peering (Phase 2 — Future)
 
-Cross-cluster peering via `WireflowCluster` + `WireflowClusterPeering` CRDs is planned for a future release. The `GET /api/v1/peering/gateway-info` endpoint is already available for remote clusters to query local gateway information as part of the cross-cluster handshake.
+Cross-cluster peering via `LatticeCluster` + `LatticeClusterPeering` CRDs is planned for a future release. The `GET /api/v1/peering/gateway-info` endpoint is already available for remote clusters to query local gateway information as part of the cross-cluster handshake.
