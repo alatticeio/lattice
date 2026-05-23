@@ -5,6 +5,10 @@ on:
     branches: [master]
     paths:
       - 'docs/**'
+  pull_request:
+    branches: [master]
+    paths:
+      - 'docs/**'
   workflow_dispatch:
 
 permissions:
@@ -36,6 +40,7 @@ jobs:
         run: pnpm docs:build
 
       - name: Deploy to alatticeio.github.io
+        if: github.event_name != 'pull_request'
         uses: peaceiris/actions-gh-pages@v4
         with:
           personal_token: ${{ secrets.DOCS_DEPLOY_TOKEN }}
