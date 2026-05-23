@@ -4,6 +4,8 @@ on:
   push:
     tags:
       - 'v*'
+    branches:
+      - master
   pull_request:
     types: [labeled, opened, synchronize, reopened]
     branches:
@@ -18,11 +20,41 @@ env:
   REGISTRY: ghcr.io/alatticeio
 
 jobs:
-  release:
-    if: |
-      github.event_name == 'push' ||
-      (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'ok-release'))
+  # ─── Compute shared variables ─────────────────────────────────────────────────
+  vars:
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.compute.outputs.version }}
+      is_release: ${{ steps.compute.outputs.is_release }}
+      build_latest: ${{ steps.compute.outputs.build_latest }}
+    steps:
+      - name: Compute build variables
+        id: compute
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            VERSION="${{ github.ref_name }}"
+            IS_RELEASE=true
+            BUILD_LATEST=true
+          elif [ "${{ github.ref }}" = "refs/heads/master" ]; then
+            VERSION="$(echo ${{ github.sha }} | cut -c1-7)"
+            IS_RELEASE=false
+            BUILD_LATEST=true
+          else
+            VERSION="pr-${{ github.event.pull_request.number }}"
+            IS_RELEASE=false
+            BUILD_LATEST=false
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "is_release=$IS_RELEASE" >> "$GITHUB_OUTPUT"
+          echo "build_latest=$BUILD_LATEST" >> "$GITHUB_OUTPUT"
+
+  # ─── GoReleaser: binaries + archives + helm ───────────────────────────────────
+  goreleaser:
+    needs: vars
+    runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ needs.vars.outputs.version }}
+      IS_RELEASE: ${{ needs.vars.outputs.is_release }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -32,22 +64,6 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
-
-      - uses: docker/setup-qemu-action@v3
-
-      - uses: docker/setup-buildx-action@v3
-
-      - name: Compute build variables
-        run: |
-          if [ "${{ github.event_name }}" = "push" ]; then
-            VERSION="${{ github.ref_name }}"
-            IS_RELEASE=true
-          else
-            VERSION="pr-${{ github.event.pull_request.number }}"
-            IS_RELEASE=false
-          fi
-          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
-          echo "IS_RELEASE=$IS_RELEASE" >> "$GITHUB_ENV"
 
       - name: Run GoReleaser (release)
         if: env.IS_RELEASE == 'true'
@@ -60,7 +76,7 @@ jobs:
           HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
 
       - name: Run GoReleaser (snapshot)
-        if: env.IS_RELEASE != 'true'
+        if: env.IS_RELEASE != 'true' && github.event_name == 'pull_request'
         uses: goreleaser/goreleaser-action@v6
         with:
           version: latest
@@ -68,89 +84,17 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Setup pnpm
-        run: npm install -g pnpm@10.32.1
-
-      - name: Build UI
-        run: make build-ui
-
-      - name: Create buildx builder
-        run: |
-          docker buildx create --name lattice-builder --use
-          docker buildx inspect --bootstrap
-
-      - name: Login to GHCR
-        run: |
-          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-
-      - name: Build and push community images
-        if: env.IS_RELEASE == 'true'
-        run: |
-          for SERVICE in latticed lattice; do
-            TAGS="--tag $REGISTRY/${SERVICE}:${VERSION}"
-            if [ "$IS_RELEASE" = "true" ]; then
-              TAGS="$TAGS --tag $REGISTRY/${SERVICE}:latest"
-            fi
-            docker buildx build \
-              --platform linux/amd64 \
-              --push \
-              $TAGS \
-              --build-arg "TARGETSERVICE=${SERVICE}" \
-              --build-arg "VERSION=${VERSION}" \
-              --build-arg "BUILD_TAGS=" \
-              --label "org.opencontainers.image.title=${SERVICE}" \
-              --label "org.opencontainers.image.version=${VERSION}" \
-              --label "org.opencontainers.image.revision=${{ github.sha }}" \
-              --label "org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}" \
-              --cache-from "type=gha" \
-              --cache-to "type=gha,mode=max" \
-              -f Dockerfile .
-          done
-
-      - name: Install oras
-        if: env.IS_RELEASE == 'true'
-        uses: oras-project/setup-oras@v1
-
-      - name: Publish Artifact Hub repo metadata
-        if: env.IS_RELEASE == 'true'
-        run: |
-          oras push ghcr.io/alatticeio/charts/artifacthub-repo:latest \
-            --config /dev/null:application/vnd.cncf.artifacthub.config.v1+json \
-            deploy/charts/lattice/artifacthub-repo.yml:application/vnd.cncf.artifacthub.repository-metadata.layer.v1.yaml
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build and push PRO images
-        if: env.IS_RELEASE == 'true'
-        run: |
-          for SERVICE in latticed lattice; do
-            TAGS="--tag $REGISTRY/${SERVICE}:${VERSION}-pro"
-            if [ "$IS_RELEASE" = "true" ]; then
-              TAGS="$TAGS --tag $REGISTRY/${SERVICE}:latest-pro"
-            fi
-            docker buildx build \
-              --platform linux/amd64 \
-              --push \
-              $TAGS \
-              --build-arg "TARGETSERVICE=${SERVICE}" \
-              --build-arg "VERSION=${VERSION}" \
-              --build-arg "BUILD_TAGS=pro" \
-              --label "org.opencontainers.image.title=${SERVICE}" \
-              --label "org.opencontainers.image.version=${VERSION}-pro" \
-              --label "org.opencontainers.image.revision=${{ github.sha }}" \
-              --label "org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}" \
-              --cache-from "type=gha" \
-              --cache-to "type=gha,mode=max" \
-              -f Dockerfile .
-          done
-
       - name: Package Helm chart (PR validation)
         if: github.event_name == 'pull_request'
         run: |
           helm package deploy/charts/lattice \
             --version "0.0.0-${VERSION}" \
             --app-version ${VERSION}
-          echo "Chart packaged successfully: lattice-0.0.0-${VERSION}.tgz"
+          echo "Chart packaged: lattice-0.0.0-${VERSION}.tgz"
+
+      - name: Install oras
+        if: env.IS_RELEASE == 'true'
+        uses: oras-project/setup-oras@v1
 
       - name: Publish Helm chart to GHCR
         if: env.IS_RELEASE == 'true'
@@ -167,3 +111,57 @@ jobs:
           oras push ghcr.io/alatticeio/charts/artifacthub-repo:latest \
             --config /dev/null:application/vnd.cncf.artifacthub.config.v1+json \
             deploy/charts/lattice/artifacthub-repo.yml:application/vnd.cncf.artifacthub.repository-metadata.layer.v1.yaml
+
+  # ─── Docker: push master/tag 时推送，PR 加 run-docker label 时只验证构建 ─────────
+  docker:
+    needs: vars
+    if: |
+      github.event_name == 'push' ||
+      (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'run-docker'))
+    runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ needs.vars.outputs.version }}
+      BUILD_LATEST: ${{ needs.vars.outputs.build_latest }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        run: npm install -g pnpm@10.32.1
+
+      - name: Build UI
+        run: make build-ui
+
+      - uses: docker/setup-qemu-action@v3
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+      - name: Build and push images
+        run: |
+          if [ "$BUILD_LATEST" = "true" ]; then
+            OUTPUT="--push"
+          else
+            OUTPUT="--output type=cacheonly"
+          fi
+
+          for SERVICE in latticed lattice; do
+            TAGS="--tag $REGISTRY/${SERVICE}:${VERSION}"
+            [ "$BUILD_LATEST" = "true" ] && TAGS="$TAGS --tag $REGISTRY/${SERVICE}:latest"
+            docker buildx build \
+              --platform linux/amd64 \
+              $OUTPUT \
+              $TAGS \
+              --build-arg "TARGETSERVICE=${SERVICE}" \
+              --build-arg "VERSION=${VERSION}" \
+              --build-arg "BUILD_TAGS=pro" \
+              --label "org.opencontainers.image.title=${SERVICE}" \
+              --label "org.opencontainers.image.version=${VERSION}" \
+              --label "org.opencontainers.image.revision=${{ github.sha }}" \
+              --label "org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}" \
+              --cache-from "type=gha,scope=${SERVICE}" \
+              --cache-to "type=gha,mode=max,scope=${SERVICE}" \
+              -f Dockerfile .
+          done

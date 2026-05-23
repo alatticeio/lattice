@@ -88,4 +88,4 @@ helm install lattice ./deploy/charts/lattice \
 kubectl apply -k config/lattice/overlays/all-in-one
 ```
 
-详细部署说明见 [Helm 部署](./deploy/helm) 和 [Kubernetes 部署](./deploy/k8s-operator)。
+详细部署说明见 [Helm 部署](../deploy/helm) 和 [Kubernetes 部署](../deploy/k8s-operator)。
