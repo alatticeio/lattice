@@ -15,7 +15,7 @@ image:
 
 # -- Service configuration.
 service:
-  type: ClusterIP
+  type: LoadBalancer
   apiPort: 8080
   natsPort: 4222
   apiNodePort: ""
