@@ -39,7 +39,6 @@ jobs:
 
       - name: Compute build variables
         run: |
-          IS_PRO=${{ contains(github.event.pull_request.labels.*.name, 'run-pro') }}
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             TAG="pr-${{ github.event.pull_request.number }}"
           elif [ "${{ github.ref }}" = "refs/heads/master" ] || [ "${{ github.ref }}" = "refs/heads/main" ]; then
@@ -48,7 +47,6 @@ jobs:
             TAG="${{ github.ref_name }}"
           fi
           echo "TAG=$TAG" >> "$GITHUB_ENV"
-          echo "IS_PRO=$IS_PRO" >> "$GITHUB_ENV"
 
       - name: Install kustomize
         run: |
@@ -58,13 +56,7 @@ jobs:
       - name: Setup pnpm
         run: npm install -g pnpm@10.32.1
 
-      - name: Build community images
-        run: |
-          make docker-build SERVICE=latticed TAG=$TAG REGISTRY=$REGISTRY
-          make docker-build SERVICE=lattice  TAG=$TAG REGISTRY=$REGISTRY
-
       - name: Build PRO images
-        if: env.IS_PRO == 'true'
         run: |
           make docker-build SERVICE=latticed TAG=${TAG}-pro REGISTRY=$REGISTRY EDITION=pro
           make docker-build SERVICE=lattice  TAG=${TAG}-pro REGISTRY=$REGISTRY EDITION=pro
@@ -73,8 +65,8 @@ jobs:
         if: github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main'
         run: |
           echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-          make docker-push SERVICE=latticed TAG=$TAG REGISTRY=$REGISTRY
-          make docker-push SERVICE=lattice  TAG=$TAG REGISTRY=$REGISTRY
+          make docker-push SERVICE=latticed TAG=${TAG}-pro REGISTRY=$REGISTRY
+          make docker-push SERVICE=lattice  TAG=${TAG}-pro REGISTRY=$REGISTRY
 
       - name: Setup k3d cluster
         uses: AbsaOSS/k3d-action@v2
@@ -92,15 +84,10 @@ jobs:
 
       - name: Import images into k3d
         run: |
-          k3d image import $REGISTRY/latticed:$TAG -c $CLUSTER_NAME
-          k3d image import $REGISTRY/lattice:$TAG  -c $CLUSTER_NAME
-          if [ "$IS_PRO" = "true" ]; then
-            k3d image import $REGISTRY/latticed:${TAG}-pro -c $CLUSTER_NAME
-            k3d image import $REGISTRY/lattice:${TAG}-pro  -c $CLUSTER_NAME
-          fi
+          k3d image import $REGISTRY/latticed:${TAG}-pro -c $CLUSTER_NAME
+          k3d image import $REGISTRY/lattice:${TAG}-pro  -c $CLUSTER_NAME
 
-      - name: Build sandbox+gVisor image and rootfs (PRO only)
-        if: env.IS_PRO == 'true'
+      - name: Build sandbox+gVisor image and rootfs
         run: |
           echo "====> Downloading runsc..."
           curl -fsSL -o /tmp/runsc https://storage.googleapis.com/gvisor/releases/release/latest/x86_64/runsc || \
@@ -143,25 +130,14 @@ jobs:
 
       - name: Deploy Lattice all-in-one
         run: |
-          if [ "$IS_PRO" = "true" ]; then
-            LATTICED_IMG="$REGISTRY/latticed:${TAG}-pro"
-          else
-            LATTICED_IMG="$REGISTRY/latticed:$TAG"
-          fi
-          make deploy-aio IMG="$LATTICED_IMG" KUBECTL="kubectl --kubeconfig=$E2E_KUBECONFIG"
+          make deploy-aio IMG="$REGISTRY/latticed:${TAG}-pro" KUBECTL="kubectl --kubeconfig=$E2E_KUBECONFIG"
 
       - name: Run E2E tests
         run: |
-          if [ "$IS_PRO" = "true" ]; then
-            make test-e2e \
-              LOCAL_AGENT_IMAGE="$REGISTRY/lattice:${TAG}-pro" \
-              LOCAL_SANDBOX_IMAGE="${GVISOR_SANDBOX_IMG:-$REGISTRY/lattice:${TAG}-pro}" \
-              E2E_KUBECONFIG="$E2E_KUBECONFIG"
-          else
-            make test-e2e \
-              LOCAL_AGENT_IMAGE="$REGISTRY/lattice:$TAG" \
-              E2E_KUBECONFIG="$E2E_KUBECONFIG"
-          fi
+          make test-e2e \
+            LOCAL_AGENT_IMAGE="$REGISTRY/lattice:${TAG}-pro" \
+            LOCAL_SANDBOX_IMAGE="${GVISOR_SANDBOX_IMG:-$REGISTRY/lattice:${TAG}-pro}" \
+            E2E_KUBECONFIG="$E2E_KUBECONFIG"
 
       - name: Collect failure logs
         if: failure()

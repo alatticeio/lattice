@@ -25,7 +25,7 @@ cmd/          # Entry points: lattice, latticed, manager, lrp, lrper
 internal/     # Private: agent, server, relay, db, grpc, etc.
 api/v1alpha1/ # CRD types: LatticeNetwork, LatticePeer, LatticePolicy
 config/       # kustomize: crd, rbac, lattice (all-in-one, dev overlays)
-fronted/      # Vue 3 frontend (note: directory name is misspelled)
+frontend/     # Vue 3 frontend
 test/e2e/     # Ginkgo e2e tests
 pkg/          # Shared: utils, version
 ```
@@ -139,8 +139,8 @@ ICE (direct P2P) races with LRP (relay fallback). State machine manages lifecycl
 ## Frontend
 
 ```bash
-cd fronted && pnpm install && pnpm dev    # Dev server
-cd fronted && pnpm build                  # Build → internal/web/dist/
+cd frontend && pnpm install && pnpm dev    # Dev server
+cd frontend && pnpm build                  # Build → internal/web/dist/
 ```
 
 UI is embedded in Go binary via `//go:embed dist/` in `internal/web/`.

@@ -4,8 +4,8 @@ import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import {
   ArrowRight, Zap, Globe, Shield,
-  CheckCircle, ChevronRight, Crown, X, LogOut, LayoutDashboard,
-  Network, Container, Cpu, Terminal, BookOpen, Code2, Workflow,
+  CheckCircle, ChevronRight, LogOut, LayoutDashboard,
+  Network, Container, Cpu, Terminal, BookOpen, Code2, Workflow, Check,
 } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
@@ -13,6 +13,8 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
   DropdownMenuSeparator, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { setLocale } from '@/locales'
+import type { Locale } from '@/locales'
 import { storeToRefs } from 'pinia'
 import { useUserStore } from '@/stores/user'
 import LatticeTerminal from '@/components/lattice/LatticeTerminal.vue'
@@ -22,8 +24,17 @@ import type { TerminalLine } from '@/components/lattice/LatticeTerminal.vue'
 
 definePage({ meta: { layout: 'blank' } })
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const router = useRouter()
+
+function switchLocale(lang: Locale) {
+  setLocale(lang)
+}
+
+const localeOptions: { value: Locale; label: string }[] = [
+  { value: 'zh-CN', label: '中文' },
+  { value: 'en',    label: 'English' },
+]
 const userStore = useUserStore()
 const { userInfo } = storeToRefs(userStore)
 const { logout } = userStore
@@ -49,6 +60,26 @@ const terminalLines: TerminalLine[] = [
   { text: '$ ExecuteTool("delete_peer")', cls: 'prompt' },
   { text: '  → CheckToolAccess ✗ → blocked', cls: 'warn' },
   { text: '  → tool_span: status=blocked → /audit/traces', cls: 'warn' },
+]
+
+const saifItems = [
+  { key: 'item_1', icon: '🔒', iconBg: 'bg-blue-500/10 text-blue-600 dark:text-blue-400' },
+  { key: 'item_2', icon: '🛡', iconBg: 'bg-green-500/10 text-green-600 dark:text-green-400' },
+  { key: 'item_3', icon: '🎯', iconBg: 'bg-violet-500/10 text-violet-600 dark:text-violet-400' },
+  { key: 'item_4', icon: '⚙', iconBg: 'bg-amber-500/10 text-amber-600 dark:text-amber-400' },
+]
+
+const whyItems = [
+  { key: 'item_1', icon: '🔑' },
+  { key: 'item_2', icon: '📋' },
+  { key: 'item_3', icon: '🚫' },
+]
+
+const ossStats = [
+  { valueKey: 'stat_1_value', labelKey: 'stat_1_label' },
+  { valueKey: 'stat_2_value', labelKey: 'stat_2_label' },
+  { valueKey: 'stat_3_value', labelKey: 'stat_3_label' },
+  { valueKey: 'stat_4_value', labelKey: 'stat_4_label' },
 ]
 
 const features = [
@@ -103,7 +134,6 @@ function tagLabel(tag: string) {
           <a href="#pillars"     class="hover:text-foreground transition-colors">{{ t('landing.nav.pillars') }}</a>
           <a href="#features"    class="hover:text-foreground transition-colors">{{ t('landing.nav.features') }}</a>
           <a href="#quickstart"  class="hover:text-foreground transition-colors">{{ t('landing.nav.quickstart') }}</a>
-          <a href="#pricing"     class="hover:text-foreground transition-colors">{{ t('landing.nav.pricing') }}</a>
         </nav>
 
         <div class="flex items-center gap-2">
@@ -113,6 +143,26 @@ function tagLabel(tag: string) {
               <path fill-rule="evenodd" clip-rule="evenodd" d="M48.854 0C21.839 0 0 22 0 49.217c0 21.756 13.993 40.172 33.405 46.69 2.427.49 3.316-1.059 3.316-2.362 0-1.141-.08-5.052-.08-9.127-13.59 2.934-16.42-5.867-16.42-5.867-2.184-5.704-5.42-7.17-5.42-7.17-4.448-3.015.324-3.015.324-3.015 4.934.326 7.523 5.052 7.523 5.052 4.367 7.496 11.404 5.378 14.235 4.074.404-3.178 1.699-5.378 3.074-6.6-10.839-1.141-22.243-5.378-22.243-24.283 0-5.378 1.94-9.778 5.014-13.2-.485-1.222-2.184-6.275.486-13.038 0 0 4.125-1.304 13.426 5.052a46.97 46.97 0 0 1 12.214-1.63c4.125 0 8.33.571 12.213 1.63 9.302-6.356 13.427-5.052 13.427-5.052 2.67 6.763.97 11.816.485 13.038 3.155 3.422 5.015 7.822 5.015 13.2 0 18.905-11.404 23.06-22.324 24.283 1.78 1.548 3.316 4.481 3.316 9.126 0 6.6-.08 11.897-.08 13.526 0 1.304.89 2.853 3.316 2.364 19.412-6.52 33.405-24.935 33.405-46.691C97.707 22 75.788 0 48.854 0z"/>
             </svg>
           </a>
+
+          <!-- Language switcher -->
+          <DropdownMenu>
+            <DropdownMenuTrigger as-child>
+              <button class="text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg px-2 py-1.5 text-xs font-medium transition-colors">
+                {{ locale === 'zh-CN' ? '中文' : 'EN' }}
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" class="min-w-32">
+              <DropdownMenuItem
+                v-for="opt in localeOptions"
+                :key="opt.value"
+                @click="switchLocale(opt.value)"
+                class="flex items-center justify-between"
+              >
+                {{ opt.label }}
+                <Check v-if="locale === opt.value" class="size-3.5 text-primary" />
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
 
           <!-- 未登录：显示登录按钮 -->
           <template v-if="!userInfo">
@@ -220,6 +270,77 @@ function tagLabel(tag: string) {
       </div>
     </section>
 
+    <!-- ── The Problem ───────────────────────────────────────────── -->
+    <section id="problem" class="py-20 px-6 bg-muted/50 border-y border-border">
+      <div class="max-w-4xl mx-auto">
+        <SectionHeader
+          :tag="t('landing.problem.tag')"
+          :title="t('landing.problem.title')"
+          :subtitle="t('landing.problem.subtitle')"
+          subtitleClass="max-w-2xl"
+        />
+
+        <div class="space-y-3 mb-8">
+          <p class="text-[10px] font-black uppercase tracking-widest text-muted-foreground text-center mb-5">
+            {{ t('landing.problem.saif_label') }}
+          </p>
+          <div
+            v-for="item in saifItems"
+            :key="item.key"
+            class="flex items-start gap-4 p-4 rounded-xl border border-border bg-background"
+          >
+            <div :class="[item.iconBg, 'size-10 rounded-lg flex items-center justify-center shrink-0 text-xl']">
+              {{ item.icon }}
+            </div>
+            <div>
+              <p class="text-sm font-bold text-foreground">
+                {{ t('landing.problem.' + item.key + '_title') }}
+                <span class="text-xs font-normal text-muted-foreground ml-1.5">
+                  {{ t('landing.problem.' + item.key + '_sub') }}
+                </span>
+              </p>
+              <p class="text-xs text-muted-foreground mt-1 leading-relaxed">
+                {{ t('landing.problem.' + item.key + '_desc') }}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <p class="text-center text-xs text-muted-foreground">
+          {{ t('landing.problem.ref_prefix') }}<a
+            href="https://safety.google/cybersecurity-advancements/saif/"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="text-primary hover:underline underline-offset-4"
+          >{{ t('landing.problem.ref_link') }}</a>{{ t('landing.problem.ref_suffix') }}
+        </p>
+      </div>
+    </section>
+
+    <!-- ── Why Lattice ───────────────────────────────────────────── -->
+    <section id="why" class="py-20 px-6">
+      <div class="max-w-4xl mx-auto">
+        <SectionHeader
+          :tag="t('landing.why.tag')"
+          :title="t('landing.why.title')"
+          :subtitle="t('landing.why.subtitle')"
+          subtitleClass="max-w-2xl"
+        />
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+          <div
+            v-for="item in whyItems"
+            :key="item.key"
+            class="p-6 rounded-xl border border-border bg-muted/50"
+          >
+            <div class="text-2xl mb-4">{{ item.icon }}</div>
+            <p class="text-sm font-bold text-foreground mb-2">{{ t('landing.why.' + item.key + '_title') }}</p>
+            <p class="text-xs text-muted-foreground leading-relaxed">{{ t('landing.why.' + item.key + '_desc') }}</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <!-- ── Two Pillars ────────────────────────────────────────────── -->
     <section id="pillars" class="py-20 px-6 bg-muted/50 border-y border-border">
       <div class="max-w-5xl mx-auto">
@@ -306,7 +427,7 @@ function tagLabel(tag: string) {
           <!-- Docker -->
           <div class="lattice-card p-5">
             <code class="text-sm font-mono text-card-foreground block mb-2">
-              docker run -d --name lattice-k3s -p 443:443 ghcr.io/alatticeio/lattice-k3s:latest
+              docker run -d --name lattice-k3s -p 8080:8080 ghcr.io/alatticeio/lattice-k3s:latest
             </code>
             <p class="text-xs text-muted-foreground">{{ t('landing.quickstart.docker_hint') }}</p>
           </div>
@@ -330,93 +451,44 @@ function tagLabel(tag: string) {
       </div>
     </section>
 
-    <!-- ── Pricing ───────────────────────────────────────────────── -->
-    <section id="pricing" class="py-20 px-6">
+
+    <!-- ── Open Source ───────────────────────────────────────────── -->
+    <section id="open-source" class="py-20 px-6 bg-muted/50 border-y border-border">
       <div class="max-w-4xl mx-auto">
-        <div class="text-center mb-12">
-          <p class="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-2">{{ t('landing.pricing.label') }}</p>
-          <h2 class="text-2xl font-black tracking-tighter text-foreground">{{ t('landing.pricing.title') }}</h2>
-          <p class="text-muted-foreground text-sm mt-2.5 max-w-md mx-auto leading-relaxed">
-            {{ t('landing.pricing.subtitle') }}
-          </p>
-        </div>
+        <SectionHeader
+          :tag="t('landing.oss.tag')"
+          :title="t('landing.oss.title')"
+          :subtitle="t('landing.oss.subtitle')"
+          subtitleClass="max-w-2xl"
+        />
 
-        <div class="grid md:grid-cols-2 gap-5">
-          <!-- Community -->
-          <div class="lattice-card p-8 flex flex-col">
-            <div class="mb-6">
-              <p class="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-3">{{ t('landing.pricing.community_name') }}</p>
-              <div class="flex items-end gap-1.5 mb-2">
-                <span class="text-4xl font-black tracking-tighter text-foreground">{{ t('landing.pricing.community_price') }}</span>
-              </div>
-              <p class="text-xs text-muted-foreground">{{ t('landing.pricing.community_desc') }}</p>
-            </div>
-
-            <ul class="space-y-3 mb-8 flex-1">
-              <li class="flex items-center gap-2.5 text-sm text-foreground"><CheckCircle class="size-4 text-emerald-500 shrink-0" />{{ t('landing.pricing.community_feat_1') }}</li>
-              <li class="flex items-center gap-2.5 text-sm text-foreground"><CheckCircle class="size-4 text-emerald-500 shrink-0" />{{ t('landing.pricing.community_feat_2') }}</li>
-              <li class="flex items-center gap-2.5 text-sm text-foreground"><CheckCircle class="size-4 text-emerald-500 shrink-0" />{{ t('landing.pricing.community_feat_3') }}</li>
-              <li class="flex items-center gap-2.5 text-sm text-foreground"><CheckCircle class="size-4 text-emerald-500 shrink-0" />{{ t('landing.pricing.community_feat_4') }}</li>
-              <li class="flex items-center gap-2.5 text-sm text-foreground"><CheckCircle class="size-4 text-emerald-500 shrink-0" />{{ t('landing.pricing.community_feat_5') }}</li>
-              <li class="flex items-center gap-2.5 text-sm text-foreground"><CheckCircle class="size-4 text-emerald-500 shrink-0" />{{ t('landing.pricing.community_feat_6') }}</li>
-              <li class="flex items-center gap-2.5 text-sm text-foreground"><CheckCircle class="size-4 text-emerald-500 shrink-0" />{{ t('landing.pricing.community_feat_7') }}</li>
-              <li class="flex items-center gap-2.5 text-sm text-muted-foreground/50 line-through"><X class="size-4 text-muted-foreground/30 shrink-0" />{{ t('landing.pricing.pro_feat_locked_1') }}</li>
-              <li class="flex items-center gap-2.5 text-sm text-muted-foreground/50 line-through"><X class="size-4 text-muted-foreground/30 shrink-0" />{{ t('landing.pricing.pro_feat_locked_2') }}</li>
-              <li class="flex items-center gap-2.5 text-sm text-muted-foreground/50 line-through"><X class="size-4 text-muted-foreground/30 shrink-0" />{{ t('landing.pricing.pro_feat_locked_3') }}</li>
-            </ul>
-
-            <a href="https://github.com/alatticeio/lattice" target="_blank" rel="noopener noreferrer">
-              <Button variant="outline" class="w-full border-border" size="lg">
-                {{ t('landing.pricing.community_cta') }}
-              </Button>
-            </a>
-          </div>
-
-          <!-- Pro -->
-          <div class="relative lattice-card ring-2 ring-primary p-8 flex flex-col shadow-lg shadow-primary/10">
-            <!-- Badge -->
-            <div class="absolute -top-3.5 left-1/2 -translate-x-1/2">
-              <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-gradient-to-r from-indigo-600 to-indigo-500 text-white text-[11px] font-bold shadow-sm">
-                <Crown class="size-3" /> {{ t('landing.pricing.pro_badge') }}
-              </span>
-            </div>
-
-            <div class="mb-6">
-              <p class="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-3">{{ t('landing.pricing.pro_name') }}</p>
-              <div class="flex items-end gap-1.5 mb-2">
-                <span class="text-4xl font-black tracking-tighter text-foreground">{{ t('landing.pricing.pro_price') }}</span>
-                <span class="text-sm text-muted-foreground mb-1.5">{{ t('landing.pricing.pro_period') }}</span>
-              </div>
-              <p class="text-xs text-muted-foreground">{{ t('landing.pricing.pro_desc') }}</p>
-            </div>
-
-            <ul class="space-y-3 mb-8 flex-1">
-              <li class="flex items-center gap-2.5 text-sm font-medium text-primary"><CheckCircle class="size-4 shrink-0" />{{ t('landing.pricing.pro_feat_all') }}</li>
-              <li class="flex items-center gap-2.5 text-sm text-foreground"><CheckCircle class="size-4 text-emerald-500 shrink-0" />{{ t('landing.pricing.pro_feat_1') }}</li>
-              <li class="flex items-center gap-2.5 text-sm text-foreground"><CheckCircle class="size-4 text-emerald-500 shrink-0" />{{ t('landing.pricing.pro_feat_2') }}</li>
-              <li class="flex items-center gap-2.5 text-sm text-foreground"><CheckCircle class="size-4 text-emerald-500 shrink-0" />{{ t('landing.pricing.pro_feat_3') }}</li>
-              <li class="flex items-center gap-2.5 text-sm text-foreground"><CheckCircle class="size-4 text-emerald-500 shrink-0" />{{ t('landing.pricing.pro_feat_4') }}</li>
-              <li class="flex items-center gap-2.5 text-sm text-foreground"><CheckCircle class="size-4 text-emerald-500 shrink-0" />{{ t('landing.pricing.pro_feat_5') }}</li>
-              <li class="flex items-center gap-2.5 text-sm text-foreground"><CheckCircle class="size-4 text-emerald-500 shrink-0" />{{ t('landing.pricing.pro_feat_6') }}</li>
-              <li class="flex items-center gap-2.5 text-sm text-foreground"><CheckCircle class="size-4 text-emerald-500 shrink-0" />{{ t('landing.pricing.pro_feat_7') }}</li>
-              <li class="flex items-center gap-2.5 text-sm text-foreground"><CheckCircle class="size-4 text-emerald-500 shrink-0" />{{ t('landing.pricing.pro_feat_8') }}</li>
-            </ul>
-
-            <Button
-              class="w-full gap-2 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white border-0 shadow-md shadow-indigo-500/20"
-              size="lg"
-              @click="router.push('/auth/login')"
-            >
-              <Crown class="size-4" /> {{ t('landing.pricing.pro_cta') }}
-            </Button>
-            <p class="text-center text-[11px] text-muted-foreground mt-3">{{ t('landing.pricing.pro_disclaimer') }}</p>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+          <div
+            v-for="item in ossStats"
+            :key="item.valueKey"
+            class="text-center p-5 rounded-xl border border-border bg-background"
+          >
+            <p class="text-lg font-black tracking-tight text-foreground">{{ t('landing.oss.' + item.valueKey) }}</p>
+            <p class="text-xs text-muted-foreground mt-1">{{ t('landing.oss.' + item.labelKey) }}</p>
           </div>
         </div>
 
-        <!-- Enterprise hint -->
-        <div class="mt-5 flex items-center justify-center gap-2 text-sm text-muted-foreground">
-          <span>{{ t('landing.pricing.enterprise_text') }}</span>
-          <a href="mailto:hello@alattice.io" class="text-foreground font-medium hover:underline underline-offset-4 transition-colors">{{ t('landing.pricing.enterprise_link') }}</a>
+        <div class="flex flex-col sm:flex-row items-center justify-center gap-3">
+          <Button
+            variant="outline"
+            size="lg"
+            class="gap-2 border-border"
+            as="a"
+            href="https://github.com/alatticeio/lattice"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <svg class="size-4" viewBox="0 0 98 96" xmlns="http://www.w3.org/2000/svg" fill="currentColor" aria-hidden="true">
+              <path fill-rule="evenodd" clip-rule="evenodd" d="M48.854 0C21.839 0 0 22 0 49.217c0 21.756 13.993 40.172 33.405 46.69 2.427.49 3.316-1.059 3.316-2.362 0-1.141-.08-5.052-.08-9.127-13.59 2.934-16.42-5.867-16.42-5.867-2.184-5.704-5.42-7.17-5.42-7.17-4.448-3.015.324-3.015.324-3.015 4.934.326 7.523 5.052 7.523 5.052 4.367 7.496 11.404 5.378 14.235 4.074.404-3.178 1.699-5.378 3.074-6.6-10.839-1.141-22.243-5.378-22.243-24.283 0-5.378 1.94-9.778 5.014-13.2-.485-1.222-2.184-6.275.486-13.038 0 0 4.125-1.304 13.426 5.052a46.97 46.97 0 0 1 12.214-1.63c4.125 0 8.33.571 12.213 1.63 9.302-6.356 13.427-5.052 13.427-5.052 2.67 6.763.97 11.816.485 13.038 3.155 3.422 5.015 7.822 5.015 13.2 0 18.905-11.404 23.06-22.324 24.283 1.78 1.548 3.316 4.481 3.316 9.126 0 6.6-.08 11.897-.08 13.526 0 1.304.89 2.853 3.316 2.364 19.412-6.52 33.405-24.935 33.405-46.691C97.707 22 75.788 0 48.854 0z"/>
+            </svg>
+            {{ t('landing.oss.cta') }}
+          </Button>
+          <span class="text-xs text-muted-foreground font-mono">{{ t('landing.oss.cta_sub') }}</span>
         </div>
       </div>
     </section>
@@ -467,11 +539,10 @@ function tagLabel(tag: string) {
           {{ t('landing.footer.copyright') }}
         </p>
         <div class="flex items-center gap-5 text-xs text-muted-foreground">
-          <a href="#" class="hover:text-foreground transition-colors">{{ t('landing.nav.docs') }}</a>
-          <a href="#pricing" class="hover:text-foreground transition-colors">{{ t('landing.nav.pricing') }}</a>
+          <a href="https://docs.alattice.io" target="_blank" rel="noopener noreferrer" class="hover:text-foreground transition-colors">{{ t('landing.nav.docs') }}</a>
           <a href="https://github.com/alatticeio/lattice" target="_blank" rel="noopener noreferrer" class="hover:text-foreground transition-colors">{{ t('landing.nav.github') }}</a>
-          <a href="/legal/privacy" class="text-xs text-muted-foreground hover:text-foreground transition-colors">隐私政策</a>
-          <a href="/legal/terms" class="text-xs text-muted-foreground hover:text-foreground transition-colors">服务条款</a>
+          <a href="/legal/privacy" class="text-xs text-muted-foreground hover:text-foreground transition-colors">{{ t('landing.footer.privacy') }}</a>
+          <a href="/legal/terms" class="text-xs text-muted-foreground hover:text-foreground transition-colors">{{ t('landing.footer.terms') }}</a>
         </div>
       </div>
     </footer>

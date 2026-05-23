@@ -64,7 +64,7 @@
     "tag": "快速开始",
     "title": "三条命令，三种部署方式",
     "subtitle": "从 Docker 到 K8s 到 Sandbox，任选一种。",
-    "docker_hint": "约 30 秒后访问 http://localhost:443",
+    "docker_hint": "约 30 秒后访问 http://localhost:8080",
     "k8s_hint": "已有 K8s 集群时使用，自动创建所有 CRD 和控制器",
     "sandbox_hint": "零特权启动 AI Agent 沙箱，首次需 enrollment token"
   },
@@ -117,7 +117,56 @@
     "badge_5": "Sub-agent 委派",
     "badge_6": "流量审计"
   },
+  "problem": {
+    "tag": "AI 安全威胁",
+    "title": "AI Agent 在没有身份、没有边界的环境中运行",
+    "subtitle": "传统网络安全工具为静态服务设计：IP 固定、行为可预测、生命周期长。AI Agent 完全不同——它们动态启动、跨工具委派、能够执行任意代码。这正是 Google Secure AI Framework (SAIF) 所明确警告的攻击面：缺乏网络隔离的 AI Agent，一旦被攻破，就是一个对整个基础设施拥有执行权限的入口。",
+    "saif_label": "SAIF 要求 → LATTICE 实现",
+    "ref_prefix": "参考：",
+    "ref_link": "Google Secure AI Framework (SAIF)",
+    "ref_suffix": " — Mitigate novel AI security risks",
+    "item_1_title": "网络端点安全",
+    "item_1_sub": "Network & Endpoint Security",
+    "item_1_desc": "WireGuard 加密 Mesh — 每个 Agent 持有独立密钥对，流量端到端加密，控制面与数据面分离",
+    "item_2_title": "供应链攻击防护",
+    "item_2_sub": "Supply Chain Isolation",
+    "item_2_desc": "gVisor 用户态内核 — Agent 在沙箱中运行，无 root、无 TUN、无 iptables，沙箱逃逸无法触达宿主机",
+    "item_3_title": "访问管理",
+    "item_3_sub": "Access Management",
+    "item_3_desc": "Policy 引擎 + AgentIdentity CRD — 精细到工具级的权限控制，Sub-agent 权限不超父级",
+    "item_4_title": "统一平台管控",
+    "item_4_sub": "Harmonized Platform Controls",
+    "item_4_desc": "单一 K8s-native 控制面 — 13 个 CRD 统一管理 Agent、隧道、网络策略的全生命周期"
+  },
+  "why": {
+    "tag": "我们的方法",
+    "title": "SAIF 的基础设施层实现，以开源方式交付",
+    "subtitle": "现有的网络方案（Calico、Cilium）为静态服务设计，不理解 AI Agent 的工具调用链、动态委派、凭证持久化。我们构建 Lattice，相信每个 AI Agent 都应拥有可审计、可撤销、权限精细的网络身份。",
+    "item_1_title": "身份优先",
+    "item_1_desc": "每个 Agent 持有唯一 WireGuard 密钥对，身份不依赖 IP，可撤销、可追溯",
+    "item_2_title": "全程可追溯",
+    "item_2_desc": "每次 MCP 工具调用自动记录 tool_span（traceId、agentId、耗时、状态），委派链完整可查",
+    "item_3_title": "零特权运行",
+    "item_3_desc": "gVisor 沙箱，无需 root，一条命令启动，不改变宿主机任何状态"
+  },
+  "oss": {
+    "tag": "开源",
+    "title": "核心能力永远开源，社区优先",
+    "subtitle": "AI 基础设施不应该是黑盒。WireGuard Mesh、gVisor 沙箱、工具调用追踪——这些核心安全能力在 Community 版本中完整开放，Apache 2.0 授权，可自托管、可审计、可修改。PRO 版本提供企业级扩展，但开源承诺永远不变。",
+    "stat_1_value": "Apache 2.0",
+    "stat_1_label": "License",
+    "stat_2_value": "Go 1.25",
+    "stat_2_label": "Language",
+    "stat_3_value": "13 CRDs",
+    "stat_3_label": "K8s Native",
+    "stat_4_value": "Self-hosted",
+    "stat_4_label": "Zero lock-in",
+    "cta": "在 GitHub 上查看源码",
+    "cta_sub": "github.com/alatticeio/lattice"
+  },
   "footer": {
-    "copyright": "© 2026 Lattice. All rights reserved."
+    "copyright": "© 2026 Lattice. All rights reserved.",
+    "privacy": "隐私政策",
+    "terms": "服务条款"
   }
 }

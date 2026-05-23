@@ -64,7 +64,7 @@
     "tag": "Quickstart",
     "title": "Three Commands, Three Ways to Deploy",
     "subtitle": "Docker, Kubernetes, or sandbox — pick yours.",
-    "docker_hint": "Visit http://localhost:443 after ~30s",
+    "docker_hint": "Visit http://localhost:8080 after ~30s",
     "k8s_hint": "For existing clusters, auto-creates all CRDs and controllers",
     "sandbox_hint": "Zero-privilege AI agent sandbox, requires enrollment token on first launch"
   },
@@ -117,7 +117,56 @@
     "badge_5": "Sub-agent Delegation",
     "badge_6": "Traffic Audit"
   },
+  "problem": {
+    "tag": "AI Security Imperative",
+    "title": "AI Agents Run Without Identity or Boundaries",
+    "subtitle": "Traditional security tools were designed for static services: fixed IPs, predictable behavior, long lifecycles. AI Agents are fundamentally different — they spin up dynamically, delegate across tools, and can execute arbitrary code. This is exactly the attack surface Google's Secure AI Framework (SAIF) warns about: an AI Agent without network isolation is an execution-capable entry point into your entire infrastructure.",
+    "saif_label": "SAIF REQUIREMENT → LATTICE IMPLEMENTATION",
+    "ref_prefix": "Reference: ",
+    "ref_link": "Google Secure AI Framework (SAIF)",
+    "ref_suffix": " — Mitigate novel AI security risks",
+    "item_1_title": "Network & Endpoint Security",
+    "item_1_sub": "网络端点安全",
+    "item_1_desc": "WireGuard Encrypted Mesh — every Agent holds its own key pair, traffic is end-to-end encrypted, control and data planes are separated",
+    "item_2_title": "Supply Chain Isolation",
+    "item_2_sub": "供应链攻击防护",
+    "item_2_desc": "gVisor userspace kernel — Agents run in sandbox with no root, no TUN, no iptables; sandbox escape cannot reach the host",
+    "item_3_title": "Access Management",
+    "item_3_sub": "访问管理",
+    "item_3_desc": "Policy engine + AgentIdentity CRD — tool-level permission control, sub-agent permissions never exceed parent",
+    "item_4_title": "Harmonized Platform Controls",
+    "item_4_sub": "统一平台管控",
+    "item_4_desc": "Single K8s-native control plane — 13 CRDs manage the full lifecycle of Agents, tunnels, and network policies"
+  },
+  "why": {
+    "tag": "Our Approach",
+    "title": "The Infrastructure Layer for SAIF, Delivered as Open Source",
+    "subtitle": "Existing network solutions (Calico, Cilium) were designed for static services. They don't understand AI Agent tool call chains, dynamic delegation, or credential persistence. We built Lattice because every AI Agent deserves a network identity that is auditable, revocable, and permission-scoped.",
+    "item_1_title": "Identity-First",
+    "item_1_desc": "Every Agent holds a unique WireGuard key pair. Identity is not tied to IP — it's cryptographic, revocable, and auditable",
+    "item_2_title": "Full Observability",
+    "item_2_desc": "Every MCP tool call automatically records a tool_span (traceId, agentId, duration, status). Delegation chains are fully queryable",
+    "item_3_title": "Zero Privilege",
+    "item_3_desc": "gVisor sandbox. No root required. One command to start. Zero changes to host machine state"
+  },
+  "oss": {
+    "tag": "Open Source",
+    "title": "Core Capabilities Always Open, Community First",
+    "subtitle": "AI infrastructure should not be a black box. WireGuard Mesh, gVisor sandbox, tool call tracing — these core security capabilities are fully open in the Community edition, Apache 2.0 licensed, self-hostable, auditable, and modifiable. PRO adds enterprise extensions, but the open source commitment never changes.",
+    "stat_1_value": "Apache 2.0",
+    "stat_1_label": "License",
+    "stat_2_value": "Go 1.25",
+    "stat_2_label": "Language",
+    "stat_3_value": "13 CRDs",
+    "stat_3_label": "K8s Native",
+    "stat_4_value": "Self-hosted",
+    "stat_4_label": "Zero lock-in",
+    "cta": "View Source on GitHub",
+    "cta_sub": "github.com/alatticeio/lattice"
+  },
   "footer": {
-    "copyright": "© 2026 Lattice. All rights reserved."
+    "copyright": "© 2026 Lattice. All rights reserved.",
+    "privacy": "Privacy Policy",
+    "terms": "Terms of Service"
   }
 }

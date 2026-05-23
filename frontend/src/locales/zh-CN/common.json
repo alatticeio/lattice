@@ -194,6 +194,32 @@
       "historyBy": "执行人："
     }
   },
+  "auth": {
+    "signup": {
+      "title": "创建账号",
+      "subtitle": "输入用户名和密码开始使用",
+      "username": "用户名",
+      "usernamePlaceholder": "选择一个用户名",
+      "password": "密码",
+      "passwordPlaceholder": "至少 6 位字符",
+      "confirmPassword": "确认密码",
+      "confirmPasswordPlaceholder": "再次输入密码",
+      "tosPrefix": "我已阅读并同意",
+      "tosLink": "服务条款",
+      "tosAnd": "和",
+      "privacyLink": "隐私政策",
+      "submit": "创建账号",
+      "submitting": "创建中...",
+      "successMsg": "账号创建成功！请登录。",
+      "errorMsg": "注册失败，请重试",
+      "usernameRequiredMsg": "用户名不能为空",
+      "passwordShortMsg": "密码至少需要 6 位字符",
+      "passwordMismatchMsg": "两次输入的密码不一致",
+      "tosRequiredMsg": "请先同意服务条款和隐私政策",
+      "hasAccount": "已有账号？",
+      "signIn": "立即登录"
+    }
+  },
   "sandbox": {
     "list": {
       "title": "Agent 沙箱",
