@@ -2,12 +2,12 @@ version: 2
 project_name: lattice
 
 builds:
-  # Edge Agent (bare metal / non-k8s nodes)
-  - id: "lattice"
+  # Edge Agent — Linux（pro 全功能，含 eBPF）
+  - id: "lattice-linux"
     binary: "lattice"
     main: "./cmd/lattice/main.go"
     flags:
-      - -tags pro
+      - -tags=pro
     env:
       - CGO_ENABLED=0
     ldflags:
@@ -17,17 +17,37 @@ builds:
       - -X lattice/pkg/version.BuildTime={{.Date}}
     goos:
       - linux
+    goarch:
+      - amd64
+      - arm64
+
+  # Edge Agent — macOS / Windows（CLI 客户端，eBPF 不适用于非 Linux）
+  - id: "lattice-darwin-windows"
+    binary: "lattice"
+    main: "./cmd/lattice/main.go"
+    env:
+      - CGO_ENABLED=0
+    ldflags:
+      - -s -w
+      - -X lattice/pkg/version.Version={{.Version}}
+      - -X lattice/pkg/version.GitCommit={{.Commit}}
+      - -X lattice/pkg/version.BuildTime={{.Date}}
+    goos:
       - darwin
       - windows
     goarch:
       - amd64
+      - arm64
+    ignore:
+      - goos: windows
+        goarch: arm64
 
   # All-in-One 控制面（嵌入 NATS + SQLite，仅 linux）
   - id: "latticed"
     binary: "latticed"
     main: "./cmd/latticed/main.go"
     flags:
-      - -tags pro
+      - -tags=pro
     env:
       - CGO_ENABLED=0
     ldflags:
@@ -39,13 +59,15 @@ builds:
       - linux
     goarch:
       - amd64
+      - arm64
 
 archives:
   # lattice agent 打包（面向边缘/终端用户）
   - id: "lattice-archive"
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     builds:
-      - lattice
+      - lattice-linux
+      - lattice-darwin-windows
     format_overrides:
       - goos: windows
         format: zip
