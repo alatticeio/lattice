@@ -8,6 +8,9 @@ on:
     workflows: ["Release"]
     branches: [master, main]
     types: [completed]
+  pull_request:
+    types: [labeled]
+    branches: [master, main]
   workflow_dispatch:
 
 permissions:
@@ -21,7 +24,10 @@ env:
 
 jobs:
   test-readme-scripts:
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success' ||
+      (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'run-readme'))
     runs-on: ubuntu-latest
     timeout-minutes: 40
 

@@ -23,7 +23,8 @@ jobs:
   helm-deploy-test:
     if: |
       (github.event_name == 'push' && github.ref == 'refs/heads/dev') ||
-      (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'run-e2e'))
+      (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'run-helm')) ||
+      github.event_name == 'workflow_dispatch'
 
     runs-on: ubuntu-latest
     timeout-minutes: 20
