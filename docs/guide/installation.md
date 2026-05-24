@@ -77,7 +77,7 @@ docker run -d \
 ### Kubernetes（Helm）
 
 ```bash
-helm install lattice ./deploy/charts/lattice \
+helm install lattice oci://ghcr.io/alatticeio/charts/lattice \
   --set config.jwt.secret="$(openssl rand -base64 32)" \
   --namespace lattice-system --create-namespace
 ```

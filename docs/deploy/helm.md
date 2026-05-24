@@ -8,12 +8,12 @@
 
 ---
 
-## 快速安装（开发/试用）
+## 安装 Chart
 
-使用仓库内的 chart 直接安装，SQLite 存储，单副本：
+Chart 已发布到 GHCR OCI 仓库，无需克隆源码即可直接安装：
 
 ```bash
-helm install lattice ./deploy/charts/lattice \
+helm install lattice oci://ghcr.io/alatticeio/charts/lattice \
   --set config.jwt.secret="$(openssl rand -base64 32)" \
   --namespace lattice-system --create-namespace
 ```
@@ -26,19 +26,62 @@ kubectl port-forward -n lattice-system svc/lattice 8080:8080
 
 打开 `http://localhost:8080`，默认账号 `admin / changeme`。
 
+> 如需指定版本，加上 `--version 0.x.x`。查看可用版本：
+> ```bash
+> helm show chart oci://ghcr.io/alatticeio/charts/lattice
+> ```
+
+---
+
+## NATS 端口暴露
+
+Agent 节点需要从集群外访问 NATS 信令端口（`4222`）。Chart 提供两种方式：
+
+### 方式一：hostPort（默认，推荐用于 k3s）
+
+`service.natsHostPort: true`（默认已开启），NATS 容器端口直接绑定到节点宿主机的 `4222`。
+
+Agent 连接地址填写**节点 IP**：
+```
+nats://<节点IP>:4222
+```
+
+无需额外配置，适合 k3s / 单节点集群。
+
+> **注意：** Pod 必须调度到有公网 IP（或 agent 可达 IP）的节点上，建议配合 `nodeSelector` 固定节点。
+
+### 方式二：LoadBalancer Service
+
+```yaml
+service:
+  type: LoadBalancer
+  natsHostPort: false
+```
+
+Cloud 环境（EKS、GKE、AKS 等）会自动分配外部 IP。Agent 连接地址使用 Service 的 `EXTERNAL-IP`：
+
+```bash
+kubectl get svc -n lattice-system lattice -o jsonpath='{.status.loadBalancer.ingress[0].ip}'
+```
+
+### 方式三：Traefik IngressRouteTCP（Traefik 用户）
+
+需要 Traefik 提前配置名为 `nats` 的 TCP entrypoint（监听 `4222`）：
+
+```yaml
+# values.yaml
+service:
+  natsHostPort: false
+ingressRouteTCP:
+  enabled: true
+  entrypoint: nats   # 与 Traefik entrypoint 名称一致
+```
+
 ---
 
 ## 生产安装
 
 ### 1. 准备 values 文件
-
-复制生产模板并按需修改：
-
-```bash
-cp deploy/charts/lattice/values.prod.yaml my-values.yaml
-```
-
-关键字段：
 
 ```yaml
 ingress:
@@ -49,9 +92,13 @@ ingress:
     enabled: true
     secretName: lattice-tls      # cert-manager 自动签发或手动创建
 
+service:
+  type: LoadBalancer
+  natsHostPort: false            # 生产环境建议用 LoadBalancer
+
 config:
   signalingUrl: "nats://nats.lattice-system.svc.cluster.local:4222"  # 外部 NATS
-  stunUrl: "stun.alattice.io:3478"   # 使用托管 STUN（默认），或填自建地址
+  stunUrl: "stun.alattice.io:3478"
 
 extraEnv:
   - name: APP_DATABASE_DSN
@@ -61,7 +108,7 @@ extraEnv:
 ### 2. 安装
 
 ```bash
-helm install lattice ./deploy/charts/lattice \
+helm install lattice oci://ghcr.io/alatticeio/charts/lattice \
   -f my-values.yaml \
   --set config.jwt.secret="$(openssl rand -base64 32)" \
   --namespace lattice-system --create-namespace
@@ -78,7 +125,7 @@ helm install lattice ./deploy/charts/lattice \
 如果部署环境无法访问外部网络，可启用内置 coturn：
 
 ```bash
-helm install lattice ./deploy/charts/lattice \
+helm install lattice oci://ghcr.io/alatticeio/charts/lattice \
   --set config.jwt.secret="$(openssl rand -base64 32)" \
   --set coturn.enabled=true \
   --set config.stunUrl="<节点公网IP>:3478" \
@@ -105,6 +152,10 @@ coturn 以 `--stun-only` 模式运行（纯 STUN，不做 TURN relay），通过
 | `config.signalingUrl` | 外部 NATS 地址；为空时使用 Pod 内嵌 NATS | `""` |
 | `config.stunUrl` | STUN 服务地址 | `stun.alattice.io:3478` |
 | `config.database.dsn` | SQLite 路径；设置 `APP_DATABASE_DSN` 环境变量可切换 MySQL | `data/lattice.db` |
+| `service.type` | Service 类型 | `LoadBalancer` |
+| `service.natsHostPort` | 将 NATS 4222 绑定到宿主机 hostPort（k3s 推荐） | `true` |
+| `ingressRouteTCP.enabled` | 启用 Traefik IngressRouteTCP 暴露 NATS | `false` |
+| `ingressRouteTCP.entrypoint` | Traefik TCP entrypoint 名称 | `nats` |
 | `persistence.enabled` | 是否挂载 PVC（SQLite 模式必须开启） | `true` |
 | `persistence.size` | 存储大小 | `10Gi` |
 | `persistence.storageClass` | StorageClass；为空时使用集群默认 | `""` |
@@ -123,7 +174,7 @@ coturn 以 `--stun-only` 模式运行（纯 STUN，不做 TURN relay），通过
 ## 升级
 
 ```bash
-helm upgrade lattice ./deploy/charts/lattice \
+helm upgrade lattice oci://ghcr.io/alatticeio/charts/lattice \
   -f my-values.yaml \
   --set config.jwt.secret="<your-secret>" \
   --namespace lattice-system
@@ -152,11 +203,21 @@ helm uninstall lattice -n lattice-system
 openssl rand -base64 32
 ```
 
-**agents 无法连接信令**
+**Agent 无法连接信令（4222 端口不可达）**
 
-检查 `config.signalingUrl`：
-- 单节点模式（默认）：NATS 内嵌在 Pod 里，agent 需要能访问到 Pod 的 4222 端口
-- 生产模式：填写外部 NATS 地址，确保 agent 网络可达
+- **hostPort 模式（默认）**：确认 agent 使用的是 Pod 所在**节点 IP**，而非 Service ClusterIP 或 DNS 名称；检查节点防火墙是否放行 `4222/TCP`。
+- **LoadBalancer 模式**：等待 `EXTERNAL-IP` 分配完成（`kubectl get svc -n lattice-system`），确认云安全组开放 `4222/TCP`。
+- **Traefik IngressRouteTCP**：确认 Traefik 已配置 `nats` entrypoint，且 `ingressRouteTCP.entrypoint` 与之一致。
+
+**agents 使用的 signalingUrl 怎么填**
+
+Agent 配置文件或启动参数中填写可从外部访问的 NATS 地址，格式：
+
+```
+nats://<外部IP或域名>:4222
+```
+
+也可通过 Dashboard → Platform Settings → NATS Signaling URL 统一配置，Agent 会在启动时自动从 `/api/v1/discovery` 拉取。
 
 **coturn 无法穿透**
 
