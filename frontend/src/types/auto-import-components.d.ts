@@ -26,6 +26,8 @@ declare module 'vue' {
     AppSidebarTeamSwitcher: typeof import('./../components/app-sidebar/TeamSwitcher.vue')['default']
     AuthLoginForm: typeof import('./../components/auth/LoginForm.vue')['default']
     AuthSignupForm: typeof import('./../components/auth/SignupForm.vue')['default']
+    AvatarPicker: typeof import('./../components/AvatarPicker.vue')['default']
+    AvatarPreset: typeof import('./../components/AvatarPreset.vue')['default']
     ConfirmDialog: typeof import('./../components/ConfirmDialog.vue')['default']
     DataTablePagination: typeof import('./../components/DataTablePagination.vue')['default']
     HelloWorld: typeof import('./../components/HelloWorld.vue')['default']

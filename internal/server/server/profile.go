@@ -5,7 +5,6 @@ import (
 	"github.com/alatticeio/lattice/internal/server/dto"
 	"github.com/alatticeio/lattice/internal/server/server/middleware"
 	"github.com/alatticeio/lattice/pkg/utils/resp"
-	"net/http"
 
 	"github.com/gin-gonic/gin"
 )
@@ -28,7 +27,7 @@ func (s *Server) getProfile() gin.HandlerFunc {
 			return
 		}
 
-		c.JSON(http.StatusOK, response)
+		resp.OK(c, response)
 	}
 }
 

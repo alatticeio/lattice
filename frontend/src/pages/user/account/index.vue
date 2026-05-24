@@ -1,21 +1,30 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { ShieldCheck, Smartphone, Monitor, Chrome, AlertTriangle, Eye, EyeOff, LogOut } from 'lucide-vue-next'
+import { ShieldCheck, Smartphone, Monitor, Chrome, AlertTriangle, Eye, EyeOff, LogOut, Loader2 } from 'lucide-vue-next'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import Switch from '@/components/ui/switch/Switch.vue'
 import UserSettingsNav from '@/components/UserSettingsNav.vue'
+import { toast } from 'vue-sonner'
+import request from '@/api/request'
+import { useUserStore } from '@/stores/user'
 
 definePage({
   meta: { title: 'Account', description: 'Manage your account security and settings.' },
 })
 
-const email = ref('admin@example.com')
+const userStore = useUserStore()
+
+const email = computed(() => userStore.userInfo?.email ?? '')
 const newEmail = ref('')
+const emailPassword = ref('')
+const savingEmail = ref(false)
+
 const showCurrent = ref(false)
 const showNew = ref(false)
 const showConfirm = ref(false)
 const passwords = ref({ current: '', next: '', confirm: '' })
+const savingPw = ref(false)
 const twoFactor = ref(false)
 
 const sessions = [
@@ -32,6 +41,60 @@ const pwStrength = computed(() => {
   if (len < 14)   return { level: 3, label: 'Good',      bar: 'bg-blue-500',   text: 'text-blue-500' }
   return               { level: 4, label: 'Strong',   bar: 'bg-emerald-500', text: 'text-emerald-500' }
 })
+
+async function updateEmail() {
+  if (!newEmail.value) {
+    toast.error('Please enter a new email address')
+    return
+  }
+  savingEmail.value = true
+  try {
+    const { code, message } = await request.put('/profile/updateProfile', {
+      name: userStore.userInfo?.username ?? '',
+      email: newEmail.value,
+    }) as any
+    if (code === 200) {
+      if (userStore.userInfo) userStore.userInfo.email = newEmail.value
+      newEmail.value = ''
+      emailPassword.value = ''
+      toast.success('Email updated')
+    } else {
+      toast.error(message ?? 'Update failed')
+    }
+  } catch {
+    toast.error('Update failed')
+  } finally {
+    savingEmail.value = false
+  }
+}
+
+async function updatePassword() {
+  if (!passwords.value.current || !passwords.value.next) {
+    toast.error('Please fill in all password fields')
+    return
+  }
+  if (passwords.value.next !== passwords.value.confirm) {
+    toast.error('New passwords do not match')
+    return
+  }
+  savingPw.value = true
+  try {
+    const { code, message } = await request.put('/users/me/password', {
+      currentPassword: passwords.value.current,
+      newPassword: passwords.value.next,
+    }) as any
+    if (code === 200) {
+      passwords.value = { current: '', next: '', confirm: '' }
+      toast.success('Password updated')
+    } else {
+      toast.error(message ?? 'Update failed')
+    }
+  } catch {
+    toast.error('Update failed')
+  } finally {
+    savingPw.value = false
+  }
+}
 </script>
 
 <template>
@@ -53,11 +116,10 @@ const pwStrength = computed(() => {
             <label class="text-xs font-medium text-foreground/80">New email address</label>
             <Input v-model="newEmail" type="email" placeholder="new@example.com" />
           </div>
-          <div class="space-y-1.5">
-            <label class="text-xs font-medium text-foreground/80">Confirm with password</label>
-            <Input type="password" placeholder="Your current password" />
-          </div>
-          <Button size="sm">Update email</Button>
+          <Button size="sm" :disabled="savingEmail" @click="updateEmail">
+            <Loader2 v-if="savingEmail" class="mr-1.5 size-3.5 animate-spin" />
+            Update email
+          </Button>
         </div>
       </div>
 
@@ -102,7 +164,10 @@ const pwStrength = computed(() => {
             </div>
             <p class="text-xs" :class="pwStrength.text">{{ pwStrength.label }}</p>
           </div>
-          <Button size="sm">Update password</Button>
+          <Button size="sm" :disabled="savingPw" @click="updatePassword">
+            <Loader2 v-if="savingPw" class="mr-1.5 size-3.5 animate-spin" />
+            Update password
+          </Button>
         </div>
       </div>
 

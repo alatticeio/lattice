@@ -9,7 +9,7 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuGroup,
   DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import AvatarPreset from '@/components/AvatarPreset.vue'
 import { Input } from '@/components/ui/input'
 import AppSidebar from '@/components/app-sidebar/AppSidebar.vue'
 import PageHeader from '@/components/PageHeader.vue'
@@ -26,10 +26,6 @@ const userStore = useUserStore()
 const { userInfo, logout } = userStore
 const { t, locale } = useI18n()
 
-const avatarFallback = computed(() => {
-  const name = userInfo?.username ?? userInfo?.email ?? '?'
-  return name.slice(0, 2).toUpperCase()
-})
 
 const isDark = computed(() => config.value.theme === 'dark'
   || (config.value.theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches))
@@ -122,11 +118,7 @@ const isFullHeight = computed(() => !!route.meta.fullHeight)
           <DropdownMenu>
             <DropdownMenuTrigger as-child>
               <button class="hover:ring-border flex items-center gap-2 rounded-lg px-1 py-0.5 transition-colors hover:ring-2">
-                <Avatar class="size-7">
-                  <AvatarFallback class="bg-primary text-primary-foreground text-xs font-semibold">
-                    {{ avatarFallback }}
-                  </AvatarFallback>
-                </Avatar>
+                <AvatarPreset :avatar-url="userInfo?.avatarUrl ?? ''" :size="28" :fallback="userInfo?.username" />
                 <div class="hidden text-left md:block">
                   <p class="text-sm font-medium leading-none">{{ userInfo?.username ?? '...' }}</p>
                   <p class="text-muted-foreground text-xs">{{ userInfo?.email ?? '' }}</p>

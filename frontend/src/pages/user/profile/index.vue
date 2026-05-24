@@ -1,37 +1,96 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import { Camera, Trash2, Globe, MapPin, Building2, Github, Twitter, Save } from 'lucide-vue-next'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { ref, computed, onMounted } from 'vue'
+import { Camera, MapPin, Save, Loader2 } from 'lucide-vue-next'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
+import { toast } from 'vue-sonner'
 import UserSettingsNav from '@/components/UserSettingsNav.vue'
+import AvatarPreset from '@/components/AvatarPreset.vue'
+import AvatarPicker from '@/components/AvatarPicker.vue'
+import { useUserStore } from '@/stores/user'
+import request from '@/api/request'
 
 definePage({
-  meta: { title: 'Profile', description: 'Manage your public profile information.' },
+  meta: { titleKey: 'settings.profile.title', descKey: 'settings.profile.desc' },
 })
 
+const userStore = useUserStore()
+
+const loading = ref(false)
+const saving = ref(false)
+const pickerOpen = ref(false)
+
 const form = ref({
-  displayName: 'Admin User',
-  username: 'adminuser',
-  bio: 'Full-stack developer and product designer. Building things for the web.',
-  website: 'https://example.com',
-  location: 'San Francisco, CA',
-  company: 'Acme Inc.',
-  twitter: 'adminuser',
-  github: 'adminuser',
+  name: userStore.userInfo?.username ?? '',
+  email: userStore.userInfo?.email ?? '',
+  avatarUrl: userStore.userInfo?.avatarUrl ?? '',
+  title: '',
+  company: '',
+  bio: '',
+  timezone: '',
+  language: '',
 })
 
 const bioMax = 200
-const bioLeft = computed(() => bioMax - form.value.bio.length)
+const bioLeft = computed(() => bioMax - (form.value.bio?.length ?? 0))
 
-function save() { /* submit */ }
+async function fetchProfile() {
+  loading.value = true
+  try {
+    const { data, code } = await request.post('/profile/getProfile', {}) as any
+    if (code === 200 && data) {
+      form.value = {
+        name: data.name || userStore.userInfo?.username || '',
+        email: data.email || userStore.userInfo?.email || '',
+        avatarUrl: data.avatarUrl || userStore.userInfo?.avatarUrl || '',
+        title: data.title ?? '',
+        company: data.company ?? '',
+        bio: data.bio ?? '',
+        timezone: data.timezone ?? '',
+        language: data.language ?? '',
+      }
+    }
+  } catch {
+    // fetchProfile 失败时保持 userStore 的基础数据，不影响保存
+  } finally {
+    loading.value = false
+  }
+}
+
+async function save() {
+  saving.value = true
+  try {
+    const { code } = await request.put('/profile/updateProfile', form.value) as any
+    if (code === 200) {
+      if (userStore.userInfo) {
+        userStore.userInfo.avatarUrl = form.value.avatarUrl
+        userStore.userInfo.username = form.value.name
+      }
+      toast.success('保存成功')
+    }
+  } catch {
+    toast.error('保存失败')
+  } finally {
+    saving.value = false
+  }
+}
+
+function onAvatarSelect(url: string) {
+  form.value.avatarUrl = url
+}
+
+onMounted(fetchProfile)
 </script>
 
 <template>
   <div class="flex flex-col">
     <UserSettingsNav />
 
-    <div class="mx-auto w-full max-w-3xl space-y-5 p-6">
+    <div v-if="loading" class="flex items-center justify-center py-16">
+      <Loader2 class="size-6 animate-spin text-muted-foreground" />
+    </div>
+
+    <div v-else class="mx-auto w-full max-w-3xl space-y-5 p-6">
 
       <!-- Avatar -->
       <div class="bg-card border border-border rounded-xl overflow-hidden">
@@ -39,21 +98,24 @@ function save() { /* submit */ }
         <div class="px-6 pb-5">
           <div class="flex items-end justify-between -mt-8 mb-3">
             <div class="relative">
-              <Avatar class="size-16 ring-4 ring-card">
-                <AvatarFallback class="bg-primary text-primary-foreground text-xl font-bold">AU</AvatarFallback>
-              </Avatar>
-              <button class="absolute bottom-0 right-0 size-6 rounded-full bg-card border border-border shadow-sm flex items-center justify-center hover:bg-muted transition-colors">
+              <AvatarPreset
+                :avatar-url="form.avatarUrl"
+                :size="64"
+                :fallback="form.name"
+                class="ring-4 ring-card"
+              />
+              <button
+                @click="pickerOpen = true"
+                class="absolute bottom-0 right-0 size-6 rounded-full bg-card border border-border shadow-sm flex items-center justify-center hover:bg-muted transition-colors"
+              >
                 <Camera class="size-3" />
               </button>
             </div>
             <div class="flex gap-2">
-              <Button variant="outline" size="sm">Upload photo</Button>
-              <Button variant="ghost" size="sm" class="text-muted-foreground hover:text-destructive gap-1.5">
-                <Trash2 class="size-3.5" /> Remove
-              </Button>
+              <Button variant="outline" size="sm" @click="pickerOpen = true">选择头像</Button>
             </div>
           </div>
-          <p class="text-xs text-muted-foreground/60">JPG, PNG or GIF · Max 5 MB · Recommended 400×400px</p>
+          <p class="text-xs text-muted-foreground/60">从预设图标中选择你的头像</p>
         </div>
       </div>
 
@@ -67,14 +129,11 @@ function save() { /* submit */ }
           <div class="grid gap-4 sm:grid-cols-2">
             <div class="space-y-1.5">
               <label class="text-xs font-medium text-foreground/80">Display Name</label>
-              <Input v-model="form.displayName" placeholder="Your name" />
+              <Input v-model="form.name" placeholder="Your name" />
             </div>
             <div class="space-y-1.5">
-              <label class="text-xs font-medium text-foreground/80">Username</label>
-              <div class="relative">
-                <span class="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground select-none">@</span>
-                <Input v-model="form.username" class="pl-7" placeholder="username" />
-              </div>
+              <label class="text-xs font-medium text-foreground/80">Title</label>
+              <Input v-model="form.title" placeholder="e.g. Software Engineer" />
             </div>
           </div>
           <div class="space-y-1.5">
@@ -102,42 +161,12 @@ function save() { /* submit */ }
           <p class="text-xs text-muted-foreground mt-0.5">Where people can find you online.</p>
         </div>
         <div class="p-6 space-y-4">
-          <div class="space-y-1.5">
-            <label class="text-xs font-medium text-foreground/80 flex items-center gap-1.5">
-              <Globe class="size-3 text-muted-foreground" /> Website
-            </label>
-            <Input v-model="form.website" type="url" placeholder="https://yoursite.com" />
-          </div>
           <div class="grid gap-4 sm:grid-cols-2">
             <div class="space-y-1.5">
               <label class="text-xs font-medium text-foreground/80 flex items-center gap-1.5">
-                <MapPin class="size-3 text-muted-foreground" /> Location
-              </label>
-              <Input v-model="form.location" placeholder="City, Country" />
-            </div>
-            <div class="space-y-1.5">
-              <label class="text-xs font-medium text-foreground/80 flex items-center gap-1.5">
-                <Building2 class="size-3 text-muted-foreground" /> Company
+                <MapPin class="size-3 text-muted-foreground" /> Company
               </label>
               <Input v-model="form.company" placeholder="Company name" />
-            </div>
-          </div>
-          <div class="h-px bg-border" />
-          <div class="grid gap-4 sm:grid-cols-2">
-            <div class="space-y-1.5">
-              <label class="text-xs font-medium text-foreground/80 flex items-center gap-1.5">
-                <Twitter class="size-3 text-muted-foreground" /> Twitter / X
-              </label>
-              <div class="relative">
-                <span class="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground select-none">@</span>
-                <Input v-model="form.twitter" class="pl-7" placeholder="handle" />
-              </div>
-            </div>
-            <div class="space-y-1.5">
-              <label class="text-xs font-medium text-foreground/80 flex items-center gap-1.5">
-                <Github class="size-3 text-muted-foreground" /> GitHub
-              </label>
-              <Input v-model="form.github" placeholder="username" />
             </div>
           </div>
         </div>
@@ -145,12 +174,16 @@ function save() { /* submit */ }
 
       <!-- Save -->
       <div class="flex justify-end gap-2">
-        <Button variant="outline">Cancel</Button>
-        <Button class="gap-1.5" @click="save">
-          <Save class="size-3.5" /> Save changes
+        <Button variant="outline" @click="fetchProfile">Cancel</Button>
+        <Button class="gap-1.5" :disabled="saving" @click="save">
+          <Loader2 v-if="saving" class="size-3.5 animate-spin" />
+          <Save v-else class="size-3.5" />
+          Save changes
         </Button>
       </div>
 
     </div>
   </div>
+
+  <AvatarPicker v-model:open="pickerOpen" :current="form.avatarUrl" @select="onAvatarSelect" />
 </template>

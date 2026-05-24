@@ -165,6 +165,10 @@
     "detailBtn": "Detail",
     "empty": "No audit records"
   },
+  "profile": {
+    "title": "Profile",
+    "desc": "Manage your public information and avatar."
+  },
   "platform": {
     "title": "Platform Settings",
     "desc": "Manage platform-level configuration for all workspaces and agents.",
