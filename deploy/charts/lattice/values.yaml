@@ -21,6 +21,12 @@ service:
   apiNodePort: ""
   natsNodePort: ""
 
+# -- IngressRouteTCP for NATS (Traefik only).
+# Requires Traefik with a custom entrypoint for the NATS port.
+ingressRouteTCP:
+  enabled: false
+  entrypoint: nats  # must match the Traefik entrypoint name
+
 # -- Ingress configuration for the dashboard API.
 ingress:
   enabled: false
