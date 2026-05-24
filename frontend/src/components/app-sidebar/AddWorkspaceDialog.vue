@@ -22,12 +22,14 @@ const emit = defineEmits<{
 }>()
 
 const form = reactive({
+  displayName: "",
   slug: "",
   namespace: "",
   maxNodes: 10,
 })
 
 const errors = reactive({
+  displayName: "",
   slug: "",
   namespace: "",
   maxNodes: "",
@@ -36,11 +38,17 @@ const errors = reactive({
 const loading = ref(false)
 
 function validate() {
+  errors.displayName = ""
   errors.slug = ""
   errors.namespace = ""
   errors.maxNodes = ""
 
   let valid = true
+
+  if (!form.displayName.trim()) {
+    errors.displayName = "Display Name 不能为空"
+    valid = false
+  }
 
   if (!form.slug.trim()) {
     errors.slug = "Slug 不能为空"
@@ -72,9 +80,10 @@ async function handleSubmit() {
   loading.value = true
   try {
     await add({
+      displayName: form.displayName.trim(),
       slug: form.slug.trim(),
       namespace: form.namespace.trim(),
-      maxNodes: form.maxNodes,
+      maxNodeCount: form.maxNodes,
     })
     toast.success("Workspace 创建成功")
     open.value = false
@@ -88,9 +97,11 @@ async function handleSubmit() {
 }
 
 function resetForm() {
+  form.displayName = ""
   form.slug = ""
   form.namespace = ""
   form.maxNodes = 10
+  errors.displayName = ""
   errors.slug = ""
   errors.namespace = ""
   errors.maxNodes = ""
@@ -113,6 +124,18 @@ function handleOpenChange(val: boolean) {
       </DialogHeader>
 
       <form class="grid gap-4 py-2" @submit.prevent="handleSubmit">
+        <!-- Display Name -->
+        <div class="grid gap-1.5">
+          <Label for="ws-display-name">Display Name</Label>
+          <Input
+            id="ws-display-name"
+            v-model="form.displayName"
+            placeholder="My Workspace"
+            :disabled="loading"
+          />
+          <p v-if="errors.displayName" class="text-destructive text-xs">{{ errors.displayName }}</p>
+        </div>
+
         <!-- Slug -->
         <div class="grid gap-1.5">
           <Label for="ws-slug">Slug</Label>
