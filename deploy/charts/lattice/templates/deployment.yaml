@@ -30,6 +30,9 @@ spec:
               protocol: TCP
             - name: nats
               containerPort: 4222
+              {{- if .Values.service.natsHostPort }}
+              hostPort: {{ .Values.service.natsPort }}
+              {{- end }}
               protocol: TCP
           {{- with .Values.extraEnv }}
           env:
