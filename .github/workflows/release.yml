@@ -96,6 +96,12 @@ jobs:
         if: env.IS_RELEASE == 'true'
         uses: oras-project/setup-oras@v1
 
+      - name: Login to GHCR
+        if: env.IS_RELEASE == 'true'
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io -u ${{ github.actor }} --password-stdin
+          echo "${{ secrets.GITHUB_TOKEN }}" | oras login ghcr.io -u ${{ github.actor }} --password-stdin
+
       - name: Publish Helm chart to GHCR
         if: env.IS_RELEASE == 'true'
         run: |
