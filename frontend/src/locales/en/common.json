@@ -194,6 +194,32 @@
       "historyBy": "By:"
     }
   },
+  "auth": {
+    "signup": {
+      "title": "Create your account",
+      "subtitle": "Enter a username and password to get started",
+      "username": "Username",
+      "usernamePlaceholder": "Choose a username",
+      "password": "Password",
+      "passwordPlaceholder": "At least 6 characters",
+      "confirmPassword": "Confirm Password",
+      "confirmPasswordPlaceholder": "Re-enter your password",
+      "tosPrefix": "I have read and agree to the",
+      "tosLink": "Terms of Service",
+      "tosAnd": "and",
+      "privacyLink": "Privacy Policy",
+      "submit": "Create Account",
+      "submitting": "Creating account...",
+      "successMsg": "Account created! Please sign in.",
+      "errorMsg": "Registration failed, please try again",
+      "usernameRequiredMsg": "Username is required",
+      "passwordShortMsg": "Password must be at least 6 characters",
+      "passwordMismatchMsg": "Passwords do not match",
+      "tosRequiredMsg": "You must agree to the Terms of Service and Privacy Policy",
+      "hasAccount": "Already have an account?",
+      "signIn": "Sign in"
+    }
+  },
   "sandbox": {
     "list": {
       "title": "Agent Sandboxes",

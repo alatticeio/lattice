@@ -2,6 +2,7 @@
 import type { HTMLAttributes } from 'vue'
 import { ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import {
@@ -16,6 +17,7 @@ import { registerUser } from '@/api/user'
 
 const props = defineProps<{ class?: HTMLAttributes['class'] }>()
 
+const { t } = useI18n()
 const router = useRouter()
 
 const form = reactive({ username: '', password: '', confirm: '' })
@@ -23,22 +25,30 @@ const loading = ref(false)
 const agreedToS = ref(false)
 
 async function handleSubmit() {
+  if (!form.username.trim()) {
+    toast.error(t('common.auth.signup.usernameRequiredMsg'))
+    return
+  }
   if (form.password.length < 6) {
-    toast.error('Password must be at least 6 characters')
+    toast.error(t('common.auth.signup.passwordShortMsg'))
     return
   }
   if (form.password !== form.confirm) {
-    toast.error('Passwords do not match')
+    toast.error(t('common.auth.signup.passwordMismatchMsg'))
+    return
+  }
+  if (!agreedToS.value) {
+    toast.error(t('common.auth.signup.tosRequiredMsg'))
     return
   }
 
   loading.value = true
   try {
     await registerUser({ username: form.username, password: form.password, tosAccepted: agreedToS.value })
-    toast.success('Account created! Please sign in.')
+    toast.success(t('common.auth.signup.successMsg'))
     router.push('/auth/login')
   } catch (e: any) {
-    toast.error(e?.response?.data?.message ?? 'Registration failed, please try again')
+    toast.error(e?.response?.data?.message ?? t('common.auth.signup.errorMsg'))
   } finally {
     loading.value = false
   }
@@ -49,65 +59,65 @@ async function handleSubmit() {
   <div :class="cn('flex flex-col gap-6', props.class)">
     <Card>
       <CardHeader class="text-center">
-        <CardTitle class="text-xl">Create your account</CardTitle>
-        <CardDescription>Enter a username and password to get started</CardDescription>
+        <CardTitle class="text-xl">{{ t('common.auth.signup.title') }}</CardTitle>
+        <CardDescription>{{ t('common.auth.signup.subtitle') }}</CardDescription>
       </CardHeader>
       <CardContent>
         <form @submit.prevent="handleSubmit">
           <FieldGroup>
             <Field>
-              <FieldLabel for="username">Username</FieldLabel>
+              <FieldLabel for="username">{{ t('common.auth.signup.username') }}</FieldLabel>
               <Input
                 id="username"
                 v-model="form.username"
                 type="text"
-                placeholder="Choose a username"
+                :placeholder="t('common.auth.signup.usernamePlaceholder')"
                 required
                 autocomplete="username"
               />
             </Field>
             <Field>
-              <FieldLabel for="password">Password</FieldLabel>
+              <FieldLabel for="password">{{ t('common.auth.signup.password') }}</FieldLabel>
               <Input
                 id="password"
                 v-model="form.password"
                 type="password"
-                placeholder="At least 6 characters"
+                :placeholder="t('common.auth.signup.passwordPlaceholder')"
                 required
                 minlength="6"
                 autocomplete="new-password"
               />
             </Field>
             <Field>
-              <FieldLabel for="confirm-password">Confirm Password</FieldLabel>
+              <FieldLabel for="confirm-password">{{ t('common.auth.signup.confirmPassword') }}</FieldLabel>
               <Input
                 id="confirm-password"
                 v-model="form.confirm"
                 type="password"
-                placeholder="Re-enter your password"
+                :placeholder="t('common.auth.signup.confirmPasswordPlaceholder')"
                 required
                 autocomplete="new-password"
               />
             </Field>
             <Field>
               <div class="flex items-start gap-2">
-                <input type="checkbox" v-model="agreedToS" required class="mt-0.5 accent-primary" />
+                <input type="checkbox" v-model="agreedToS" class="mt-0.5 accent-primary" />
                 <span class="text-xs text-muted-foreground">
-                  我已阅读并同意
-                  <a href="/legal/terms" target="_blank" class="text-primary hover:underline">服务条款</a>
-                  和
-                  <a href="/legal/privacy" target="_blank" class="text-primary hover:underline">隐私政策</a>
+                  {{ t('common.auth.signup.tosPrefix') }}
+                  <a href="/legal/terms" target="_blank" class="text-primary hover:underline">{{ t('common.auth.signup.tosLink') }}</a>
+                  {{ t('common.auth.signup.tosAnd') }}
+                  <a href="/legal/privacy" target="_blank" class="text-primary hover:underline">{{ t('common.auth.signup.privacyLink') }}</a>
                 </span>
               </div>
             </Field>
             <Field>
               <Button type="submit" :disabled="loading" class="w-full">
-                {{ loading ? 'Creating account...' : 'Create Account' }}
+                {{ loading ? t('common.auth.signup.submitting') : t('common.auth.signup.submit') }}
               </Button>
               <FieldDescription class="text-center">
-                Already have an account?
+                {{ t('common.auth.signup.hasAccount') }}
                 <router-link to="/auth/login" class="underline underline-offset-4 hover:text-foreground">
-                  Sign in
+                  {{ t('common.auth.signup.signIn') }}
                 </router-link>
               </FieldDescription>
             </Field>
