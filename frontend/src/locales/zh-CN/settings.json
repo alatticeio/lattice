@@ -165,6 +165,10 @@
     "detailBtn": "详情",
     "empty": "暂无审计记录"
   },
+  "profile": {
+    "title": "个人资料",
+    "desc": "管理你的公开信息和头像。"
+  },
   "platform": {
     "title": "平台设置",
     "desc": "管理全局平台配置，影响所有工作空间和 Agent 节点。",

@@ -63,12 +63,6 @@ onMounted(fetchSettings)
 
 <template>
   <div class="flex flex-col gap-6 p-6 animate-in fade-in duration-300">
-    <!-- Header -->
-    <div>
-      <h1 class="text-xl font-semibold tracking-tight">{{ t('settings.platform.title') }}</h1>
-      <p class="text-sm text-muted-foreground mt-1">{{ t('settings.platform.desc') }}</p>
-    </div>
-
     <!-- Loading state -->
     <div v-if="loading" class="flex items-center justify-center py-16">
       <Loader2 class="size-6 animate-spin text-muted-foreground" />

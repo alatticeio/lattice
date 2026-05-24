@@ -46,6 +46,7 @@ func (s *Server) userRouter() {
 		userApi.DELETE("/:name", middleware.AuthMiddleware(s.revocationList), s.handleDeleteUser())
 		userApi.PATCH("/:id/system-role", middleware.AuthMiddleware(s.revocationList), s.handleUpdateSystemRole())
 		userApi.GET("/:id/workspaces", middleware.AuthMiddleware(s.revocationList), s.handleGetUserWorkspaces())
+		userApi.PUT("/me/password", middleware.AuthMiddleware(s.revocationList), s.handleChangePassword())
 	}
 }
 
@@ -216,6 +217,58 @@ func (s *Server) listUser() gin.HandlerFunc {
 		}
 
 		resp.OK(c, res)
+	}
+}
+
+// handleChangePassword allows the authenticated user to change their own password.
+func (s *Server) handleChangePassword() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		userID := c.GetString("user_id")
+		if userID == "" {
+			resp.BadRequest(c, "unauthorized")
+			return
+		}
+
+		var req struct {
+			CurrentPassword string `json:"currentPassword" binding:"required"`
+			NewPassword     string `json:"newPassword" binding:"required"`
+		}
+		if err := c.ShouldBindJSON(&req); err != nil {
+			resp.BadRequest(c, err.Error())
+			return
+		}
+
+		ctx := c.Request.Context()
+		user, err := s.store.Users().GetByID(ctx, userID)
+		if err != nil {
+			resp.Error(c, "user not found")
+			return
+		}
+
+		if err = utils.ComparePassword(user.Password, req.CurrentPassword); err != nil {
+			resp.BadRequest(c, "current password is incorrect")
+			return
+		}
+
+		if err = utils.ValidatePassword(req.NewPassword); err != nil {
+			resp.BadRequest(c, err.Error())
+			return
+		}
+
+		hashed, err := utils.EncryptPassword(req.NewPassword)
+		if err != nil {
+			resp.Error(c, "failed to update password")
+			return
+		}
+
+		updated := &models.User{Password: hashed}
+		updated.ID = userID
+		if err = s.store.Users().Update(ctx, updated); err != nil {
+			resp.Error(c, "failed to update password")
+			return
+		}
+
+		resp.OK(c, nil)
 	}
 }
 

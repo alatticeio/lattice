@@ -35,6 +35,8 @@
     "vue-sonner": "^2.0.9"
   },
   "devDependencies": {
+    "@dicebear/collection": "^9.4.2",
+    "@dicebear/core": "^9.4.2",
     "@playwright/test": "^1.59.1",
     "@types/dompurify": "^3.2.0",
     "@types/node": "^24.12.0",

@@ -1,13 +1,18 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import Switch from '@/components/ui/switch/Switch.vue'
 import { Button } from '@/components/ui/button'
 import UserSettingsNav from '@/components/UserSettingsNav.vue'
-import { MessageSquare, AtSign, Heart, UserPlus, ShieldAlert, Megaphone, Mail, Smartphone, Bell } from 'lucide-vue-next'
+import { MessageSquare, AtSign, Heart, UserPlus, ShieldAlert, Megaphone, Mail, Smartphone, Bell, Loader2 } from 'lucide-vue-next'
+import { toast } from 'vue-sonner'
+import request from '@/api/request'
+import { useUserStore } from '@/stores/user'
 
 definePage({
   meta: { title: 'Notifications', description: 'Choose what you want to be notified about.' },
 })
+
+const userStore = useUserStore()
 
 interface NotifSetting {
   label: string
@@ -29,6 +34,7 @@ const settings = ref<NotifSetting[]>([
 
 const channels = ref({ email: true, push: true, inApp: true })
 const digestFreq = ref<'realtime' | 'daily' | 'weekly'>('daily')
+const saving = ref(false)
 
 function toggleAll(ch: 'email' | 'push' | 'inApp') {
   const next = !channels.value[ch]
@@ -36,7 +42,38 @@ function toggleAll(ch: 'email' | 'push' | 'inApp') {
   settings.value.forEach(s => { s[ch] = next })
 }
 
-function save() { /* submit */ }
+async function fetchPrefs() {
+  try {
+    const { data, code } = await request.post('/profile/getProfile', {}) as any
+    if (code === 200 && data) {
+      channels.value.email = data.emailNotify ?? true
+      settings.value.forEach(s => { s.email = channels.value.email })
+    }
+  } catch {
+    // ignore, use defaults
+  }
+}
+
+async function save() {
+  saving.value = true
+  try {
+    const { code, message } = await request.put('/profile/updateProfile', {
+      name: userStore.userInfo?.username ?? '',
+      emailNotify: channels.value.email,
+    }) as any
+    if (code === 200) {
+      toast.success('Preferences saved')
+    } else {
+      toast.error(message ?? 'Save failed')
+    }
+  } catch {
+    toast.error('Save failed')
+  } finally {
+    saving.value = false
+  }
+}
+
+onMounted(fetchPrefs)
 </script>
 
 <template>
@@ -140,8 +177,11 @@ function save() { /* submit */ }
 
       <!-- Save -->
       <div class="flex justify-end gap-2">
-        <Button variant="outline">Cancel</Button>
-        <Button @click="save">Save preferences</Button>
+        <Button variant="outline" @click="fetchPrefs">Cancel</Button>
+        <Button :disabled="saving" @click="save">
+          <Loader2 v-if="saving" class="mr-1.5 size-3.5 animate-spin" />
+          Save preferences
+        </Button>
       </div>
 
     </div>

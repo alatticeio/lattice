@@ -74,7 +74,10 @@ export const useUserStore = defineStore('user', () => {
         try {
             const { data, code } = await getMe()
             if (code === 200) {
-                userInfo.value = data
+                userInfo.value = {
+                    ...data,
+                    avatarUrl: (data as any).avatar ?? data.avatarUrl ?? '',
+                }
             } else {
                 // 如果后端校验失败（如 Token 伪造）
                 handleAuthError()
