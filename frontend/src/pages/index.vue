@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import {
   ArrowRight, Zap, Globe, Shield,
   CheckCircle, ChevronRight, LogOut, LayoutDashboard,
-  Network, Container, Cpu, Terminal, BookOpen, Code2, Workflow, Check,
+  Network, Container, Cpu, Terminal, BookOpen, Code2, Workflow, Check, Tag,
 } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
@@ -38,6 +38,22 @@ const localeOptions: { value: Locale; label: string }[] = [
 const userStore = useUserStore()
 const { userInfo } = storeToRefs(userStore)
 const { logout } = userStore
+
+// ── Version tags ─────────────────────────────────────────────
+const versions = ref<string[]>([])
+const latestVersion = computed(() => versions.value[0] ?? 'v0.2.0')
+
+onMounted(async () => {
+  try {
+    const res = await fetch('https://api.github.com/repos/alatticeio/lattice/tags?per_page=10')
+    if (res.ok) {
+      const data: { name: string }[] = await res.json()
+      versions.value = data.map(t => t.name)
+    }
+  } catch {
+    versions.value = ['v0.2.0']
+  }
+})
 
 const avatarFallback = computed(() => {
   const name = userInfo.value?.username ?? userInfo.value?.email ?? '?'
@@ -127,7 +143,31 @@ function tagLabel(tag: string) {
         <div class="flex items-center gap-2.5">
           <img src="@/assets/logo.svg" class="size-7" alt="Lattice" />
           <span class="font-black tracking-tighter text-sm">Lattice</span>
-          <span class="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-primary/10 text-primary ring-1 ring-primary/20">v0.1.2</span>
+          <DropdownMenu>
+            <DropdownMenuTrigger as-child>
+              <button class="flex items-center gap-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-primary/10 text-primary ring-1 ring-primary/20 hover:bg-primary/20 transition-colors">
+                {{ latestVersion }}
+                <ChevronRight class="size-2.5 rotate-90 opacity-60" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" class="min-w-[120px]">
+              <DropdownMenuItem
+                v-for="v in versions"
+                :key="v"
+                as-child
+              >
+                <a
+                  :href="`https://github.com/alatticeio/lattice/releases/tag/${v}`"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="flex items-center gap-2 text-xs"
+                >
+                  <Tag class="size-3 text-muted-foreground" />
+                  {{ v }}
+                </a>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
 
         <nav class="hidden md:flex items-center gap-6 text-sm text-muted-foreground">
