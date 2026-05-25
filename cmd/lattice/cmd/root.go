@@ -31,15 +31,17 @@ var cfgManager = config.NewConfigManager()
 
 var rootCmd = &cobra.Command{
 	Use:   "lattice",
-	Short: "High-performance WireGuard-based overlay network manager",
-	Long: `Lattice connects agents across networks using WireGuard tunnels and a
-centralized management plane. Agents join a workspace via enrollment tokens,
-and traffic is governed by explicit allow/deny policies.
+	Short: "WireGuard overlay networking with policy control and agent sandboxing",
+	Long: `Lattice connects agents across networks using WireGuard tunnels,
+enforces traffic policies, and isolates workloads in secure agent sandboxes.
+Agents join a workspace via enrollment tokens issued from the control plane.
 
-Quick start:
+Quick start (token enrollment):
+  lattice up --token <token> --server-url https://your-server
+
+Quick start (interactive):
   lattice init
-  lattice login
-  lattice up --token <token>`,
+  lattice up`,
 	SilenceUsage:  true,
 	SilenceErrors: true,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
