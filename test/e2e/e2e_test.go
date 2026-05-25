@@ -53,7 +53,7 @@ var _ = Describe("Lattice Core Connectivity E2E", Ordered, func() {
 
 		nsName := fmt.Sprintf("wf-e2e-core-%d", time.Now().UnixMilli())
 		workspaceId := createWorkspace(manageUrl, accessToken, nsName)
-		testNS = fmt.Sprintf("wf-%s", workspaceId)
+		testNS = workspaceId
 
 		joinToken := generateJoinToken(manageUrl, accessToken, workspaceId)
 		hostAliases := hostAliasesForNATS(clientset)

@@ -48,7 +48,7 @@ var _ = Describe("Agent Sandbox", Ordered, func() {
 		//    because the server ignores the nsName field and always creates "wf-{id}".
 		nsName := "wf-e2e-sandbox-" + ts
 		workspaceID = createWorkspace(manageUrl, accessToken, nsName)
-		testNS = fmt.Sprintf("wf-%s", workspaceID)
+		testNS = workspaceID
 		GinkgoWriter.Printf("[sandbox e2e] testNS=%s\n", testNS)
 
 		// 3. Generate join token for companion agent

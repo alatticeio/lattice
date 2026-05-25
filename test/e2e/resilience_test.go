@@ -33,7 +33,7 @@ var _ = Describe("Agent Restart Resilience Test", Ordered, func() {
 
 		nsName := fmt.Sprintf("wf-e2e-resilient-%d", time.Now().UnixMilli())
 		workspaceID := createWorkspace(manageUrl, accessToken, nsName)
-		testNS = fmt.Sprintf("wf-%s", workspaceID)
+		testNS = workspaceID
 
 		joinToken := generateJoinToken(manageUrl, accessToken, workspaceID)
 		hostAliases := hostAliasesForNATS(clientset)
