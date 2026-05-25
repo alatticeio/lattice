@@ -292,7 +292,7 @@
   },
   "tokens": {
     "title": "接入令牌",
-    "desc": "管理 WireGuard 节点接入凭证。",
+    "desc": "管理节点接入 Lattice 网络所需的令牌凭证。",
     "createBtn": "创建令牌",
     "searchPlaceholder": "搜索 Token 或命名空间...",
     "stats": {

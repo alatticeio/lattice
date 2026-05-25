@@ -123,7 +123,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
             } else {
                 const { code, msg } = await add(form)
                 if (code === 200) {
-                    await fetchList()
+                    await Promise.all([fetchList(), fetchAll()])
                     toast.success('工作空间已创建')
                     return true
                 }
@@ -144,7 +144,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
             const { code } = await deleteWs(id)
             if (code === 200) {
                 if (currentWorkspace.value?.id === id) clear()
-                await fetchList()
+                await Promise.all([fetchList(), fetchAll()])
                 toast.success('工作空间已删除')
                 return true
             }

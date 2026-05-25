@@ -30,7 +30,8 @@ type WorkspaceVo struct {
 
 	QuotaUsage int64 `json:"quotaUsage"`
 
-	NodeCount int64 `json:"nodeCount"`
+	NodeCount    int64 `json:"nodeCount"`
+	MaxNodeCount int   `json:"maxNodeCount"`
 
 	// Status
 	Status string `json:"status"` // active, terminating, frozen

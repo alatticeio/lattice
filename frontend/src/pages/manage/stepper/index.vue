@@ -53,7 +53,8 @@ async function handleStep1Next() {
   try {
     const { data, code } = await addWorkspace({
       displayName: wsForm.displayName.trim(),
-      slug: wsForm.displayName.trim().toLowerCase().replace(/[\s_]+/g, '-'),
+      slug: wsForm.displayName.trim().toLowerCase().replace(/[\s_]+/g, '-').replace(/[^a-z0-9-]/g, ''),
+      maxNodeCount: 10,
     }) as any
     if (code === 200 && data) {
       workspaceStore.switchWorkspace(data)

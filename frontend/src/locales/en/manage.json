@@ -292,7 +292,7 @@
   },
   "tokens": {
     "title": "Access Tokens",
-    "desc": "Manage WireGuard node enrollment tokens.",
+    "desc": "Manage tokens used by nodes to join the Lattice network.",
     "createBtn": "Create Token",
     "searchPlaceholder": "Search token or namespace...",
     "stats": {
