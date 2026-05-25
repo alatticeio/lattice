@@ -36,7 +36,7 @@ var _ = Describe("Policy CRUD Lifecycle", Ordered, func() {
 
 		nsName := fmt.Sprintf("wf-e2e-policycrud-%d", time.Now().UnixMilli())
 		workspaceID := createWorkspace(manageUrl, accessToken, nsName)
-		testNS = fmt.Sprintf("wf-%s", workspaceID)
+		testNS = workspaceID
 
 		joinToken := generateJoinToken(manageUrl, accessToken, workspaceID)
 		hostAliases := hostAliasesForNATS(clientset)

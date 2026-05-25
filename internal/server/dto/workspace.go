@@ -5,7 +5,7 @@ type WorkspaceDto struct {
 
 	// Physical namespace: this is key! Corresponds to K8s metadata.name
 	// Must comply with DNS-1123 format (lowercase letters, numbers, hyphens)
-	Namespace string `json:"namespace" binding:"required,min=1,max=64"`
+	Namespace string `json:"namespace" binding:"omitempty,max=64"`
 
 	// Display name: the name users see in the Vercel-style UI (e.g. "My Private Cloud")
 	DisplayName string `json:"displayName" binding:"required,min=1,max=128"`

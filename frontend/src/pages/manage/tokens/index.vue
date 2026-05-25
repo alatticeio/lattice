@@ -526,8 +526,20 @@ function goToPage(p: number) {
             </TableRow>
           </template>
           <TableRow v-else>
-            <TableCell :colspan="columns.length" class="h-32 text-center text-muted-foreground">
-              {{ loading ? t('common.status.loading') : t('manage.tokens.empty') }}
+            <TableCell :colspan="columns.length" class="h-48 text-center">
+              <template v-if="loading">
+                <span class="text-sm text-muted-foreground">{{ t('common.status.loading') }}</span>
+              </template>
+              <template v-else>
+                <div class="flex flex-col items-center justify-center gap-3 py-6">
+                  <KeyRound class="size-8 text-muted-foreground/40" />
+                  <p class="text-sm text-muted-foreground">{{ t('manage.tokens.empty') }}</p>
+                  <Button size="sm" class="gap-1.5" @click="createDialogOpen = true">
+                    <Plus class="size-3.5" />
+                    {{ t('manage.tokens.createBtn') }}
+                  </Button>
+                </div>
+              </template>
             </TableCell>
           </TableRow>
         </TableBody>

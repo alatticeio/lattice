@@ -206,7 +206,7 @@ var _ = Describe("Agent Sandbox GVisor Integration", Ordered, func() {
 		accessToken = login(manageUrl)
 		nsName := "wf-e2e-gvisor-" + ts
 		workspaceID = createWorkspace(manageUrl, accessToken, nsName)
-		testNS = fmt.Sprintf("wf-%s", workspaceID)
+		testNS = workspaceID
 		GinkgoWriter.Printf("[gvisor e2e] testNS=%s\n", testNS)
 
 		// 2. Generate join token for companion agent

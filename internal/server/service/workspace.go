@@ -9,7 +9,6 @@ import (
 	"github.com/alatticeio/lattice/internal/server/dto"
 	"github.com/alatticeio/lattice/internal/server/models"
 	client_r "github.com/alatticeio/lattice/internal/server/resource"
-	"github.com/alatticeio/lattice/internal/server/seed"
 	"github.com/alatticeio/lattice/internal/server/vo"
 	"github.com/alatticeio/lattice/pkg/utils"
 	"time"
@@ -108,15 +107,16 @@ func (w *workspaceService) ListWorkspaces(ctx context.Context, request *dto.Page
 
 		g.Go(func() error {
 			v := vo.WorkspaceVo{
-				ID:          ws.ID,
-				Slug:        ws.Slug,
-				DisplayName: ws.DisplayName,
-				Namespace:   ws.Namespace,
-				Status:      "active",
-				CreatedAt:   ws.CreatedAt.Format("2006-01-02T15:04:05Z"),
-				CreatedBy:   ws.CreatedBy,
-				UpdatedBy:   ws.UpdatedBy,
-				UpdatedAt:   ws.UpdatedAt.Format("2006-01-02T15:04:05Z"),
+				ID:           ws.ID,
+				Slug:         ws.Slug,
+				DisplayName:  ws.DisplayName,
+				Namespace:    ws.Namespace,
+				MaxNodeCount: ws.MaxNodeCount,
+				Status:       "active",
+				CreatedAt:    ws.CreatedAt.Format("2006-01-02T15:04:05Z"),
+				CreatedBy:    ws.CreatedBy,
+				UpdatedBy:    ws.UpdatedBy,
+				UpdatedAt:    ws.UpdatedAt.Format("2006-01-02T15:04:05Z"),
 			}
 
 			if w.client == nil {
@@ -282,10 +282,15 @@ func (w *workspaceService) AddWorkspace(ctx context.Context, dto *dto.WorkspaceD
 
 	var res vo.WorkspaceVo
 	err := w.store.Tx(ctx, func(s store.Store) error {
+		maxNodes := dto.MaxNodeCount
+		if maxNodes <= 0 {
+			maxNodes = 10
+		}
 		newWs := &models.Workspace{
-			Slug:        slug,
-			DisplayName: dto.DisplayName,
-			CreatedBy:   username,
+			Slug:         slug,
+			DisplayName:  dto.DisplayName,
+			CreatedBy:    username,
+			MaxNodeCount: maxNodes,
 			// Do not set Namespace yet, update after creation
 		}
 		if err := s.Workspaces().Create(ctx, newWs); err != nil {
@@ -293,7 +298,7 @@ func (w *workspaceService) AddWorkspace(ctx context.Context, dto *dto.WorkspaceD
 		}
 
 		// Generate the actual Namespace name
-		nsName := fmt.Sprintf("wf-%s", newWs.ID)
+		nsName := newWs.ID
 		newWs.Namespace = nsName
 
 		// Update the Namespace field in the database
@@ -302,7 +307,7 @@ func (w *workspaceService) AddWorkspace(ctx context.Context, dto *dto.WorkspaceD
 		}
 
 		// Initialize K8s resources
-		if err := w.InitNewNamespace(ctx, newWs.ID); err != nil {
+		if err := w.InitNewNamespace(ctx, newWs.ID, maxNodes); err != nil {
 			return err
 		}
 
@@ -327,10 +332,6 @@ func (w *workspaceService) AddWorkspace(ctx context.Context, dto *dto.WorkspaceD
 		return nil, err
 	}
 
-	// Inject seed data AFTER transaction commits (non-fatal).
-	if seedErr := seed.NewInjector(w.store, w.client).Inject(ctx, res.ID, seed.DefaultOptions()); seedErr != nil {
-		w.log.Warn("failed to inject seed data", "workspaceId", res.ID, "err", seedErr)
-	}
 	return &res, nil
 }
 
@@ -363,15 +364,15 @@ func (w *workspaceService) UpdateWorkspace(ctx context.Context, id string, dto *
 	}, nil
 }
 
-func (w *workspaceService) InitNewNamespace(ctx context.Context, workspaceId string) error {
-	return w.InitializeTenant(ctx, workspaceId, "admin")
+func (w *workspaceService) InitNewNamespace(ctx context.Context, workspaceId string, maxNodeCount int) error {
+	return w.InitializeTenant(ctx, workspaceId, "admin", maxNodeCount)
 }
 
-func (w *workspaceService) InitializeTenant(ctx context.Context, wsID, role string) error {
+func (w *workspaceService) InitializeTenant(ctx context.Context, wsID, role string, maxNodeCount int) error {
 	if w.client == nil {
 		return fmt.Errorf("workspace initialization requires Kubernetes — no K8s client available")
 	}
-	nsName := fmt.Sprintf("wf-%s", wsID)
+	nsName := wsID
 
 	// 1. Create Namespace
 	ns := &corev1.Namespace{
@@ -389,7 +390,7 @@ func (w *workspaceService) InitializeTenant(ctx context.Context, wsID, role stri
 		ObjectMeta: metav1.ObjectMeta{Name: "workspace-quota", Namespace: nsName},
 		Spec: corev1.ResourceQuotaSpec{
 			Hard: corev1.ResourceList{
-				corev1.ResourceName("count/nodes.alattice.io"): resource.MustParse("50"),
+				corev1.ResourceName("count/nodes.alattice.io"): resource.MustParse(fmt.Sprintf("%d", maxNodeCount)),
 				corev1.ResourceSecrets:                         resource.MustParse("20"),
 			},
 		},
@@ -488,7 +489,7 @@ func (w *workspaceService) createDefaultPolicy(ctx context.Context, nsName strin
 					Labels:    map[string]string{"app.kubernetes.io/managed-by": "lattice-controller"},
 				},
 				Spec: v1alpha1.LatticePolicySpec{
-					Network: fmt.Sprintf("%s-net", nsName),
+					Network: "lattice-default-net",
 					Action:  "DENY",
 				},
 			}

@@ -90,7 +90,7 @@ var _ = Describe("AI Debug & Intent Engine", Ordered, func() {
 
 	AfterAll(func() {
 		// 清理 workspace 资源
-		ns := fmt.Sprintf("wf-%s", workspaceID)
+		ns := workspaceID
 		cleanupWorkspace(clientset, ns)
 	})
 })

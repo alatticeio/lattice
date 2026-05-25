@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { HTMLAttributes } from 'vue'
-import { ref, reactive } from 'vue'
+import { ref, reactive, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { cn } from '@/lib/utils'
@@ -20,17 +20,38 @@ const props = defineProps<{ class?: HTMLAttributes['class'] }>()
 const { t } = useI18n()
 const router = useRouter()
 
-const form = reactive({ username: '', password: '', confirm: '' })
+const form = reactive({ username: '', email: '', password: '', confirm: '' })
 const loading = ref(false)
 const agreedToS = ref(false)
+
+const passwordRules = computed(() => ({
+  length:    form.password.length >= 8,
+  uppercase: /[A-Z]/.test(form.password),
+  lowercase: /[a-z]/.test(form.password),
+  digit:     /[0-9]/.test(form.password),
+}))
+
+const passwordStrength = computed(() => {
+  const rules = passwordRules.value
+  const passed = [rules.length, rules.uppercase, rules.lowercase, rules.digit].filter(Boolean).length
+  if (passed <= 1) return 'weak'
+  if (passed <= 3) return 'medium'
+  return 'strong'
+})
+
+const passwordValid = computed(() => Object.values(passwordRules.value).every(Boolean))
 
 async function handleSubmit() {
   if (!form.username.trim()) {
     toast.error(t('common.auth.signup.usernameRequiredMsg'))
     return
   }
-  if (form.password.length < 6) {
-    toast.error(t('common.auth.signup.passwordShortMsg'))
+  if (!form.email.trim()) {
+    toast.error(t('common.auth.signup.emailRequiredMsg'))
+    return
+  }
+  if (!passwordValid.value) {
+    toast.error(t('common.auth.signup.passwordWeakMsg'))
     return
   }
   if (form.password !== form.confirm) {
@@ -44,7 +65,7 @@ async function handleSubmit() {
 
   loading.value = true
   try {
-    await registerUser({ username: form.username, password: form.password, tosAccepted: agreedToS.value })
+    await registerUser({ username: form.username, email: form.email, password: form.password, tosAccepted: agreedToS.value })
     toast.success(t('common.auth.signup.successMsg'))
     router.push('/auth/login')
   } catch (e: any) {
@@ -77,6 +98,17 @@ async function handleSubmit() {
               />
             </Field>
             <Field>
+              <FieldLabel for="email">{{ t('common.auth.signup.email') }}</FieldLabel>
+              <Input
+                id="email"
+                v-model="form.email"
+                type="email"
+                :placeholder="t('common.auth.signup.emailPlaceholder')"
+                required
+                autocomplete="email"
+              />
+            </Field>
+            <Field>
               <FieldLabel for="password">{{ t('common.auth.signup.password') }}</FieldLabel>
               <Input
                 id="password"
@@ -84,9 +116,39 @@ async function handleSubmit() {
                 type="password"
                 :placeholder="t('common.auth.signup.passwordPlaceholder')"
                 required
-                minlength="6"
                 autocomplete="new-password"
               />
+              <!-- Password strength bar -->
+              <div v-if="form.password" class="mt-1.5 space-y-1.5">
+                <div class="flex gap-1">
+                  <div
+                    v-for="i in 4" :key="i"
+                    class="h-1 flex-1 rounded-full transition-colors"
+                    :class="{
+                      'bg-red-500':    passwordStrength === 'weak'   && i <= 1,
+                      'bg-yellow-400': passwordStrength === 'medium' && i <= 3,
+                      'bg-green-500':  passwordStrength === 'strong' && i <= 4,
+                      'bg-muted':      (passwordStrength === 'weak' && i > 1) || (passwordStrength === 'medium' && i > 3),
+                    }"
+                  />
+                </div>
+                <ul class="grid grid-cols-2 gap-x-3 gap-y-0.5">
+                  <li
+                    v-for="[key, label] in [
+                      ['length',    t('common.auth.signup.pwdRuleLength')],
+                      ['uppercase', t('common.auth.signup.pwdRuleUpper')],
+                      ['lowercase', t('common.auth.signup.pwdRuleLower')],
+                      ['digit',     t('common.auth.signup.pwdRuleDigit')],
+                    ]"
+                    :key="key"
+                    class="flex items-center gap-1 text-[11px]"
+                    :class="(passwordRules as any)[key] ? 'text-green-600' : 'text-muted-foreground'"
+                  >
+                    <span class="inline-block size-1.5 rounded-full" :class="(passwordRules as any)[key] ? 'bg-green-500' : 'bg-muted-foreground/40'" />
+                    {{ label }}
+                  </li>
+                </ul>
+              </div>
             </Field>
             <Field>
               <FieldLabel for="confirm-password">{{ t('common.auth.signup.confirmPassword') }}</FieldLabel>

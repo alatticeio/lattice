@@ -200,8 +200,10 @@
       "subtitle": "Enter a username and password to get started",
       "username": "Username",
       "usernamePlaceholder": "Choose a username",
+      "email": "Email",
+      "emailPlaceholder": "your{'@'}email.com",
       "password": "Password",
-      "passwordPlaceholder": "At least 6 characters",
+      "passwordPlaceholder": "Min 8 chars with uppercase, lowercase & digit",
       "confirmPassword": "Confirm Password",
       "confirmPasswordPlaceholder": "Re-enter your password",
       "tosPrefix": "I have read and agree to the",
@@ -213,11 +215,17 @@
       "successMsg": "Account created! Please sign in.",
       "errorMsg": "Registration failed, please try again",
       "usernameRequiredMsg": "Username is required",
-      "passwordShortMsg": "Password must be at least 6 characters",
+      "emailRequiredMsg": "Email is required",
+      "emailInvalidMsg": "Please enter a valid email address",
+      "passwordWeakMsg": "Password must be at least 8 characters and include uppercase, lowercase, and a digit",
       "passwordMismatchMsg": "Passwords do not match",
       "tosRequiredMsg": "You must agree to the Terms of Service and Privacy Policy",
       "hasAccount": "Already have an account?",
-      "signIn": "Sign in"
+      "signIn": "Sign in",
+      "pwdRuleLength": "At least 8 chars",
+      "pwdRuleUpper": "Uppercase letter",
+      "pwdRuleLower": "Lowercase letter",
+      "pwdRuleDigit": "Number"
     }
   },
   "sandbox": {

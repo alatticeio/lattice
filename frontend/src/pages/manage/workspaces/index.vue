@@ -79,7 +79,7 @@ function slugify(v: string) {
 // ── Helpers ──────────────────────────────────────────────────────
 const usagePct = (ws: Workspace) => {
   const used = ws.quotaUsage ?? 0
-  const max = ws.nodeCount ?? ws.maxNodeCount ?? 0
+  const max = ws.maxNodeCount ?? 0
   return max > 0 ? Math.round((used / max) * 100) : 0
 }
 
@@ -165,7 +165,7 @@ const columns = computed<ColumnDef<Workspace>[]>(() => [
     cell: ({ row }) => {
       const ws   = row.original
       const used = ws.quotaUsage ?? 0
-      const max  = ws.nodeCount ?? ws.maxNodeCount ?? 0
+      const max  = ws.maxNodeCount ?? 0
       return h('div', { class: 'flex flex-col gap-0.5' }, [
         h('div', { class: 'flex items-baseline gap-1' }, [
           h('span', { class: 'font-semibold tabular-nums text-sm' }, String(used)),
@@ -560,8 +560,15 @@ function handleRefresh() {
             </TableRow>
           </template>
           <TableRow v-else>
-            <TableCell :colspan="columns.length" class="h-32 text-center text-muted-foreground">
-              {{ t('manage.workspaces.empty') }}
+            <TableCell :colspan="columns.length" class="h-48 text-center">
+              <div class="flex flex-col items-center justify-center gap-3 py-6">
+                <Layers class="size-8 text-muted-foreground/40" />
+                <p class="text-sm text-muted-foreground">{{ t('manage.workspaces.empty') }}</p>
+                <Button size="sm" class="gap-1.5" @click="openCreate">
+                  <Plus class="size-3.5" />
+                  {{ t('manage.workspaces.createBtn') }}
+                </Button>
+              </div>
             </TableCell>
           </TableRow>
         </TableBody>

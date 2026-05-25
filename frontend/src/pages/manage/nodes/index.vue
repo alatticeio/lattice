@@ -552,8 +552,20 @@ const table = useVueTable({
             </TableRow>
           </template>
           <TableRow v-else>
-            <TableCell :colspan="columns.length" class="h-32 text-center text-muted-foreground">
-              {{ store.loading ? t('common.status.loading') : t('manage.nodes.empty') }}
+            <TableCell :colspan="columns.length" class="h-48 text-center">
+              <template v-if="store.loading">
+                <span class="text-sm text-muted-foreground">{{ t('common.status.loading') }}</span>
+              </template>
+              <template v-else>
+                <div class="flex flex-col items-center justify-center gap-3 py-6">
+                  <Server class="size-8 text-muted-foreground/40" />
+                  <p class="text-sm text-muted-foreground">{{ t('manage.nodes.empty') }}</p>
+                  <Button size="sm" class="gap-1.5" @click="openAddNode">
+                    <Plus class="size-3.5" />
+                    {{ t('manage.nodes.addNodeBtn') }}
+                  </Button>
+                </div>
+              </template>
             </TableCell>
           </TableRow>
         </TableBody>

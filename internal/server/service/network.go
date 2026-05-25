@@ -53,7 +53,9 @@ func (s *networkService) ListTokens(ctx context.Context, pageParam *dto.PageRequ
 
 	workspace, err := s.store.Workspaces().GetByID(ctx, workspaceId)
 	if err != nil {
-		return nil, err
+		// workspace not found — return empty list instead of propagating the error
+		empty := &dto.PageResult[vo.TokenVo]{List: []vo.TokenVo{}, Total: 0}
+		return empty, nil
 	}
 
 	err = s.client.GetAPIReader().List(ctx, &tokenList, client.InNamespace(workspace.Namespace))

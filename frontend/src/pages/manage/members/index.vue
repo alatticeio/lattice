@@ -588,8 +588,20 @@ const invPages      = computed(() => visiblePages(invPage.value, invTotalPages.v
             </TableRow>
           </template>
           <TableRow v-else>
-            <TableCell :colspan="memberColumns.length" class="h-32 text-center text-muted-foreground">
-              {{ memberLoading ? t('common.status.loading') : t('manage.members.noMembers') }}
+            <TableCell :colspan="memberColumns.length" class="h-48 text-center">
+              <template v-if="memberLoading">
+                <span class="text-sm text-muted-foreground">{{ t('common.status.loading') }}</span>
+              </template>
+              <template v-else>
+                <div class="flex flex-col items-center justify-center gap-3 py-6">
+                  <Users class="size-8 text-muted-foreground/40" />
+                  <p class="text-sm text-muted-foreground">{{ t('manage.members.noMembers') }}</p>
+                  <Button v-if="canManageMembers" size="sm" class="gap-1.5" @click="openInvite">
+                    <Plus class="size-3.5" />
+                    {{ t('manage.members.inviteBtn') }}
+                  </Button>
+                </div>
+              </template>
             </TableCell>
           </TableRow>
         </TableBody>
@@ -638,8 +650,20 @@ const invPages      = computed(() => visiblePages(invPage.value, invTotalPages.v
             </TableRow>
           </template>
           <TableRow v-else>
-            <TableCell :colspan="invColumns.length" class="h-32 text-center text-muted-foreground">
-              {{ invLoading ? t('common.status.loading') : t('manage.members.noInvitations') }}
+            <TableCell :colspan="invColumns.length" class="h-48 text-center">
+              <template v-if="invLoading">
+                <span class="text-sm text-muted-foreground">{{ t('common.status.loading') }}</span>
+              </template>
+              <template v-else>
+                <div class="flex flex-col items-center justify-center gap-3 py-6">
+                  <Mail class="size-8 text-muted-foreground/40" />
+                  <p class="text-sm text-muted-foreground">{{ t('manage.members.noInvitations') }}</p>
+                  <Button v-if="canManageMembers" size="sm" class="gap-1.5" @click="openInvite">
+                    <Plus class="size-3.5" />
+                    {{ t('manage.members.inviteBtn') }}
+                  </Button>
+                </div>
+              </template>
             </TableCell>
           </TableRow>
         </TableBody>

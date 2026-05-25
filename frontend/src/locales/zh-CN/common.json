@@ -200,8 +200,10 @@
       "subtitle": "输入用户名和密码开始使用",
       "username": "用户名",
       "usernamePlaceholder": "选择一个用户名",
+      "email": "邮箱",
+      "emailPlaceholder": "your{'@'}email.com",
       "password": "密码",
-      "passwordPlaceholder": "至少 6 位字符",
+      "passwordPlaceholder": "至少 8 位，包含大小写字母和数字",
       "confirmPassword": "确认密码",
       "confirmPasswordPlaceholder": "再次输入密码",
       "tosPrefix": "我已阅读并同意",
@@ -213,11 +215,17 @@
       "successMsg": "账号创建成功！请登录。",
       "errorMsg": "注册失败，请重试",
       "usernameRequiredMsg": "用户名不能为空",
-      "passwordShortMsg": "密码至少需要 6 位字符",
+      "emailRequiredMsg": "邮箱不能为空",
+      "emailInvalidMsg": "请输入有效的邮箱地址",
+      "passwordWeakMsg": "密码需至少 8 位，且包含大写字母、小写字母和数字",
       "passwordMismatchMsg": "两次输入的密码不一致",
       "tosRequiredMsg": "请先同意服务条款和隐私政策",
       "hasAccount": "已有账号？",
-      "signIn": "立即登录"
+      "signIn": "立即登录",
+      "pwdRuleLength": "至少 8 位",
+      "pwdRuleUpper": "包含大写字母",
+      "pwdRuleLower": "包含小写字母",
+      "pwdRuleDigit": "包含数字"
     }
   },
   "sandbox": {

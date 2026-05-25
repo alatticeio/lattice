@@ -58,6 +58,9 @@ type Workspace struct {
 	// Display name: the name users see in the Vercel-style UI (e.g. "My Private Cloud")
 	DisplayName string `gorm:"type:varchar(100)" json:"displayName"`
 
+	// Node quota
+	MaxNodeCount int `gorm:"default:10" json:"maxNodeCount"`
+
 	// Status
 	Status  string `gorm:"default:'active'" json:"status"` // active, terminating, frozen
 	Members []User `gorm:"-" json:"members,omitempty"`
