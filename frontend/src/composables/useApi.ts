@@ -14,8 +14,8 @@ export function useTable(apiFn: (params?: any) => Promise<any>, options: UseTabl
   const loading = ref(false)
   const params = reactive<{ page: number; pageSize: number; search?: string; [key: string]: any }>({ page: 1, pageSize: 20, ...options.initialParams })
 
-  async function refresh(extraParams?: Record<string, any>) {
-    loading.value = true
+  async function refresh(extraParams?: Record<string, any>, silent = false) {
+    if (!silent) loading.value = true
     try {
       const res = await apiFn({ ...params, ...extraParams })
       const data = res?.data
@@ -23,9 +23,9 @@ export function useTable(apiFn: (params?: any) => Promise<any>, options: UseTabl
       total.value = data?.total ?? rows.value.length
       if (options.successMsg) toast.success(options.successMsg)
     } catch (e: any) {
-      toast.error(e?.response?.data?.message ?? '加载失败')
+      if (!silent) toast.error(e?.response?.data?.message ?? '加载失败')
     } finally {
-      loading.value = false
+      if (!silent) loading.value = false
     }
   }
 

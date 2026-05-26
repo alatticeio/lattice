@@ -215,7 +215,7 @@ function openDetail(token: TokenRow) {
 }
 
 const installCommand = computed(() => selectedToken.value
-  ? `lattice join --token ${selectedToken.value.token}`
+  ? `lattice up --token ${selectedToken.value.token}`
   : '')
 
 async function copyText(text: string, key: string) {

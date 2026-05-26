@@ -53,9 +53,9 @@ const showEnrollBanner = computed(() => {
 })
 onMounted(() => store.actions.refresh())
 
-// Auto-refresh every 30 s so online/offline status stays current.
+// Auto-refresh every 30 s so online/offline status stays current (silent, no loading flash).
 let refreshTimer: ReturnType<typeof setInterval>
-onMounted(() => { refreshTimer = setInterval(() => store.actions.refresh(), 30_000) })
+onMounted(() => { refreshTimer = setInterval(() => store.actions.refresh(undefined, true), 30_000) })
 onUnmounted(() => clearInterval(refreshTimer))
 
 // ── Types ─────────────────────────────────────────────────────────
