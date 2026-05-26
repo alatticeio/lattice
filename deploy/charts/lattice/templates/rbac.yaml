@@ -1,36 +1,111 @@
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  name: {{ include "lattice.fullname" . }}
-  labels:
-    {{- include "lattice.labels" . | nindent 4 }}
-rules:
-  - apiGroups: [""]
-    resources: ["nodes", "namespaces", "pods", "configmaps"]
-    verbs: ["get", "list", "watch"]
-  - apiGroups: ["alattice.io"]
-    resources: ["latticenetworks", "latticepeers", "latticepolicies", "latticeglobalippools",
-                "latticeenrollmenttokens", "latticerelayservers", "latticeclusterpeerings",
-                "latticenetworkpeerings", "latticeendpoints"]
-    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
-  - apiGroups: ["alattice.io"]
-    resources: ["latticenetworks/status", "latticepeers/status", "latticepolicies/status"]
-    verbs: ["get", "update", "patch"]
-  - apiGroups: ["coordination.k8s.io"]
-    resources: ["leases"]
-    verbs: ["get", "list", "watch", "create", "update", "patch"]
----
+# Bind the lattice SA to cluster-admin — mirrors the kustomize all-in-one deployment
+# (config/lattice/overlays/all-in-one/role_binding.yaml uses cluster-admin for lattice-controller-admin SA)
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: {{ include "lattice.fullname" . }}
+  name: {{ include "lattice.fullname" . }}-cluster-admin
   labels:
     {{- include "lattice.labels" . | nindent 4 }}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: {{ include "lattice.fullname" . }}
+  name: cluster-admin
 subjects:
   - kind: ServiceAccount
     name: {{ include "lattice.serviceAccountName" . }}
     namespace: {{ .Release.Namespace }}
+---
+# Namespaced Role for leader election (mirrors config/lattice/rbac/leader_election_role.yaml)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "lattice.fullname" . }}-leader-election
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "lattice.labels" . | nindent 4 }}
+rules:
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["coordination.k8s.io"]
+    resources: ["leases"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["create", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "lattice.fullname" . }}-leader-election
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "lattice.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "lattice.fullname" . }}-leader-election
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "lattice.serviceAccountName" . }}
+    namespace: {{ .Release.Namespace }}
+---
+# Workspace member ClusterRoles — referenced by createRoleBinding() when creating workspaces
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: lattice-admin
+  labels:
+    {{- include "lattice.labels" . | nindent 4 }}
+rules:
+  - apiGroups: ["alattice.io"]
+    resources: ["*"]
+    verbs: ["*"]
+  - apiGroups: [""]
+    resources: ["pods", "services", "configmaps", "secrets"]
+    verbs: ["*"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: lattice-editor
+  labels:
+    {{- include "lattice.labels" . | nindent 4 }}
+rules:
+  - apiGroups: ["alattice.io"]
+    resources: ["latticepeers", "latticenetworks"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["alattice.io"]
+    resources: ["latticepolicies", "latticeenrollmenttokens"]
+    verbs: ["get", "list", "watch", "create", "update", "patch"]
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: lattice-member
+  labels:
+    {{- include "lattice.labels" . | nindent 4 }}
+rules:
+  - apiGroups: ["alattice.io"]
+    resources: ["latticepeers", "latticenetworks", "latticepolicies", "latticeenrollmenttokens"]
+    verbs: ["get", "list", "watch", "update"]
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: lattice-viewer
+  labels:
+    {{- include "lattice.labels" . | nindent 4 }}
+rules:
+  - apiGroups: ["alattice.io"]
+    resources: ["*"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["pods", "services", "configmaps"]
+    verbs: ["get", "list", "watch"]

@@ -8,10 +8,10 @@ BUILD_TIME = $(shell date -u +'%Y-%m-%dT%H:%M:%SZ')
 GO_VERSION = $(shell go version | cut -d ' ' -f 3)
 
 # 注入路径（对应 pkg/version 里的变量名）
-LDFLAGS = -X 'lattice/pkg/version.Version=$(LATTICE_VERSION)' \
-          -X 'lattice/pkg/version.GitCommit=$(GIT_COMMIT)' \
-          -X 'lattice/pkg/version.BuildTime=$(BUILD_TIME)' \
-          -X 'lattice/pkg/version.GoVersion=$(GO_VERSION)'
+LDFLAGS = -X 'github.com/alatticeio/lattice/pkg/version.Version=$(LATTICE_VERSION)' \
+          -X 'github.com/alatticeio/lattice/pkg/version.GitCommit=$(GIT_COMMIT)' \
+          -X 'github.com/alatticeio/lattice/pkg/version.BuildTime=$(BUILD_TIME)' \
+          -X 'github.com/alatticeio/lattice/pkg/version.GoVersion=$(GO_VERSION)'
 
 
 REGISTRY ?= ghcr.io/alatticeio
