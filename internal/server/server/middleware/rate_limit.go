@@ -67,10 +67,15 @@ func (rl *IPRateLimiter) cleanup(ttl time.Duration) {
 func (rl *IPRateLimiter) Middleware(r rate.Limit, burst int) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		ip := c.ClientIP()
+		// Skip rate limiting for loopback addresses (local development / testing).
+		if ip == "127.0.0.1" || ip == "::1" {
+			c.Next()
+			return
+		}
 		if !rl.Allow(ip, r, burst) {
 			c.AbortWithStatusJSON(http.StatusTooManyRequests, gin.H{
 				"code":    429,
-				"message": "Too many requests, please try again later",
+				"message": "Too many demo sessions from your network. Please try again later.",
 			})
 			return
 		}

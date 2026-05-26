@@ -15,13 +15,13 @@ image:
 
 # -- Service configuration.
 service:
-  type: LoadBalancer
+  type: ClusterIP
   apiPort: 8080
   natsPort: 4222
   apiNodePort: ""
   natsNodePort: ""
-  # -- Bind NATS port directly to the host via hostPort.
-  # Recommended for single-node k3s without ServiceLB/MetalLB.
+  # -- Bind ports directly to the host via hostPort (recommended for single-node k3s).
+  apiHostPort: true
   natsHostPort: true
 
 # -- IngressRouteTCP for NATS (Traefik only).
@@ -59,6 +59,11 @@ config:
   stunUrl: "stun.alattice.io:3478"  # STUN server address (host:port)
   database:
     dsn: "data/lattice.db"  # SQLite path
+  # -- Zero-friction demo mode.
+  demo:
+    enabled: false
+    ttlMinutes: 60
+    rateLimitPerHour: 5
 
 # -- Resource requests and limits.
 resources:
@@ -84,6 +89,12 @@ coturn:
 license:
   enabled: false
   # fileContents: "..."  # raw license JWT string
+
+# -- Global IP pool for workspace subnet allocation (mirrors config/lattice/overlays/all-in-one/ip_pool.yaml).
+# The controller hardcodes the name "lattice-ip-pool" in network_controller.go.
+ipPool:
+  cidr: "10.0.0.0/8"
+  subnetMask: 24
 
 # -- Service account configuration.
 serviceAccount:

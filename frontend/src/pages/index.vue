@@ -8,7 +8,7 @@ import {
   Network, Container, Cpu, Terminal, BookOpen, Code2, Workflow, Check, Tag,
 } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import AvatarPreset from '@/components/AvatarPreset.vue'
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
   DropdownMenuSeparator, DropdownMenuTrigger,
@@ -21,6 +21,7 @@ import LatticeTerminal from '@/components/lattice/LatticeTerminal.vue'
 import TopologyCanvas from '@/components/lattice/TopologyCanvas.vue'
 import SectionHeader from '@/components/lattice/SectionHeader.vue'
 import type { TerminalLine } from '@/components/lattice/LatticeTerminal.vue'
+import DemoModal from '@/components/DemoModal.vue'
 
 definePage({ meta: { layout: 'blank' } })
 
@@ -43,6 +44,10 @@ const { logout } = userStore
 const versions = ref<string[]>([])
 const latestVersion = computed(() => versions.value[0] ?? 'v0.2.0')
 
+// ── Demo ──────────────────────────────────────────────────────
+const demoOpen = ref(false)
+const demoEnabled = ref(false)
+
 onMounted(async () => {
   try {
     const res = await fetch('https://api.github.com/repos/alatticeio/lattice/tags?per_page=10')
@@ -53,11 +58,13 @@ onMounted(async () => {
   } catch {
     versions.value = ['v0.2.0']
   }
-})
-
-const avatarFallback = computed(() => {
-  const name = userInfo.value?.username ?? userInfo.value?.email ?? '?'
-  return name.slice(0, 2).toUpperCase()
+  try {
+    const r = await fetch('/api/v1/demo/status')
+    if (r.ok) {
+      const body = await r.json()
+      demoEnabled.value = body?.data?.enabled === true
+    }
+  } catch { /* non-fatal */ }
 })
 
 const terminalLines: TerminalLine[] = [
@@ -220,11 +227,7 @@ function tagLabel(tag: string) {
             <DropdownMenu>
               <DropdownMenuTrigger as-child>
                 <button class="hover:ring-border flex items-center gap-2 rounded-lg px-1.5 py-1 transition-colors hover:ring-2 hover:bg-muted">
-                  <Avatar class="size-7">
-                    <AvatarFallback class="bg-primary text-primary-foreground text-xs font-semibold">
-                      {{ avatarFallback }}
-                    </AvatarFallback>
-                  </Avatar>
+                  <AvatarPreset :avatar-url="userInfo.avatarUrl ?? ''" :size="28" :fallback="userInfo.username" />
                   <div class="hidden text-left md:block">
                     <p class="text-sm font-medium leading-none">{{ userInfo.username }}</p>
                   </div>
@@ -291,6 +294,15 @@ function tagLabel(tag: string) {
             @click="router.push('/dashboard')"
           >
             {{ t('landing.hero.cta_secondary') }} <ChevronRight class="size-4" />
+          </Button>
+          <Button
+            v-if="demoEnabled"
+            variant="outline"
+            size="lg"
+            class="gap-2 px-7"
+            @click="demoOpen = true"
+          >
+            Try Demo
           </Button>
         </div>
       </div>
@@ -588,4 +600,6 @@ function tagLabel(tag: string) {
     </footer>
 
   </div>
+
+  <DemoModal v-model:open="demoOpen" />
 </template>
