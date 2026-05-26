@@ -221,10 +221,13 @@ func (s *NatsSignalService) SetReconnectedHandler(fn func()) {
 	})
 }
 
-// Close drains in-flight messages and closes the NATS connection, immediately
-// notifying the server to remove all subscriptions for this client.
+// Close closes the NATS connection immediately. Drain is intentionally avoided
+// because it blocks for up to 30 s waiting for in-flight messages, making
+// Ctrl-C feel unresponsive. The server removes subscriptions automatically
+// when the connection is closed.
 func (s *NatsSignalService) Close() error {
-	return s.nc.Drain()
+	s.nc.Close()
+	return nil
 }
 
 func (s *NatsSignalService) Service(subject, queue string, service func(data []byte) ([]byte, error)) {
