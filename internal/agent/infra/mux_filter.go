@@ -15,6 +15,7 @@
 package infra
 
 import (
+	"errors"
 	"net"
 	"sync"
 	"sync/atomic"
@@ -111,7 +112,9 @@ func (f *FilteringUDPMux) readLoop() {
 	for {
 		n, addr, err := f.realConn.ReadFrom(buf)
 		if err != nil {
-			if err == net.ErrClosed {
+			// Use errors.Is instead of == because the error is wrapped in
+			// *net.OpError on most platforms (e.g. macOS).
+			if errors.Is(err, net.ErrClosed) {
 				return
 			}
 			// transient error (e.g. EAGAIN); keep running
