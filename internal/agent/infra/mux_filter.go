@@ -142,7 +142,14 @@ func (f *FilteringUDPMux) readLoop() {
 // Close stops the readLoop, drains the mux, and shuts down chanConn.
 func (f *FilteringUDPMux) Close() error {
 	close(f.stopCh)
+	// Close realConn first to unblock readLoop's ReadFrom (returns net.ErrClosed).
+	_ = f.realConn.Close()
 	f.wg.Wait()
+	// Close passThroughCh to unblock any DefaultBind.makeReceiveIPv4/6 goroutines
+	// that are blocked on a channel receive.
+	if f.passThroughCh != nil {
+		close(f.passThroughCh)
+	}
 	// Closing chanConn unblocks the mux's connWorker so it can exit.
 	_ = f.chanConn.Close()
 	return f.inner.Close()
