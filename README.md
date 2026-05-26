@@ -121,7 +121,11 @@ Lattice consists of four planes:
 
 ## Quick Start
 
-### Docker (single command, no Kubernetes required)
+### Deploy Control Plane
+
+The Lattice control plane runs inside Kubernetes. Choose one of the following:
+
+**Docker** (bundles k3s — no existing cluster needed):
 
 ```bash
 docker run -d \
@@ -131,9 +135,9 @@ docker run -d \
   ghcr.io/alatticeio/lattice-k3s:latest
 ```
 
-This container bundles k3s + the Lattice control plane. After ~30 seconds, visit `http://localhost:8080`.
+Once the container is running (~30 seconds), the control plane is ready. Visit `http://localhost:8080`.
 
-### Existing Kubernetes cluster
+**Existing Kubernetes cluster:**
 
 ```bash
 kubectl apply -k https://github.com/alatticeio/lattice/config/lattice/overlays/all-in-one
@@ -141,7 +145,21 @@ kubectl apply -k https://github.com/alatticeio/lattice/config/lattice/overlays/a
 
 ---
 
+### Install Agent CLI
+
+Install the `lattice` CLI on every device you want to connect to the mesh:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/alatticeio/lattice/master/docs/public/install.sh | bash
+```
+
+Supports Linux (amd64 / arm64) and macOS (amd64 / Apple Silicon). For Homebrew, APT, YUM, and other methods, see the [Installation Guide](https://alattice.io/docs/guide/installation).
+
+---
+
 ## Connecting a Device
+
+> **Prerequisites:** `lattice` CLI installed (see above) and a running control plane .
 
 ### 1. One-time setup
 
@@ -254,43 +272,6 @@ Add to Claude Desktop (`~/.config/claude/claude_desktop_config.json`):
 ```
 
 Then ask Claude in natural language: "List all peers", "Create a policy allowing frontend to reach api-gateway on port 443", "Why can't payment-service reach postgres?"
-
----
-
-## Installation
-
-### Homebrew (macOS / Linux)
-
-```bash
-brew tap alatticeio/tap
-brew install lattice
-```
-
-### APT (Debian / Ubuntu)
-
-```bash
-echo "deb [trusted=yes] https://alatticeio.github.io/lattice/deb ./" | sudo tee /etc/apt/sources.list.d/lattice.list
-sudo apt update && sudo apt install lattice
-```
-
-### YUM (RHEL / CentOS / Fedora)
-
-```bash
-sudo tee /etc/yum.repos.d/lattice.repo <<< '[lattice]
-name=Lattice
-baseurl=https://alatticeio.github.io/lattice/rpm
-enabled=1
-gpgcheck=0'
-sudo yum install lattice
-```
-
-### Binary
-
-```bash
-VERSION=$(curl -s https://api.github.com/repos/alatticeio/lattice/releases/latest | grep tag_name | cut -d'"' -f4)
-curl -sSL "https://github.com/alatticeio/lattice/releases/download/${VERSION}/lattice_${VERSION}_linux_amd64.tar.gz" | tar xz
-sudo mv lattice /usr/local/bin/
-```
 
 ---
 
