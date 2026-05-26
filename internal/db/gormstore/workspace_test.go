@@ -155,3 +155,25 @@ func TestWorkspace_SeedInjectedField(t *testing.T) {
 	g.Expect(err).NotTo(HaveOccurred())
 	g.Expect(got.SeedInjected).To(BeTrue())
 }
+
+func TestWorkspaceListExpiredDemos(t *testing.T) {
+	g := NewWithT(t)
+	st := setupTestStore(t)
+	ctx := context.Background()
+
+	past := time.Now().Add(-1 * time.Hour)
+	future := time.Now().Add(1 * time.Hour)
+
+	expired := &models.Workspace{Slug: "demo-exp", DisplayName: "Expired", IsDemo: true, ExpiresAt: &past}
+	active := &models.Workspace{Slug: "demo-act", DisplayName: "Active", IsDemo: true, ExpiresAt: &future}
+	regular := &models.Workspace{Slug: "regular", DisplayName: "Regular", IsDemo: false}
+
+	g.Expect(st.Workspaces().Create(ctx, expired)).To(Succeed())
+	g.Expect(st.Workspaces().Create(ctx, active)).To(Succeed())
+	g.Expect(st.Workspaces().Create(ctx, regular)).To(Succeed())
+
+	results, err := st.Workspaces().ListExpiredDemos(ctx, time.Now())
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(results).To(HaveLen(1))
+	g.Expect(results[0].ID).To(Equal(expired.ID))
+}

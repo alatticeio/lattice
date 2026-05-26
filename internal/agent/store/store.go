@@ -70,6 +70,8 @@ type WorkspaceRepository interface {
 	List(ctx context.Context, keyword string, page, pageSize int) ([]*models.Workspace, int64, error)
 	// ExistsByUserAndSlug checks whether the specified user already owns a workspace with the given slug.
 	ExistsByUserAndSlug(ctx context.Context, userID, slug string) (bool, error)
+	// ListExpiredDemos returns all demo workspaces whose ExpiresAt is before cutoff.
+	ListExpiredDemos(ctx context.Context, cutoff time.Time) ([]*models.Workspace, error)
 }
 
 // WorkspaceMemberRepository defines workspace membership data operations.

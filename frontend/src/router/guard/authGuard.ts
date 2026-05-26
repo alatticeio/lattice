@@ -4,7 +4,7 @@ import type { Router } from "vue-router";
 
 export function setupAuthGuard(router: Router) {
     // 1. 定义免登录白名单
-    const whiteList = ['/', '/auth/login', '/auth/signup']
+    const whiteList = ['/', '/auth/login', '/auth/signup', '/auth/demo']
     const whiteListPrefixes = ['/invite/']
 
     router.beforeEach(async (to, _from, next) => {

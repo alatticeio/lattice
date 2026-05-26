@@ -30,6 +30,7 @@ declare module 'vue' {
     AvatarPreset: typeof import('./../components/AvatarPreset.vue')['default']
     ConfirmDialog: typeof import('./../components/ConfirmDialog.vue')['default']
     DataTablePagination: typeof import('./../components/DataTablePagination.vue')['default']
+    DemoModal: typeof import('./../components/DemoModal.vue')['default']
     HelloWorld: typeof import('./../components/HelloWorld.vue')['default']
     LatticeSectionHeader: typeof import('./../components/lattice/SectionHeader.vue')['default']
     LatticeStatCard: typeof import('./../components/lattice/StatCard.vue')['default']

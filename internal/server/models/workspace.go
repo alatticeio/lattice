@@ -71,6 +71,10 @@ type Workspace struct {
 
 	// Playground seed data
 	SeedInjected bool `gorm:"default:false" json:"seedInjected"`
+
+	// Demo workspace fields
+	IsDemo    bool       `gorm:"default:false" json:"isDemo"`
+	ExpiresAt *time.Time `gorm:"index" json:"expiresAt,omitempty"`
 }
 
 func (Workspace) TableName() string {

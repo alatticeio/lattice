@@ -1,0 +1,10 @@
+apiVersion: alattice.io/v1alpha1
+kind: LatticeGlobalIPPool
+metadata:
+  # Name is hardcoded in network_controller.go: client.ObjectKey{Name: "lattice-ip-pool"}
+  name: lattice-ip-pool
+  labels:
+    {{- include "lattice.labels" . | nindent 4 }}
+spec:
+  cidr: {{ .Values.ipPool.cidr }}
+  subnetMask: {{ .Values.ipPool.subnetMask }}

@@ -105,6 +105,11 @@ func (r *ruleProvisioner) Provision(rule *infra.FirewallRule) error {
 	// When Protocol or Port is not specified (zero value), omit proto/port to allow all traffic from that IP.
 	// Ingress: pass in [proto tcp] from {IP1} [to any port 80]
 	for _, tr := range rule.Ingress {
+		if len(tr.Peers) == 0 {
+			// Empty peer list means allow-all for this direction
+			fmt.Fprintf(&sb, "pass in on %s all\n", iface)
+			continue
+		}
 		ips := "{" + strings.Join(tr.Peers, ", ") + "}"
 		if tr.Protocol != "" && tr.Port != 0 {
 			fmt.Fprintf(&sb, "pass in proto %s from %s to any port %d\n",
@@ -116,6 +121,11 @@ func (r *ruleProvisioner) Provision(rule *infra.FirewallRule) error {
 
 	// Egress: pass out [proto tcp] from any to {IP1} [port 3306]
 	for _, tr := range rule.Egress {
+		if len(tr.Peers) == 0 {
+			// Empty peer list means allow-all for this direction
+			fmt.Fprintf(&sb, "pass out on %s all\n", iface)
+			continue
+		}
 		ips := "{" + strings.Join(tr.Peers, ", ") + "}"
 		if tr.Protocol != "" && tr.Port != 0 {
 			fmt.Fprintf(&sb, "pass out proto %s from any to %s port %d\n",

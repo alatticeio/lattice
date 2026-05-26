@@ -93,7 +93,7 @@ async function fetchToken() {
 }
 
 const joinCommand = computed(() =>
-  `lattice join --token ${generatedToken.value || '<token>'}`)
+  `lattice up --token ${generatedToken.value || '<token>'}`)
 
 // ── Copy helper ───────────────────────────────────────────────────
 async function copyText(text: string, key: string) {

@@ -10,6 +10,12 @@ data:
       listen: {{ .Values.config.app.listen }}
       name: "{{ .Values.config.app.name }}"
       env: "{{ .Values.config.app.env }}"
+      {{- if .Values.config.demo.enabled }}
+      demo:
+        enabled: true
+        ttl_minutes: {{ .Values.config.demo.ttlMinutes }}
+        rate_limit_per_hour: {{ .Values.config.demo.rateLimitPerHour }}
+      {{- end }}
     {{- if .Values.license.enabled }}
     license:
       file: /etc/lattice/license.jwt

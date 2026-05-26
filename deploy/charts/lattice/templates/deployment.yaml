@@ -27,6 +27,9 @@ spec:
           ports:
             - name: http
               containerPort: 8080
+              {{- if .Values.service.apiHostPort }}
+              hostPort: {{ .Values.service.apiPort }}
+              {{- end }}
               protocol: TCP
             - name: nats
               containerPort: 4222

@@ -2,6 +2,7 @@ package gormstore
 
 import (
 	"context"
+	"time"
 
 	"github.com/alatticeio/lattice/internal/server/dto"
 	"github.com/alatticeio/lattice/internal/server/models"
@@ -59,6 +60,14 @@ func (r *workspaceRepo) ExistsByUserAndSlug(ctx context.Context, userID, slug st
 			" AND t_workspaces_member.deleted_at IS NULL", userID, slug).
 		Count(&count).Error
 	return count > 0, err
+}
+
+func (r *workspaceRepo) ListExpiredDemos(ctx context.Context, cutoff time.Time) ([]*models.Workspace, error) {
+	var results []*models.Workspace
+	err := r.DB().WithContext(ctx).
+		Where("is_demo = ? AND expires_at IS NOT NULL AND expires_at < ?", true, cutoff).
+		Find(&results).Error
+	return results, err
 }
 
 // ── WorkspaceMemberRepository ──────────────────────────────────────────────

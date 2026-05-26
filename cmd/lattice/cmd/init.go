@@ -25,21 +25,45 @@ import (
 )
 
 func initCmd() *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "init",
-		Short: "Interactively configure Lattice and save to config file",
+		Short: "Configure Lattice connection parameters and save to config file",
 		Long: `Prompt for required connection parameters and save them to
 ~/.lattice/lattice.yaml. After init, run "lattice up" with no flags.`,
 		Example: `  lattice init
+  lattice init --server https://lattice.company.com --token lt-enroll-xxx
   lattice init --config-dir /etc/lattice`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runInit(cmd)
 		},
 	}
+	cmd.Flags().String("server", "", "Management server URL (non-interactive)")
+	cmd.Flags().String("token", "", "Enrollment token (non-interactive)")
+	return cmd
 }
 
 func runInit(cmd *cobra.Command) error {
 	cfgPath := config.GetConfigFilePath()
+	v := cfgManager.Viper()
+
+	// Non-interactive mode: --server and --token both provided via flags
+	serverFlag, _ := cmd.Flags().GetString("server")
+	tokenFlag, _ := cmd.Flags().GetString("token")
+	if serverFlag != "" && tokenFlag != "" {
+		// Non-interactive mode: silently overwrite any existing config.
+		// This is intentional — callers (e.g. demo enrollment scripts) expect automation-friendly behaviour.
+		if _, err := os.Stat(cfgPath); err == nil {
+			fmt.Fprintf(os.Stderr, "Warning: overwriting existing config at %s\n", cfgPath)
+		}
+		v.Set("server-url", serverFlag)
+		v.Set("token", tokenFlag)
+		if err := cfgManager.Save(); err != nil {
+			return fmt.Errorf("failed to save config: %w", err)
+		}
+		fmt.Printf("Config saved to %s\n", cfgPath)
+		return nil
+	}
+
 	scanner := bufio.NewScanner(os.Stdin)
 
 	// If the config file already exists, ask whether to overwrite it
@@ -54,8 +78,6 @@ func runInit(cmd *cobra.Command) error {
 		}
 	}
 
-	v := cfgManager.Viper()
-
 	// Required fields
 	serverURL := prompt(scanner, "Management server URL (--server-url)", v.GetString("server-url"))
 	token := prompt(scanner, "Enrollment token (--token)", v.GetString("token"))
@@ -64,7 +86,6 @@ func runInit(cmd *cobra.Command) error {
 	relayURL := promptOptional(scanner, "Relay TCP URL (--relay-url, optional)")
 	relayQuicURL := promptOptional(scanner, "Relay QUIC URL (--relay-quic-url, optional)")
 
-	// Write to Viper and save
 	v.Set("server-url", serverURL)
 	v.Set("token", token)
 	if relayURL != "" {

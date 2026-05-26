@@ -5,7 +5,7 @@
 自动探测操作系统和 CPU 架构，从 GitHub Releases 拉取对应二进制包：
 
 ```bash
-curl -fsSL https://docs.alattice.io/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/alatticeio/lattice/master/docs/public/install.sh | bash
 ```
 
 支持 Linux（amd64 / arm64）和 macOS（amd64 / Apple Silicon）。安装完成后运行：
@@ -17,19 +17,19 @@ lattice --version
 **安装 latticed（All-in-One 控制面，仅 Linux）：**
 
 ```bash
-curl -fsSL https://docs.alattice.io/install.sh | BINARY=latticed bash
+curl -fsSL https://raw.githubusercontent.com/alatticeio/lattice/master/docs/public/install.sh | BINARY=latticed bash
 ```
 
 **安装指定版本：**
 
 ```bash
-curl -fsSL https://docs.alattice.io/install.sh | TAG=v0.1.0-alpha bash
+curl -fsSL https://raw.githubusercontent.com/alatticeio/lattice/master/docs/public/install.sh | TAG=v0.1.0-alpha bash
 ```
 
 **自定义安装目录：**
 
 ```bash
-curl -fsSL https://docs.alattice.io/install.sh | INSTALL_DIR=~/.local/bin bash
+curl -fsSL https://raw.githubusercontent.com/alatticeio/lattice/master/docs/public/install.sh | INSTALL_DIR=~/.local/bin bash
 ```
 
 ---
@@ -41,6 +41,24 @@ curl -fsSL https://docs.alattice.io/install.sh | INSTALL_DIR=~/.local/bin bash
 ```bash
 brew tap alatticeio/tap
 brew install lattice
+```
+
+### APT（Debian / Ubuntu）
+
+```bash
+echo "deb [trusted=yes] https://alatticeio.github.io/lattice/deb ./" | sudo tee /etc/apt/sources.list.d/lattice.list
+sudo apt update && sudo apt install lattice
+```
+
+### YUM（RHEL / CentOS / Fedora）
+
+```bash
+sudo tee /etc/yum.repos.d/lattice.repo <<< '[lattice]
+name=Lattice
+baseurl=https://alatticeio.github.io/lattice/rpm
+enabled=1
+gpgcheck=0'
+sudo yum install lattice
 ```
 
 ### 二进制下载

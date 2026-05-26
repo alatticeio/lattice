@@ -36,6 +36,7 @@ import (
 	"github.com/alatticeio/lattice/internal/server/server/middleware"
 	"github.com/alatticeio/lattice/internal/server/service"
 	"github.com/alatticeio/lattice/pkg/utils"
+	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -84,6 +85,8 @@ type Server struct {
 	agentRegService       service.AgentRegistrationService
 
 	middleware      *middleware.Middleware
+	demoLimiter     *middleware.IPRateLimiter
+	demoSessions    sync.Map // magic token → demoMagicSession
 	revocationList  *auth.RevocationList
 	auditService    service.AuditService
 	workflowService service.WorkflowService
@@ -277,6 +280,8 @@ func NewServer(ctx context.Context, serverConfig *ServerConfig) (*Server, error)
 	revocationList := auth.NewRevocationList()
 	revocationList.StartCleanup(5 * time.Minute)
 
+	demoRL := middleware.NewIPRateLimiter()
+
 	authSvc := service.NewAuthService(st)
 
 	checker := permission.NewChecker(st, nil)
@@ -308,6 +313,7 @@ func NewServer(ctx context.Context, serverConfig *ServerConfig) (*Server, error)
 		workflowController:     controller.NewWorkflowController(workflowSvc),
 		platformController:     controller.NewPlatformController(st),
 		middleware:             middleware.NewMiddleware(checker, st, revocationList),
+		demoLimiter:            demoRL,
 		revocationList:         revocationList,
 		authService:            authSvc,
 		auditService:           auditSvc,
@@ -367,6 +373,8 @@ func NewServer(ctx context.Context, serverConfig *ServerConfig) (*Server, error)
 			}
 		}
 	}()
+
+	s.startDemoCleanup(ctx)
 
 	if err = s.apiRouter(); err != nil {
 		return nil, err

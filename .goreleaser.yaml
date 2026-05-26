@@ -12,9 +12,9 @@ builds:
       - CGO_ENABLED=0
     ldflags:
       - -s -w
-      - -X lattice/pkg/version.Version={{.Version}}
-      - -X lattice/pkg/version.GitCommit={{.Commit}}
-      - -X lattice/pkg/version.BuildTime={{.Date}}
+      - -X github.com/alatticeio/lattice/pkg/version.Version={{.Version}}
+      - -X github.com/alatticeio/lattice/pkg/version.GitCommit={{.Commit}}
+      - -X github.com/alatticeio/lattice/pkg/version.BuildTime={{.Date}}
     goos:
       - linux
     goarch:
@@ -29,9 +29,9 @@ builds:
       - CGO_ENABLED=0
     ldflags:
       - -s -w
-      - -X lattice/pkg/version.Version={{.Version}}
-      - -X lattice/pkg/version.GitCommit={{.Commit}}
-      - -X lattice/pkg/version.BuildTime={{.Date}}
+      - -X github.com/alatticeio/lattice/pkg/version.Version={{.Version}}
+      - -X github.com/alatticeio/lattice/pkg/version.GitCommit={{.Commit}}
+      - -X github.com/alatticeio/lattice/pkg/version.BuildTime={{.Date}}
     goos:
       - darwin
       - windows
@@ -52,9 +52,9 @@ builds:
       - CGO_ENABLED=0
     ldflags:
       - -s -w
-      - -X lattice/pkg/version.Version={{.Version}}
-      - -X lattice/pkg/version.GitCommit={{.Commit}}
-      - -X lattice/pkg/version.BuildTime={{.Date}}
+      - -X github.com/alatticeio/lattice/pkg/version.Version={{.Version}}
+      - -X github.com/alatticeio/lattice/pkg/version.GitCommit={{.Commit}}
+      - -X github.com/alatticeio/lattice/pkg/version.BuildTime={{.Date}}
     goos:
       - linux
     goarch:

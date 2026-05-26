@@ -407,11 +407,20 @@ type AppConfig struct {
 	Name       string        `mapstructure:"name"`
 	InitAdmins []AdminConfig `mapstructure:"initAdmins"` // list of admins initialized on first startup
 	Playground bool          `mapstructure:"playground"` // enables playground mode: all Pro features unlocked, no license required
+	Demo       DemoConfig    `mapstructure:"demo"`
 }
 
 type AdminConfig struct {
 	Username string `yaml:"username" mapstructure:"username"`
 	Password string `yaml:"password" mapstructure:"password"`
+}
+
+// DemoConfig controls the zero-friction demo feature.
+// Disabled by default; operator must set demo.enabled=true to expose the endpoint.
+type DemoConfig struct {
+	Enabled          bool `mapstructure:"enabled"`
+	TTLMinutes       int  `mapstructure:"ttlMinutes"`
+	RateLimitPerHour int  `mapstructure:"rateLimitPerHour"`
 }
 
 // DatabaseConfig holds database connection configuration.
@@ -628,6 +637,10 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("app.initAdmins", []map[string]string{
 		{"username": "admin", "password": "123456"},
 	})
+
+	v.SetDefault("app.demo.enabled", false)
+	v.SetDefault("app.demo.ttlMinutes", 60)
+	v.SetDefault("app.demo.rateLimitPerHour", 5)
 }
 
 // peekEnv retrieves the environment early, before full loading, for selecting the environment config file.

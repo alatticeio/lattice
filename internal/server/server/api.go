@@ -142,6 +142,8 @@ func (s *Server) apiRouter() error {
 	// Public install script — served without authentication.
 	s.GET("/install.sh", installScriptHandler())
 
+	s.demoRouter()
+
 	// SPA static resources: must be registered last, catch all unmatched paths via NoRoute
 	s.logger.Info("Registering SPA static files")
 	web.RegisterHandlers(s.Engine)
