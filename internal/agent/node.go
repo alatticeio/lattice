@@ -103,6 +103,12 @@ type Node struct {
 	messageHandler Handler
 
 	DeviceManager *wireguard.DeviceManager
+
+	// filteringMux{,6} are the sole readers of the shared UDP4/UDP6 sockets.
+	// They must be closed in Stop() before iface.Close() so that passThroughCh
+	// is closed and the WireGuard "receive incoming v4/v6" goroutines can exit.
+	filteringMux  *infra.FilteringUDPMux
+	filteringMux6 *infra.FilteringUDPMux
 }
 
 // NodeConfig holds the startup parameters for NewNode.
@@ -204,6 +210,7 @@ func NewNode(ctx context.Context, cfg *NodeConfig) (*Node, error) {
 	filteringMux := infra.NewFilteringMux(v4conn, cfg.ShowLog)
 	filteringMux.SetPassThrough(passThroughCh)
 	filteringMux.Start()
+	node.filteringMux = filteringMux
 
 	// FilteringUDPMux (v6): same design for the UDP6 socket so that ICE over IPv6
 	// can share v6conn with WireGuard without a connWorker race. Skipped when
@@ -215,6 +222,7 @@ func NewNode(ctx context.Context, cfg *NodeConfig) (*Node, error) {
 		filteringMux6 = infra.NewFilteringMux(v6conn, cfg.ShowLog)
 		filteringMux6.SetPassThrough(passThroughCh6)
 		filteringMux6.Start()
+		node.filteringMux6 = filteringMux6
 	}
 
 	// Auto-discover NATS URL from server if not already set (e.g. via advanced override).
@@ -499,6 +507,15 @@ func (c *Node) Stop() error {
 		if err := c.natsService.Close(); err != nil {
 			c.logger.Warn("nats drain failed", "err", err)
 		}
+	}
+	// Close FilteringUDPMux instances before the WireGuard device. This closes
+	// passThroughCh, which unblocks the "receive incoming v4/v6" goroutines
+	// inside the WireGuard device so that iface.Close() can complete.
+	if c.filteringMux != nil {
+		_ = c.filteringMux.Close()
+	}
+	if c.filteringMux6 != nil {
+		_ = c.filteringMux6.Close()
 	}
 	c.iface.Close()
 	return nil
