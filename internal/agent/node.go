@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"time"
 
+
 	"github.com/alatticeio/lattice/internal/agent/config"
 	"github.com/alatticeio/lattice/internal/agent/infra"
 	"github.com/alatticeio/lattice/internal/agent/log"
@@ -251,9 +252,10 @@ func NewNode(ctx context.Context, cfg *NodeConfig) (*Node, error) {
 
 	// Auto-discover NATS and STUN URLs from server if not already set.
 	if config.Conf.GetSignalingURL() == "" {
-		d, dErr := discover(ctx, config.Conf.ServerUrl)
-		if dErr != nil {
-			return nil, fmt.Errorf("NATS discovery failed: %w", dErr)
+		var d discoveryResult
+		d, err = discover(ctx, config.Conf.ServerUrl)
+		if err != nil {
+			return nil, fmt.Errorf("NATS discovery failed: %w", err)
 		}
 		config.Conf.SetSignalingURL(d.NatsURL)
 		log.GetLogger("node").Info("Discovered NATS URL", "url", d.NatsURL)
@@ -363,7 +365,7 @@ func NewNode(ctx context.Context, cfg *NodeConfig) (*Node, error) {
 			return lrp
 		},
 		GetHandshake: func(pubKey string) (time.Time, error) {
-			return wireguard.PeerHandshake(node.Name, pubKey)
+			return wireguard.PeerHandshake(config.Conf.InterfaceName, pubKey)
 		},
 	})
 

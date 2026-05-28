@@ -338,9 +338,6 @@ func (s *Server) handleDiscovery() gin.HandlerFunc {
 		if natsURL == "" {
 			natsURL = "nats://127.0.0.1:4222"
 		}
-<<<<<<< HEAD
-		resp.OK(c, gin.H{"nats_url": natsURL})
-=======
 
 		// STUN URL: prefer DB-stored value, then server config, then empty (agent uses its built-in default).
 		stunURL := s.cfg.StunServerURL
@@ -359,6 +356,5 @@ func (s *Server) handleDiscovery() gin.HandlerFunc {
 			"stun_url":      stunURL,
 			"enforcer_mode": enforcerMode,
 		})
->>>>>>> fd03639f (feat(server): return enforcer_mode in discovery API response)
 	}
 }
