@@ -341,7 +341,7 @@ func (s *Server) handleDiscovery() gin.HandlerFunc {
 =======
 
 		// STUN URL: prefer DB-stored value, then server config, then empty (agent uses its built-in default).
-		stunURL := s.cfg.TurnServerURL
+		stunURL := s.cfg.StunServerURL
 		if dbStun, err := s.store.SystemConfig().Get(c.Request.Context(), models.ConfigKeyStunURL); err == nil && dbStun != "" {
 			stunURL = dbStun
 		}

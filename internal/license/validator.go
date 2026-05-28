@@ -1,4 +1,16 @@
-//go:build pro
+// Copyright 2026 The Lattice Authors, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 package license
 
@@ -13,7 +25,7 @@ import (
 // pk-2026-01 is the initial signing key.
 // On key rotation, add new entries here; old keys remain to validate existing licenses.
 var trustedPublicKeys = map[string]string{
-	"pk-2026-01": "", // Set at build time or embedded
+	"pk-2026-01": "", // Set via init() in keys.go
 }
 
 // proVerifier performs Ed25519 JWT-based license verification.
@@ -21,13 +33,28 @@ type proVerifier struct {
 	cached   *License
 	cachedAt time.Time
 	cacheTTL time.Duration
+	tier     string
 }
 
-// NewVerifier creates a Pro-edition license verifier.
-func NewVerifier() Verifier {
-	return &proVerifier{
-		cacheTTL: 5 * time.Minute,
+// communityVerifier always returns StatusNotFound — no features available.
+type communityVerifier struct{}
+
+// NewVerifier creates a tier-aware license verifier.
+// For "pro" tier: tries license file first, falls back to tier-based (all features granted).
+// For "community" tier: always returns false for all features.
+func NewVerifier(tier string) Verifier {
+	if tier == "pro" {
+		return &proVerifier{cacheTTL: 5 * time.Minute, tier: tier}
 	}
+	return &communityVerifier{}
+}
+
+func (v *communityVerifier) Verify() (*License, Status, error) {
+	return nil, StatusNotFound, fmt.Errorf("licensing is a Pro feature")
+}
+
+func (v *communityVerifier) HasFeature(_ string) bool {
+	return false
 }
 
 func (v *proVerifier) Verify() (*License, Status, error) {
@@ -79,16 +106,17 @@ func (v *proVerifier) Verify() (*License, Status, error) {
 }
 
 func (v *proVerifier) HasFeature(feature string) bool {
+	// Try license file first.
 	lic, status, _ := v.Verify()
-	if status != StatusValid || lic == nil {
-		return false
-	}
-	for _, f := range lic.Features {
-		if f == feature {
-			return true
+	if status == StatusValid && lic != nil {
+		for _, f := range lic.Features {
+			if f == feature {
+				return true
+			}
 		}
 	}
-	return false
+	// Fall back to tier-based: pro tier grants all features.
+	return v.tier == "pro"
 }
 
 func (v *proVerifier) keyFunc(token *jwt.Token) (interface{}, error) {

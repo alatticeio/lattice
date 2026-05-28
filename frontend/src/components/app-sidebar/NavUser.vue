@@ -76,7 +76,12 @@ const userStore = useUserStore()
           </DropdownMenuLabel>
           <DropdownMenuSeparator />
           <DropdownMenuGroup>
-            <DropdownMenuItem @click="router.push('/user/billing')">
+            <DropdownMenuItem v-if="userStore.isPro" @click="router.push('/user/billing')">
+              <Sparkles class="text-primary" />
+              <span>Plan</span>
+              <span class="ml-auto text-[10px] font-bold px-2 py-0.5 rounded-full bg-primary text-primary-foreground">Pro</span>
+            </DropdownMenuItem>
+            <DropdownMenuItem v-else @click="router.push('/user/billing')">
               <Sparkles />
               Upgrade to Pro
             </DropdownMenuItem>

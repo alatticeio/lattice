@@ -1,3 +1,5 @@
+//go:build !linux
+
 // Copyright 2026 The Lattice Authors, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,14 +14,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//go:build pro && linux
-
 package sandbox
 
 import "github.com/spf13/cobra"
 
-// registerAgentCmd adds the `sandbox agent` subcommand to cmd.
-// Called from SandboxCmd() in sandbox.go.
-func registerAgentCmd(cmd *cobra.Command) {
-	cmd.AddCommand(agentCmd())
-}
+func addRunCmd(parent *cobra.Command) {}

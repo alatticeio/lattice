@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Shield } from 'lucide-vue-next'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -9,12 +8,12 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table'
 import { useDrawer } from '@/composables/useAgentDetailDrawer'
+import { useUserStore } from '@/stores/user'
 
 const { t } = useI18n()
 const drawer = useDrawer()
-
-// PRO 检测：优先环境变量，回退懒检查
-const isPro = ref(import.meta.env.VITE_EDITION === 'pro')
+const userStore = useUserStore()
+const isPro = userStore.isPro
 
 function formatTime(iso: string): string {
   return new Date(iso).toLocaleString()

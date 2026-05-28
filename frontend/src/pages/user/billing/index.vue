@@ -1,14 +1,16 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed } from 'vue'
 import { CreditCard, Download, Zap, Check, HardDrive, FolderOpen } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import UserSettingsNav from '@/components/UserSettingsNav.vue'
+import { useUserStore } from '@/stores/user'
 
 definePage({
   meta: { title: 'Billing', description: 'Manage your subscription and payment methods.' },
 })
 
-const currentPlan = ref<'free' | 'pro' | 'enterprise'>('pro')
+const userStore = useUserStore()
+const currentPlan = computed(() => userStore.isPro ? 'pro' : 'free')
 
 const plans = [
   {
