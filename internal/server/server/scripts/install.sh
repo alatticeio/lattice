@@ -150,8 +150,11 @@ fi
 # WireGuard requires root to create tun devices and write to /var/run/wireguard/
 LOG_FILE="/tmp/lattice-agent.log"
 
-# Stop any existing lattice agent before starting a new one
-if sudo pkill -x lattice 2>/dev/null; then
+# Stop any existing lattice agent before starting a new one.
+# Use -f to match the full command line so we only kill "lattice up ..."
+# processes and not a co-located latticed server (whose argv[0] is also
+# "lattice" when built from the same Docker image).
+if sudo pkill -f "lattice up" 2>/dev/null; then
   echo "Stopped existing Lattice agent."
   sleep 1
 fi
