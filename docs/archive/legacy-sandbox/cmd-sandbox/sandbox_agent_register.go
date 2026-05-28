@@ -18,20 +18,4 @@ package sandbox
 
 import "github.com/spf13/cobra"
 
-var (
-	sandboxName      string
-	sandboxServerURL string
-	sandboxToken     string
-)
-
-// SandboxCmd returns the top-level `sandbox` cobra command.
-func SandboxCmd() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "sandbox",
-		Short: "Manage sandboxed agent environments (Pro)",
-	}
-	cmd.AddCommand(startCmd())
-	registerAgentCmd(cmd)
-	registerRunCmd(cmd)
-	return cmd
-}
+func addRunCmd(parent *cobra.Command) {}

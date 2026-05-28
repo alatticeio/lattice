@@ -18,14 +18,17 @@ const openModel = defineModel<boolean>('open')
 
 type State = 'loading' | 'ready' | 'expired' | 'error'
 type Preset = 'claude' | 'python3' | 'curl'
+type SandboxMode = 'pod' | 'gvisor'
 
 const state = ref<State>('loading')
 const session = ref<SandboxDemoSession | null>(null)
 const errorMsg = ref('')
 const timeLeft = ref('')
 const remainingMs = ref(0)
+const copiedInstall = ref(false)
 const copiedRun = ref(false)
 const preset = ref<Preset>('claude')
+const sandboxMode = ref<SandboxMode>('pod')
 
 let timer: ReturnType<typeof setInterval> | null = null
 
@@ -81,7 +84,10 @@ const presets: { value: Preset; label: string; suffix: string }[] = [
 const runCmd = computed(() => {
   if (!session.value) return ''
   const p = presets.find(x => x.value === preset.value) ?? presets[0]
-  return `docker run --rm --cap-add NET_ADMIN ghcr.io/alatticeio/lattice sandbox run demo-agent --server-url ${session.value.server_url} --token ${session.value.token} ${p.suffix}`
+  const modeFlags = sandboxMode.value === 'gvisor'
+    ? '--mode gvisor --agent-rootfs /var/lib/lattice/rootfs '
+    : ''
+  return `lattice sandbox run --name demo-agent --server-url ${session.value.server_url} --token ${session.value.token} ${modeFlags}${p.suffix}`
 })
 
 async function launch() {
@@ -157,14 +163,19 @@ function execCopy(text: string) {
   container.removeChild(el)
 }
 
-async function copy(text: string) {
+async function copy(text: string, which: 'install' | 'run') {
   if (navigator.clipboard) {
     try { await navigator.clipboard.writeText(text) } catch { execCopy(text) }
   } else {
     execCopy(text)
   }
-  copiedRun.value = true
-  setTimeout(() => { copiedRun.value = false }, 2000)
+  if (which === 'install') {
+    copiedInstall.value = true
+    setTimeout(() => { copiedInstall.value = false }, 2000)
+  } else {
+    copiedRun.value = true
+    setTimeout(() => { copiedRun.value = false }, 2000)
+  }
 }
 
 function openConsole() {
@@ -235,20 +246,56 @@ onUnmounted(() => { if (timer) clearInterval(timer) })
         <!-- Ready -->
         <div v-else-if="state === 'ready' && session" class="space-y-4">
 
+<<<<<<< HEAD
+          <!-- Step 1: Install -->
+          <div class="space-y-2">
+            <div class="flex items-center gap-2">
+              <span class="flex items-center justify-center size-5 rounded-full bg-primary text-primary-foreground text-[11px] font-bold shrink-0">1</span>
+              <span class="text-sm font-medium">Install on Linux <span class="text-xs text-muted-foreground font-normal">(Pro binary required)</span></span>
+            </div>
+            <div class="group relative rounded-lg bg-zinc-950 dark:bg-zinc-900 border border-zinc-800 px-4 py-3 pr-12">
+              <code class="text-xs text-zinc-100 font-mono break-all whitespace-pre-wrap leading-relaxed">{{ session.install_cmd }}</code>
+              <button
+                class="absolute top-2.5 right-2.5 flex items-center justify-center size-7 rounded-md transition-colors"
+                :class="copiedInstall ? 'bg-emerald-500/20 text-emerald-400' : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-zinc-100'"
+                @click="copy(session!.install_cmd, 'install')"
+              >
+                <Check v-if="copiedInstall" class="size-3.5" />
+                <Copy v-else class="size-3.5" />
+              </button>
+            </div>
+=======
           <!-- Prerequisite notice -->
           <div class="rounded-lg border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
             Lattice creates a WireGuard interface in the container. Requires <code class="text-[11px] bg-muted px-1 rounded">--cap-add NET_ADMIN</code>. No other dependencies needed.
+>>>>>>> 6d21afe4 (refactor(sandbox): use kernel wg0 for network isolation (community edition))
           </div>
 
-          <!-- Step 1: Run agent -->
+          <!-- Step 2: Run agent -->
           <div class="space-y-2">
             <div class="flex items-center justify-between">
               <div class="flex items-center gap-2">
-                <span class="flex items-center justify-center size-5 rounded-full bg-primary text-primary-foreground text-[11px] font-bold shrink-0">1</span>
+                <span class="flex items-center justify-center size-5 rounded-full bg-primary text-primary-foreground text-[11px] font-bold shrink-0">2</span>
                 <span class="text-sm font-medium">Run your agent</span>
               </div>
-              <!-- Preset toggles -->
+              <!-- Mode + Preset toggles -->
               <div class="flex items-center gap-1.5">
+                <!-- Isolation mode toggle -->
+                <div class="flex rounded-md border border-input overflow-hidden text-[11px] font-mono">
+                  <button
+                    type="button"
+                    :class="sandboxMode === 'pod' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-muted/80'"
+                    class="px-2 py-0.5 transition-colors"
+                    @click="sandboxMode = 'pod'"
+                  >pod</button>
+                  <button
+                    type="button"
+                    :class="sandboxMode === 'gvisor' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-muted/80'"
+                    class="px-2 py-0.5 border-l border-input transition-colors"
+                    @click="sandboxMode = 'gvisor'"
+                  >gvisor</button>
+                </div>
+                <!-- Preset toggle (segmented button group) -->
                 <div class="flex rounded-md border border-input overflow-hidden text-xs font-mono">
                   <button
                     v-for="p in presets"
@@ -266,7 +313,7 @@ onUnmounted(() => { if (timer) clearInterval(timer) })
               <button
                 class="absolute top-2.5 right-2.5 flex items-center justify-center size-7 rounded-md transition-colors"
                 :class="copiedRun ? 'bg-emerald-500/20 text-emerald-400' : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-zinc-100'"
-                @click="copy(runCmd)"
+                @click="copy(runCmd, 'run')"
               >
                 <Check v-if="copiedRun" class="size-3.5" />
                 <Copy v-else class="size-3.5" />
@@ -274,16 +321,16 @@ onUnmounted(() => { if (timer) clearInterval(timer) })
             </div>
           </div>
 
-          <!-- Step 2: Open Console -->
+          <!-- Step 3: Open Console -->
           <div class="space-y-2">
             <div class="flex items-center gap-2">
-              <span class="flex items-center justify-center size-5 rounded-full bg-muted text-muted-foreground text-[11px] font-bold shrink-0">2</span>
+              <span class="flex items-center justify-center size-5 rounded-full bg-muted text-muted-foreground text-[11px] font-bold shrink-0">3</span>
               <span class="text-sm font-medium">View agent in console</span>
             </div>
             <div class="rounded-lg bg-zinc-950 dark:bg-zinc-900 border border-zinc-800 px-4 py-3">
               <div class="flex items-center gap-2 font-mono text-xs">
                 <span class="text-zinc-500 select-none">#</span>
-                <span class="text-zinc-400">Agent appears in /sandbox once the container starts</span>
+                <span class="text-zinc-400">Agent appears in /sandbox once the command runs</span>
               </div>
             </div>
           </div>

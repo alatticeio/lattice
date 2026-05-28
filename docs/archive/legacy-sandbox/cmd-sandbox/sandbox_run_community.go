@@ -1,4 +1,4 @@
-//go:build !linux
+//go:build !pro
 
 // Copyright 2026 The Lattice Authors, Inc.
 //
@@ -18,20 +18,5 @@ package sandbox
 
 import "github.com/spf13/cobra"
 
-var (
-	sandboxName      string
-	sandboxServerURL string
-	sandboxToken     string
-)
-
-// SandboxCmd returns the top-level `sandbox` cobra command.
-func SandboxCmd() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "sandbox",
-		Short: "Manage sandboxed agent environments (Pro)",
-	}
-	cmd.AddCommand(startCmd())
-	registerAgentCmd(cmd)
-	registerRunCmd(cmd)
-	return cmd
-}
+// registerRunCmd is a no-op in community builds; sandbox run requires Pro.
+func registerRunCmd(_ *cobra.Command) {}

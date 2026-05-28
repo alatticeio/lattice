@@ -40,9 +40,6 @@ func TestSandboxCmd_RunSubcommandRegistered(t *testing.T) {
 }
 
 func TestSandboxCmd_SidecarSubcommandRegistered(t *testing.T) {
-	if runtime.GOOS != "linux" {
-		t.Skip("'sidecar' subcommand requires Linux (netstack + iptables)")
-	}
 	cmd := sandbox.SandboxCmd()
 	found := false
 	for _, sub := range cmd.Commands() {
