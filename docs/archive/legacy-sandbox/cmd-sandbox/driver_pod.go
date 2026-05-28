@@ -72,7 +72,7 @@ func (d *PodDriver) Start(ctx context.Context) error {
 
 	agentconfig.Conf.AppId = cfg.SandboxName
 	agentconfig.Conf.ServerUrl = cfg.ServerURL
-	agentconfig.Conf.WgPort = 51820
+	agentconfig.Conf.WgPort = cfg.WgPort
 
 	var privKey wgtypes.Key
 	var currentPeer *infra.Peer
@@ -144,7 +144,7 @@ func (d *PodDriver) Start(ctx context.Context) error {
 	agentJWT := currentPeer.Token
 	nodeCfg := &agent.NodeConfig{
 		Logger:      logger,
-		Port:        51820,
+		Port:        cfg.WgPort,
 		ShowLog:     false,
 		Flags:       agentconfig.Conf,
 		CustomTUN:   tunDev,
@@ -216,6 +216,10 @@ func (d *PodDriver) Start(ctx context.Context) error {
 	}()
 
 	fmt.Printf("Sandbox %q ready (pod mode), overlay IP=%s\n", cfg.SandboxName, localIP)
+
+	if cfg.ReadyCh != nil {
+		cfg.ReadyCh <- struct{}{}
+	}
 
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
