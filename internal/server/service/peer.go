@@ -343,6 +343,15 @@ func (p *peerService) Register(ctx context.Context, dto *dto.PeerDto) (*infra.Pe
 		return nil, err
 	}
 
+	// Look up user enforcer_mode from workspace owner's profile.
+	workspace, wsErr := p.store.Workspaces().GetByNamespace(ctx, token.Namespace)
+	if wsErr == nil && workspace.CreatedBy != "" {
+		profile, profErr := p.store.Profiles().Get(ctx, workspace.CreatedBy)
+		if profErr == nil && profile.EnforcerMode != "" {
+			node.EnforcerMode = profile.EnforcerMode
+		}
+	}
+
 	actualToken := token.Status.Token
 	if actualToken == "" {
 		actualToken = token.Spec.Token

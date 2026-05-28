@@ -492,9 +492,10 @@ func (s *Server) handleSandboxNATSRegister(ctx context.Context, peer dto.PeerDto
 	// Return infra.Peer with JWT in Token field.
 	// PrivateKey is intentionally empty: sandbox generates its own key.
 	returnPeer := &infra.Peer{
-		Name:  peer.AppID,
-		AppID: peer.AppID,
-		Token: result.JWT,
+		Name:         peer.AppID,
+		AppID:        peer.AppID,
+		Token:        result.JWT,
+		EnforcerMode: result.EnforcerMode,
 	}
 	data, err := json.Marshal(returnPeer)
 	if err != nil {

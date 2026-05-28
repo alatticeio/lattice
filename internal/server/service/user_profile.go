@@ -34,15 +34,16 @@ func (s *profileService) GetProfile(ctx context.Context, userID string) (*dto.Us
 	}
 
 	return &dto.UserSettingsResponse{
-		Name:        user.Username,
-		Email:       user.Email,
-		AvatarURL:   user.Avatar,
-		Title:       profile.Title,
-		Company:     profile.Company,
-		Bio:         profile.Bio,
-		Timezone:    profile.Timezone,
-		Language:    profile.Language,
-		EmailNotify: profile.EmailNotify,
+		Name:         user.Username,
+		Email:        user.Email,
+		AvatarURL:    user.Avatar,
+		Title:        profile.Title,
+		Company:      profile.Company,
+		Bio:          profile.Bio,
+		Timezone:     profile.Timezone,
+		Language:     profile.Language,
+		EmailNotify:  profile.EmailNotify,
+		EnforcerMode: profile.EnforcerMode,
 	}, nil
 }
 
@@ -59,13 +60,14 @@ func (s *profileService) UpdateProfile(ctx context.Context, userID string, req d
 			return err
 		}
 		return tx.Profiles().Upsert(ctx, &models.UserProfile{
-			UserID:      userID,
-			Title:       req.Title,
-			Company:     req.Company,
-			Bio:         req.Bio,
-			Timezone:    req.Timezone,
-			Language:    req.Language,
-			EmailNotify: req.EmailNotify,
+			UserID:       userID,
+			Title:        req.Title,
+			Company:      req.Company,
+			Bio:          req.Bio,
+			Timezone:     req.Timezone,
+			Language:     req.Language,
+			EmailNotify:  req.EmailNotify,
+			EnforcerMode: req.EnforcerMode,
 		})
 	})
 }

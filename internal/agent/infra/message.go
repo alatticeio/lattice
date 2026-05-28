@@ -143,6 +143,7 @@ type Peer struct {
 	LastUpdatedAt       string            `json:"lastUpdatedAt"`
 	Token               string            `json:"token,omitempty"`
 	LrpUrl              string            `json:"lrpUrl,omitempty"`
+	EnforcerMode        string            `json:"enforcerMode,omitempty"` // user personal setting from registration
 	Labels              map[string]string `json:"labels,omitempty"`
 }
 

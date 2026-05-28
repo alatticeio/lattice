@@ -101,6 +101,9 @@ First time? Run "lattice init" to set up your config interactively.`,
 			if name, _ := cmd.Flags().GetString("name"); name != "" {
 				config.Conf.Name = name
 			}
+			if mode, _ := cmd.Flags().GetString("enforcer-mode"); mode != "" {
+				config.Conf.EnforcerMode = mode
+			}
 
 			return agent.Start(ctx, config.Conf)
 		},
@@ -116,6 +119,7 @@ First time? Run "lattice init" to set up your config interactively.`,
 	fs.BoolP("enable-metric", "", false, "expose Prometheus metrics endpoint")
 	fs.BoolP("enable-sys-log", "", false, "enable verbose WireGuard and ICE debug logging")
 	fs.IntP("wg-port", "", 51820, "UDP port for WireGuard and ICE (default 51820)")
+	fs.StringP("enforcer-mode", "", "auto", "policy enforcement backend: auto, iptables, ebpf")
 	fs.StringP("name", "", "", "display name for this node (shown in the UI)")
 	return cmd
 }

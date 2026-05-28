@@ -31,6 +31,9 @@ data:
     {{- if .Values.config.stunUrl }}
     stun-url: "{{ .Values.config.stunUrl }}"
     {{- end }}
+    {{- if .Values.config.enforcerMode }}
+    enforcer-mode: "{{ .Values.config.enforcerMode }}"
+    {{- end }}
     {{- if .Values.config.database.dsn }}
     database:
       dsn: "{{ .Values.config.database.dsn }}"
