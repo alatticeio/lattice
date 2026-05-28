@@ -144,9 +144,8 @@ func (s *Server) handleDemoLaunch() gin.HandlerFunc {
 
 		// 4. Apply allow-all policy so demo devices can reach each other.
 		if _, policyErr := s.policyController.ApplyDirect(tokenCtx, wsVo.ID, "", "", &dto.PolicyDto{
-			Name:      "demo-allow-all",
-			Namespace: wsVo.Namespace,
-			Action:    "Allow",
+			Name:   "demo-allow-all",
+			Action: "Allow",
 		}); policyErr != nil {
 			s.logger.Warn("demo: failed to apply allow-all policy (non-fatal)", "err", policyErr)
 		}
