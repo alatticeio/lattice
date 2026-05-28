@@ -21,14 +21,41 @@ import (
 	"os"
 	"strings"
 	"text/tabwriter"
-
-	"github.com/alatticeio/lattice/internal/server/vo"
+	"time"
 )
+
+// workspaceView is the CLI-local representation of a workspace.
+// Fields match the JSON keys returned by /api/v1/workspaces/list.
+type workspaceView struct {
+	ID          string `json:"id"`
+	Slug        string `json:"slug"`
+	Namespace   string `json:"namespace"`
+	DisplayName string `json:"displayName"`
+	NodeCount   int64  `json:"nodeCount"`
+	Status      string `json:"status"`
+}
+
+// policyView is the CLI-local representation of a policy.
+type policyView struct {
+	Name        string   `json:"name"`
+	Action      string   `json:"action"`
+	Description string   `json:"description"`
+	Namespace   string   `json:"namespace"`
+	PolicyTypes []string `json:"policyTypes"`
+}
+
+// tokenView is the CLI-local representation of an enrollment token.
+type tokenView struct {
+	Token      string    `json:"token"`
+	Namespace  string    `json:"namespace"`
+	UsageLimit int       `json:"usageLimit"`
+	Expiry     time.Time `json:"expiry"`
+}
 
 // resolveWorkspaceID looks up the workspace UUID for a given K8s namespace string.
 // The CLI uses namespace as the user-visible identifier; the HTTP API requires the UUID.
 func (c *Client) resolveWorkspaceID(namespace string) (string, error) {
-	var list []vo.WorkspaceVo
+	var list []workspaceView
 	if err := c.do(context.Background(), http.MethodGet, "/api/v1/workspaces/list", "", nil, &list); err != nil {
 		return "", fmt.Errorf("listing workspaces: %w", err)
 	}
@@ -44,7 +71,7 @@ func (c *Client) resolveWorkspaceID(namespace string) (string, error) {
 
 // AddWorkspace creates a workspace and prints the result.
 func (c *Client) AddWorkspace(slug, namespace, displayName string) error {
-	var ws vo.WorkspaceVo
+	var ws workspaceView
 	err := c.do(context.Background(), http.MethodPost, "/api/v1/workspaces/add", "", map[string]string{
 		"slug":        slug,
 		"namespace":   namespace,
@@ -76,7 +103,7 @@ func (c *Client) RemoveWorkspace(namespace string) error {
 
 // ListWorkspaces prints all workspaces as a table.
 func (c *Client) ListWorkspaces() error {
-	var list []vo.WorkspaceVo
+	var list []workspaceView
 	if err := c.do(context.Background(), http.MethodGet, "/api/v1/workspaces/list", "", nil, &list); err != nil {
 		return err
 	}
@@ -101,7 +128,7 @@ func (c *Client) AddPolicy(namespace, name, action, description string) error {
 	if err != nil {
 		return err
 	}
-	var p vo.PolicyVo
+	var p policyView
 	err = c.do(context.Background(), http.MethodPost, "/api/v1/policies/create", wsID, map[string]string{
 		"name":        name,
 		"namespace":   namespace,
@@ -141,7 +168,7 @@ func (c *Client) ListPolicies(namespace string) error {
 	if err != nil {
 		return err
 	}
-	var list []vo.PolicyVo
+	var list []policyView
 	if err := c.do(context.Background(), http.MethodGet, "/api/v1/policies/list", wsID, nil, &list); err != nil {
 		return err
 	}
@@ -184,7 +211,7 @@ func (c *Client) ListTokens(namespace string) error {
 	if err != nil {
 		return err
 	}
-	var list []*vo.TokenVo
+	var list []*tokenView
 	if err := c.do(context.Background(), http.MethodGet, "/api/v1/token/list", wsID, nil, &list); err != nil {
 		return err
 	}
