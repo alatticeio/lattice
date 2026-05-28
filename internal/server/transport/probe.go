@@ -66,10 +66,15 @@ type Probe struct {
 	// currentTransport holds the active transport.
 	currentTransport infra.Transport
 
-	// Remote peer identity received from SYN/ACK.
 	// firstFailureAt tracks consecutive failure duration for 60s timeout.
 	muFail         sync.Mutex
 	firstFailureAt time.Time
+
+	// Liveness ticker: polls WireGuard LastHandshakeTime to detect silent
+	// peer failures after a transport is established.
+	getHandshake   func(pubKey string) (time.Time, error)
+	muLiveness     sync.Mutex
+	livenessCancel context.CancelFunc
 }
 
 func (p *Probe) Handle(ctx context.Context, remoteId infra.PeerIdentity, packet *grpc.SignalPacket) error {
@@ -94,12 +99,77 @@ func (p *Probe) Handle(ctx context.Context, remoteId infra.PeerIdentity, packet 
 	return nil
 }
 
+// startLivenessTicker starts a background goroutine that polls the WireGuard
+// LastHandshakeTime every 60 s. If the handshake is stale (> 3 minutes), the
+// probe is restarted so that a new connection can be established.
+func (p *Probe) startLivenessTicker() {
+	if p.getHandshake == nil {
+		return
+	}
+	p.muLiveness.Lock()
+	defer p.muLiveness.Unlock()
+	if p.livenessCancel != nil {
+		p.livenessCancel()
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	p.livenessCancel = cancel
+	go p.runLiveness(ctx)
+}
+
+func (p *Probe) stopLivenessTicker() {
+	p.muLiveness.Lock()
+	defer p.muLiveness.Unlock()
+	if p.livenessCancel != nil {
+		p.livenessCancel()
+		p.livenessCancel = nil
+	}
+}
+
+const livenessInterval = 60 * time.Second
+const livenessThreshold = 3 * time.Minute
+
+func (p *Probe) runLiveness(ctx context.Context) {
+	ticker := time.NewTicker(livenessInterval)
+	defer ticker.Stop()
+	pubKey := p.remoteId.PublicKey.String()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			// Only monitor liveness when a transport is established.
+			state := p.sm.Current()
+			if state != StateICEReady && state != StateLRPReady {
+				return
+			}
+			t, err := p.getHandshake(pubKey)
+			if err != nil {
+				// Peer not yet visible in WireGuard (e.g. peer removed after
+				// Close); stop monitoring.
+				p.log.Debug("liveness: handshake query failed, stopping ticker",
+					"remoteId", p.remoteId.AppID, "err", err)
+				return
+			}
+			if t.IsZero() || time.Since(t) > livenessThreshold {
+				p.log.Warn("WireGuard handshake stale, restarting probe",
+					"remoteId", p.remoteId.AppID, "lastHandshake", t)
+				go p.restart()
+				return
+			}
+			p.log.Debug("liveness: handshake ok",
+				"remoteId", p.remoteId.AppID, "age", time.Since(t).Round(time.Second))
+		}
+	}
+}
+
 // restart replaces both dialers with fresh instances and re-runs discovery.
 func (p *Probe) restart() {
 	if !p.restartInProgress.CompareAndSwap(false, true) {
 		return // another restart already in flight
 	}
 	defer p.restartInProgress.Store(false)
+
+	p.stopLivenessTicker()
 
 	if p.newIceDialer == nil {
 		return
@@ -127,6 +197,7 @@ func (p *Probe) restart() {
 
 // Close permanently stops this probe.
 func (p *Probe) Close() {
+	p.stopLivenessTicker()
 	p.mu.Lock()
 	p.newIceDialer = nil
 	p.newLrpDialer = nil
@@ -211,6 +282,8 @@ func (p *Probe) onSuccess(transport infra.Transport) {
 	} else {
 		_ = p.sm.Transition(StateLRPReady)
 	}
+
+	p.startLivenessTicker()
 }
 
 // onFailure handles discovery failure.

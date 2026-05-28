@@ -13,7 +13,7 @@ INSTALL_DIR="${INSTALL_DIR:-/usr/local/bin}"
 TAG="${TAG:-}"
 SERVER="${SERVER:-}"
 TOKEN="${TOKEN:-}"
-REPO="alatticeio/lattice"
+REPO="winstonfly/lattice"
 
 # Parse CLI flags (override env vars)
 while [[ $# -gt 0 ]]; do

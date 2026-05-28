@@ -10,7 +10,7 @@ set -e
 INSTALL_DIR="${INSTALL_DIR:-/usr/local/bin}"
 LATTICE_CONFIG_DIR="${LATTICE_CONFIG_DIR:-/etc/lattice}"
 LATTICE_VERSION="${LATTICE_VERSION:-latest}"
-REPO="alatticeio/lattice"
+REPO="winstonfly/lattice"
 GITHUB_API="https://api.github.com/repos/${REPO}/releases"
 GITHUB_RELEASES="https://github.com/${REPO}/releases"
 

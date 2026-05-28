@@ -12,16 +12,22 @@ spec:
       labels:
         app: stun
     spec:
+      # hostNetwork binds coturn directly to the host NIC, bypassing K8s iptables NAT.
+      # Without this, STUN responses may be sent from the pod's internal IP,
+      # causing "timeout while waiting for XORMappedAddr" on the client side.
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
       containers:
         - name: coturn
           image: coturn/coturn:4.6
           args:
             - "--stun-only"
             - "--listening-port=3478"
+            - "--no-multicast-peers"
+            - "--no-loopback-peers"
           ports:
             - containerPort: 3478
               protocol: UDP
-              hostPort: 3478  # 必须 hostPort，coturn 返回的是宿主机 IP
           resources:
             requests:
               cpu: 50m

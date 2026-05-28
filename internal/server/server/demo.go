@@ -167,8 +167,6 @@ func (s *Server) handleDemoLaunch() gin.HandlerFunc {
 		}
 		if _, policyErr := s.policyController.ApplyDirect(tokenCtx, wsVo.ID, "", "", &dto.PolicyDto{
 			Name:        "demo-allow-all",
-			Namespace:   wsVo.Namespace,
-			Network:     demoNetwork,
 			Action:      "Allow",
 			PolicyTypes: []string{"Ingress", "Egress"},
 			LatticePolicySpec: v1alpha1.LatticePolicySpec{

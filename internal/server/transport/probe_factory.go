@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/alatticeio/lattice/internal/agent/infra"
 	"github.com/alatticeio/lattice/internal/agent/log"
@@ -38,6 +39,7 @@ type ProbeFactory struct {
 	getProvisioner func() provision.Provisioner
 	getOnMessage   func() func(context.Context, *infra.Message) error
 	getLrp         func() infra.Lrp
+	getHandshake   func(pubKey string) (time.Time, error)
 
 	log *log.Logger
 
@@ -57,7 +59,11 @@ type ProbeFactoryConfig struct {
 	FilteringMux   *infra.FilteringUDPMux
 	FilteringMux6  *infra.FilteringUDPMux
 	GetProvisioner func() provision.Provisioner
-	ShowLog        bool
+	// GetHandshake returns the WireGuard LastHandshakeTime for the given peer
+	// public key. Used by the liveness ticker to detect silent peer failures.
+	// May be nil (liveness monitoring is disabled).
+	GetHandshake func(pubKey string) (time.Time, error)
+	ShowLog      bool
 }
 
 func NewProbeFactory(cfg *ProbeFactoryConfig) *ProbeFactory {
@@ -73,6 +79,7 @@ func NewProbeFactory(cfg *ProbeFactoryConfig) *ProbeFactory {
 		FilteringMux6:  cfg.FilteringMux6,
 		getProvisioner: cfg.GetProvisioner,
 		getOnMessage:   cfg.GetOnMessage,
+		getHandshake:   cfg.GetHandshake,
 	}
 }
 
@@ -349,6 +356,7 @@ func (p *ProbeFactory) NewProbe(remoteId infra.PeerIdentity) (*Probe, error) {
 		signal:       p.signal,
 		sm:           sm,
 		configurator: configurator,
+		getHandshake: p.getHandshake,
 	}
 
 	makeIceDialer := func() infra.Dialer {
