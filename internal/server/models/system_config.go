@@ -6,6 +6,7 @@ import (
 
 const (
 	ConfigKeyNatsURL = "nats_url"
+	ConfigKeyStunURL = "stun_url"
 )
 
 // Feature flag keys stored in la_system_config with "feature." prefix.

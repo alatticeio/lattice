@@ -21,6 +21,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
+
+
 	"github.com/alatticeio/lattice/internal/agent/config"
 	"github.com/alatticeio/lattice/internal/agent/infra"
 	"github.com/alatticeio/lattice/internal/agent/log"
@@ -30,10 +33,11 @@ import (
 	ctrclient "github.com/alatticeio/lattice/internal/server/client"
 	"github.com/alatticeio/lattice/internal/server/nats"
 	"github.com/alatticeio/lattice/internal/server/transport"
-	"github.com/alatticeio/lattice/pkg/utils"
 	"net"
 	"net/http"
 	"strings"
+
+	"github.com/alatticeio/lattice/pkg/utils"
 
 	wg "golang.zx2c4.com/wireguard/device"
 	"golang.zx2c4.com/wireguard/tun"
@@ -246,11 +250,12 @@ func NewNode(ctx context.Context, cfg *NodeConfig) (*Node, error) {
 		node.filteringMux6 = filteringMux6
 	}
 
-	// Auto-discover NATS URL from server if not already set (e.g. via advanced override).
+	// Auto-discover NATS and STUN URLs from server if not already set.
 	if config.Conf.GetSignalingURL() == "" {
-		d, dErr := discover(ctx, config.Conf.ServerUrl)
-		if dErr != nil {
-			return nil, fmt.Errorf("NATS discovery failed: %w", dErr)
+		var d discoveryResult
+		d, err = discover(ctx, config.Conf.ServerUrl)
+		if err != nil {
+			return nil, fmt.Errorf("NATS discovery failed: %w", err)
 		}
 		config.Conf.SetSignalingURL(d.NatsURL)
 		log.GetLogger("node").Info("Discovered NATS URL", "url", d.NatsURL)
@@ -358,6 +363,9 @@ func NewNode(ctx context.Context, cfg *NodeConfig) (*Node, error) {
 		},
 		GetLrp: func() infra.Lrp {
 			return lrp
+		},
+		GetHandshake: func(pubKey string) (time.Time, error) {
+			return wireguard.PeerHandshake(config.Conf.InterfaceName, pubKey)
 		},
 	})
 

@@ -173,15 +173,15 @@
     "title": "Platform Settings",
     "desc": "Manage platform-level configuration for all workspaces and agents.",
     "natsUrlLabel": "NATS Signaling URL",
-    "natsUrlPlaceholder": "nats://nats-cluster:4222",
-    "natsUrlHint": "Agent nodes use this URL to connect to the signaling server. Format: nats://host:port",
+    "natsUrlHint": "Agent nodes connect to the signaling server via this URL. Leave empty to use the node default.",
+    "stunUrlLabel": "STUN Server URL",
+    "stunUrlHint": "Agent nodes use this URL for NAT traversal. Leave empty to use the built-in default.",
+    "hostPlaceholder": "hostname or IP",
     "saveBtn": "Save Changes",
     "saving": "Saving...",
     "saved": "Platform settings saved",
     "saveFailed": "Failed to save platform settings",
-    "loadFailed": "Failed to load platform settings",
-    "validationRequired": "NATS URL is required",
-    "validationPrefix": "NATS URL must start with nats:// or nats+tls://"
+    "loadFailed": "Failed to load platform settings"
   },
   "relays": {
     "title": "Relay Nodes",
