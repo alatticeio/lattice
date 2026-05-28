@@ -19,12 +19,13 @@ package provision
 import (
 	"testing"
 
+	"github.com/alatticeio/lattice/internal/agent/config"
 	"github.com/alatticeio/lattice/internal/agent/log"
 )
 
 func TestSelectEnforcerMode_Community(t *testing.T) {
 	logger := log.GetLogger("test")
-	mode := SelectEnforcerMode(logger)
+	mode := SelectEnforcerMode(&config.Config{}, logger)
 	if mode != ModeIPTables {
 		t.Errorf("expected ModeIPTables in community build, got %v", mode)
 	}

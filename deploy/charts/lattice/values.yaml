@@ -56,6 +56,10 @@ config:
     secret: ""  # auto-generated if empty
     expireHours: 24
   signalingUrl: ""  # defaults to embedded NATS within the pod
+  # -- Global default enforcer mode returned by /api/v1/discovery.
+  # Agents use this when neither CLI flag nor user setting is configured.
+  # Valid values: auto, iptables, ebpf
+  enforcerMode: ""
   stunUrl: "stun.alattice.io:3478"  # STUN server address (host:port)
   database:
     dsn: "data/lattice.db"  # SQLite path

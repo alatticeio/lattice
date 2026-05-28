@@ -44,7 +44,28 @@ var (
 	_ infra.NodeInterface = (*Node)(nil)
 )
 
+<<<<<<< HEAD
 // discoverNATSURL fetches the NATS URL from the server's discovery endpoint.
+=======
+// discoverNATSURLOnly is a convenience wrapper that returns only the NATS URL.
+// Used by sandbox_register.go which does not need the STUN address.
+func discoverNATSURLOnly(ctx context.Context, serverURL string) (string, error) {
+	d, err := discover(ctx, serverURL)
+	if err != nil {
+		return "", err
+	}
+	return d.NatsURL, nil
+}
+
+// discoveryResult holds the URLs returned by the server's /api/v1/discovery endpoint.
+type discoveryResult struct {
+	NatsURL      string
+	StunURL      string // empty when server does not advertise a STUN address
+	EnforcerMode string // server global default for enforcer mode
+}
+
+// discover fetches NATS and STUN URLs from the server's discovery endpoint.
+>>>>>>> b0fc9025 (feat(agent): extract enforcer_mode from discovery and apply as fallback)
 // Returns an error if the server is unreachable or the response is malformed.
 func discoverNATSURL(ctx context.Context, serverURL string) (string, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, serverURL+"/api/v1/discovery", nil)
@@ -59,7 +80,13 @@ func discoverNATSURL(ctx context.Context, serverURL string) (string, error) {
 
 	var envelope struct {
 		Data struct {
+<<<<<<< HEAD
 			NatsURL string `json:"nats_url"`
+=======
+			NatsURL      string `json:"nats_url"`
+			StunURL      string `json:"stun_url"`
+			EnforcerMode string `json:"enforcer_mode"`
+>>>>>>> b0fc9025 (feat(agent): extract enforcer_mode from discovery and apply as fallback)
 		} `json:"data"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&envelope); err != nil {
@@ -68,7 +95,15 @@ func discoverNATSURL(ctx context.Context, serverURL string) (string, error) {
 	if envelope.Data.NatsURL == "" {
 		return "", fmt.Errorf("discovery endpoint returned empty nats_url")
 	}
+<<<<<<< HEAD
 	return envelope.Data.NatsURL, nil
+=======
+	return discoveryResult{
+		NatsURL:      envelope.Data.NatsURL,
+		StunURL:      envelope.Data.StunURL,
+		EnforcerMode: envelope.Data.EnforcerMode,
+	}, nil
+>>>>>>> b0fc9025 (feat(agent): extract enforcer_mode from discovery and apply as fallback)
 }
 
 // Node is the Lattice data-plane node. It owns the WireGuard device and
@@ -229,8 +264,24 @@ func NewNode(ctx context.Context, cfg *NodeConfig) (*Node, error) {
 		if err != nil {
 			return nil, fmt.Errorf("NATS discovery failed: %w", err)
 		}
+<<<<<<< HEAD
 		config.Conf.SetSignalingURL(natsURL)
 		log.GetLogger("node").Info("Discovered NATS URL", "url", natsURL)
+=======
+		config.Conf.SetSignalingURL(d.NatsURL)
+		log.GetLogger("node").Info("Discovered NATS URL", "url", d.NatsURL)
+		if d.StunURL != "" && config.Conf.TurnServerURL == "" {
+			config.Conf.TurnServerURL = d.StunURL
+			log.GetLogger("node").Info("Discovered STUN URL", "url", d.StunURL)
+		}
+		// Apply server global enforcer_mode default if CLI hasn't overridden it.
+		if config.Conf.EnforcerMode == "" || config.Conf.EnforcerMode == "auto" {
+			if d.EnforcerMode != "" {
+				config.Conf.EnforcerMode = d.EnforcerMode
+				log.GetLogger("node").Info("Discovered enforcer mode", "mode", d.EnforcerMode)
+			}
+		}
+>>>>>>> b0fc9025 (feat(agent): extract enforcer_mode from discovery and apply as fallback)
 	}
 
 	// NATS signal service: exchanges ICE signaling messages (SYN/ACK/Offer/Answer)
@@ -271,6 +322,17 @@ func NewNode(ctx context.Context, cfg *NodeConfig) (*Node, error) {
 		if err != nil {
 			return nil, err
 		}
+	}
+
+	// Apply user personal enforcer_mode from registration response.
+	// Overrides discovery default.
+	if node.current.EnforcerMode != "" {
+		config.Conf.EnforcerMode = node.current.EnforcerMode
+		log.GetLogger("node").Info("Enforcer mode from user setting", "mode", node.current.EnforcerMode)
+	}
+	// Ensure non-empty before selector runs.
+	if config.Conf.EnforcerMode == "" {
+		config.Conf.EnforcerMode = "auto"
 	}
 
 	privateKey, err = utils.ParseKey(node.current.PrivateKey)
@@ -378,7 +440,7 @@ func NewNode(ctx context.Context, cfg *NodeConfig) (*Node, error) {
 	if cfg.ProvisionerFactory != nil {
 		node.provisioner = cfg.ProvisionerFactory(node.iface)
 	} else {
-		enforcerMode := provision.SelectEnforcerMode(cfg.Logger)
+		enforcerMode := provision.SelectEnforcerMode(cfg.Flags, cfg.Logger)
 		var policyEnforcer provision.PolicyEnforcer
 		switch enforcerMode {
 		case provision.ModeEBPF:
