@@ -35,7 +35,6 @@ import (
 	"github.com/pion/ice/v4"
 	"github.com/pion/logging"
 	"github.com/pion/stun/v3"
-	"google.golang.org/protobuf/proto"
 )
 
 var (
@@ -614,7 +613,7 @@ func (i *iceDialer) sendPacket(ctx context.Context, remoteId infra.PeerIdentity,
 	}
 	p := &grpc.SignalPacket{
 		Type:     packetType,
-		SenderId: i.localId.ID().ToUint64(),
+		SenderID: i.localId.ID().ToUint64(),
 	}
 
 	switch packetType {
@@ -630,7 +629,7 @@ func (i *iceDialer) sendPacket(ctx context.Context, remoteId infra.PeerIdentity,
 				hs.PeerInfo = data
 			}
 		}
-		p.Payload = &grpc.SignalPacket_Handshake{Handshake: hs}
+		p.Handshake = hs
 	case grpc.PacketType_OFFER:
 		i.mu.Lock()
 		agent := i.agent
@@ -649,17 +648,15 @@ func (i *iceDialer) sendPacket(ctx context.Context, remoteId infra.PeerIdentity,
 		if candidate == nil {
 			return fmt.Errorf("candidate is nil for OFFER")
 		}
-		p.Payload = &grpc.SignalPacket_Offer{
-			Offer: &grpc.Offer{
-				Ufrag:     ufrag,
-				Pwd:       pwd,
-				Candidate: candidate.Marshal(),
-				Current:   currentData,
-				PublicKey: i.localId.PublicKey.String(),
-			},
+		p.Offer = &grpc.Offer{
+			Ufrag:     ufrag,
+			Pwd:       pwd,
+			Candidate: candidate.Marshal(),
+			Current:   currentData,
+			PublicKey: i.localId.PublicKey.String(),
 		}
 	}
-	data, err := proto.Marshal(p)
+	data, err := json.Marshal(p)
 	if err != nil {
 		return err
 	}

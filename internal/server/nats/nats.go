@@ -24,9 +24,10 @@ import (
 
 	"github.com/alatticeio/lattice/internal/grpc"
 
+	"encoding/json"
+
 	natsgo "github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
-	"google.golang.org/protobuf/proto"
 )
 
 var (
@@ -139,12 +140,12 @@ func (s *NatsSignalService) ensureStream(ctx context.Context, js jetstream.JetSt
 func (s *NatsSignalService) Subscribe(subject string, onMessage SignalHandler) error {
 	sub, err := s.nc.Subscribe(subject, func(m *natsgo.Msg) {
 		var packet grpc.SignalPacket
-		if err := proto.Unmarshal(m.Data, &packet); err != nil {
+		if err := json.Unmarshal(m.Data, &packet); err != nil {
 			s.log.Error("failed to unmarshal packet", err)
 			return
 		}
 
-		err := onMessage(context.Background(), infra.FromUint64(packet.SenderId), &packet)
+		err := onMessage(context.Background(), infra.FromUint64(packet.SenderID), &packet)
 		if err != nil {
 			s.log.Error("onMessage failed", err)
 		}

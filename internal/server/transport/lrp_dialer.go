@@ -26,7 +26,6 @@ import (
 	"time"
 
 	"github.com/pion/ice/v4"
-	"google.golang.org/protobuf/proto"
 )
 
 var (
@@ -132,7 +131,7 @@ func (w *lrpDialer) sendPacket(ctx context.Context, remoteId infra.PeerIdentity,
 	p := &grpc.SignalPacket{
 		Type:     packetType,
 		Dialer:   grpc.DialerType_LRP,
-		SenderId: w.localId.ID().ToUint64(),
+		SenderID: w.localId.ID().ToUint64(),
 	}
 
 	switch packetType {
@@ -145,10 +144,10 @@ func (w *lrpDialer) sendPacket(ctx context.Context, remoteId infra.PeerIdentity,
 				hs.PeerInfo = data
 			}
 		}
-		p.Payload = &grpc.SignalPacket_Handshake{Handshake: hs}
+		p.Handshake = hs
 	}
 
-	data, err := proto.Marshal(p)
+	data, err := json.Marshal(p)
 	if err != nil {
 		return err
 	}
@@ -165,16 +164,14 @@ func (w *lrpDialer) sendOfferFromLrp(ctx context.Context, offerType grpc.PacketT
 	p := &grpc.SignalPacket{
 		Type:     offerType,
 		Dialer:   grpc.DialerType_LRP,
-		SenderId: w.localId.ID().ToUint64(),
-		Payload: &grpc.SignalPacket_Offer{
-			Offer: &grpc.Offer{
-				PublicKey: w.localId.PublicKey.String(),
-				Current:   data,
-			},
+		SenderID: w.localId.ID().ToUint64(),
+		Offer: &grpc.Offer{
+			PublicKey: w.localId.PublicKey.String(),
+			Current:   data,
 		},
 	}
 
-	offerData, err := proto.Marshal(p)
+	offerData, err := json.Marshal(p)
 	if err != nil {
 		return err
 	}

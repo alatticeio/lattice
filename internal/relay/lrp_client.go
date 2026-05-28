@@ -18,11 +18,11 @@ import (
 	"context"
 	"sync/atomic"
 
+	"encoding/json"
+
 	"github.com/alatticeio/lattice/internal/agent/infra"
 	"github.com/alatticeio/lattice/internal/agent/log"
 	"github.com/alatticeio/lattice/internal/grpc"
-
-	"google.golang.org/protobuf/proto"
 )
 
 const (
@@ -64,11 +64,11 @@ func (c *lrpClient) probeWorker() {
 			return
 		case task := <-c.probeCh:
 			var packet grpc.SignalPacket
-			if err := proto.Unmarshal(task.Data, &packet); err != nil {
+			if err := json.Unmarshal(task.Data, &packet); err != nil {
 				c.log.Error("failed to unmarshal probe packet", err)
 				continue
 			}
-			if err := c.onMessage(c.ctx, infra.FromUint64(packet.SenderId), &packet); err != nil {
+			if err := c.onMessage(c.ctx, infra.FromUint64(packet.SenderID), &packet); err != nil {
 				c.log.Error("probe handler returned error", err)
 			}
 		}
