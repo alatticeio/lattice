@@ -35,6 +35,7 @@ import (
 	"github.com/alatticeio/lattice/internal/server/resource"
 	"github.com/alatticeio/lattice/internal/server/server/middleware"
 	"github.com/alatticeio/lattice/internal/server/service"
+	_ "github.com/alatticeio/lattice/internal/server/utils"
 	"github.com/alatticeio/lattice/pkg/utils"
 	"sync"
 	"time"
