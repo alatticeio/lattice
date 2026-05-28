@@ -35,6 +35,16 @@ type DriverConfig struct {
 	AgentBinary string   // AI agent binary inside the container
 	AgentArgs   []string // AI agent arguments
 	BundleDir   string   // writable OCI bundle dir; defaults to /tmp/lattice-runsc/<name>
+
+	// WgPort is the UDP port for WireGuard. 0 means let the OS pick a random
+	// available port, which is required when another lattice agent already
+	// occupies port 51820 on the same host.
+	WgPort int
+
+	// ReadyCh, if non-nil, receives a signal when the sandbox is fully ready
+	// (SOCKS5 listening, WireGuard node started). Used by sandbox run to know
+	// when to inject ALL_PROXY and exec the child process.
+	ReadyCh chan<- struct{}
 }
 
 // IsolationDriver abstracts the lifecycle of a sandbox isolation backend.

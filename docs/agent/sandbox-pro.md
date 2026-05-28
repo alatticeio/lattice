@@ -6,7 +6,36 @@ title: Agent Sandbox (Pro)
 
 The Pro sandbox extends the [Community sandbox](/agent/sandbox) with egress filtering, inbound port forwarding, a SOCKS5 proxy, and server-side NATS flow auditing.
 
-## Additional Flags
+## `sandbox run` — One-Command Sandbox
+
+`lattice sandbox run` combines `start` + agent execution + cleanup into a single command. It supports two isolation modes:
+
+```bash
+# pod mode (default) — SOCKS5 proxy + ALL_PROXY injection
+lattice sandbox run --name my-agent --server-url http://latticed:8080 --token lt-xxx \
+  -- python agent.py
+
+# gvisor mode — runsc container isolation
+lattice sandbox run --name my-agent --server-url http://latticed:8080 --token lt-xxx \
+  --mode gvisor --agent-rootfs /var/lib/lattice/rootfs \
+  -- python agent.py
+```
+
+**pod mode** starts a network sandbox, injects `ALL_PROXY` into the child process, and executes the given command. When the child exits, the sandbox is automatically cleaned up.
+
+**gvisor mode** runs the agent binary directly inside a gVisor runsc container. The first arg after `--` becomes the agent binary (unless `--agent-binary` is explicitly set).
+
+| Flag | Mode | Description |
+|------|------|-------------|
+| `--mode` | both | Isolation mode: `pod` (default) or `gvisor` |
+| `--agent-rootfs` | gvisor | Root filesystem path for runsc container |
+| `--agent-binary` | gvisor | Agent entrypoint binary (defaults to first arg after `--`) |
+| `--agent-args` | gvisor | Arguments passed to the agent binary |
+| `--proxy-addr` | pod | SOCKS5 proxy listen address (empty = random port) |
+| `--ready-timeout` | pod | Max wait for sandbox ready (default 30s) |
+| `--wg-port` | pod | WireGuard UDP port (0 = random) |
+
+## Additional Flags (`sandbox start`)
 
 ```
 lattice sandbox start [flags]

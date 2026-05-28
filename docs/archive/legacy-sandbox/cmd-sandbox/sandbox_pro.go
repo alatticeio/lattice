@@ -71,6 +71,7 @@ var (
 	sandboxForwardRules []string
 	sandboxEgressAllow  string
 	sandboxEgressDeny   bool
+	sandboxWgPort       int
 
 	// gvisor (runsc) mode flags.
 	sandboxMode        string
