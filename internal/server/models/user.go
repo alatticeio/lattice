@@ -34,7 +34,6 @@ type UserProfile struct {
 	Language     string `gorm:"size:16;default:'zh-CN'" json:"language"`
 	EmailNotify  bool   `gorm:"default:true" json:"emailNotify"`
 	EnforcerMode string `gorm:"size:16;default:'auto'" json:"enforcerMode"`
-	Tier         string `gorm:"size:16;default:'community'" json:"tier"`
 }
 
 func (UserProfile) TableName() string {

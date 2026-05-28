@@ -513,7 +513,6 @@ func (s *Server) handleSandboxNATSRegister(ctx context.Context, peer dto.PeerDto
 		AppID:        peer.AppID,
 		Token:        result.JWT,
 		EnforcerMode: result.EnforcerMode,
-		Tier:         result.Tier,
 	}
 	data, err := json.Marshal(returnPeer)
 	if err != nil {

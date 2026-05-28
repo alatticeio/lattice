@@ -44,7 +44,6 @@ func (s *profileService) GetProfile(ctx context.Context, userID string) (*dto.Us
 		Language:     profile.Language,
 		EmailNotify:  profile.EmailNotify,
 		EnforcerMode: profile.EnforcerMode,
-		Tier:         profile.Tier,
 	}, nil
 }
 
@@ -69,7 +68,6 @@ func (s *profileService) UpdateProfile(ctx context.Context, userID string, req d
 			Language:     req.Language,
 			EmailNotify:  req.EmailNotify,
 			EnforcerMode: req.EnforcerMode,
-			Tier:         req.Tier,
 		})
 	})
 }

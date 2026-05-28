@@ -23,7 +23,7 @@ import (
 
 func TestSelectEnforcerMode_Community(t *testing.T) {
 	logger := log.GetLogger("test")
-	mode := SelectEnforcerMode(&config.Config{}, "community", logger)
+	mode := SelectEnforcerMode(&config.Config{}, logger)
 	if mode != ModeIPTables {
 		t.Errorf("expected ModeIPTables for community tier, got %v", mode)
 	}
