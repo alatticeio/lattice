@@ -12,6 +12,7 @@ type UserSettingsResponse struct {
 	Language     string `json:"language"`     // Maps to UserProfile.Language
 	EmailNotify  bool   `json:"emailNotify"`  // Maps to UserProfile.EmailNotify
 	EnforcerMode string `json:"enforcerMode"` // "auto", "iptables", "ebpf"
+	Tier         string `json:"tier"`         // "community" or "pro"
 }
 
 // UpdateSettingsRequest receives the update structure from the frontend
@@ -29,4 +30,5 @@ type UpdateSettingsRequest struct {
 	Language     string `json:"language"`
 	EmailNotify  bool   `json:"emailNotify"`
 	EnforcerMode string `json:"enforcerMode"`
+	Tier         string `json:"tier"`
 }

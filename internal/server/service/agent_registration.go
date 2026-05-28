@@ -68,6 +68,8 @@ type AgentRegisterResponse struct {
 	AgentIdentityName string `json:"agentIdentityName"`
 	// EnforcerMode is the user's preferred enforcer mode (iptables/ebpf) from their profile.
 	EnforcerMode string `json:"enforcerMode,omitempty"`
+	// Tier is the user's account tier (community/pro) from their profile.
+	Tier string `json:"tier,omitempty"`
 }
 
 // DelegateRequest is the input for creating a sub-agent enrollment token.
@@ -242,13 +244,15 @@ func (s *agentRegistrationService) RegisterAgent(ctx context.Context, req AgentR
 		return nil, fmt.Errorf("issue JWT: %w", err)
 	}
 
-	// 7. Look up user's enforcer_mode preference from their profile.
+	// 7. Look up user's enforcer_mode and tier preferences from their profile.
 	var userEnforcerMode string
+	var userTier string
 	workspace, wsErr := s.store.Workspaces().GetByNamespace(ctx, tok.AllowedNamespace)
 	if wsErr == nil && workspace.CreatedBy != "" {
 		profile, profErr := s.store.Profiles().Get(ctx, workspace.CreatedBy)
-		if profErr == nil && profile.EnforcerMode != "" {
+		if profErr == nil {
 			userEnforcerMode = profile.EnforcerMode
+			userTier = profile.Tier
 		}
 	}
 
@@ -257,6 +261,7 @@ func (s *agentRegistrationService) RegisterAgent(ctx context.Context, req AgentR
 		JWT:               agentJWT,
 		AgentIdentityName: req.AgentName,
 		EnforcerMode:      userEnforcerMode,
+		Tier:              userTier,
 	}, nil
 }
 

@@ -41,14 +41,19 @@ func (m EnforcerMode) String() string {
 
 // SelectEnforcerMode decides which PolicyEnforcer backend to use.
 // cfg.EnforcerMode may be "auto", "iptables", or "ebpf".
+// tier is the account tier ("community" or "pro") — eBPF requires "pro".
 // "auto" defers to build-tag detection (community -> iptables, pro -> kernel probe).
 // "ebpf" falls back to iptables with a warning if eBPF is unavailable.
-func SelectEnforcerMode(cfg *config.Config, logger *log.Logger) EnforcerMode {
+func SelectEnforcerMode(cfg *config.Config, tier string, logger *log.Logger) EnforcerMode {
 	switch cfg.EnforcerMode {
 	case "iptables":
 		logger.Info("policy enforcement backend: iptables (source: explicit)")
 		return ModeIPTables
 	case "ebpf":
+		if tier != "pro" {
+			logger.Warn("eBPF requires Pro account, falling back to iptables")
+			return ModeIPTables
+		}
 		if mode := selectEBPFAvailable(); mode == ModeEBPF {
 			logger.Info("policy enforcement backend: eBPF (source: explicit)")
 			return ModeEBPF
@@ -56,10 +61,11 @@ func SelectEnforcerMode(cfg *config.Config, logger *log.Logger) EnforcerMode {
 		logger.Warn("ebpf requested but unavailable, falling back to iptables")
 		return ModeIPTables
 	default: // "auto" or empty
-		mode := selectEBPFAvailable()
-		if mode == ModeEBPF {
-			logger.Info("policy enforcement backend: eBPF (source: auto)")
-			return ModeEBPF
+		if tier == "pro" {
+			if mode := selectEBPFAvailable(); mode == ModeEBPF {
+				logger.Info("policy enforcement backend: eBPF (source: auto)")
+				return ModeEBPF
+			}
 		}
 		logger.Info("policy enforcement backend: iptables (source: auto)")
 		return ModeIPTables

@@ -18,11 +18,13 @@ package sandbox
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 
@@ -35,35 +37,36 @@ import (
 	"github.com/alatticeio/lattice/internal/agent/provision"
 	"github.com/alatticeio/lattice/internal/agent/tproxy"
 	wgdevice "golang.zx2c4.com/wireguard/device"
-	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 )
 
-const sandboxAgentUID = 999
+const (
+	sandboxAgentUID = 999
+	auditLogPath    = "/tmp/lattice-audit.jsonl"
+)
 
-// registerOrResume tries to resume from persisted credentials; falls back to
-// fresh NATS registration.
-func registerOrResume(ctx context.Context, agentName, serverURL, token string) (*infra.Peer, error) {
-	if creds, err := loadSandboxCredentials(); err == nil {
-		if key, parseErr := wgtypes.ParseKey(creds.PrivateKey); parseErr == nil {
-			if peer, resumeErr := latticeagent.ResumeSandboxViaNATS(ctx, serverURL, creds.JWT, agentName, key); resumeErr == nil {
-				fmt.Printf("[sandbox-run] resumed %q from saved credentials\n", agentName)
-				return peer, nil
-			}
-		}
-	}
+// fileAuditWriter implements shim.AuditWriter by appending JSON lines to a file.
+type fileAuditWriter struct {
+	mu sync.Mutex
+	f  *os.File
+}
 
-	privKey, err := wgtypes.GeneratePrivateKey()
+func newFileAuditWriter(path string) (*fileAuditWriter, error) {
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
 	if err != nil {
-		return nil, fmt.Errorf("generate WireGuard key: %w", err)
+		return nil, err
 	}
-	peer, err := latticeagent.RegisterSandboxViaNATS(ctx, serverURL, token, agentName, privKey)
+	return &fileAuditWriter{f: f}, nil
+}
+
+func (w *fileAuditWriter) Write(event shim.AuditEvent) error {
+	data, err := json.Marshal(event)
 	if err != nil {
-		return nil, fmt.Errorf("registration failed: %w", err)
+		return err
 	}
-	if saveErr := saveSandboxCredentials(privKey, peer.Token); saveErr != nil {
-		fmt.Printf("[sandbox-run] warning: persist credentials: %v\n", saveErr)
-	}
-	return peer, nil
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	_, err = fmt.Fprintf(w.f, "%s\n", data)
+	return err
 }
 
 // runPeriodicRefresh polls the network map every 15 s as a NATS push fallback.
@@ -151,23 +154,18 @@ func forkAndWait(ctx context.Context, cancel context.CancelFunc, cmdArgs []strin
 const runProxyPort = 15001
 
 // runSandbox is the shared sandbox engine for both community and PRO editions.
+// currentPeer must already be registered (call registerOrResume before this).
 // policyChecker and auditWriter may be nil (community: no policy, no audit).
 func runSandbox(
 	ctx context.Context,
 	cancel context.CancelFunc,
-	agentName, serverURL, token string,
+	agentName string,
+	currentPeer *infra.Peer,
 	policyChecker shim.PolicyChecker,
 	auditWriter shim.AuditWriter,
 	cmdArgs []string,
 ) error {
 	agentconfig.Conf.AppId = agentName
-	agentconfig.Conf.ServerUrl = serverURL
-	agentconfig.Conf.WgPort = 0 // embedded netstack, no kernel wg0
-
-	currentPeer, err := registerOrResume(ctx, agentName, serverURL, token)
-	if err != nil {
-		return err
-	}
 
 	localIP := overlayAddr(currentPeer)
 	fmt.Printf("[sandbox-run] %q registered, overlay IP=%s\n", agentName, localIP)
