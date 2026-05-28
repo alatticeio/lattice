@@ -22,6 +22,7 @@ import (
 	"regexp"
 	"time"
 
+	"github.com/alatticeio/lattice/api/v1alpha1"
 	"github.com/alatticeio/lattice/internal/agent/infra"
 	"github.com/alatticeio/lattice/internal/server/dto"
 	serverutils "github.com/alatticeio/lattice/internal/server/utils"
@@ -30,6 +31,7 @@ import (
 	"github.com/alatticeio/lattice/pkg/version"
 	"github.com/gin-gonic/gin"
 	"golang.org/x/time/rate"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // demoMagicSession is stored in Server.demoSessions keyed by the raw magic token.
@@ -157,24 +159,28 @@ func (s *Server) handleDemoLaunch() gin.HandlerFunc {
 		}
 
 		// 4. Apply allow-all policy so demo devices can reach each other.
+		// Must include PeerSelector + Ingress/Egress with network label to match peers,
+		// mirroring what e2e createAllowAllPolicy does.
 		const demoNetwork = "lattice-default-net"
 		networkLabel := fmt.Sprintf("alattice.io/network-%s", demoNetwork)
-		peerSel := dto.LabelSelector{
+		peerSel := metav1.LabelSelector{
 			MatchLabels: map[string]string{networkLabel: "true"},
 		}
 		if _, policyErr := s.policyController.ApplyDirect(tokenCtx, wsVo.ID, "", "", &dto.PolicyDto{
 			Name:        "demo-allow-all",
+			Namespace:   wsVo.Namespace,
+			Network:     demoNetwork,
 			Action:      "Allow",
 			PolicyTypes: []string{"Ingress", "Egress"},
-			PolicySpec: dto.PolicySpec{
+			LatticePolicySpec: v1alpha1.LatticePolicySpec{
 				Network:      demoNetwork,
 				PeerSelector: peerSel,
 				Action:       "ALLOW",
-				Ingress: []dto.IngressRule{
-					{From: []dto.PeerSelection{{PeerSelector: &peerSel}}},
+				Ingress: []v1alpha1.IngressRule{
+					{From: []v1alpha1.PeerSelection{{PeerSelector: &peerSel}}},
 				},
-				Egress: []dto.EgressRule{
-					{To: []dto.PeerSelection{{PeerSelector: &peerSel}}},
+				Egress: []v1alpha1.EgressRule{
+					{To: []v1alpha1.PeerSelection{{PeerSelector: &peerSel}}},
 				},
 			},
 		}); policyErr != nil {
@@ -341,22 +347,22 @@ func (s *Server) handleSandboxDemoLaunch() gin.HandlerFunc {
 		// 4. Apply allow-all policy
 		const demoNetwork = "lattice-default-net"
 		networkLabel := fmt.Sprintf("alattice.io/network-%s", demoNetwork)
-		peerSel := dto.LabelSelector{
+		peerSel := metav1.LabelSelector{
 			MatchLabels: map[string]string{networkLabel: "true"},
 		}
 		if _, policyErr := s.policyController.ApplyDirect(tokenCtx, wsVo.ID, "", "", &dto.PolicyDto{
 			Name:        "demo-allow-all",
 			Action:      "Allow",
 			PolicyTypes: []string{"Ingress", "Egress"},
-			PolicySpec: dto.PolicySpec{
+			LatticePolicySpec: v1alpha1.LatticePolicySpec{
 				Network:      demoNetwork,
 				PeerSelector: peerSel,
 				Action:       "ALLOW",
-				Ingress: []dto.IngressRule{
-					{From: []dto.PeerSelection{{PeerSelector: &peerSel}}},
+				Ingress: []v1alpha1.IngressRule{
+					{From: []v1alpha1.PeerSelection{{PeerSelector: &peerSel}}},
 				},
-				Egress: []dto.EgressRule{
-					{To: []dto.PeerSelection{{PeerSelector: &peerSel}}},
+				Egress: []v1alpha1.EgressRule{
+					{To: []v1alpha1.PeerSelection{{PeerSelector: &peerSel}}},
 				},
 			},
 		}); policyErr != nil {

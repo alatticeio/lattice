@@ -18,17 +18,28 @@ const openModel = defineModel<boolean>('open')
 
 type State = 'loading' | 'ready' | 'expired' | 'error'
 type Preset = 'claude' | 'python3' | 'curl'
+<<<<<<< HEAD
+<<<<<<< HEAD
 type SandboxMode = 'pod' | 'gvisor'
+=======
+>>>>>>> bfa8fbef (feat(demo): add SandboxDemoModal component)
+=======
+>>>>>>> ecfef3d8 (feat(sandbox): update try-sandbox frontend for new command syntax)
 
 const state = ref<State>('loading')
 const session = ref<SandboxDemoSession | null>(null)
 const errorMsg = ref('')
 const timeLeft = ref('')
 const remainingMs = ref(0)
-const copiedInstall = ref(false)
 const copiedRun = ref(false)
 const preset = ref<Preset>('claude')
+<<<<<<< HEAD
+<<<<<<< HEAD
 const sandboxMode = ref<SandboxMode>('pod')
+=======
+>>>>>>> bfa8fbef (feat(demo): add SandboxDemoModal component)
+=======
+>>>>>>> ecfef3d8 (feat(sandbox): update try-sandbox frontend for new command syntax)
 
 let timer: ReturnType<typeof setInterval> | null = null
 
@@ -83,11 +94,32 @@ const presets: { value: Preset; label: string; suffix: string }[] = [
 
 const runCmd = computed(() => {
   if (!session.value) return ''
+<<<<<<< HEAD
+<<<<<<< HEAD
   const p = presets.find(x => x.value === preset.value) ?? presets[0]
+<<<<<<< HEAD
+<<<<<<< HEAD
+<<<<<<< HEAD
   const modeFlags = sandboxMode.value === 'gvisor'
     ? '--mode gvisor --agent-rootfs /var/lib/lattice/rootfs '
     : ''
   return `lattice sandbox run --name demo-agent --server-url ${session.value.server_url} --token ${session.value.token} ${modeFlags}${p.suffix}`
+=======
+  const p = presets.find(x => x.value === preset.value)!
+=======
+  const p = presets.find(x => x.value === preset.value) ?? presets[0]
+>>>>>>> dca9337c (fix(demo): fix timer leak on dialog close and non-null assertion in runCmd)
+  return `lattice sandbox run --name demo-agent --server-url ${session.value.server_url} --token ${session.value.token} ${p.suffix}`
+>>>>>>> bfa8fbef (feat(demo): add SandboxDemoModal component)
+=======
+  return `lattice sandbox run demo-agent --server-url ${session.value.server_url} --token ${session.value.token} ${p.suffix}`
+>>>>>>> ecfef3d8 (feat(sandbox): update try-sandbox frontend for new command syntax)
+=======
+  return `docker run --rm --runtime=runsc ghcr.io/alatticeio/lattice sandbox run demo-agent --server-url ${session.value.server_url} --token ${session.value.token} ${p.suffix}`
+>>>>>>> d26a742e (feat(sandbox): rewrite try-sandbox modal to use docker run --runtime=runsc)
+=======
+  return `docker run --rm --cap-add NET_ADMIN ghcr.io/alatticeio/lattice sandbox run demo-agent --server-url ${session.value.server_url} --token ${session.value.token} ${p.suffix}`
+>>>>>>> 79384952 (feat(sandbox): update try-sandbox prerequisite text for Sentry-based isolation)
 })
 
 async function launch() {
@@ -98,6 +130,10 @@ async function launch() {
     if (raw) {
       const cached: SandboxDemoSession = JSON.parse(raw)
       if (new Date(cached.expires_at).getTime() > Date.now()) {
+<<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> 34f8894b (fix(demo): re-issue magic token on cache restore to survive server restart)
         // Re-issue a fresh magic token for the existing workspace so the
         // console_url works even after a server restart (magic tokens are
         // in-memory and lost on restart).
@@ -119,6 +155,15 @@ async function launch() {
         }
         // Re-issue failed (workspace deleted/expired) — fall through to create a new session.
         localStorage.removeItem(STORAGE_KEY)
+<<<<<<< HEAD
+=======
+        session.value = cached
+        state.value = 'ready'
+        startCountdown(cached.expires_at)
+        return
+>>>>>>> bfa8fbef (feat(demo): add SandboxDemoModal component)
+=======
+>>>>>>> 34f8894b (fix(demo): re-issue magic token on cache restore to survive server restart)
       }
     }
   } catch { /* ignore */ }
@@ -154,6 +199,8 @@ function execCopy(text: string) {
   el.value = text
   el.setAttribute('readonly', '')
   el.style.cssText = 'position:fixed;top:0;left:0;width:2em;height:2em;opacity:0;pointer-events:none'
+<<<<<<< HEAD
+<<<<<<< HEAD
   // Append inside the dialog so Radix focus trap doesn't steal focus back
   const container = document.querySelector('[role="dialog"]') ?? document.body
   container.appendChild(el)
@@ -161,27 +208,42 @@ function execCopy(text: string) {
   el.select()
   try { document.execCommand('copy') } catch { /* ignore */ }
   container.removeChild(el)
+=======
+  document.body.appendChild(el)
+  el.focus()
+  el.select()
+  try { document.execCommand('copy') } catch { /* ignore */ }
+  document.body.removeChild(el)
+>>>>>>> bfa8fbef (feat(demo): add SandboxDemoModal component)
+=======
+  // Append inside the dialog so Radix focus trap doesn't steal focus back
+  const container = document.querySelector('[role="dialog"]') ?? document.body
+  container.appendChild(el)
+  el.focus()
+  el.select()
+  try { document.execCommand('copy') } catch { /* ignore */ }
+  container.removeChild(el)
+>>>>>>> 0883c17b (fix(demo): fix copy in Radix dialog and pkill killing server process)
 }
 
-async function copy(text: string, which: 'install' | 'run') {
+async function copy(text: string) {
   if (navigator.clipboard) {
     try { await navigator.clipboard.writeText(text) } catch { execCopy(text) }
   } else {
     execCopy(text)
   }
-  if (which === 'install') {
-    copiedInstall.value = true
-    setTimeout(() => { copiedInstall.value = false }, 2000)
-  } else {
-    copiedRun.value = true
-    setTimeout(() => { copiedRun.value = false }, 2000)
-  }
+  copiedRun.value = true
+  setTimeout(() => { copiedRun.value = false }, 2000)
 }
 
 function openConsole() {
   if (session.value?.console_url) window.open(session.value.console_url, '_blank')
 }
 
+<<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> dca9337c (fix(demo): fix timer leak on dialog close and non-null assertion in runCmd)
 watch(openModel, (v) => {
   if (v) {
     launch()
@@ -189,6 +251,12 @@ watch(openModel, (v) => {
     if (timer) { clearInterval(timer); timer = null }
   }
 })
+<<<<<<< HEAD
+=======
+watch(openModel, (v) => { if (v) launch() })
+>>>>>>> bfa8fbef (feat(demo): add SandboxDemoModal component)
+=======
+>>>>>>> dca9337c (fix(demo): fix timer leak on dialog close and non-null assertion in runCmd)
 onUnmounted(() => { if (timer) clearInterval(timer) })
 </script>
 
@@ -198,6 +266,8 @@ onUnmounted(() => { if (timer) clearInterval(timer) })
 
       <!-- Header -->
       <div class="px-6 pt-6 pb-5 border-b border-border">
+<<<<<<< HEAD
+<<<<<<< HEAD
         <div class="flex items-center gap-2.5 pr-8">
           <div class="flex items-center justify-center w-8 h-8 rounded-lg bg-primary/10 shrink-0">
             <Container class="size-4 text-primary" />
@@ -212,6 +282,36 @@ onUnmounted(() => { if (timer) clearInterval(timer) })
           <span class="size-1.5 rounded-full bg-current animate-pulse" />
           {{ timeLeft }}
         </div>
+=======
+        <div class="flex items-start justify-between">
+          <div class="flex items-center gap-2.5">
+            <div class="flex items-center justify-center w-8 h-8 rounded-lg bg-primary/10">
+              <Container class="size-4 text-primary" />
+            </div>
+            <div>
+              <h2 class="text-base font-semibold leading-none">Try Sandbox</h2>
+              <p class="text-xs text-muted-foreground mt-1">Run an AI agent in an isolated network sandbox</p>
+            </div>
+=======
+        <div class="flex items-center gap-2.5 pr-8">
+          <div class="flex items-center justify-center w-8 h-8 rounded-lg bg-primary/10 shrink-0">
+            <Container class="size-4 text-primary" />
+>>>>>>> 0883c17b (fix(demo): fix copy in Radix dialog and pkill killing server process)
+          </div>
+          <div>
+            <h2 class="text-base font-semibold leading-none">Try Sandbox</h2>
+            <p class="text-xs text-muted-foreground mt-1">Run an AI agent in an isolated network sandbox</p>
+          </div>
+        </div>
+<<<<<<< HEAD
+>>>>>>> bfa8fbef (feat(demo): add SandboxDemoModal component)
+=======
+        <!-- Timer badge -->
+        <div v-if="state === 'ready'" class="mt-3 inline-flex items-center gap-1.5 rounded-full border border-border px-2.5 py-1 text-xs font-mono font-medium" :class="timerClass">
+          <span class="size-1.5 rounded-full bg-current animate-pulse" />
+          {{ timeLeft }}
+        </div>
+>>>>>>> 0883c17b (fix(demo): fix copy in Radix dialog and pkill killing server process)
       </div>
 
       <!-- Body -->
@@ -247,6 +347,10 @@ onUnmounted(() => { if (timer) clearInterval(timer) })
         <div v-else-if="state === 'ready' && session" class="space-y-4">
 
 <<<<<<< HEAD
+<<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> bfa8fbef (feat(demo): add SandboxDemoModal component)
           <!-- Step 1: Install -->
           <div class="space-y-2">
             <div class="flex items-center gap-2">
@@ -264,38 +368,39 @@ onUnmounted(() => { if (timer) clearInterval(timer) })
                 <Copy v-else class="size-3.5" />
               </button>
             </div>
+<<<<<<< HEAD
 =======
           <!-- Prerequisite notice -->
           <div class="rounded-lg border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
             Lattice creates a WireGuard interface in the container. Requires <code class="text-[11px] bg-muted px-1 rounded">--cap-add NET_ADMIN</code>. No other dependencies needed.
 >>>>>>> 6d21afe4 (refactor(sandbox): use kernel wg0 for network isolation (community edition))
+=======
+>>>>>>> bfa8fbef (feat(demo): add SandboxDemoModal component)
+=======
+          <!-- Prerequisite notice -->
+          <div class="rounded-lg border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+<<<<<<< HEAD
+            Requires Docker with <a href="https://gvisor.dev/docs/user_guide/install/" target="_blank" rel="noopener" class="underline underline-offset-2 hover:text-foreground">gVisor runtime</a> installed. The container runs entirely under gVisor — no kernel interface is created on the host.
+>>>>>>> d26a742e (feat(sandbox): rewrite try-sandbox modal to use docker run --runtime=runsc)
+=======
+            Runs your agent under <a href="https://gvisor.dev/docs/user_guide/install/" target="_blank" rel="noopener" class="underline underline-offset-2 hover:text-foreground">gVisor Sentry (runsc)</a> for full syscall isolation. The Lattice image bundles everything — no host installation needed. Requires <code class="text-[11px] bg-muted px-1 rounded">--cap-add NET_ADMIN</code> for network routing.
+>>>>>>> 79384952 (feat(sandbox): update try-sandbox prerequisite text for Sentry-based isolation)
           </div>
 
-          <!-- Step 2: Run agent -->
+          <!-- Step 1: Run agent -->
           <div class="space-y-2">
             <div class="flex items-center justify-between">
               <div class="flex items-center gap-2">
-                <span class="flex items-center justify-center size-5 rounded-full bg-primary text-primary-foreground text-[11px] font-bold shrink-0">2</span>
+                <span class="flex items-center justify-center size-5 rounded-full bg-primary text-primary-foreground text-[11px] font-bold shrink-0">1</span>
                 <span class="text-sm font-medium">Run your agent</span>
               </div>
+<<<<<<< HEAD
+<<<<<<< HEAD
               <!-- Mode + Preset toggles -->
+=======
+              <!-- Preset toggles -->
+>>>>>>> ecfef3d8 (feat(sandbox): update try-sandbox frontend for new command syntax)
               <div class="flex items-center gap-1.5">
-                <!-- Isolation mode toggle -->
-                <div class="flex rounded-md border border-input overflow-hidden text-[11px] font-mono">
-                  <button
-                    type="button"
-                    :class="sandboxMode === 'pod' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-muted/80'"
-                    class="px-2 py-0.5 transition-colors"
-                    @click="sandboxMode = 'pod'"
-                  >pod</button>
-                  <button
-                    type="button"
-                    :class="sandboxMode === 'gvisor' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-muted/80'"
-                    class="px-2 py-0.5 border-l border-input transition-colors"
-                    @click="sandboxMode = 'gvisor'"
-                  >gvisor</button>
-                </div>
-                <!-- Preset toggle (segmented button group) -->
                 <div class="flex rounded-md border border-input overflow-hidden text-xs font-mono">
                   <button
                     v-for="p in presets"
@@ -306,6 +411,18 @@ onUnmounted(() => { if (timer) clearInterval(timer) })
                     @click="preset = p.value"
                   >{{ p.label }}</button>
                 </div>
+=======
+              <!-- Preset toggle (segmented button group) -->
+              <div class="flex rounded-md border border-input overflow-hidden text-xs font-mono">
+                <button
+                  v-for="p in presets"
+                  :key="p.value"
+                  type="button"
+                  :class="preset === p.value ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-muted/80'"
+                  class="px-2 py-0.5 border-l border-input first:border-l-0 transition-colors"
+                  @click="preset = p.value"
+                >{{ p.label }}</button>
+>>>>>>> bfa8fbef (feat(demo): add SandboxDemoModal component)
               </div>
             </div>
             <div class="group relative rounded-lg bg-zinc-950 dark:bg-zinc-900 border border-zinc-800 px-4 py-3 pr-12">
@@ -313,7 +430,7 @@ onUnmounted(() => { if (timer) clearInterval(timer) })
               <button
                 class="absolute top-2.5 right-2.5 flex items-center justify-center size-7 rounded-md transition-colors"
                 :class="copiedRun ? 'bg-emerald-500/20 text-emerald-400' : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-zinc-100'"
-                @click="copy(runCmd, 'run')"
+                @click="copy(runCmd)"
               >
                 <Check v-if="copiedRun" class="size-3.5" />
                 <Copy v-else class="size-3.5" />
@@ -321,16 +438,16 @@ onUnmounted(() => { if (timer) clearInterval(timer) })
             </div>
           </div>
 
-          <!-- Step 3: Open Console -->
+          <!-- Step 2: Open Console -->
           <div class="space-y-2">
             <div class="flex items-center gap-2">
-              <span class="flex items-center justify-center size-5 rounded-full bg-muted text-muted-foreground text-[11px] font-bold shrink-0">3</span>
+              <span class="flex items-center justify-center size-5 rounded-full bg-muted text-muted-foreground text-[11px] font-bold shrink-0">2</span>
               <span class="text-sm font-medium">View agent in console</span>
             </div>
             <div class="rounded-lg bg-zinc-950 dark:bg-zinc-900 border border-zinc-800 px-4 py-3">
               <div class="flex items-center gap-2 font-mono text-xs">
                 <span class="text-zinc-500 select-none">#</span>
-                <span class="text-zinc-400">Agent appears in /sandbox once the command runs</span>
+                <span class="text-zinc-400">Agent appears in /sandbox once the container starts</span>
               </div>
             </div>
           </div>
