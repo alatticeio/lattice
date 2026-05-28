@@ -22,6 +22,7 @@ import TopologyCanvas from '@/components/lattice/TopologyCanvas.vue'
 import SectionHeader from '@/components/lattice/SectionHeader.vue'
 import type { TerminalLine } from '@/components/lattice/LatticeTerminal.vue'
 import DemoModal from '@/components/DemoModal.vue'
+import SandboxDemoModal from '@/components/SandboxDemoModal.vue'
 
 definePage({ meta: { layout: 'blank' } })
 
@@ -46,6 +47,7 @@ const latestVersion = computed(() => versions.value[0] ?? 'v0.2.0')
 
 // ── Demo ──────────────────────────────────────────────────────
 const demoOpen = ref(false)
+const sandboxDemoOpen = ref(false)
 const demoEnabled = ref(false)
 
 onMounted(async () => {
@@ -303,6 +305,15 @@ function tagLabel(tag: string) {
             @click="demoOpen = true"
           >
             Try Demo
+          </Button>
+          <Button
+            v-if="demoEnabled"
+            variant="outline"
+            size="lg"
+            class="gap-2 px-7"
+            @click="sandboxDemoOpen = true"
+          >
+            Try Sandbox
           </Button>
         </div>
       </div>
@@ -602,4 +613,5 @@ function tagLabel(tag: string) {
   </div>
 
   <DemoModal v-model:open="demoOpen" />
+  <SandboxDemoModal v-model:open="sandboxDemoOpen" />
 </template>
