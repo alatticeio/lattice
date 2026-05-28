@@ -26,9 +26,9 @@ const (
 	ConsoleDomain         = "http://console.alattice.io"
 	ManagementDomain      = "console.alattice.io"
 	SignalingDomain       = "signaling.alattice.io"
-	TurnServerDomain      = "stun.alattice.io"
+	StunServerDomain      = "stun.alattice.io"
 	DefaultManagementPort = 6060
 	DefaultSignalingPort  = 4222
 	DEFAULT_LRP_PORT      = 6266
-	DefaultTurnServerPort = 3478
+	DefaultStunServerPort = 3478
 )

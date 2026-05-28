@@ -420,25 +420,23 @@ func getNetworkName(peer *latticev1.LatticePeer) string {
 
 // ---- Sandbox helpers ----
 
-// deploySandboxPod creates a Pod running `lattice sandbox start`.
-// Peers are discovered automatically from the control plane network map;
-// no static --peer configuration is needed.
-// The pod includes an nginx sidecar on port 8080 to serve inbound overlay connections
-// forwarded by the sandbox's ForwardListener (--forward 8080:127.0.0.1:8080).
+// deploySandboxPod creates a Pod running lattice agent sidecar with an init container
+// that sets up iptables REDIRECT rules. The sidecar runs as UID 1337 (exempted from
+// iptables redirect) and transparently proxies all TCP from the workload container
+// through the WireGuard overlay.
+//
+// The pod includes an nginx workload on port 8080 to serve inbound overlay connections.
 func deploySandboxPod(clientset *kubernetes.Clientset, ns, name, sandboxImage, serverURL, enrollmentToken string, hostAliases []corev1.HostAlias) {
-	args := []string{
-		"/app/lattice", "sandbox", "start",
-		"--name", name,
+	sidecarArgs := []string{
+		"/app/lattice", "agent", "sidecar", name,
 		"--server-url", serverURL,
 		"--token", enrollmentToken,
-		"--proxy-addr", "127.0.0.1:1080",
-		"--forward", "8080:127.0.0.1:8080",
 		// Allow overlay traffic (any 10.x.x.x) and deny everything else.
-		// This activates the EgressFilter so gVisor writes drop audit events
-		// when connections to non-overlay IPs are attempted through the proxy.
 		"--egress-allow", "10.0.0.0/8",
 		"--egress-default-deny",
 	}
+
+	runAsUserID := int64(1337)
 
 	_, err := clientset.CoreV1().Pods(ns).Create(context.Background(), &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -451,19 +449,28 @@ func deploySandboxPod(clientset *kubernetes.Clientset, ns, name, sandboxImage, s
 		Spec: corev1.PodSpec{
 			Hostname:    name,
 			HostAliases: hostAliases,
-			// emptyDir persists across container restarts within the same Pod,
-			// allowing sandbox-credentials.json to survive crashes so the
-			// sandbox can resume without re-registering (enrollment token is
-			// single-use; re-registration would fail with "already used").
 			Volumes: []corev1.Volume{{
 				Name: "lattice-config",
 				VolumeSource: corev1.VolumeSource{
 					EmptyDir: &corev1.EmptyDirVolumeSource{},
 				},
 			}},
+			InitContainers: []corev1.Container{
+				{
+					Name:            "lattice-init",
+					Image:           sandboxImage,
+					ImagePullPolicy: corev1.PullIfNotPresent,
+					Command:         []string{"/app/lattice", "agent", "init"},
+					SecurityContext: &corev1.SecurityContext{
+						Capabilities: &corev1.Capabilities{
+							Add: []corev1.Capability{"NET_ADMIN"},
+						},
+					},
+				},
+			},
 			Containers: []corev1.Container{
 				{
-					Name:            "sandbox",
+					Name:            "lattice-sidecar",
 					Image:           sandboxImage,
 					ImagePullPolicy: corev1.PullIfNotPresent,
 					Ports: []corev1.ContainerPort{{
@@ -474,11 +481,13 @@ func deploySandboxPod(clientset *kubernetes.Clientset, ns, name, sandboxImage, s
 						Name:      "lattice-config",
 						MountPath: "/etc/lattice",
 					}},
-					// Dockerfile copies binary as /app/lattice regardless of TARGETSERVICE.
-					Command: args,
+					Command: sidecarArgs,
+					SecurityContext: &corev1.SecurityContext{
+						RunAsUser: &runAsUserID,
+					},
 				},
 				{
-					// nginx sidecar: ForwardListener relays overlay:8080 → 127.0.0.1:8080 here.
+					// nginx workload: reachable from the overlay via the transparent proxy.
 					Name:            "nginx",
 					Image:           "nginx:alpine",
 					ImagePullPolicy: corev1.PullIfNotPresent,

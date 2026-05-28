@@ -786,6 +786,31 @@ func (r *PeerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		GenericFunc: func(e event.GenericEvent) bool { return false },
 	}
 
+	// Re-enqueue all sibling peers when a peer's allocated IP changes (joins or
+	// leaves the network). This ensures existing nodes receive an updated
+	// ConfigMap when a new peer registers or deregisters.
+	peerIPChangePredicate := predicate.Funcs{
+		CreateFunc:  func(e event.CreateEvent) bool { return false },
+		GenericFunc: func(e event.GenericEvent) bool { return false },
+		DeleteFunc:  func(e event.DeleteEvent) bool { return true },
+		UpdateFunc: func(e event.UpdateEvent) bool {
+			oldPeer, ok1 := e.ObjectOld.(*v1alpha1.LatticePeer)
+			newPeer, ok2 := e.ObjectNew.(*v1alpha1.LatticePeer)
+			if !ok1 || !ok2 {
+				return false
+			}
+			oldIP := ""
+			newIP := ""
+			if oldPeer.Status.AllocatedAddress != nil {
+				oldIP = *oldPeer.Status.AllocatedAddress
+			}
+			if newPeer.Status.AllocatedAddress != nil {
+				newIP = *newPeer.Status.AllocatedAddress
+			}
+			return oldIP != newIP
+		},
+	}
+
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&v1alpha1.LatticePeer{}, builder.WithPredicates(predicate.GenerationChangedPredicate{})).
 		Watches(&v1alpha1.LatticeNetwork{},
@@ -804,6 +829,11 @@ func (r *PeerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			// GenerationChangedPredicate passes Create/Delete by default and only filters
 			// Updates where generation has not changed.
 			builder.WithPredicates(predicate.GenerationChangedPredicate{})).
+		// When a peer joins (IP allocated) or leaves (deleted), re-enqueue all
+		// sibling peers so their ConfigMaps are refreshed with the updated topology.
+		Watches(&v1alpha1.LatticePeer{},
+			handler.EnqueueRequestsFromMapFunc(r.mapPeerForSiblings),
+			builder.WithPredicates(peerIPChangePredicate)).
 		Named("node").WithOptions(controller.Options{
 		MaxConcurrentReconciles: 5,
 	}).Complete(r)
@@ -874,6 +904,36 @@ func (r *PeerReconciler) mapEndpointForNodes(ctx context.Context, obj client.Obj
 		})
 	}
 
+	return requests
+}
+
+// mapPeerForSiblings re-enqueues all peers in the same network as the changed peer.
+// Called when a peer's AllocatedAddress changes (joins/leaves) or is deleted,
+// so existing peers receive an updated ConfigMap with the new topology.
+func (r *PeerReconciler) mapPeerForSiblings(ctx context.Context, obj client.Object) []reconcile.Request {
+	changed := obj.(*v1alpha1.LatticePeer)
+
+	var peerList v1alpha1.LatticePeerList
+	if err := r.List(ctx, &peerList, client.InNamespace(changed.Namespace)); err != nil {
+		return nil
+	}
+
+	var requests []reconcile.Request
+	for _, p := range peerList.Items {
+		if p.Name == changed.Name {
+			continue // skip self; its own reconciler handles it
+		}
+		// Only update peers in the same network.
+		if changed.Spec.Network == nil || p.Spec.Network == nil || *p.Spec.Network != *changed.Spec.Network {
+			continue
+		}
+		requests = append(requests, reconcile.Request{
+			NamespacedName: types.NamespacedName{
+				Namespace: p.Namespace,
+				Name:      p.Name,
+			},
+		})
+	}
 	return requests
 }
 

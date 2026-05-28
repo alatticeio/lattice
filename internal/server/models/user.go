@@ -26,13 +26,15 @@ func (User) TableName() string {
 
 // UserProfile holds user profile details and settings (one-to-one with User)
 type UserProfile struct {
-	UserID      string `gorm:"primaryKey;autoIncrement:false" json:"user_id"`
-	Title       string `gorm:"size:128" json:"title"`
-	Company     string `gorm:"size:128" json:"company"`
-	Bio         string `gorm:"type:text" json:"bio"`
-	Timezone    string `gorm:"size:64;default:'Asia/Shanghai'" json:"timezone"`
-	Language    string `gorm:"size:16;default:'zh-CN'" json:"language"`
-	EmailNotify bool   `gorm:"default:true" json:"emailNotify"`
+	UserID       string `gorm:"primaryKey;autoIncrement:false" json:"user_id"`
+	Title        string `gorm:"size:128" json:"title"`
+	Company      string `gorm:"size:128" json:"company"`
+	Bio          string `gorm:"type:text" json:"bio"`
+	Timezone     string `gorm:"size:64;default:'Asia/Shanghai'" json:"timezone"`
+	Language     string `gorm:"size:16;default:'zh-CN'" json:"language"`
+	EmailNotify  bool   `gorm:"default:true" json:"emailNotify"`
+	EnforcerMode string `gorm:"size:16;default:'auto'" json:"enforcerMode"`
+	Tier         string `gorm:"size:16;default:'community'" json:"tier"`
 }
 
 func (UserProfile) TableName() string {

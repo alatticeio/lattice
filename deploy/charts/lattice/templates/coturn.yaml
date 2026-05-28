@@ -18,6 +18,16 @@ spec:
         {{- include "lattice.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: stun
     spec:
+      # hostNetwork binds coturn directly to the host's network interface,
+      # bypassing K8s iptables NAT (hostPort SNAT). This is required for STUN
+      # to work correctly: without it, STUN responses may be sent from a pod
+      # internal IP that clients cannot route to, causing XORMappedAddr timeouts.
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      {{- with .Values.coturn.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       containers:
         - name: coturn
           image: "{{ .Values.coturn.image.repository }}:{{ .Values.coturn.image.tag }}"
@@ -25,10 +35,11 @@ spec:
           args:
             - "--stun-only"
             - "--listening-port=3478"
+            - "--no-multicast-peers"
+            - "--no-loopback-peers"
           ports:
             - containerPort: 3478
               protocol: UDP
-              hostPort: 3478
           resources:
             requests:
               cpu: 50m

@@ -43,7 +43,7 @@ func RegisterSandboxViaNATS(
 ) (*infra.Peer, error) {
 	pubKey := privKey.PublicKey().String()
 
-	natsURL, err := discoverNATSURL(ctx, serverURL)
+	natsURL, err := discoverNATSURLOnly(ctx, serverURL)
 	if err != nil {
 		return nil, fmt.Errorf("discover NATS: %w", err)
 	}
@@ -87,7 +87,7 @@ func ResumeSandboxViaNATS(
 	serverURL, agentJWT, agentName string,
 	privKey wgtypes.Key,
 ) (*infra.Peer, error) {
-	natsURL, err := discoverNATSURL(ctx, serverURL)
+	natsURL, err := discoverNATSURLOnly(ctx, serverURL)
 	if err != nil {
 		return nil, fmt.Errorf("discover NATS: %w", err)
 	}

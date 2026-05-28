@@ -26,7 +26,6 @@ require (
 	github.com/pion/ice/v4 v4.2.5
 	github.com/pion/logging v0.2.4
 	github.com/pion/stun/v3 v3.1.2
-	github.com/pion/turn/v4 v4.0.0
 	github.com/prometheus-community/pro-bing v0.8.0
 	github.com/prometheus/client_golang v1.22.0
 	github.com/prometheus/common v0.62.0
@@ -144,7 +143,6 @@ require (
 	github.com/pion/dtls/v3 v3.1.2 // indirect
 	github.com/pion/mdns/v2 v2.1.0 // indirect
 	github.com/pion/randutil v0.1.0 // indirect
-	github.com/pion/transport/v3 v3.1.1 // indirect
 	github.com/pion/transport/v4 v4.0.1 // indirect
 	github.com/pion/turn/v5 v5.0.3 // indirect
 	github.com/pkg/errors v0.9.1 // indirect

@@ -742,7 +742,7 @@ func (i *ICETransport) Type() infra.TransportType {
 // stunURIs parses the stun-url config value (host:port) into a pion stun.URI slice.
 // Falls back to the default public STUN server if the config is empty or malformed.
 func stunURIs() []*stun.URI {
-	addr := agentconfig.Conf.TurnServerURL
+	addr := agentconfig.Conf.StunServerURL
 	host, portStr, err := net.SplitHostPort(addr)
 	if err != nil || host == "" {
 		return []*stun.URI{{Scheme: stun.SchemeTypeSTUN, Host: "stun.alattice.io", Port: 3478}}

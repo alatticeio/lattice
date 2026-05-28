@@ -8,7 +8,7 @@ set -euo pipefail
 # ─────────────────────────────────────────────────────────────────────────────
 BINARY="${BINARY:-lattice}"
 INSTALL_DIR="${INSTALL_DIR:-/usr/local/bin}"
-REPO="alatticeio/lattice"
+REPO="winstonfly/lattice"
 
 # ─── 检查依赖 ─────────────────────────────────────────────────────────────────
 for cmd in curl tar; do

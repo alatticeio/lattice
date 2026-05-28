@@ -252,7 +252,7 @@ func NewServer(ctx context.Context, serverConfig *ServerConfig) (*Server, error)
 		lv = license.NewPlaygroundVerifier()
 		logger.Info("playground mode: all Pro features unlocked")
 	} else {
-		lv = license.NewVerifier()
+		lv = license.NewVerifier("pro")
 		var lic *license.License
 		var status license.Status
 		lic, status, err = lv.Verify()
@@ -492,9 +492,11 @@ func (s *Server) handleSandboxNATSRegister(ctx context.Context, peer dto.PeerDto
 	// Return infra.Peer with JWT in Token field.
 	// PrivateKey is intentionally empty: sandbox generates its own key.
 	returnPeer := &infra.Peer{
-		Name:  peer.AppID,
-		AppID: peer.AppID,
-		Token: result.JWT,
+		Name:         peer.AppID,
+		AppID:        peer.AppID,
+		Token:        result.JWT,
+		EnforcerMode: result.EnforcerMode,
+		Tier:         result.Tier,
 	}
 	data, err := json.Marshal(returnPeer)
 	if err != nil {

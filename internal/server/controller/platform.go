@@ -25,16 +25,20 @@ func NewPlatformController(st store.Store) PlatformController {
 }
 
 func (c *platformController) GetSettings(ctx context.Context) (*dto.PlatformSettingsResponse, error) {
-	val, err := c.store.SystemConfig().Get(ctx, models.ConfigKeyNatsURL)
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return &dto.PlatformSettingsResponse{}, nil
-		}
+	natsURL, err := c.store.SystemConfig().Get(ctx, models.ConfigKeyNatsURL)
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, err
 	}
-	return &dto.PlatformSettingsResponse{NatsURL: val}, nil
+	stunURL, err := c.store.SystemConfig().Get(ctx, models.ConfigKeyStunURL)
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, err
+	}
+	return &dto.PlatformSettingsResponse{NatsURL: natsURL, StunURL: stunURL}, nil
 }
 
 func (c *platformController) UpdateSettings(ctx context.Context, req dto.PlatformSettingsRequest) error {
-	return c.store.SystemConfig().Set(ctx, models.ConfigKeyNatsURL, req.NatsURL)
+	if err := c.store.SystemConfig().Set(ctx, models.ConfigKeyNatsURL, req.NatsURL); err != nil {
+		return err
+	}
+	return c.store.SystemConfig().Set(ctx, models.ConfigKeyStunURL, req.StunURL)
 }

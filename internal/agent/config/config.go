@@ -278,10 +278,11 @@ type Config struct {
 	ServerUrl     string `mapstructure:"server-url"`
 	RelayURL      string `mapstructure:"relay-url"`      // TCP relay connection address, default :6266
 	RelayQuicURL  string `mapstructure:"relay-quic-url"` // QUIC relay connection address, empty=disabled
-	TurnServerURL string `mapstructure:"stun-url"`       // TURN/STUN address
+	StunServerURL string `mapstructure:"stun-url"`       // STUN server address
 	PublicIP      string `mapstructure:"public-ip"`
-	Port          int    `mapstructure:"port"`    // TURN service port, default 3478
-	WgPort        int    `mapstructure:"wg-port"` // WireGuard/ICE UDP listen port, default 51820
+	Port          int    `mapstructure:"port"`          // STUN service port, default 3478
+	WgPort        int    `mapstructure:"wg-port"`       // WireGuard/ICE UDP listen port, default 51820
+	EnforcerMode  string `mapstructure:"enforcer-mode"` // "auto", "iptables", "ebpf"
 
 	// ── Feature flags ─────────────────────────────────────────────
 	EnableLrp    bool `mapstructure:"enable-lrp"`
@@ -607,11 +608,12 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("auth-token", "")
 	v.SetDefault("server-url", "")
 
-	v.SetDefault("stun-url", "stun.alattice.io:3478")
+	v.SetDefault("stun-url", "") // empty: use discovered value from server, or fall back in stunURIs()
 	v.SetDefault("relay-url", ":6266")
 	v.SetDefault("relay-quic-url", "")
 	v.SetDefault("port", 3478)
 	v.SetDefault("wg-port", 51820)
+	v.SetDefault("enforcer-mode", "auto")
 
 	// database.driver defaults to sqlite, which together with database.dsn="" provides out-of-the-box local storage.
 	// If the user provides a MySQL/MariaDB DSN, inferDatabaseDriver() automatically corrects the driver to "mariadb".

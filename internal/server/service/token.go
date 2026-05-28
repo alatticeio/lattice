@@ -92,9 +92,8 @@ func (t *tokenService) Create(ctx context.Context, req *dto.TokenDto) (string, e
 
 	wsID, _ := ctx.Value(infra.WorkspaceKey).(string)
 	if _, err := t.policyService.ApplyDirect(ctx, wsID, "", "", &dto.PolicyDto{
-		Name:      "default-deny",
-		Namespace: tokenDto.Namespace,
-		Action:    "Deny",
+		Name:   "default-deny",
+		Action: "Deny",
 	}); err != nil {
 		return "", err
 	}
@@ -106,7 +105,7 @@ func NewTokenService(client *resource.Client, st store.Store) TokenService {
 	return &tokenService{
 		log:           log.GetLogger("token-service"),
 		store:         st,
-		peerService:   NewPeerService(client, st, nil, license.NewVerifier()),
+		peerService:   NewPeerService(client, st, nil, license.NewVerifier("pro")),
 		policyService: NewPolicyService(client, st),
 		client:        client,
 	}

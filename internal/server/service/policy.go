@@ -140,6 +140,9 @@ func (p *policyService) ApplyDirect(ctx context.Context, wsID, operatorID, opera
 
 	spec := policyDto.LatticePolicySpec
 	spec.Action = policyDto.Action
+	if spec.Network == "" {
+		spec.Network = "lattice-default-net"
+	}
 
 	crd := &v1alpha1.LatticePolicy{
 		TypeMeta: metav1.TypeMeta{
@@ -196,7 +199,7 @@ func (p *policyService) ApplyDirect(ctx context.Context, wsID, operatorID, opera
 		Name:              policyDto.Name,
 		Action:            policyDto.Action,
 		Description:       policyDto.Description,
-		Namespace:         policyDto.Namespace,
+		Namespace:         workspace.Namespace,
 		PolicyTypes:       policyDto.PolicyTypes,
 		LatticePolicySpec: &spec,
 	}, nil

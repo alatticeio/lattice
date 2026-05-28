@@ -44,7 +44,8 @@ func (s *Server) updatePlatformSettings() gin.HandlerFunc {
 			resp.BadRequest(c, "NATS URL must start with nats:// or nats+tls://")
 			return
 		}
-		if err := s.platformController.UpdateSettings(c.Request.Context(), dto.PlatformSettingsRequest{NatsURL: val}); err != nil {
+		stunVal := strings.TrimSpace(req.StunURL)
+		if err := s.platformController.UpdateSettings(c.Request.Context(), dto.PlatformSettingsRequest{NatsURL: val, StunURL: stunVal}); err != nil {
 			resp.Error(c, err.Error())
 			return
 		}

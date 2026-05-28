@@ -45,6 +45,7 @@ declare module 'vue' {
     PageHeader: typeof import('./../components/PageHeader.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
+    SandboxDemoModal: typeof import('./../components/SandboxDemoModal.vue')['default']
     SettingsPanel: typeof import('./../components/SettingsPanel.vue')['default']
     UiAlert: typeof import('./../components/ui/alert/Alert.vue')['default']
     UiAlertDescription: typeof import('./../components/ui/alert/AlertDescription.vue')['default']
