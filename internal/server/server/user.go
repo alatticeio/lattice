@@ -8,6 +8,7 @@ import (
 	"github.com/alatticeio/lattice/internal/server/dto"
 	"github.com/alatticeio/lattice/internal/server/models"
 	"github.com/alatticeio/lattice/internal/server/server/middleware"
+	serverutils "github.com/alatticeio/lattice/internal/server/utils"
 	"github.com/alatticeio/lattice/pkg/utils"
 	"github.com/alatticeio/lattice/pkg/utils/resp"
 	"github.com/gin-gonic/gin"
@@ -92,7 +93,7 @@ func (s *Server) login(c *gin.Context) {
 		duration = 720 * time.Hour // 30 days
 	}
 
-	businessToken, err := utils.GenerateBusinessJWTWithDuration(
+	businessToken, err := serverutils.GenerateBusinessJWTWithDuration(
 		user.ID, user.Email, user.Username, string(user.SystemRole), duration,
 	)
 	if err != nil {

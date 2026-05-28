@@ -26,7 +26,7 @@ import (
 
 	"github.com/alatticeio/lattice/internal/server/auth"
 	"github.com/alatticeio/lattice/internal/server/server/middleware"
-	"github.com/alatticeio/lattice/pkg/utils"
+	serverutils "github.com/alatticeio/lattice/internal/server/utils"
 	"github.com/gin-gonic/gin"
 )
 
@@ -34,13 +34,13 @@ func TestLogoutEndpoint_RevokesToken(t *testing.T) {
 	rl := auth.NewRevocationList()
 
 	// Generate a JWT.
-	jwtToken, err := utils.GenerateBusinessJWT("user1", "user1@test.com", "user1", "")
+	jwtToken, err := serverutils.GenerateBusinessJWT("user1", "user1@test.com", "user1", "")
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// Parse to get jti.
-	claims, err := utils.ParseToken(jwtToken)
+	claims, err := serverutils.ParseToken(jwtToken)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -121,12 +121,12 @@ func TestLogoutEndpoint_RejectsMissingToken(t *testing.T) {
 func TestLogoutEndpoint_RevokedTokenCannotBeUsed(t *testing.T) {
 	rl := auth.NewRevocationList()
 
-	jwtToken, err := utils.GenerateBusinessJWT("user1", "user1@test.com", "user1", "")
+	jwtToken, err := serverutils.GenerateBusinessJWT("user1", "user1@test.com", "user1", "")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	claims, err := utils.ParseToken(jwtToken)
+	claims, err := serverutils.ParseToken(jwtToken)
 	if err != nil {
 		t.Fatal(err)
 	}

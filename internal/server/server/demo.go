@@ -24,6 +24,7 @@ import (
 
 	"github.com/alatticeio/lattice/internal/agent/infra"
 	"github.com/alatticeio/lattice/internal/server/dto"
+	serverutils "github.com/alatticeio/lattice/internal/server/utils"
 	"github.com/alatticeio/lattice/pkg/utils"
 	"github.com/alatticeio/lattice/pkg/utils/resp"
 	"github.com/alatticeio/lattice/pkg/version"
@@ -265,7 +266,7 @@ func (s *Server) handleDemoAuth() gin.HandlerFunc {
 		}
 
 		ttl := time.Until(session.expiresAt)
-		accessToken, err := utils.GenerateBusinessJWTWithDuration(
+		accessToken, err := serverutils.GenerateBusinessJWTWithDuration(
 			user.ID, user.Email, user.Username, string(user.SystemRole), ttl,
 		)
 		if err != nil {

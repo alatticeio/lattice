@@ -4,7 +4,7 @@ import (
 	"strings"
 
 	"github.com/alatticeio/lattice/internal/server/models"
-	"github.com/alatticeio/lattice/pkg/utils"
+	serverutils "github.com/alatticeio/lattice/internal/server/utils"
 	"github.com/alatticeio/lattice/pkg/utils/resp"
 
 	"github.com/gin-gonic/gin"
@@ -34,7 +34,7 @@ func AuthMiddleware() gin.HandlerFunc {
 		// 2. Parse JWT
 		claims := models.LatticeClaims{}
 		token, err := jwt.ParseWithClaims(tokenString, &claims, func(token *jwt.Token) (interface{}, error) {
-			return utils.GetJWTSecret(), nil
+			return serverutils.GetJWTSecret(), nil
 		})
 
 		// 3. Validate token

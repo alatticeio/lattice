@@ -35,8 +35,7 @@ import (
 	"github.com/alatticeio/lattice/internal/server/resource"
 	"github.com/alatticeio/lattice/internal/server/server/middleware"
 	"github.com/alatticeio/lattice/internal/server/service"
-	_ "github.com/alatticeio/lattice/internal/server/utils"
-	"github.com/alatticeio/lattice/pkg/utils"
+	serverutils "github.com/alatticeio/lattice/internal/server/utils"
 	"sync"
 	"time"
 
@@ -306,7 +305,7 @@ func NewServer(ctx context.Context, serverConfig *ServerConfig) (*Server, error)
 		memberController:       controller.NewWorkspaceMemberController(st),
 		tokenController:        controller.NewTokenController(client, st),
 		relayController:        controller.NewRelayController(client, st),
-		invitationController:   controller.NewInvitationController(st, string(utils.GetJWTSecret())),
+		invitationController:   controller.NewInvitationController(st, string(serverutils.GetJWTSecret())),
 		monitorController:      controller.NewMonitorController(cfg.Monitor.Address, st),
 		alertController:        controller.NewAlertController(st),
 		customMetricController: controller.NewCustomMetricController(st),
