@@ -14,6 +14,7 @@ import NavMain from "@/components/app-sidebar/NavMain.vue"
 import NavUser from "@/components/app-sidebar/NavUser.vue"
 import TeamSwitcher from "@/components/app-sidebar/TeamSwitcher.vue"
 import { useUserStore } from '@/stores/user'
+import { useFeatureStore } from '@/stores/feature'
 
 const props = withDefaults(defineProps<SidebarProps>(), {
   collapsible: "icon",
@@ -21,6 +22,7 @@ const props = withDefaults(defineProps<SidebarProps>(), {
 
 const route = useRoute()
 const userStore = useUserStore()
+const featureStore = useFeatureStore()
 const { t } = useI18n()
 
 const navUser = computed(() => ({
@@ -78,6 +80,7 @@ const navMain = computed(() => {
         { title: t('common.nav.networkPeering'), url: "/platform/network-peering" },
         { title: t('common.nav.clusterPeering'), url: "/platform/cluster-peering" },
         { title: t('common.nav.approvals'),      url: "/settings/approvals" },
+        { title: t('common.nav.featureFlags'),   url: "/settings/features" },
       ],
     }] : []),
 
@@ -86,6 +89,7 @@ const navMain = computed(() => {
       title: t('common.nav.group.ai'),
       url: '/ai',
       icon: Bot,
+      featureKey: 'feature.ai_assistant',
       items: [
         { title: t('common.nav.aiChat'), url: '/ai' },
         { title: t('common.nav.aiIntent'), url: '/ai/intent' },
@@ -101,6 +105,7 @@ const navMain = computed(() => {
       title: t('common.nav.group.sandbox'),
       url: '/sandbox',
       icon: Container,
+      featureKey: 'feature.agent_sandbox',
       items: [
         { title: t('common.nav.sandboxList'),  url: '/sandbox' },
         { title: t('common.nav.sandboxTokens'), url: '/sandbox/tokens' },
@@ -120,7 +125,13 @@ const navMain = computed(() => {
     },
   ]
 
-  return groups.map(g => ({
+  // Filter out groups whose featureKey is disabled
+  const filtered = groups.filter(g => {
+    const fk = (g as any).featureKey as string | undefined
+    return !fk || featureStore.isEnabled(fk)
+  })
+
+  return filtered.map(g => ({
     ...g,
     isActive: g.url !== '#' && path.startsWith(g.url)
       ? true

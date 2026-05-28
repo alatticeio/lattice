@@ -272,5 +272,30 @@
       "slugRequired": "Please enter a resource identifier",
       "tcpRequired": "Please enter a TCP address"
     }
+  },
+  "features": {
+    "title": "Feature Flags",
+    "desc": "Enable or disable feature modules for all users.",
+    "groupAi": "AI Assistant",
+    "groupSandbox": "Agent Sandbox",
+    "groupSettings": "Settings",
+    "groupWorkspace": "Workspace",
+    "enabled": "Feature enabled",
+    "disabled": "Feature disabled",
+    "updateFailed": "Failed to update feature flag",
+    "groupPlatform": "Platform",
+    "statTotal": "Total",
+    "statEnabled": "Enabled",
+    "statDisabled": "Disabled",
+    "descAi": "AI-powered network chat, intent engine, and debug tools.",
+    "descMcp": "Register and manage MCP tool servers for AI agents.",
+    "descSandbox": "Agent sandbox isolation, enrollment tokens, and traffic audit.",
+    "descAlerts": "Alert rules, notification channels, and alert history.",
+    "descRelays": "WireGuard relay server management and health monitoring.",
+    "descMonitor": "Real-time node status and network monitoring.",
+    "descNetPeer": "Cross-workspace network peering configuration.",
+    "descClusterPeer": "Cross-cluster peering for multi-cluster deployments.",
+    "descApprovals": "Approval workflow for sensitive operations.",
+    "noPermission": "Only platform administrators can manage feature flags."
   }
 }

@@ -123,7 +123,8 @@
     "quickstart": "快速接入",
     "sandboxList": "沙箱列表",
     "sandboxTokens": "接入令牌",
-    "sandboxAudit": "流量审计"
+    "sandboxAudit": "流量审计",
+    "featureFlags": "功能配置"
   },
   "ai": {
     "tools": {

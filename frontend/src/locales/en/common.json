@@ -123,7 +123,8 @@
     "quickstart": "Quick Start",
     "sandboxList": "Sandbox List",
     "sandboxTokens": "Access Tokens",
-    "sandboxAudit": "Traffic Audit"
+    "sandboxAudit": "Traffic Audit",
+    "featureFlags": "Feature Flags"
   },
   "ai": {
     "tools": {

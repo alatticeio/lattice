@@ -74,6 +74,7 @@ declare global {
   const useCssVars: typeof import('vue').useCssVars
   const useDashboardStore: typeof import('../stores/useDashboard').useDashboardStore
   const useDrawer: typeof import('../composables/useAgentDetailDrawer').useDrawer
+  const useFeatureStore: typeof import('../stores/feature').useFeatureStore
   const useId: typeof import('vue').useId
   const useMcpServerStore: typeof import('../stores/useMcpServerStore').useMcpServerStore
   const useModel: typeof import('vue').useModel

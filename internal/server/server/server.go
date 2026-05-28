@@ -75,6 +75,7 @@ type Server struct {
 	auditController        controller.AuditController
 	workflowController     controller.WorkflowController
 	platformController     controller.PlatformController
+	featureController      controller.FeatureController
 
 	aiService          service.AIService
 	intentService      service.IntentService
@@ -312,6 +313,7 @@ func NewServer(ctx context.Context, serverConfig *ServerConfig) (*Server, error)
 		auditController:        controller.NewAuditController(auditSvc),
 		workflowController:     controller.NewWorkflowController(workflowSvc),
 		platformController:     controller.NewPlatformController(st),
+		featureController:      controller.NewFeatureController(st),
 		middleware:             middleware.NewMiddleware(checker, st, revocationList),
 		demoLimiter:            demoRL,
 		revocationList:         revocationList,

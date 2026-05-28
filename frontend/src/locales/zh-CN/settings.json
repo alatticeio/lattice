@@ -272,5 +272,30 @@
       "slugRequired": "请填写资源标识符",
       "tcpRequired": "请填写 TCP 地址"
     }
+  },
+  "features": {
+    "title": "功能配置",
+    "desc": "启用或禁用面向所有用户的功能模块。",
+    "groupAi": "AI 助手",
+    "groupSandbox": "Agent 沙箱",
+    "groupSettings": "设置",
+    "groupWorkspace": "工作空间",
+    "enabled": "功能已上线",
+    "disabled": "功能已下线",
+    "updateFailed": "更新失败",
+    "groupPlatform": "平台",
+    "statTotal": "总数",
+    "statEnabled": "已上线",
+    "statDisabled": "已下线",
+    "descAi": "AI 驱动的网络对话、意图引擎和调试工具。",
+    "descMcp": "注册和管理 AI Agent 的 MCP 工具服务器。",
+    "descSandbox": "Agent 沙箱隔离、注册令牌和流量审计。",
+    "descAlerts": "告警规则、通知渠道和告警历史。",
+    "descRelays": "WireGuard 中继服务器管理和健康监控。",
+    "descMonitor": "实时节点状态和网络监控。",
+    "descNetPeer": "跨工作空间网络对等互联配置。",
+    "descClusterPeer": "多集群部署的跨集群对等互联。",
+    "descApprovals": "敏感操作的审批工作流。",
+    "noPermission": "仅平台管理员可以管理功能配置。"
   }
 }

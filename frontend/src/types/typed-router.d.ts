@@ -302,6 +302,13 @@ declare module 'vue-router/auto-routes' {
       Record<never, never>,
       | never
     >,
+    '/settings/features/': RouteRecordInfo<
+      '/settings/features/',
+      '/settings/features',
+      Record<never, never>,
+      Record<never, never>,
+      | never
+    >,
     '/settings/platform/': RouteRecordInfo<
       '/settings/platform/',
       '/settings/platform',
@@ -591,6 +598,12 @@ declare module 'vue-router/auto-routes' {
     'src/pages/settings/audit/index.vue': {
       routes:
         | '/settings/audit/'
+      views:
+        | never
+    }
+    'src/pages/settings/features/index.vue': {
+      routes:
+        | '/settings/features/'
       views:
         | never
     }
