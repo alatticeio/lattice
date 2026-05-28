@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { toast } from 'vue-sonner' // 或者从 '@/components/ui/sonner' 引入
 import { getMe, login as loginApi, logout as logoutApi } from '@/api/user'
 import { setToken, hasToken, setRefreshToken, getRefreshToken, clearAuth } from '@/utils/auth'
+import { useFeatureStore } from '@/stores/feature'
 
 export interface User {
     id: string | number
@@ -78,6 +79,9 @@ export const useUserStore = defineStore('user', () => {
                     ...data,
                     avatarUrl: (data as any).avatar ?? data.avatarUrl ?? '',
                 }
+                // Load feature flags after user identity is confirmed
+                const featureStore = useFeatureStore()
+                await featureStore.fetchFeatures()
             } else {
                 // 如果后端校验失败（如 Token 伪造）
                 handleAuthError()

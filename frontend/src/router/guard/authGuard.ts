@@ -1,5 +1,6 @@
 import { hasToken, removeToken } from '@/utils/auth'
 import { useUserStore } from '@/stores/user'
+import { useFeatureStore } from '@/stores/feature'
 import type { Router } from "vue-router";
 
 export function setupAuthGuard(router: Router) {
@@ -33,10 +34,20 @@ export function setupAuthGuard(router: Router) {
             if (to.path === '/auth/login' || to.path === '/auth/signup') {
                 // 已登录用户不允许再去登录/注册页，重定向到首页
                 next('/')
-            } else {
-                // 其他页面（包括首页和受保护页面）一律放行
-                next()
+                return
             }
+
+            // 4. Feature flag 检查
+            const featureKey = to.meta.featureKey as string | undefined
+            if (featureKey) {
+                const featureStore = useFeatureStore()
+                if (!featureStore.isEnabled(featureKey)) {
+                    next('/dashboard')
+                    return
+                }
+            }
+
+            next()
         } else {
             // --- 未登录状态 ---
             if (isWhiteListed) {
