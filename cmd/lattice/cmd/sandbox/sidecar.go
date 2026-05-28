@@ -1,4 +1,4 @@
-//go:build pro && linux
+//go:build linux
 
 // Copyright 2026 The Lattice Authors, Inc.
 //
@@ -18,17 +18,14 @@ package sandbox
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net"
 	"os"
 	"os/signal"
 	"strings"
-	"sync"
 	"syscall"
-	"time"
 
-	shimfwd "github.com/alatticeio/lattice-shim/shim"
+	shim "github.com/alatticeio/lattice-shim/shim"
 	latticeagent "github.com/alatticeio/lattice/internal/agent"
 	agentconfig "github.com/alatticeio/lattice/internal/agent/config"
 	"github.com/alatticeio/lattice/internal/agent/gvisor"
@@ -38,10 +35,7 @@ import (
 	"github.com/alatticeio/lattice/internal/agent/tproxy"
 	"github.com/spf13/cobra"
 	wgdevice "golang.zx2c4.com/wireguard/device"
-	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 )
-
-const auditLogPath = "/tmp/lattice-audit.jsonl"
 
 var (
 	sidecarServerURL   string
@@ -51,31 +45,6 @@ var (
 	sidecarEgressDeny  bool
 )
 
-// fileAuditWriter implements shimfwd.AuditWriter by appending JSON lines to a file.
-type fileAuditWriter struct {
-	mu sync.Mutex
-	f  *os.File
-}
-
-func newFileAuditWriter(path string) (*fileAuditWriter, error) {
-	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
-	if err != nil {
-		return nil, err
-	}
-	return &fileAuditWriter{f: f}, nil
-}
-
-func (w *fileAuditWriter) Write(event shimfwd.AuditEvent) error {
-	data, err := json.Marshal(event)
-	if err != nil {
-		return err
-	}
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	_, err = fmt.Fprintf(w.f, "%s\n", data)
-	return err
-}
-
 func addSidecarCmd(parent *cobra.Command) {
 	parent.AddCommand(sidecarCmd())
 }
@@ -83,15 +52,23 @@ func addSidecarCmd(parent *cobra.Command) {
 func sidecarCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "sidecar <name>",
-		Short: "Run a Lattice sidecar with transparent proxy for K8s pods (Pro)",
+		Short: "Run a Lattice sidecar with transparent proxy for K8s pods",
 		Long: `Sidecar registers with the Lattice control plane, starts an embedded gVisor
-netstack for WireGuard (no kernel wg0), enforces egress policy, and listens
-as a transparent TCP proxy.
+netstack for WireGuard (no kernel wg0), and listens as a transparent TCP proxy.
+All TCP connections redirected by the init container's iptables rules are
+forwarded through the WireGuard overlay.
+
+Pro accounts get egress policy control (--egress-allow / --egress-default-deny)
+and full audit logging to /tmp/lattice-audit.jsonl.
+
+Run as a Kubernetes sidecar container alongside the AI agent container:
+  securityContext:
+    runAsUser: 1337  # must match --skip-uid in agent init
 
 Example:
-  lattice agent sidecar my-agent \
+  lattice sandbox sidecar my-agent \
     --server-url http://latticed:8080 --token lt-xxx \
-    --egress-allow 10.0.0.0/8 --egress-default-deny`,
+    [--egress-allow 10.0.0.0/8] [--egress-default-deny]`,
 		Args: cobra.ExactArgs(1),
 		RunE: runSidecar,
 	}
@@ -100,9 +77,9 @@ Example:
 	cmd.Flags().IntVar(&sidecarProxyPort, "proxy-port", 15001,
 		"TCP port to listen on for transparent proxy connections")
 	cmd.Flags().StringVar(&sidecarEgressAllow, "egress-allow", "",
-		"Comma-separated overlay CIDRs the AI agent is allowed to reach")
+		"Comma-separated overlay CIDRs the AI agent is allowed to reach (Pro)")
 	cmd.Flags().BoolVar(&sidecarEgressDeny, "egress-default-deny", false,
-		"Deny all egress except --egress-allow CIDRs")
+		"Deny all egress except --egress-allow CIDRs (Pro)")
 	_ = cmd.MarkFlagRequired("server-url")
 	_ = cmd.MarkFlagRequired("token")
 	return cmd
@@ -111,56 +88,42 @@ Example:
 func runSidecar(_ *cobra.Command, args []string) error {
 	agentName := args[0]
 
-	egressPolicy := shimfwd.EgressPolicy{DefaultDeny: sidecarEgressDeny}
-	if sidecarEgressAllow != "" {
-		for _, entry := range strings.Split(sidecarEgressAllow, ",") {
-			entry = strings.TrimSpace(entry)
-			if entry == "" {
-				continue
-			}
-			_, cidr, err := net.ParseCIDR(entry)
-			if err != nil {
-				return fmt.Errorf("invalid egress CIDR %q: %w", entry, err)
-			}
-			egressPolicy.AllowedCIDRs = append(egressPolicy.AllowedCIDRs, *cidr)
-		}
-	}
-
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	agentconfig.Conf.AppId = agentName
 	agentconfig.Conf.ServerUrl = sidecarServerURL
-	agentconfig.Conf.WgPort = 0
+	agentconfig.Conf.WgPort = 0 // random port; no kernel wg0
 
-	var privKey wgtypes.Key
-	var currentPeer *infra.Peer
+	currentPeer, err := registerOrResume(ctx, agentName, sidecarServerURL, sidecarToken)
+	if err != nil {
+		return err
+	}
 
-	if creds, err := loadSandboxCredentials(); err == nil {
-		if key, parseErr := wgtypes.ParseKey(creds.PrivateKey); parseErr == nil {
-			if peer, resumeErr := latticeagent.ResumeSandboxViaNATS(ctx, sidecarServerURL, creds.JWT, agentName, key); resumeErr == nil {
-				privKey = key
-				currentPeer = peer
-				fmt.Printf("[agent-sidecar] resumed %q, overlay IP=%s\n", agentName, overlayAddr(currentPeer))
+	// Build policy and audit based on account tier.
+	var policyChecker shim.PolicyChecker
+	var auditWriter shim.AuditWriter
+
+	if currentPeer.Tier == "pro" {
+		egressPolicy := shim.EgressPolicy{DefaultDeny: sidecarEgressDeny}
+		if sidecarEgressAllow != "" {
+			for _, entry := range strings.Split(sidecarEgressAllow, ",") {
+				entry = strings.TrimSpace(entry)
+				if entry == "" {
+					continue
+				}
+				_, cidr, cidrErr := net.ParseCIDR(entry)
+				if cidrErr != nil {
+					return fmt.Errorf("invalid egress CIDR %q: %w", entry, cidrErr)
+				}
+				egressPolicy.AllowedCIDRs = append(egressPolicy.AllowedCIDRs, *cidr)
 			}
 		}
+		policyChecker = shim.NewEgressFilter(egressPolicy)
+		auditWriter, _ = newFileAuditWriter(auditLogPath)
+	} else if sidecarEgressDeny || sidecarEgressAllow != "" {
+		fmt.Fprintln(os.Stderr, "[agent-sidecar] WARNING: egress policy flags require a Pro account. These flags will be ignored.")
 	}
-
-	if currentPeer == nil {
-		var err error
-		privKey, err = wgtypes.GeneratePrivateKey()
-		if err != nil {
-			return fmt.Errorf("generate WireGuard key: %w", err)
-		}
-		currentPeer, err = latticeagent.RegisterSandboxViaNATS(ctx, sidecarServerURL, sidecarToken, agentName, privKey)
-		if err != nil {
-			return fmt.Errorf("registration failed: %w", err)
-		}
-		if saveErr := saveSandboxCredentials(privKey, currentPeer.Token); saveErr != nil {
-			fmt.Printf("[agent-sidecar] warning: persist credentials: %v\n", saveErr)
-		}
-	}
-	_ = privKey
 
 	localIP := overlayAddr(currentPeer)
 	fmt.Printf("[agent-sidecar] %q registered, overlay IP=%s\n", agentName, localIP)
@@ -168,12 +131,6 @@ func runSidecar(_ *cobra.Command, args []string) error {
 	if currentPeer.LrpUrl != "" {
 		agentconfig.Conf.EnableLrp = true
 		agentconfig.Conf.RelayURL = currentPeer.LrpUrl
-	}
-
-	policyChecker := shimfwd.NewEgressFilter(egressPolicy)
-	auditWriter, auditErr := newFileAuditWriter(auditLogPath)
-	if auditErr != nil {
-		fmt.Printf("[agent-sidecar] warning: open audit log: %v\n", auditErr)
 	}
 
 	sb, err := gvisor.New(gvisor.Config{
@@ -225,21 +182,9 @@ func runSidecar(_ *cobra.Command, args []string) error {
 	defer node.Stop() //nolint:errcheck
 
 	go node.StartHeartbeat(ctx)
-	go func() {
-		ticker := time.NewTicker(15 * time.Second)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
-				if refreshErr := node.RefreshConfig(ctx); refreshErr != nil {
-					logger.Warn("periodic config refresh failed", "err", refreshErr)
-				}
-			}
-		}
-	}()
+	go runPeriodicRefresh(ctx, node, logger)
 
+	// Start transparent proxy — dials through gVisor netstack (WireGuard).
 	proxy := &tproxy.Proxy{
 		Addr: fmt.Sprintf("0.0.0.0:%d", sidecarProxyPort),
 		Dial: sb.DialContext,
@@ -247,8 +192,7 @@ func runSidecar(_ *cobra.Command, args []string) error {
 	if err := proxy.Start(ctx); err != nil {
 		return fmt.Errorf("start transparent proxy: %w", err)
 	}
-	fmt.Printf("[agent-sidecar] transparent proxy listening on :%d (egress-deny=%v)\n",
-		sidecarProxyPort, sidecarEgressDeny)
+	fmt.Printf("[agent-sidecar] transparent proxy listening on :%d\n", sidecarProxyPort)
 
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)

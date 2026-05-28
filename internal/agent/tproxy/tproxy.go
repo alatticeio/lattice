@@ -58,7 +58,7 @@ func (p *Proxy) Start(ctx context.Context) error {
 	p.ln = ln
 	go func() {
 		<-ctx.Done()
-		ln.Close()
+		_ = ln.Close()
 	}()
 	go p.serve(ctx, ln)
 	return nil
@@ -84,7 +84,7 @@ func (p *Proxy) serve(ctx context.Context, ln net.Listener) {
 }
 
 func (p *Proxy) handle(ctx context.Context, src *net.TCPConn) {
-	defer src.Close()
+	defer func() { _ = src.Close() }()
 
 	origDstFn := p.OrigDst
 	if origDstFn == nil {
@@ -99,7 +99,7 @@ func (p *Proxy) handle(ctx context.Context, src *net.TCPConn) {
 	if err != nil {
 		return
 	}
-	defer remote.Close()
+	defer func() { _ = remote.Close() }()
 
 	done := make(chan struct{}, 2)
 	go func() { io.Copy(remote, src); done <- struct{}{} }() //nolint:errcheck
@@ -114,7 +114,7 @@ func originalDst(conn *net.TCPConn) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("get file: %w", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	// sockaddr_in layout: sa_family(2) + port(2) + addr(4) + pad(8) = 16 bytes
 	var raw [16]byte

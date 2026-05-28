@@ -1,4 +1,4 @@
-//go:build !pro
+//go:build !linux
 
 // Copyright 2026 The Lattice Authors, Inc.
 //
@@ -18,5 +18,4 @@ package sandbox
 
 import "github.com/spf13/cobra"
 
-// registerRunCmd is a no-op in community builds; sandbox run requires Pro.
-func registerRunCmd(_ *cobra.Command) {}
+func addSidecarCmd(parent *cobra.Command) {}

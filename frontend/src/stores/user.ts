@@ -13,6 +13,7 @@ export interface User {
     role: 'admin' | 'user' | 'guest'
     systemRole?: 'platform_admin' | 'user' | ''
     avatarUrl?: string
+    tier?: 'community' | 'pro'
 }
 
 export const useUserStore = defineStore('user', () => {
@@ -25,6 +26,7 @@ export const useUserStore = defineStore('user', () => {
     // --- Getters ---
     const isLoggedIn = computed(() => !!userInfo.value)
     const isPlatformAdmin = computed(() => userInfo.value?.systemRole === 'platform_admin')
+    const isPro = computed(() => userInfo.value?.tier === 'pro')
 
     // --- Actions ---
 
@@ -129,6 +131,7 @@ export const useUserStore = defineStore('user', () => {
         loading,
         isLoggedIn,
         isPlatformAdmin,
+        isPro,
         login,
         logout,
         fetchUserInfo

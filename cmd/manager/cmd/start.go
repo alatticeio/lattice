@@ -8,13 +8,12 @@ import (
 func newStartCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "start",
-		Short: "Starts a Lattice component (controller, client, drp, turn).",
+		Short: "Starts a Lattice component (controller, client, drp).",
 		Args:  cobra.MinimumNArgs(1),
 	}
 
 	cmd.AddCommand(newControllerCmd())
 	cmd.AddCommand(newLrpCmd())
-	cmd.AddCommand(newTurnCmd())
 	cmd.AddCommand(newManagementCmd())
 
 	return cmd

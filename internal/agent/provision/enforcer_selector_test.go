@@ -12,8 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//go:build !pro
-
 package provision
 
 import (
@@ -25,9 +23,19 @@ import (
 
 func TestSelectEnforcerMode_Community(t *testing.T) {
 	logger := log.GetLogger("test")
-	mode := SelectEnforcerMode(&config.Config{}, logger)
+	mode := SelectEnforcerMode(&config.Config{}, "community", logger)
 	if mode != ModeIPTables {
-		t.Errorf("expected ModeIPTables in community build, got %v", mode)
+		t.Errorf("expected ModeIPTables for community tier, got %v", mode)
+	}
+}
+
+func TestSelectEnforcerMode_Pro_EBPFRequested(t *testing.T) {
+	logger := log.GetLogger("test")
+	cfg := &config.Config{EnforcerMode: "ebpf"}
+	mode := SelectEnforcerMode(cfg, "pro", logger)
+	// eBPF may or may not be available in CI; just verify it doesn't panic.
+	if mode != ModeIPTables && mode != ModeEBPF {
+		t.Errorf("unexpected mode: %v", mode)
 	}
 }
 

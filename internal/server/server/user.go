@@ -129,7 +129,20 @@ func (s *Server) getMe() gin.HandlerFunc {
 			return
 		}
 
-		resp.OK(c, user)
+		// Include tier from user profile so frontend can gate PRO features.
+		tier := "community"
+		if profile, pErr := s.store.Profiles().Get(c.Request.Context(), id); pErr == nil && profile.Tier != "" {
+			tier = profile.Tier
+		}
+
+		resp.OK(c, map[string]any{
+			"id":         user.ID,
+			"username":   user.Username,
+			"email":      user.Email,
+			"avatar":     user.Avatar,
+			"systemRole": user.SystemRole,
+			"tier":       tier,
+		})
 	}
 }
 

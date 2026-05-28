@@ -21,7 +21,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+<<<<<<< HEAD
 	"github.com/alatticeio/lattice/internal"
+=======
+	"time"
+
+>>>>>>> 90e8c459 (docs: update tier unification progress (Phase 3/5/7 done))
 	"github.com/alatticeio/lattice/internal/agent/config"
 	"github.com/alatticeio/lattice/internal/agent/infra"
 	"github.com/alatticeio/lattice/internal/agent/log"
@@ -126,7 +131,6 @@ type Node struct {
 
 	manager struct {
 		keyManager  infra.KeyManager
-		turnManager *internal.TurnManager
 		peerManager *infra.PeerManager
 	}
 
@@ -214,7 +218,7 @@ func NewNode(ctx context.Context, cfg *NodeConfig) (*Node, error) {
 	node = new(Node)
 	node.manager.peerManager = infra.NewPeerManager()
 	node.logger = cfg.Logger
-	node.manager.turnManager = new(internal.TurnManager)
+	// TurnManager removed — using external coturn for STUN
 
 	// TUN device: the OS virtual NIC that serves as WireGuard's L3 ingress/egress.
 	// The sandbox supplies a gVisor TUNAdapter instead of creating a kernel TUN.
@@ -273,8 +277,8 @@ func NewNode(ctx context.Context, cfg *NodeConfig) (*Node, error) {
 =======
 		config.Conf.SetSignalingURL(d.NatsURL)
 		log.GetLogger("node").Info("Discovered NATS URL", "url", d.NatsURL)
-		if d.StunURL != "" && config.Conf.TurnServerURL == "" {
-			config.Conf.TurnServerURL = d.StunURL
+		if d.StunURL != "" && config.Conf.StunServerURL == "" {
+			config.Conf.StunServerURL = d.StunURL
 			log.GetLogger("node").Info("Discovered STUN URL", "url", d.StunURL)
 		}
 		// Apply server global enforcer_mode default if CLI hasn't overridden it.
@@ -443,7 +447,7 @@ func NewNode(ctx context.Context, cfg *NodeConfig) (*Node, error) {
 	if cfg.ProvisionerFactory != nil {
 		node.provisioner = cfg.ProvisionerFactory(node.iface)
 	} else {
-		enforcerMode := provision.SelectEnforcerMode(cfg.Flags, cfg.Logger)
+		enforcerMode := provision.SelectEnforcerMode(cfg.Flags, node.current.Tier, cfg.Logger)
 		var policyEnforcer provision.PolicyEnforcer
 		switch enforcerMode {
 		case provision.ModeEBPF:

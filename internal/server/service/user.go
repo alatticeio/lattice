@@ -48,7 +48,14 @@ func (u *userService) UpdateSystemRole(ctx context.Context, userID string, role 
 		return errors.New("user not found")
 	}
 	user.SystemRole = role
-	return u.store.Users().Update(ctx, user)
+	if err := u.store.Users().Update(ctx, user); err != nil {
+		return err
+	}
+	// Platform admins get Pro tier.
+	if role == dto.SystemRolePlatformAdmin {
+		_ = u.store.Profiles().Upsert(ctx, &models.UserProfile{UserID: userID, Tier: "pro"})
+	}
+	return nil
 }
 
 func (u *userService) AddUser(ctx context.Context, dto *dto.UserDto) error {
@@ -107,6 +114,7 @@ func (u *userService) OnboardExternalUser(ctx context.Context, provider, subject
 			if err = u.store.Users().Update(ctx, user); err != nil {
 				u.log.Warn("failed to promote external user to platform_admin", "email", email, "err", err)
 			}
+			_ = u.store.Profiles().Upsert(ctx, &models.UserProfile{UserID: user.ID, Tier: "pro"})
 		}
 		return user, nil
 	}
@@ -126,6 +134,11 @@ func (u *userService) OnboardExternalUser(ctx context.Context, provider, subject
 		if err := u.store.Users().Update(ctx, user); err != nil {
 			u.log.Warn("failed to promote existing user to platform_admin", "email", email, "err", err)
 		}
+	}
+
+	// Platform admins get Pro tier.
+	if targetRole == dto.SystemRolePlatformAdmin {
+		_ = u.store.Profiles().Upsert(ctx, &models.UserProfile{UserID: user.ID, Tier: "pro"})
 	}
 
 	// Create the identity link.
@@ -229,15 +242,35 @@ func (u *userService) InitAdmin(ctx context.Context, admins []config.AdminConfig
 			}
 			if err = u.store.Users().Create(ctx, &newUser); err != nil {
 				u.log.Error("admin bootstrap failed", err, "username", admin.Username)
-			} else {
-				u.log.Info("admin account bootstrapped", "username", newUser.Username)
+				continue
 			}
-		} else if existing.SystemRole != dto.SystemRolePlatformAdmin {
-			existing.SystemRole = dto.SystemRolePlatformAdmin
-			if err = u.store.Users().Update(ctx, existing); err != nil {
-				u.log.Error("admin role update failed", err, "username", admin.Username)
-			} else {
-				u.log.Info("admin role updated to platform_admin", "username", existing.Username)
+			u.log.Info("admin account bootstrapped", "username", newUser.Username)
+			// Admin defaults to Pro tier.
+			if pErr := u.store.Profiles().Upsert(ctx, &models.UserProfile{
+				UserID: newUser.ID,
+				Tier:   "pro",
+			}); pErr != nil {
+				u.log.Warn("failed to set admin profile tier", "username", admin.Username, "err", pErr)
+			}
+		} else {
+			changed := false
+			if existing.SystemRole != dto.SystemRolePlatformAdmin {
+				existing.SystemRole = dto.SystemRolePlatformAdmin
+				changed = true
+			}
+			if changed {
+				if err = u.store.Users().Update(ctx, existing); err != nil {
+					u.log.Error("admin role update failed", err, "username", admin.Username)
+				} else {
+					u.log.Info("admin role updated to platform_admin", "username", existing.Username)
+				}
+			}
+			// Ensure admin profile has Pro tier.
+			if pErr := u.store.Profiles().Upsert(ctx, &models.UserProfile{
+				UserID: existing.ID,
+				Tier:   "pro",
+			}); pErr != nil {
+				u.log.Warn("failed to set admin profile tier", "username", admin.Username, "err", pErr)
 			}
 		}
 	}
