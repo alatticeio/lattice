@@ -162,21 +162,23 @@ func TestPolicyDialer_InvalidAddr_ReturnsError(t *testing.T) {
 	}
 }
 
-func TestForkWithProxy_SetsAllProxy(t *testing.T) {
+func TestForkAgent_ExitsCleanly(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	err := forkWithProxy(ctx, cancel, []string{"sh", "-c", "echo $ALL_PROXY"}, "socks5h://127.0.0.1:9999")
+	err := forkAgent(ctx, cancel, []string{"true"})
 	if err != nil {
-		t.Fatalf("forkWithProxy returned err: %v", err)
+		t.Fatalf("forkAgent returned err for exit-0 child: %v", err)
 	}
 }
 
-func TestForkWithProxy_ChildExitCode(t *testing.T) {
+func TestForkAgent_InheritsEnv(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	err := forkWithProxy(ctx, cancel, []string{"true"}, "socks5h://127.0.0.1:9999")
+	// Verify child inherits parent env (no ALL_PROXY injection — no SOCKS5)
+	t.Setenv("LATTICE_TEST_MARKER", "yes")
+	err := forkAgent(ctx, cancel, []string{"sh", "-c", `test "$LATTICE_TEST_MARKER" = "yes"`})
 	if err != nil {
-		t.Fatalf("expected nil error for exit 0, got: %v", err)
+		t.Fatalf("expected child to inherit env, got err: %v", err)
 	}
 }
 

@@ -152,19 +152,15 @@ func runPeriodicRefresh(ctx context.Context, node *latticeagent.Node, logger int
 	}
 }
 
-// forkWithProxy forks the AI agent and sets ALL_PROXY / HTTP_PROXY so its
-// outbound traffic flows through the Lattice SOCKS5 proxy to the overlay.
-func forkWithProxy(ctx context.Context, cancel context.CancelFunc, cmdArgs []string, proxyAddr string) error {
+// forkAgent forks the AI agent as a child process. The child inherits the same
+// network namespace and can reach overlay peers directly via kernel wf0 routing.
+// No proxy injection — WireGuard routing handles overlay connectivity natively.
+func forkAgent(ctx context.Context, cancel context.CancelFunc, cmdArgs []string) error {
 	child := exec.CommandContext(ctx, cmdArgs[0], cmdArgs[1:]...)
 	child.Stdin = os.Stdin
 	child.Stdout = os.Stdout
 	child.Stderr = os.Stderr
-	child.Env = append(os.Environ(),
-		"ALL_PROXY="+proxyAddr,
-		"all_proxy="+proxyAddr,
-		"HTTPS_PROXY="+proxyAddr,
-		"https_proxy="+proxyAddr,
-	)
+	child.Env = os.Environ()
 
 	if err := child.Start(); err != nil {
 		return fmt.Errorf("start agent process: %w", err)
@@ -199,15 +195,19 @@ func forkWithProxy(ctx context.Context, cancel context.CancelFunc, cmdArgs []str
 }
 
 // runSandbox is the shared sandbox engine for both community and PRO editions.
-// It uses a standard kernel wf0 (same as regular lattice agent) and a SOCKS5
-// proxy for AI agent egress — no gVisor CustomTUN, no iptables, no UID tricks.
+// It creates a standard kernel wf0 (identical to a regular lattice agent) and
+// forks the AI agent as a child process. The child inherits the same network
+// namespace and routes overlay traffic directly through wf0 — no SOCKS5 proxy,
+// no iptables, no UID tricks.
+//
+// checker and auditor are reserved for Phase B (MCP proxy policy enforcement).
 func runSandbox(
 	ctx context.Context,
 	cancel context.CancelFunc,
 	agentName string,
 	currentPeer *infra.Peer,
-	checker shim.PolicyChecker,
-	auditor shim.AuditWriter,
+	_ shim.PolicyChecker,
+	_ shim.AuditWriter,
 	cmdArgs []string,
 ) error {
 	agentconfig.Conf.AppId = agentName
@@ -253,22 +253,11 @@ func runSandbox(
 	go node.StartHeartbeat(ctx)
 	go runPeriodicRefresh(ctx, node, logger)
 
-	dialer := &policyDialer{identity: agentName, checker: checker, auditor: auditor}
-	socks5Srv, err := shim.NewSocks5Server(dialer, "127.0.0.1:0")
-	if err != nil {
-		return fmt.Errorf("start socks5 server: %w", err)
-	}
-	go func() { _ = socks5Srv.Serve() }()
-	go func() { <-ctx.Done(); _ = socks5Srv.Close() }()
-
-	proxyAddr := "socks5h://" + socks5Srv.Addr().String()
-	fmt.Printf("[sandbox-run] SOCKS5 proxy on %s (egress policy: %v)\n", socks5Srv.Addr(), checker != nil)
-
 	select {
 	case <-time.After(runReadyWait):
 	case <-ctx.Done():
 		return ctx.Err()
 	}
 
-	return forkWithProxy(ctx, cancel, cmdArgs, proxyAddr)
+	return forkAgent(ctx, cancel, cmdArgs)
 }
