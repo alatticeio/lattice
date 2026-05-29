@@ -428,7 +428,7 @@ func getNetworkName(peer *latticev1.LatticePeer) string {
 // The pod includes an nginx workload on port 8080 to serve inbound overlay connections.
 func deploySandboxPod(clientset *kubernetes.Clientset, ns, name, sandboxImage, serverURL, enrollmentToken string, hostAliases []corev1.HostAlias) {
 	sidecarArgs := []string{
-		"/app/lattice", "agent", "sidecar", name,
+		"/app/lattice", "sandbox", "sidecar", name,
 		"--server-url", serverURL,
 		"--token", enrollmentToken,
 		// Allow overlay traffic (any 10.x.x.x) and deny everything else.
@@ -460,7 +460,7 @@ func deploySandboxPod(clientset *kubernetes.Clientset, ns, name, sandboxImage, s
 					Name:            "lattice-init",
 					Image:           sandboxImage,
 					ImagePullPolicy: corev1.PullIfNotPresent,
-					Command:         []string{"/app/lattice", "agent", "init"},
+					Command:         []string{"/app/lattice", "sandbox", "init"},
 					SecurityContext: &corev1.SecurityContext{
 						Capabilities: &corev1.Capabilities{
 							Add: []corev1.Capability{"NET_ADMIN"},
