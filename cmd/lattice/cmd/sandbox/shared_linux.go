@@ -54,29 +54,55 @@ type policyDialer struct {
 	auditor  shim.AuditWriter   // nil = no audit
 }
 
+var defaultDialer = &net.Dialer{}
+
+var _ shim.ContextDialer = (*policyDialer)(nil)
+
 func (d *policyDialer) DialContext(ctx context.Context, network, addr string) (net.Conn, error) {
-	host, portStr, _ := net.SplitHostPort(addr)
+	host, portStr, err := net.SplitHostPort(addr)
+	if err != nil {
+		return nil, fmt.Errorf("policyDialer: invalid addr %q: %w", addr, err)
+	}
+
 	ip := net.ParseIP(host)
-	var port uint16
-	if p, parseErr := strconv.ParseUint(portStr, 10, 16); parseErr == nil {
-		port = uint16(p)
-	}
 
-	if d.checker != nil && ip != nil && !d.checker.Allow(d.identity, ip, port) {
-		if d.auditor != nil {
-			_ = d.auditor.Write(shim.AuditEvent{
-				Identity: d.identity,
-				DstIP:    host,
-				DstPort:  port,
-				Protocol: network,
-				Verdict:  shim.VerdictDrop,
-			})
+	if d.checker != nil {
+		if ip == nil {
+			// Hostname — can't check IP-based policy; deny to prevent bypass.
+			if d.auditor != nil {
+				_ = d.auditor.Write(shim.AuditEvent{
+					Identity: d.identity,
+					DstIP:    host,
+					Protocol: network,
+					Verdict:  shim.VerdictDrop,
+				})
+			}
+			return nil, fmt.Errorf("egress policy: hostname %q not allowed (IP-based policy only)", host)
 		}
-		return nil, fmt.Errorf("egress policy denied: %s", addr)
+		var port uint16
+		if p, parseErr := strconv.ParseUint(portStr, 10, 16); parseErr == nil {
+			port = uint16(p)
+		}
+		if !d.checker.Allow(d.identity, ip, port) {
+			if d.auditor != nil {
+				_ = d.auditor.Write(shim.AuditEvent{
+					Identity: d.identity,
+					DstIP:    host,
+					DstPort:  port,
+					Protocol: network,
+					Verdict:  shim.VerdictDrop,
+				})
+			}
+			return nil, fmt.Errorf("egress policy denied: %s", addr)
+		}
 	}
 
-	conn, err := (&net.Dialer{}).DialContext(ctx, network, addr)
-	if err == nil && d.auditor != nil {
+	conn, connErr := defaultDialer.DialContext(ctx, network, addr)
+	if connErr == nil && d.auditor != nil {
+		var port uint16
+		if p, parseErr := strconv.ParseUint(portStr, 10, 16); parseErr == nil {
+			port = uint16(p)
+		}
 		_ = d.auditor.Write(shim.AuditEvent{
 			Identity: d.identity,
 			DstIP:    host,
@@ -85,7 +111,7 @@ func (d *policyDialer) DialContext(ctx context.Context, network, addr string) (n
 			Verdict:  shim.VerdictAllow,
 		})
 	}
-	return conn, err
+	return conn, connErr
 }
 
 // fileAuditWriter implements shim.AuditWriter by appending JSON lines to a file.

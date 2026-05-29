@@ -137,6 +137,31 @@ func TestPolicyDialer_Audit_WritesDenyEvent(t *testing.T) {
 	}
 }
 
+func TestPolicyDialer_Hostname_DeniedWhenCheckerSet(t *testing.T) {
+	policy := shim.EgressPolicy{
+		DefaultDeny:  true,
+		AllowedCIDRs: []net.IPNet{mustParseCIDR("127.0.0.0/8")},
+	}
+	d := &policyDialer{
+		identity: "agent-1",
+		checker:  shim.NewEgressFilter(policy),
+		auditor:  nil,
+	}
+	// hostname (not IP) should be denied when checker is set
+	_, err := d.DialContext(context.Background(), "tcp", "localhost:80")
+	if err == nil {
+		t.Fatal("expected hostname to be denied when checker is set, got nil error")
+	}
+}
+
+func TestPolicyDialer_InvalidAddr_ReturnsError(t *testing.T) {
+	d := &policyDialer{identity: "agent-1", checker: nil, auditor: nil}
+	_, err := d.DialContext(context.Background(), "tcp", "not-valid-addr-no-port")
+	if err == nil {
+		t.Fatal("expected error for malformed addr, got nil")
+	}
+}
+
 func TestForkWithProxy_SetsAllProxy(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
