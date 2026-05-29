@@ -1,0 +1,125 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.18.0
+  name: mcpservers.alattice.io
+spec:
+  group: alattice.io
+  names:
+    kind: MCPServer
+    listKind: MCPServerList
+    plural: mcpservers
+    shortNames:
+    - mcpsrv
+    singular: mcpserver
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .status.mode
+      name: MODE
+      type: string
+    - jsonPath: .status.phase
+      name: PHASE
+      type: string
+    - jsonPath: .spec.endpoint
+      name: ENDPOINT
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: AGE
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: |-
+          MCPServer registers an MCP server (internal overlay or external platform) so that
+          AgentPolicy can reference its tools and the MCP proxy can enforce access control.
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: MCPServerSpec defines the desired state of an MCPServer.
+            properties:
+              endpoint:
+                description: |-
+                  Endpoint is the MCP server address.
+                  Internal mode: "http://localhost:3000/mcp" (peer-local address).
+                  External mode: "https://mcp.github.com" (full URL for platform MCPs).
+                type: string
+              peerName:
+                description: |-
+                  PeerName is the corresponding LatticePeer name (optional).
+                  Set for internal overlay MCPs; omit for external platform MCPs (GitHub, Stripe, etc.).
+                type: string
+              tools:
+                description: Tools declares the MCP tools this server exposes, used
+                  for AgentPolicy references.
+                items:
+                  description: MCPTool declares a single MCP tool exposed by an MCPServer.
+                  properties:
+                    description:
+                      type: string
+                    name:
+                      type: string
+                    riskLevel:
+                      description: RiskLevel indicates the operational risk of a tool
+                        call.
+                      enum:
+                      - low
+                      - medium
+                      - high
+                      - critical
+                      type: string
+                  required:
+                  - name
+                  type: object
+                type: array
+            required:
+            - endpoint
+            type: object
+          status:
+            description: MCPServerStatus is the observed state of an MCPServer.
+            properties:
+              lastSyncedAt:
+                format: date-time
+                type: string
+              mode:
+                description: Mode is "internal" when peerName is set, "external" otherwise.
+                enum:
+                - internal
+                - external
+                type: string
+              peerAddress:
+                description: PeerAddress is the overlay IP of the LatticePeer (internal
+                  mode only).
+                type: string
+              phase:
+                description: 'Phase is Ready when the server is reachable (internal:
+                  peer is Ready; external: always Ready).'
+                enum:
+                - Pending
+                - Ready
+                - Degraded
+                type: string
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
