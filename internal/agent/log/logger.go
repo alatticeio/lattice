@@ -20,15 +20,11 @@ import (
 	"os"
 	"strings"
 	"sync"
-
-	charmlog "github.com/charmbracelet/log"
-	"github.com/muesli/termenv"
 )
 
 var (
 	level       = &slog.LevelVar{}
 	rootHandler slog.Handler
-	charmLogger *charmlog.Logger
 	once        sync.Once
 )
 
@@ -36,26 +32,24 @@ func init() {
 	level.Set(slog.LevelInfo)
 }
 
+// SetLevel updates the global log level by name ("debug", "info", "warn", "error").
 func SetLevel(logLevel string) {
-	l := GetLogLevel(logLevel)
-	level.Set(l)
-	if charmLogger != nil {
-		charmLogger.SetLevel(charmlog.Level(l))
-	}
+	level.Set(GetLogLevel(logLevel))
 }
 
 // Err returns a slog.Attr for an error, for use with structured logging.
-// e.g. log.Info("msg", log.Err(err))
 func Err(err error) slog.Attr {
 	return slog.Any("err", err)
 }
 
+// Logger wraps slog.Logger with a convenience Error method that accepts an
+// error as the second positional argument (matching existing call sites).
 type Logger struct {
 	*slog.Logger
 }
 
-// AutoErrHandler wraps a Handler and rewrites bare error values that arrive
-// with an empty or "!BADKEY" key to use the canonical "err" key instead.
+// AutoErrHandler rewrites bare error values that arrive with an empty or
+// "!BADKEY" key to use the canonical "err" key instead.
 type AutoErrHandler struct {
 	slog.Handler
 }
@@ -82,18 +76,10 @@ func getHandler() slog.Handler {
 				Level:     level,
 			})
 		} else {
-			charmLogger = charmlog.NewWithOptions(os.Stdout, charmlog.Options{
-				ReportTimestamp: true,
-				ReportCaller:    true,
-				TimeFormat:      "2006-01-02 15:04:05.000",
-				Level:           charmlog.Level(level.Level()),
+			inner = slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
+				AddSource: true,
+				Level:     level,
 			})
-			// GoLand / other IDE consoles are pipes (not a real TTY), so termenv
-			// auto-detects "no color". Force TrueColor unless explicitly disabled.
-			if os.Getenv("NO_COLOR") == "" {
-				charmLogger.SetColorProfile(termenv.TrueColor)
-			}
-			inner = charmLogger
 		}
 		rootHandler = &AutoErrHandler{Handler: inner}
 	})
@@ -104,21 +90,20 @@ func (l *Logger) Error(msg string, err error, args ...any) {
 	l.Logger.Error(msg, append([]any{"err", err}, args...)...)
 }
 
+// GetLogger returns a Logger tagged with the given module name.
 func GetLogger(module string) *Logger {
 	logger := slog.New(getHandler()).With("mod", module)
 	return &Logger{logger}
 }
 
+// GetLogLevel converts a level name to slog.Level.
 func GetLogLevel(level string) slog.Level {
-	level = strings.ToLower(level)
-	switch level {
+	switch strings.ToLower(level) {
 	case "debug":
 		return slog.LevelDebug
 	case "error":
 		return slog.LevelError
-	case "info":
-		return slog.LevelInfo
-	case "warning":
+	case "warn", "warning":
 		return slog.LevelWarn
 	default:
 		return slog.LevelInfo
