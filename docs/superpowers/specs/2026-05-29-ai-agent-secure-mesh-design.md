@@ -71,10 +71,20 @@ Kill pod 慢且不一定有效。需要密码学级别的即时吊销：吊销 A
 ### 三种交互模式，统一处理
 
 ```
-Agent ↔ Agent：    WireGuard P2P + LatticePolicy（已有）
-Agent → MCP：      WireGuard P2P + AgentPolicy（工具级）+ MCP 审计（新增）
-Agent → 外网/内网：WireGuard egress + 出口策略（Phase 3 扩展）
+Agent ↔ Agent：      WireGuard P2P + LatticePolicy（已有）
+Agent → MCP（内部）：WireGuard P2P + AgentPolicy 工具级策略 + MCP 审计（新增）
+Agent → MCP（外部）：HTTPS 直连 + HTTP proxy 拦截 + AgentPolicy 工具级策略 + MCP 审计（新增）
+Agent → 外网/内网：  egress 策略 + 出口控制（Phase 3 扩展）
 ```
+
+**关键认知：大多数 MCP server 不在 overlay 里。**
+
+现实中 MCP server 的分布：
+- **平台级外部 MCP（80%+）**：GitHub、Stripe、Notion 等平台的 MCP，通过 HTTPS 访问，完全在 Lattice overlay 之外
+- **公司内网 MCP（~10%）**：内部 API、数据库 MCP，可选择加入 overlay，也可不加
+- **本地 MCP（~5%）**：filesystem、本地工具，同机运行
+
+因此 Lattice 的 MCP 安全层必须**对两种模式都有效**，而不能要求 MCP server 必须是 LatticePeer。
 
 ---
 
@@ -183,6 +193,13 @@ e2e 测试重构方向：BeforeAll 改为让 sandbox agent 主动 wget companion
 
 ### Block 2：MCPServer CRD
 
+MCPServer 支持两种模式：
+
+| 模式 | 场景 | peerName | endpoint |
+|---|---|---|---|
+| **内部模式** | MCP server 加入了 Lattice overlay | 必填（LatticePeer 名称） | 本地地址（如 `http://localhost:3000/mcp`） |
+| **外部模式** | 平台级 MCP，不在 overlay 内 | 空 | 完整外部 URL（如 `https://mcp.github.com`） |
+
 #### 2.1 CRD 定义
 
 ```go
@@ -196,11 +213,17 @@ type MCPServer struct {
 }
 
 type MCPServerSpec struct {
-    // PeerName 是对应的 LatticePeer 名称（MCP server 以普通 peer 身份加入 overlay）
-    PeerName string `json:"peerName"`
-    // Endpoint 是 MCP server 在其本地监听的地址
+    // PeerName 是对应的 LatticePeer 名称（可选）。
+    // 有值 → 内部模式：MCP server 通过 WireGuard overlay 访问。
+    // 空   → 外部模式：MCP server 通过 endpoint URL 直接访问（HTTPS）。
+    PeerName string `json:"peerName,omitempty"`
+
+    // Endpoint 是 AI agent 访问该 MCP server 时使用的地址。
+    // 内部模式：MCP server 本地监听的地址（如 "http://localhost:3000/mcp"）。
+    // 外部模式：完整的外部 URL（如 "https://mcp.github.com"）。
     Endpoint string `json:"endpoint"`
-    // Tools 声明该 server 暴露的工具列表
+
+    // Tools 声明该 server 暴露的工具列表，供 AgentPolicy 引用和 UI 展示。
     Tools []MCPTool `json:"tools,omitempty"`
 }
 
@@ -221,9 +244,10 @@ const (
 )
 
 type MCPServerStatus struct {
-    Phase       MCPServerPhase `json:"phase,omitempty"`
-    PeerAddress string         `json:"peerAddress,omitempty"`
-    LastSyncedAt *metav1.Time  `json:"lastSyncedAt,omitempty"`
+    Phase        MCPServerPhase `json:"phase,omitempty"`
+    Mode         string         `json:"mode,omitempty"`         // "internal" | "external"
+    PeerAddress  string         `json:"peerAddress,omitempty"`  // 仅内部模式有值
+    LastSyncedAt *metav1.Time   `json:"lastSyncedAt,omitempty"`
 }
 
 type MCPServerPhase string
@@ -235,23 +259,67 @@ const (
 )
 ```
 
+YAML 示例：
+
+```yaml
+# 内部模式：数据库 MCP，已加入 Lattice overlay
+apiVersion: lattice.io/v1alpha1
+kind: MCPServer
+metadata:
+  name: db-tools
+  namespace: my-workspace
+spec:
+  peerName: db-mcp-server          # 对应已注册的 LatticePeer
+  endpoint: "http://localhost:3000/mcp"
+  tools:
+    - name: query_db
+      riskLevel: high
+    - name: list_tables
+      riskLevel: low
+---
+# 外部模式：平台级 MCP，不在 overlay 内
+apiVersion: lattice.io/v1alpha1
+kind: MCPServer
+metadata:
+  name: github-mcp
+  namespace: my-workspace
+spec:
+  # 没有 peerName
+  endpoint: "https://api.githubcopilot.com/mcp"
+  tools:
+    - name: create_issue
+      riskLevel: high
+    - name: list_repos
+      riskLevel: low
+    - name: create_pull_request
+      riskLevel: high
+```
+
 #### 2.2 Controller 职责
 
 ```
 reconcile MCPServer：
-  1. 查找 spec.peerName 对应的 LatticePeer
-  2. 若 LatticePeer 不存在或 phase != Ready → status.phase = Pending/Degraded
-  3. 若 LatticePeer Ready → 读取 peer.Status.AllocatedAddress → status.peerAddress
-  4. 更新 status.phase = Ready，status.lastSyncedAt = now
-  
-  注意：controller 不创建 LatticePeer，LatticePeer 由 MCP server 自行注册产生。
+
+  if spec.peerName != "":  // 内部模式
+    1. 查找 spec.peerName 对应的 LatticePeer
+    2. 若不存在或 phase != Ready → status.phase = Pending/Degraded
+    3. 若 Ready → status.peerAddress = peer.Status.AllocatedAddress
+    4. status.mode = "internal", status.phase = Ready
+
+  else:  // 外部模式
+    1. 验证 spec.endpoint 是合法 URL（scheme 必须是 http 或 https）
+    2. status.mode = "external", status.phase = Ready（不依赖任何 peer）
+    3. status.peerAddress = ""（外部模式无 overlay IP）
+
+  更新 status.lastSyncedAt = now
+  controller 不创建 LatticePeer，LatticePeer 由 MCP server 自行注册。
 ```
 
 #### 2.3 API 端点
 
 ```
 GET    /api/v1/mcp-servers              列出 workspace 下所有 MCPServer
-POST   /api/v1/mcp-servers              创建 MCPServer
+POST   /api/v1/mcp-servers              创建 MCPServer（内部或外部模式均支持）
 GET    /api/v1/mcp-servers/:name        获取单个
 PUT    /api/v1/mcp-servers/:name        更新（tools 声明等）
 DELETE /api/v1/mcp-servers/:name        删除
@@ -312,44 +380,68 @@ spec:
 
 #### 3.2 MCP Proxy（策略执行点）
 
-MCP proxy 内嵌在 `lattice-run` 进程中，作为 HTTP 层代理（不是 SOCKS5）。SOCKS5 是盲 TCP 隧道，无法检查请求体；MCP 使用 HTTP POST + JSON-RPC，必须在 HTTP 层拦截。
+MCP proxy 内嵌在 `lattice-run` 进程中，作为 **HTTP 层代理**（不是 SOCKS5）。SOCKS5 是盲 TCP 隧道，无法检查请求体；MCP 使用 HTTP POST + JSON-RPC，必须在 HTTP 层拦截。
 
 `lattice-run` 同时启动两个代理：
-- **SOCKS5**（`ALL_PROXY`）：处理所有非 MCP 的 TCP 出向流量
-- **HTTP proxy**（`HTTP_PROXY` / `HTTPS_PROXY`）：处理到 MCPServer peer 的 HTTP 请求，在此层做 JSON-RPC 检查
+- **SOCKS5**（`ALL_PROXY`）：处理所有非 MCP 的通用 TCP 出向流量
+- **HTTP proxy**（`HTTP_PROXY` / `HTTPS_PROXY`）：处理所有 HTTP 出向流量，对 MCP 请求做 JSON-RPC 检查
+
+**MCP proxy 同时支持内部和外部 MCP server：**
 
 ```
-AI agent
-  → HTTP POST http://mcp-server-peer:3000/mcp  (AI agent 读 HTTP_PROXY)
-  → MCP Proxy（lattice-run 进程内，HTTP 层）
-      ├── 解析请求体 JSON-RPC（method + params）
-      ├── 提取 tool name
-      ├── 查询本地缓存的 AgentPolicy
-      ├── ALLOW → 通过 WireGuard overlay 转发到真实 MCP server + 写审计事件
-      └── DENY  → 返回 HTTP 403 + MCP 错误响应 + 写审计事件
+内部 MCP（MCPServer.peerName 有值）：
+  AI agent
+    → HTTP POST http://10.0.7.5:3000/mcp  (读 HTTP_PROXY)
+    → MCP Proxy
+        ├── 识别目标 IP 10.0.7.5 = MCPServer "db-tools" 的 overlay peer
+        ├── 解析 JSON-RPC → tool name = "query_db"
+        ├── 查 AgentPolicy → ALLOW/DENY
+        ├── ALLOW → 通过 WireGuard overlay 转发（kernel 路由到 wf0）
+        └── DENY  → 返回 MCP 错误 + 写审计
 
-  非 MCP 流量：
-  → AI agent 读 ALL_PROXY（SOCKS5）→ WireGuard overlay → 目标 peer
+外部 MCP（MCPServer.peerName 为空）：
+  AI agent
+    → HTTP POST https://mcp.github.com  (读 HTTP_PROXY / HTTPS_PROXY)
+    → MCP Proxy
+        ├── 识别目标 host "mcp.github.com" = MCPServer "github-mcp" 的 endpoint
+        ├── 解析 JSON-RPC → tool name = "create_issue"
+        ├── 查 AgentPolicy → ALLOW/DENY
+        ├── ALLOW → 直接 HTTPS 转发到 mcp.github.com（正常互联网）
+        └── DENY  → 返回 MCP 错误 + 写审计
+
+非 MCP 流量（不匹配任何 MCPServer endpoint）：
+  AI agent → HTTP_PROXY → 透传（不解析 JSON-RPC，只做 IP/CIDR 级过滤）
 ```
 
-lattice-run 通过网络映射（network map）判断目标 IP 是否对应已知 MCPServer，决定是否做 JSON-RPC 检查。普通 overlay peer 不经过 MCP proxy。
+**MCPServer 匹配逻辑**：
+- 内部模式：对比目标 IP 与已知 MCPServer 的 `status.peerAddress`（overlay IP）
+- 外部模式：对比请求的 URL host 与 MCPServer 的 `spec.endpoint` host
+- 匹配到 MCPServer → 进入 MCP JSON-RPC 检查流程
+- 未匹配 → 透传，不做 JSON-RPC 解析
 
 **策略缓存**：
-- 启动时从 API server 拉取全量 AgentPolicy
+- 启动时从 API server 拉取全量 AgentPolicy + MCPServer 列表
 - 15s 定时刷新
 - NATS 推送策略变更事件，实时失效
 
 **分层策略**：
 
 ```
-LatticePolicy（网络层）：agent IP 能不能连到 MCP server IP/port
-AgentPolicy（语义层）：agent 能不能调 MCP server 的某个工具
+内部 MCP：
+  LatticePolicy（网络层）：agent IP 能不能到 MCP server overlay IP
+  AgentPolicy（语义层） ：agent 能不能调该工具
+  两层都过才 ALLOW
 
-两层顺序检查：
-  网络不通          → TCP 拒绝（LatticePolicy 执行）
-  网络通 + 工具允许 → ALLOW
-  网络通 + 工具拒绝 → MCP 错误响应（AgentPolicy 执行）
+外部 MCP：
+  AgentPolicy（语义层）：agent 能不能调该工具（唯一检查层）
+  网络层无法拦截（外部 HTTPS 绕过 WireGuard）
+  → 因此 HTTP proxy 是外部 MCP 的唯一策略执行点，必须经过 HTTP_PROXY 才有效
 ```
+
+**局限性（外部 MCP）**：
+- 依赖 AI agent 遵从 `HTTP_PROXY` 环境变量（Python requests/httpx ✓，Go net/http ✓，原生 curl ✓）
+- 不遵从 HTTP_PROXY 的 agent 可绕过外部 MCP 策略（此时回退到 IP/CIDR 级 EgressFilter）
+- 外部 MCP server 本身无法验证 → 只能控制 agent 侧行为，无法端到端身份验证
 
 #### 3.3 API 端点
 
@@ -434,3 +526,6 @@ API 上报（Pro tier）：
 | sandbox sidecar | 废弃而非删除 | 保留现有用户的兼容性窗口 |
 | AgentPolicy 与 LatticePolicy 分层 | 独立 CRD，分层执行 | 关注点分离；网络层策略和语义层策略互不干扰 |
 | gVisor 的正确使用场景 | code execution 工具的进程隔离（Phase 3） | gVisor/MicroVM 用于真正需要进程隔离的场景，不混入网络策略层 |
+| MCPServer.peerName | 可选字段（非必填） | 现实中 80%+ 的 MCP server 是平台级外部服务（GitHub、Stripe 等），不在 Lattice overlay 内，要求 peerName 会排除绝大多数实际场景 |
+| 外部 MCP 的策略执行 | HTTP proxy 层（HTTP_PROXY env var） | 外部 MCP 不经过 WireGuard，LatticePolicy 无效；唯一可靠的拦截点是 HTTP 层代理，与 SOCKS5 并列启动 |
+| 外部 MCP 的身份验证 | 不支持（仅控制 agent 侧行为） | 外部 MCP server 无法验证身份，端到端身份验证需要 mTLS 或 OAuth，超出 Phase 1 范围 |
