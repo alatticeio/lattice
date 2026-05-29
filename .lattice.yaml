@@ -9,6 +9,6 @@ server-url: ""
 show-system-log: false
 signaling-url: nats://signaling.alattice.io:4222
 token: fIJr6BpT2captanz
-turnserver-url: stun.alattice.io:3478
+stun-url: stun.alattice.io:3478
 version: false
 lrp-url: 81.68.109.143:6266
