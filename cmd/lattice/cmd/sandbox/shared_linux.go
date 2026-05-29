@@ -35,6 +35,7 @@ import (
 	agentconfig "github.com/alatticeio/lattice/internal/agent/config"
 	"github.com/alatticeio/lattice/internal/agent/infra"
 	agentlog "github.com/alatticeio/lattice/internal/agent/log"
+	"github.com/alatticeio/lattice/internal/agent/mcpproxy"
 )
 
 const (
@@ -154,13 +155,24 @@ func runPeriodicRefresh(ctx context.Context, node *latticeagent.Node, logger int
 
 // forkAgent forks the AI agent as a child process. The child inherits the same
 // network namespace and can reach overlay peers directly via kernel wf0 routing.
-// No proxy injection — WireGuard routing handles overlay connectivity natively.
-func forkAgent(ctx context.Context, cancel context.CancelFunc, cmdArgs []string) error {
+// When httpProxyAddr is non-empty, HTTP_PROXY/HTTPS_PROXY env vars are injected
+// so the AI agent's HTTP traffic routes through the MCP proxy.
+func forkAgent(ctx context.Context, cancel context.CancelFunc, cmdArgs []string, httpProxyAddr string) error {
 	child := exec.CommandContext(ctx, cmdArgs[0], cmdArgs[1:]...)
 	child.Stdin = os.Stdin
 	child.Stdout = os.Stdout
 	child.Stderr = os.Stderr
-	child.Env = os.Environ()
+
+	env := os.Environ()
+	if httpProxyAddr != "" {
+		env = append(env,
+			"HTTP_PROXY="+httpProxyAddr,
+			"http_proxy="+httpProxyAddr,
+			"HTTPS_PROXY="+httpProxyAddr,
+			"https_proxy="+httpProxyAddr,
+		)
+	}
+	child.Env = env
 
 	if err := child.Start(); err != nil {
 		return fmt.Errorf("start agent process: %w", err)
@@ -200,7 +212,8 @@ func forkAgent(ctx context.Context, cancel context.CancelFunc, cmdArgs []string)
 // namespace and routes overlay traffic directly through wf0 — no SOCKS5 proxy,
 // no iptables, no UID tricks.
 //
-// checker and auditor are reserved for Phase B (MCP proxy policy enforcement).
+// When enableMCPProxy is true, an MCP HTTP proxy is started and injected into
+// the child process via HTTP_PROXY/HTTPS_PROXY env vars.
 func runSandbox(
 	ctx context.Context,
 	cancel context.CancelFunc,
@@ -209,6 +222,7 @@ func runSandbox(
 	_ shim.PolicyChecker,
 	_ shim.AuditWriter,
 	cmdArgs []string,
+	enableMCPProxy bool,
 ) error {
 	agentconfig.Conf.AppId = agentName
 
@@ -259,5 +273,23 @@ func runSandbox(
 		return ctx.Err()
 	}
 
-	return forkAgent(ctx, cancel, cmdArgs)
+	// Start MCP proxy if enabled.
+	httpProxyAddr := ""
+	if enableMCPProxy && currentPeer.Token != "" {
+		cache := mcpproxy.NewPolicyCache(agentconfig.Conf.ServerUrl, currentPeer.Token, overlayAddr(currentPeer))
+		if cacheErr := cache.Start(ctx); cacheErr != nil {
+			logger.Warn("MCP policy cache failed to start, proxy disabled", "err", cacheErr)
+		} else {
+			auditW, _ := mcpproxy.NewAuditWriter(mcpproxy.AuditLogPath)
+			proxy := mcpproxy.NewProxy(agentName, "127.0.0.1:0", cache, auditW)
+			if proxyErr := proxy.Start(ctx); proxyErr != nil {
+				logger.Warn("MCP proxy failed to start", "err", proxyErr)
+			} else {
+				httpProxyAddr = "http://" + proxy.Addr()
+				fmt.Printf("[sandbox-run] MCP proxy on %s\n", proxy.Addr())
+			}
+		}
+	}
+
+	return forkAgent(ctx, cancel, cmdArgs, httpProxyAddr)
 }
