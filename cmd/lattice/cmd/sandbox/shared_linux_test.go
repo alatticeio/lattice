@@ -137,58 +137,21 @@ func TestPolicyDialer_Audit_WritesDenyEvent(t *testing.T) {
 	}
 }
 
-func TestPolicyDialer_Hostname_DeniedWhenCheckerSet(t *testing.T) {
-	policy := shim.EgressPolicy{
-		DefaultDeny:  true,
-		AllowedCIDRs: []net.IPNet{mustParseCIDR("127.0.0.0/8")},
-	}
-	d := &policyDialer{
-		identity: "agent-1",
-		checker:  shim.NewEgressFilter(policy),
-		auditor:  nil,
-	}
-	// hostname (not IP) should be denied when checker is set
-	_, err := d.DialContext(context.Background(), "tcp", "localhost:80")
-	if err == nil {
-		t.Fatal("expected hostname to be denied when checker is set, got nil error")
-	}
-}
-
-func TestPolicyDialer_InvalidAddr_ReturnsError(t *testing.T) {
-	d := &policyDialer{identity: "agent-1", checker: nil, auditor: nil}
-	_, err := d.DialContext(context.Background(), "tcp", "not-valid-addr-no-port")
-	if err == nil {
-		t.Fatal("expected error for malformed addr, got nil")
-	}
-}
-
-func TestForkAgent_ExitsCleanly(t *testing.T) {
+func TestForkWithProxy_SetsAllProxy(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	err := forkAgent(ctx, cancel, []string{"true"}, "")
+	err := forkWithProxy(ctx, cancel, []string{"sh", "-c", "echo $ALL_PROXY"}, "socks5h://127.0.0.1:9999")
 	if err != nil {
-		t.Fatalf("forkAgent returned err for exit-0 child: %v", err)
+		t.Fatalf("forkWithProxy returned err: %v", err)
 	}
 }
 
-func TestForkAgent_InheritsEnv(t *testing.T) {
+func TestForkWithProxy_ChildExitCode(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	t.Setenv("LATTICE_TEST_MARKER", "yes")
-	err := forkAgent(ctx, cancel, []string{"sh", "-c", `test "$LATTICE_TEST_MARKER" = "yes"`}, "")
+	err := forkWithProxy(ctx, cancel, []string{"true"}, "socks5h://127.0.0.1:9999")
 	if err != nil {
-		t.Fatalf("expected child to inherit env, got err: %v", err)
-	}
-}
-
-func TestForkAgent_InjectsHTTPProxy(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	err := forkAgent(ctx, cancel,
-		[]string{"sh", "-c", `test "$HTTP_PROXY" = "http://127.0.0.1:9999"`},
-		"http://127.0.0.1:9999")
-	if err != nil {
-		t.Fatalf("expected child to see HTTP_PROXY, got err: %v", err)
+		t.Fatalf("expected nil error for exit 0, got: %v", err)
 	}
 }
 

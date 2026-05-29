@@ -21,9 +21,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"os"
 	"os/exec"
 	"os/signal"
+	"strconv"
 	"sync"
 	"syscall"
 	"time"
@@ -43,6 +45,48 @@ const (
 	sandboxAgentUID = 999
 	auditLogPath    = "/tmp/lattice-audit.jsonl"
 )
+
+// policyDialer wraps net.Dial with optional egress policy checking and audit.
+// Traffic goes through the kernel (wf0) to the WireGuard overlay.
+type policyDialer struct {
+	identity string
+	checker  shim.PolicyChecker // nil = no policy enforcement
+	auditor  shim.AuditWriter   // nil = no audit
+}
+
+func (d *policyDialer) DialContext(ctx context.Context, network, addr string) (net.Conn, error) {
+	host, portStr, _ := net.SplitHostPort(addr)
+	ip := net.ParseIP(host)
+	var port uint16
+	if p, parseErr := strconv.ParseUint(portStr, 10, 16); parseErr == nil {
+		port = uint16(p)
+	}
+
+	if d.checker != nil && ip != nil && !d.checker.Allow(d.identity, ip, port) {
+		if d.auditor != nil {
+			_ = d.auditor.Write(shim.AuditEvent{
+				Identity: d.identity,
+				DstIP:    host,
+				DstPort:  port,
+				Protocol: network,
+				Verdict:  shim.VerdictDrop,
+			})
+		}
+		return nil, fmt.Errorf("egress policy denied: %s", addr)
+	}
+
+	conn, err := (&net.Dialer{}).DialContext(ctx, network, addr)
+	if err == nil && d.auditor != nil {
+		_ = d.auditor.Write(shim.AuditEvent{
+			Identity: d.identity,
+			DstIP:    host,
+			DstPort:  port,
+			Protocol: network,
+			Verdict:  shim.VerdictAllow,
+		})
+	}
+	return conn, err
+}
 
 // fileAuditWriter implements shim.AuditWriter by appending JSON lines to a file.
 type fileAuditWriter struct {
@@ -118,6 +162,49 @@ func forkAndWait(ctx context.Context, cancel context.CancelFunc, cmdArgs []strin
 			Gid: sandboxAgentUID,
 		},
 	}
+
+	if err := child.Start(); err != nil {
+		return fmt.Errorf("start agent process: %w", err)
+	}
+
+	childDone := make(chan error, 1)
+	go func() { childDone <- child.Wait() }()
+
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+
+	var childErr error
+	select {
+	case childErr = <-childDone:
+		cancel()
+	case <-sigCh:
+		_ = child.Process.Signal(syscall.SIGTERM)
+		select {
+		case childErr = <-childDone:
+		case <-time.After(5 * time.Second):
+			_ = child.Process.Kill()
+			childErr = <-childDone
+		}
+		cancel()
+	}
+
+	var exitErr *exec.ExitError
+	if errors.As(childErr, &exitErr) {
+		os.Exit(exitErr.ExitCode())
+	}
+	return childErr
+}
+
+// forkWithProxy forks cmdArgs as a child process with ALL_PROXY set to proxyAddr.
+// This is a placeholder stub — Task 2 will replace this with the full implementation.
+func forkWithProxy(ctx context.Context, cancel context.CancelFunc, cmdArgs []string, proxyAddr string) error {
+	child := exec.CommandContext(ctx, cmdArgs[0], cmdArgs[1:]...)
+	child.Stdin = os.Stdin
+	child.Stdout = os.Stdout
+	child.Stderr = os.Stderr
+	env := os.Environ()
+	env = append(env, "ALL_PROXY="+proxyAddr)
+	child.Env = env
 
 	if err := child.Start(); err != nil {
 		return fmt.Errorf("start agent process: %w", err)
