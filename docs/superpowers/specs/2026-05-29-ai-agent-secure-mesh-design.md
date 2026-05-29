@@ -146,31 +146,33 @@ Agent → 外网/内网：  egress 策略 + 出口控制（Phase 3 扩展）
 改后：
   lattice-run 启动序列：
     1. registerOrResume → 获取 overlay IP + tier
-    2. infra.CreateTUN() → 创建 kernel TUN（与普通 agent 一致）
-    3. 启动 wireguard-go（使用 kernel TUN）
-    4. 启动 shim.Socks5Server → 监听 127.0.0.1:{随机端口}
-    5. 设置 ALL_PROXY=socks5h://127.0.0.1:{port}
-    6. fork AI agent（无需 UID 999，无需 iptables）
+    2. infra.CreateTUN() → 创建 kernel wf0（与普通 agent 一致）
+    3. 启动 wireguard-go（使用 kernel wf0）
+    4. 等待 WireGuard 对端握手
+    5. fork AI agent（无需 UID 999，无需 iptables，无需代理）
 
   AI agent TCP 出向：
-    requests/httpx/openai-sdk → 读 ALL_PROXY → SOCKS5 → WireGuard → peer
+    requests/httpx/openai-sdk
+    → kernel socket
+    → kernel 路由查 wf0（10.0.7.0/24 dev wf0）
+    → WireGuard 加密 → overlay peer
+    （与普通 lattice agent 行为完全一致）
 ```
 
-**保留的组件**：
-- `registerOrResume`、tier 判断逻辑
-- `shim.EgressFilter`、`shim.AuditWriter`（policy + audit 仍通过 shim）
-- `shim.Socks5Server`（出向代理）
+**设计决策：不使用 SOCKS5**
+
+SOCKS5 曾被纳入考虑，但被移除，原因：
+- 使用 kernel wf0 后，AI agent 进程继承同一 network namespace，可直接通过 kernel 路由到达 overlay peer，无需任何代理
+- SOCKS5 依赖 AI agent 遵从 `ALL_PROXY` 环境变量，不遵从则完全失效，是假安全感
+- 出口策略（egress policy）通过 LatticePolicy CRD 在 overlay 网络层执行，比进程级 SOCKS5 更可靠
+- `policyDialer` 保留，供 Phase B MCP proxy 作为底层 dial 函数使用
 
 **删除的组件**：
-- `gvisor.NewTUNAdapter`、`gvisor.InjectIntoChannel`
+- `gvisor.NewTUNAdapter`、`gvisor.InjectIntoChannel`（CustomTUN）
 - `installRunIPTables`、UID 999 的 `forkAndWait` 逻辑
 - `tproxy.Proxy`
 - `gvisor.NewSandboxProvisionerFactory`
-
-**局限性说明**（写入文档，不回避）：
-- SOCKS5 只对遵从 `ALL_PROXY` 环境变量的库有效（Python requests/httpx/aiohttp ✓，Go 原生 net/http ✗）
-- 对不遵从 ALL_PROXY 的 AI agent，可回退到 iptables 模式（保留 `--use-iptables` flag）
-- UDP 流量不被拦截（与改前行为一致）
+- SOCKS5 server（`shim.NewSocks5Server`）
 
 #### 1.3 sandbox sidecar 处理
 
