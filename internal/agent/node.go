@@ -21,7 +21,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/alatticeio/lattice/internal"
 	"github.com/alatticeio/lattice/internal/agent/config"
 	"github.com/alatticeio/lattice/internal/agent/infra"
 	"github.com/alatticeio/lattice/internal/agent/log"
@@ -91,7 +90,6 @@ type Node struct {
 
 	manager struct {
 		keyManager  infra.KeyManager
-		turnManager *internal.TurnManager
 		peerManager *infra.PeerManager
 	}
 
@@ -179,7 +177,6 @@ func NewNode(ctx context.Context, cfg *NodeConfig) (*Node, error) {
 	node = new(Node)
 	node.manager.peerManager = infra.NewPeerManager()
 	node.logger = cfg.Logger
-	node.manager.turnManager = new(internal.TurnManager)
 
 	// TUN device: the OS virtual NIC that serves as WireGuard's L3 ingress/egress.
 	// The sandbox supplies a gVisor TUNAdapter instead of creating a kernel TUN.

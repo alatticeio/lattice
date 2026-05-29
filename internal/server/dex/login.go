@@ -10,7 +10,7 @@ import (
 	"github.com/alatticeio/lattice/internal/agent/config"
 	"github.com/alatticeio/lattice/internal/server/models"
 	"github.com/alatticeio/lattice/internal/server/service"
-	"github.com/alatticeio/lattice/pkg/utils"
+	serverutils "github.com/alatticeio/lattice/internal/server/utils"
 	"github.com/alatticeio/lattice/pkg/utils/resp"
 
 	"github.com/coreos/go-oidc/v3/oidc"
@@ -106,7 +106,7 @@ func (d *Dex) Login(c *gin.Context) {
 	}
 
 	// 6. Issue your own business JWT (for subsequent frontend requests)
-	businessToken, _ := utils.GenerateBusinessJWT(user.ID, user.Email, user.Username, string(user.SystemRole))
+	businessToken, _ := serverutils.GenerateBusinessJWT(user.ID, user.Email, user.Username, string(user.SystemRole))
 
 	// 7. Return result or redirect
 	// Private cloud deployments typically redirect directly to the frontend Dashboard with the token

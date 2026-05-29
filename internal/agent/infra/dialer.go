@@ -3,7 +3,7 @@ package infra
 import (
 	"context"
 
-	"github.com/alatticeio/lattice/internal/grpc"
+	"github.com/alatticeio/lattice/internal/signal"
 )
 
 type Dialer interface {
@@ -11,7 +11,7 @@ type Dialer interface {
 	Prepare(ctx context.Context, remoteId PeerIdentity) error
 
 	// Handle handles incoming signal packets from remoteId.
-	Handle(ctx context.Context, remoteId PeerIdentity, packet *grpc.SignalPacket) error
+	Handle(ctx context.Context, remoteId PeerIdentity, packet *signal.SignalPacket) error
 
 	// Dial dials remoteId when offer is received.
 	Dial(ctx context.Context) (Transport, error)

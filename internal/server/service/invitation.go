@@ -28,6 +28,7 @@ import (
 	"github.com/alatticeio/lattice/internal/agent/store"
 	"github.com/alatticeio/lattice/internal/server/dto"
 	"github.com/alatticeio/lattice/internal/server/models"
+	serverutils "github.com/alatticeio/lattice/internal/server/utils"
 	"github.com/alatticeio/lattice/internal/server/vo"
 	"github.com/alatticeio/lattice/pkg/utils"
 
@@ -249,7 +250,7 @@ func (s *invitationService) RegisterAndAccept(ctx context.Context, token, userna
 			return err
 		}
 
-		jwtToken, err = utils.GenerateBusinessJWT(user.ID, user.Email, user.Username, string(user.SystemRole))
+		jwtToken, err = serverutils.GenerateBusinessJWT(user.ID, user.Email, user.Username, string(user.SystemRole))
 		return err
 	})
 

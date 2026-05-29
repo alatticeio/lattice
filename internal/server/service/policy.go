@@ -52,7 +52,7 @@ func NewPolicyService(client *resource.Client, st store.Store) PolicyService {
 
 // Submit stores the policy intent in DB as "pending" (awaiting workflow approval).
 func (p *policyService) Submit(ctx context.Context, wsID, createdBy, createdByName string, policyDto *dto.PolicyDto) (*models.Policy, error) {
-	specBytes, err := json.Marshal(policyDto.LatticePolicySpec)
+	specBytes, err := json.Marshal(policyDto.PolicySpec)
 	if err != nil {
 		return nil, fmt.Errorf("marshal spec: %w", err)
 	}
@@ -138,8 +138,14 @@ func (p *policyService) ApplyDirect(ctx context.Context, wsID, operatorID, opera
 		return nil, err
 	}
 
-	spec := policyDto.LatticePolicySpec
+	var spec v1alpha1.LatticePolicySpec
+	if specJSON, merr := json.Marshal(policyDto.PolicySpec); merr == nil {
+		_ = json.Unmarshal(specJSON, &spec)
+	}
 	spec.Action = policyDto.Action
+	if spec.Network == "" {
+		spec.Network = "lattice-default-net"
+	}
 
 	crd := &v1alpha1.LatticePolicy{
 		TypeMeta: metav1.TypeMeta{
@@ -164,7 +170,7 @@ func (p *policyService) ApplyDirect(ctx context.Context, wsID, operatorID, opera
 	}
 
 	// Upsert DB record.
-	specBytes, _ := json.Marshal(policyDto.LatticePolicySpec)
+	specBytes, _ := json.Marshal(policyDto.PolicySpec)
 	typesBytes, _ := json.Marshal(policyDto.PolicyTypes)
 
 	existing, err := p.store.Policies().GetByName(ctx, wsID, policyDto.Name)
@@ -196,7 +202,7 @@ func (p *policyService) ApplyDirect(ctx context.Context, wsID, operatorID, opera
 		Name:              policyDto.Name,
 		Action:            policyDto.Action,
 		Description:       policyDto.Description,
-		Namespace:         policyDto.Namespace,
+		Namespace:         workspace.Namespace,
 		PolicyTypes:       policyDto.PolicyTypes,
 		LatticePolicySpec: &spec,
 	}, nil

@@ -74,7 +74,7 @@ build-mcp: ## 构建 lattice-mcp MCP 服务器
 	@echo "📦 Building lattice-mcp..."
 	@mkdir -p bin
 	CGO_ENABLED=0 go build \
-		-ldflags="-s -w $(LDFLAGS)" \
+		-trimpath -ldflags="-s -w $(LDFLAGS)" \
 		-o bin/lattice-mcp \
 		./cmd/lattice-mcp
 	@echo "✅ Built: bin/lattice-mcp"
@@ -101,7 +101,7 @@ build: ebpf-gen ## 构建单个服务 (使用: make build SERVICE=lattice)
 	CGO_ENABLED=0 GOOS=$(TARGETOS) GOARCH=$(TARGETARCH) \
 		go build \
 		$(BUILD_TAGS) \
-		-ldflags="-s -w $(LDFLAGS)" \
+		-trimpath -ldflags="-s -w $(LDFLAGS)" \
 		-o bin/$(SERVICE) \
 		./cmd/$(SERVICE)/main.go
 	@echo "✅ Built: bin/$(SERVICE)"
@@ -148,11 +148,6 @@ manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and Cust
 .PHONY: generate
 generate: controller-gen ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
 	$(CONTROLLER_GEN) object:headerFile="hack/boilerplate.go.txt" paths="./..."
-	protoc --proto_path=internal/proto \
-		--go_out=internal/grpc \
-		--go_opt=paths=source_relative \
-		--go-grpc_out=internal/grpc \
-		--go-grpc_opt=paths=source_relative drp.proto signal.proto management.proto
 
 .PHONY: fmt
 fmt: ## Run go fmt against code.

@@ -6,7 +6,7 @@ import (
 
 	"github.com/alatticeio/lattice/internal/agent/infra"
 	"github.com/alatticeio/lattice/internal/server/auth"
-	"github.com/alatticeio/lattice/pkg/utils"
+	serverutils "github.com/alatticeio/lattice/internal/server/utils"
 	"github.com/alatticeio/lattice/pkg/utils/resp"
 
 	"github.com/gin-gonic/gin"
@@ -25,7 +25,7 @@ func AuthMiddleware(revocationList *auth.RevocationList) gin.HandlerFunc {
 		tokenString := authHeader[7:] // Extract everything after "Bearer "
 
 		// 2. Parse and validate the token
-		claims, err := utils.ParseToken(tokenString) // Parsing logic needs to be implemented here
+		claims, err := serverutils.ParseToken(tokenString) // Parsing logic needs to be implemented here
 		if err != nil {
 			resp.Unauthorized(c, "Invalid token")
 			c.Abort()

@@ -9,6 +9,7 @@ import (
 	"github.com/alatticeio/lattice/internal/agent/log"
 	"github.com/alatticeio/lattice/internal/agent/store"
 	"github.com/alatticeio/lattice/internal/server/models"
+	serverutils "github.com/alatticeio/lattice/internal/server/utils"
 	"github.com/alatticeio/lattice/pkg/utils"
 
 	"gorm.io/gorm"
@@ -82,7 +83,7 @@ func (s *authService) RefreshAccessToken(ctx context.Context, refreshTokenRaw st
 		}
 
 		// Issue new access token (15 min)
-		at, err := utils.GenerateBusinessJWTWithDuration(user.ID, user.Email, user.Username, string(user.SystemRole), 15*time.Minute)
+		at, err := serverutils.GenerateBusinessJWTWithDuration(user.ID, user.Email, user.Username, string(user.SystemRole), 15*time.Minute)
 		if err != nil {
 			return err
 		}

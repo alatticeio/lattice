@@ -21,14 +21,13 @@ import (
 	"fmt"
 	"github.com/alatticeio/lattice/internal/agent/infra"
 	"github.com/alatticeio/lattice/internal/agent/log"
-	"github.com/alatticeio/lattice/internal/grpc"
+	"github.com/alatticeio/lattice/internal/signal"
 	"sync"
 
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 
 	"github.com/alatticeio/lattice/api/v1alpha1"
 
-	"google.golang.org/protobuf/proto"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -175,17 +174,15 @@ func (c *Client) pushToNode(ctx context.Context, peer *infra.Peer, msg *infra.Me
 		return err
 	}
 
-	packet := &grpc.SignalPacket{
-		SenderId: peerID.ToUint64(),
-		Type:     grpc.PacketType_MESSAGE,
-		Payload: &grpc.SignalPacket_Message{
-			Message: &grpc.Message{
-				Content: data,
-			},
+	packet := &signal.SignalPacket{
+		SenderID: peerID.ToUint64(),
+		Type:     signal.PacketType_MESSAGE,
+		Message: &signal.Message{
+			Content: data,
 		},
 	}
 
-	content, err := proto.Marshal(packet)
+	content, err := json.Marshal(packet)
 	if err != nil {
 		return err
 	}

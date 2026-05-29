@@ -24,7 +24,7 @@ import (
 	"github.com/alatticeio/lattice/internal/agent/infra"
 	"github.com/alatticeio/lattice/internal/agent/log"
 	"github.com/alatticeio/lattice/internal/agent/provision"
-	"github.com/alatticeio/lattice/internal/grpc"
+	"github.com/alatticeio/lattice/internal/signal"
 )
 
 type ProbeFactory struct {
@@ -379,11 +379,11 @@ func (p *ProbeFactory) NewProbe(remoteId infra.PeerIdentity) (*Probe, error) {
 
 // Handle is the NATS SignalHandler boundary: remoteId is PeerID from packet.SenderId.
 // It resolves to a full PeerIdentity via PeerManager before passing down.
-func (p *ProbeFactory) Handle(ctx context.Context, remoteId infra.PeerID, packet *grpc.SignalPacket) error {
+func (p *ProbeFactory) Handle(ctx context.Context, remoteId infra.PeerID, packet *signal.SignalPacket) error {
 	p.log.Debug("Handle packet", "remoteId", remoteId, "packet", packet)
 
 	// Config messages pushed from the management server (not peer-to-peer ICE packets).
-	if packet.Type == grpc.PacketType_MESSAGE {
+	if packet.Type == signal.PacketType_MESSAGE {
 		onMessage := p.getOnMessage()
 		if onMessage == nil {
 			return nil

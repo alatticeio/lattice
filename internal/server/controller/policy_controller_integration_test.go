@@ -18,7 +18,6 @@ import (
 	"context"
 	"testing"
 
-	"github.com/alatticeio/lattice/api/v1alpha1"
 	"github.com/alatticeio/lattice/internal/agent/infra"
 	"github.com/alatticeio/lattice/internal/db/gormstore"
 	"github.com/alatticeio/lattice/internal/server/controller"
@@ -58,7 +57,7 @@ func TestPolicyController_Submit(t *testing.T) {
 		Action:      "Allow",
 		Description: "Allow frontend to access API",
 		PolicyTypes: []string{"Ingress"},
-		LatticePolicySpec: v1alpha1.LatticePolicySpec{
+		PolicySpec: dto.PolicySpec{
 			Network: "default",
 		},
 	}
@@ -86,7 +85,7 @@ func TestPolicyController_ListPolicy(t *testing.T) {
 		Action:      "Allow",
 		Description: "Frontend access",
 		PolicyTypes: []string{"Ingress"},
-		LatticePolicySpec: v1alpha1.LatticePolicySpec{
+		PolicySpec: dto.PolicySpec{
 			Network: "default",
 		},
 	})
@@ -97,7 +96,7 @@ func TestPolicyController_ListPolicy(t *testing.T) {
 		Action:      "Deny",
 		Description: "Block external",
 		PolicyTypes: []string{"Egress"},
-		LatticePolicySpec: v1alpha1.LatticePolicySpec{
+		PolicySpec: dto.PolicySpec{
 			Network: "default",
 		},
 	})
@@ -127,7 +126,7 @@ func TestPolicyController_ListPolicy_EmptyWorkspace(t *testing.T) {
 		Action:      "Allow",
 		Description: "DB access",
 		PolicyTypes: []string{"Ingress"},
-		LatticePolicySpec: v1alpha1.LatticePolicySpec{
+		PolicySpec: dto.PolicySpec{
 			Network: "default",
 		},
 	})
@@ -164,7 +163,7 @@ func TestPolicyController_ListPolicy_KeywordFilter(t *testing.T) {
 			Action:      p.action,
 			Description: p.description,
 			PolicyTypes: []string{"Ingress"},
-			LatticePolicySpec: v1alpha1.LatticePolicySpec{
+			PolicySpec: dto.PolicySpec{
 				Network: "default",
 			},
 		})

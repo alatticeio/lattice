@@ -278,7 +278,7 @@ type Config struct {
 	ServerUrl     string `mapstructure:"server-url"`
 	RelayURL      string `mapstructure:"relay-url"`      // TCP relay connection address, default :6266
 	RelayQuicURL  string `mapstructure:"relay-quic-url"` // QUIC relay connection address, empty=disabled
-	TurnServerURL string `mapstructure:"stun-url"`       // TURN/STUN address
+	StunServerURL string `mapstructure:"stun-url"`       // STUN server address for ICE NAT traversal
 	PublicIP      string `mapstructure:"public-ip"`
 	Port          int    `mapstructure:"port"`    // TURN service port, default 3478
 	WgPort        int    `mapstructure:"wg-port"` // WireGuard/ICE UDP listen port, default 51820

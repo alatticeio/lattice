@@ -22,11 +22,12 @@ import (
 	"github.com/alatticeio/lattice/internal/agent/log"
 	"time"
 
-	"github.com/alatticeio/lattice/internal/grpc"
+	"github.com/alatticeio/lattice/internal/signal"
+
+	"encoding/json"
 
 	natsgo "github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
-	"google.golang.org/protobuf/proto"
 )
 
 var (
@@ -62,7 +63,7 @@ func NewNoopSignalService() infra.SignalService {
 	return &noopSignalService{log: log.GetLogger("nats-noop")}
 }
 
-type SignalHandler func(ctx context.Context, peerId infra.PeerID, packet *grpc.SignalPacket) error
+type SignalHandler func(ctx context.Context, peerId infra.PeerID, packet *signal.SignalPacket) error
 
 type NatsSignalService struct {
 	log *log.Logger
@@ -138,13 +139,13 @@ func (s *NatsSignalService) ensureStream(ctx context.Context, js jetstream.JetSt
 
 func (s *NatsSignalService) Subscribe(subject string, onMessage SignalHandler) error {
 	sub, err := s.nc.Subscribe(subject, func(m *natsgo.Msg) {
-		var packet grpc.SignalPacket
-		if err := proto.Unmarshal(m.Data, &packet); err != nil {
+		var packet signal.SignalPacket
+		if err := json.Unmarshal(m.Data, &packet); err != nil {
 			s.log.Error("failed to unmarshal packet", err)
 			return
 		}
 
-		err := onMessage(context.Background(), infra.FromUint64(packet.SenderId), &packet)
+		err := onMessage(context.Background(), infra.FromUint64(packet.SenderID), &packet)
 		if err != nil {
 			s.log.Error("onMessage failed", err)
 		}

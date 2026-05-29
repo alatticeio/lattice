@@ -23,7 +23,7 @@ import (
 	"github.com/alatticeio/lattice/internal/server/auth"
 	"github.com/alatticeio/lattice/internal/server/dto"
 	"github.com/alatticeio/lattice/internal/server/permission"
-	"github.com/alatticeio/lattice/pkg/utils"
+	serverutils "github.com/alatticeio/lattice/internal/server/utils"
 	"github.com/alatticeio/lattice/pkg/utils/resp"
 
 	"github.com/gin-gonic/gin"
@@ -57,7 +57,7 @@ func (m *Middleware) WorkspaceAuthMiddleware(requiredRole dto.WorkspaceRole) gin
 		}
 		tokenString := authHeader[7:]
 
-		claims, err := utils.ParseToken(tokenString)
+		claims, err := serverutils.ParseToken(tokenString)
 		if err != nil {
 			resp.Unauthorized(c, "Invalid token")
 			c.Abort()

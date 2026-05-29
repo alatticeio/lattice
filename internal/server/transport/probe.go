@@ -24,7 +24,7 @@ import (
 	"github.com/alatticeio/lattice/internal/agent/config"
 	"github.com/alatticeio/lattice/internal/agent/infra"
 	"github.com/alatticeio/lattice/internal/agent/log"
-	"github.com/alatticeio/lattice/internal/grpc"
+	"github.com/alatticeio/lattice/internal/signal"
 
 	"github.com/pion/ice/v4"
 )
@@ -72,9 +72,9 @@ type Probe struct {
 	firstFailureAt time.Time
 }
 
-func (p *Probe) Handle(ctx context.Context, remoteId infra.PeerIdentity, packet *grpc.SignalPacket) error {
+func (p *Probe) Handle(ctx context.Context, remoteId infra.PeerIdentity, packet *signal.SignalPacket) error {
 	switch packet.Dialer {
-	case grpc.DialerType_ICE:
+	case signal.DialerType_ICE:
 		p.mu.RLock()
 		d := p.iceDialer
 		p.mu.RUnlock()
@@ -82,7 +82,7 @@ func (p *Probe) Handle(ctx context.Context, remoteId infra.PeerIdentity, packet 
 			return nil
 		}
 		return d.Handle(ctx, p.remoteId, packet)
-	case grpc.DialerType_LRP:
+	case signal.DialerType_LRP:
 		p.mu.RLock()
 		d := p.lrpDialer
 		p.mu.RUnlock()

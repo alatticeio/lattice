@@ -29,7 +29,7 @@ import (
 	"github.com/alatticeio/lattice/internal/server/models"
 	"github.com/alatticeio/lattice/internal/server/permission"
 	mw "github.com/alatticeio/lattice/internal/server/server/middleware"
-	"github.com/alatticeio/lattice/pkg/utils"
+	serverutils "github.com/alatticeio/lattice/internal/server/utils"
 	"github.com/alatticeio/lattice/pkg/utils/resp"
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
@@ -79,7 +79,7 @@ func setupWithRevocation(t *testing.T) (*gin.Engine, store.Store, *mw.Middleware
 
 func makeTestToken(t *testing.T, userID, email, username, systemRole string) string {
 	t.Helper()
-	token, err := utils.GenerateBusinessJWT(userID, email, username, systemRole)
+	token, err := serverutils.GenerateBusinessJWT(userID, email, username, systemRole)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -528,7 +528,7 @@ func TestWorkspaceAuthMiddleware_RejectsRevokedToken(t *testing.T) {
 	})
 
 	token := makeTestToken(t, user.ID, user.Email, user.Username, string(user.SystemRole))
-	claims, err := utils.ParseToken(token)
+	claims, err := serverutils.ParseToken(token)
 	if err != nil {
 		t.Fatal(err)
 	}
