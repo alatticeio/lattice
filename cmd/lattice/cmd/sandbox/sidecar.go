@@ -14,6 +14,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Deprecated: sandbox sidecar requires an init container, iptables REDIRECT, and
+// a ForwardListener to bridge between kernel and gVisor network stacks. Use
+// "lattice sandbox run" instead — it provides the same overlay connectivity with
+// a simpler architecture (kernel wf0, no init container required).
+// This command will be removed in v0.6.
 package sandbox
 
 import (
@@ -22,6 +27,7 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
 
@@ -43,6 +49,7 @@ var (
 	sidecarProxyPort   int
 	sidecarEgressAllow string
 	sidecarEgressDeny  bool
+	sidecarForward     []string
 )
 
 func addSidecarCmd(parent *cobra.Command) {
@@ -80,12 +87,15 @@ Example:
 		"Comma-separated overlay CIDRs the AI agent is allowed to reach (Pro)")
 	cmd.Flags().BoolVar(&sidecarEgressDeny, "egress-default-deny", false,
 		"Deny all egress except --egress-allow CIDRs (Pro)")
+	cmd.Flags().StringArrayVar(&sidecarForward, "forward", nil,
+		"Forward overlay port to a local address. Format: overlayPort:localAddr (e.g. 8080:127.0.0.1:8080). Repeatable.")
 	_ = cmd.MarkFlagRequired("server-url")
 	_ = cmd.MarkFlagRequired("token")
 	return cmd
 }
 
 func runSidecar(_ *cobra.Command, args []string) error {
+	fmt.Fprintln(os.Stderr, "[DEPRECATED] sandbox sidecar will be removed in v0.6. Use 'lattice sandbox run' instead.")
 	agentName := args[0]
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -183,6 +193,33 @@ func runSidecar(_ *cobra.Command, args []string) error {
 
 	go node.StartHeartbeat(ctx)
 	go runPeriodicRefresh(ctx, node, logger)
+
+	// Start ForwardListener: relay inbound overlay connections to local workload ports.
+	// Each --forward rule binds a TCP listener on the gVisor netstack at the overlay IP
+	// and proxies accepted connections to the local target address.
+	if len(sidecarForward) > 0 {
+		var rules []shim.ForwardRule
+		for _, f := range sidecarForward {
+			parts := strings.SplitN(f, ":", 2)
+			if len(parts) != 2 {
+				return fmt.Errorf("invalid --forward %q: expected overlayPort:localAddr", f)
+			}
+			port, parseErr := strconv.ParseUint(parts[0], 10, 16)
+			if parseErr != nil {
+				return fmt.Errorf("invalid port in --forward %q: %w", f, parseErr)
+			}
+			rules = append(rules, shim.ForwardRule{
+				OverlayPort: uint16(port),
+				TargetAddr:  parts[1],
+			})
+		}
+		fl := shim.NewForwardListener(sb.Netstack(), localIP, rules)
+		if err := fl.Start(ctx); err != nil {
+			return fmt.Errorf("start forward listener: %w", err)
+		}
+		defer fl.Close() //nolint:errcheck
+		fmt.Printf("[agent-sidecar] forward listener started: %v\n", sidecarForward)
+	}
 
 	// Start transparent proxy — dials through gVisor netstack (WireGuard).
 	proxy := &tproxy.Proxy{
