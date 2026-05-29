@@ -155,6 +155,13 @@ declare module 'vue-router/auto-routes' {
       Record<never, never>,
       | never
     >,
+    '/manage/agent-policies/': RouteRecordInfo<
+      '/manage/agent-policies/',
+      '/manage/agent-policies',
+      Record<never, never>,
+      Record<never, never>,
+      | never
+    >,
     '/manage/mcp-servers/': RouteRecordInfo<
       '/manage/mcp-servers/',
       '/manage/mcp-servers',
@@ -472,6 +479,12 @@ declare module 'vue-router/auto-routes' {
     'src/pages/legal/terms.vue': {
       routes:
         | '/legal/terms'
+      views:
+        | never
+    }
+    'src/pages/manage/agent-policies/index.vue': {
+      routes:
+        | '/manage/agent-policies/'
       views:
         | never
     }

@@ -97,6 +97,7 @@ const navMain = computed(() => {
         { title: t('common.nav.aiCompliance'), url: '/ai/compliance' },
         { title: t('common.nav.aiTools'), url: '/ai/tools' },
         { title: t('common.nav.mcpServers'), url: '/manage/mcp-servers' },
+        { title: t('common.nav.agentPolicies'), url: '/manage/agent-policies' },
       ],
     },
 

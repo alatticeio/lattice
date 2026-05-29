@@ -104,6 +104,7 @@
     "aiCompliance": "合规审计",
     "aiTools": "MCP 工具",
     "mcpServers": "MCP Server",
+    "agentPolicies": "Agent Policies",
     "dashboard": "仪表盘",
     "members": "成员管理",
     "policies": "策略管理",

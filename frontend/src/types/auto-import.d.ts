@@ -66,6 +66,7 @@ declare global {
   const unref: typeof import('vue').unref
   const useAction: typeof import('../composables/useApi').useAction
   const useAgentDetailDrawer: typeof import('../composables/useAgentDetailDrawer').useAgentDetailDrawer
+  const useAgentPolicyStore: typeof import('../stores/useAgentPolicyStore').useAgentPolicyStore
   const useAiStore: typeof import('../stores/useAiStore').useAiStore
   const useAppConfig: typeof import('../composables/useAppConfig').useAppConfig
   const useAttrs: typeof import('vue').useAttrs
