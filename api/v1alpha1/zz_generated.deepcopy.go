@@ -1598,3 +1598,197 @@ func (in *PeerSelection) DeepCopy() *PeerSelection {
 	in.DeepCopyInto(out)
 	return out
 }
+
+// ── MCPServer DeepCopy ────────────────────────────────────────────────────────
+
+func (in *MCPServer) DeepCopyInto(out *MCPServer) {
+	*out = *in
+	out.TypeMeta = in.TypeMeta
+	in.ObjectMeta.DeepCopyInto(&out.ObjectMeta)
+	in.Spec.DeepCopyInto(&out.Spec)
+	in.Status.DeepCopyInto(&out.Status)
+}
+
+func (in *MCPServer) DeepCopy() *MCPServer {
+	if in == nil {
+		return nil
+	}
+	out := new(MCPServer)
+	in.DeepCopyInto(out)
+	return out
+}
+
+func (in *MCPServer) DeepCopyObject() runtime.Object {
+	if c := in.DeepCopy(); c != nil {
+		return c
+	}
+	return nil
+}
+
+func (in *MCPServerList) DeepCopyInto(out *MCPServerList) {
+	*out = *in
+	out.TypeMeta = in.TypeMeta
+	in.ListMeta.DeepCopyInto(&out.ListMeta)
+	if in.Items != nil {
+		in, out := &in.Items, &out.Items
+		*out = make([]MCPServer, len(*in))
+		for i := range *in {
+			(*in)[i].DeepCopyInto(&(*out)[i])
+		}
+	}
+}
+
+func (in *MCPServerList) DeepCopy() *MCPServerList {
+	if in == nil {
+		return nil
+	}
+	out := new(MCPServerList)
+	in.DeepCopyInto(out)
+	return out
+}
+
+func (in *MCPServerList) DeepCopyObject() runtime.Object {
+	if c := in.DeepCopy(); c != nil {
+		return c
+	}
+	return nil
+}
+
+func (in *MCPServerSpec) DeepCopyInto(out *MCPServerSpec) {
+	*out = *in
+	if in.Tools != nil {
+		in, out := &in.Tools, &out.Tools
+		*out = make([]MCPTool, len(*in))
+		copy(*out, *in)
+	}
+}
+
+func (in *MCPServerSpec) DeepCopy() *MCPServerSpec {
+	if in == nil {
+		return nil
+	}
+	out := new(MCPServerSpec)
+	in.DeepCopyInto(out)
+	return out
+}
+
+func (in *MCPServerStatus) DeepCopyInto(out *MCPServerStatus) {
+	*out = *in
+	if in.LastSyncedAt != nil {
+		in, out := &in.LastSyncedAt, &out.LastSyncedAt
+		*out = (*in).DeepCopy()
+	}
+}
+
+func (in *MCPServerStatus) DeepCopy() *MCPServerStatus {
+	if in == nil {
+		return nil
+	}
+	out := new(MCPServerStatus)
+	in.DeepCopyInto(out)
+	return out
+}
+
+func (in *MCPTool) DeepCopyInto(out *MCPTool) { *out = *in }
+
+func (in *MCPTool) DeepCopy() *MCPTool {
+	if in == nil {
+		return nil
+	}
+	out := new(MCPTool)
+	in.DeepCopyInto(out)
+	return out
+}
+
+// ── AgentPolicy DeepCopy ──────────────────────────────────────────────────────
+
+func (in *AgentPolicy) DeepCopyInto(out *AgentPolicy) {
+	*out = *in
+	out.TypeMeta = in.TypeMeta
+	in.ObjectMeta.DeepCopyInto(&out.ObjectMeta)
+	in.Spec.DeepCopyInto(&out.Spec)
+}
+
+func (in *AgentPolicy) DeepCopy() *AgentPolicy {
+	if in == nil {
+		return nil
+	}
+	out := new(AgentPolicy)
+	in.DeepCopyInto(out)
+	return out
+}
+
+func (in *AgentPolicy) DeepCopyObject() runtime.Object {
+	if c := in.DeepCopy(); c != nil {
+		return c
+	}
+	return nil
+}
+
+func (in *AgentPolicyList) DeepCopyInto(out *AgentPolicyList) {
+	*out = *in
+	out.TypeMeta = in.TypeMeta
+	in.ListMeta.DeepCopyInto(&out.ListMeta)
+	if in.Items != nil {
+		in, out := &in.Items, &out.Items
+		*out = make([]AgentPolicy, len(*in))
+		for i := range *in {
+			(*in)[i].DeepCopyInto(&(*out)[i])
+		}
+	}
+}
+
+func (in *AgentPolicyList) DeepCopy() *AgentPolicyList {
+	if in == nil {
+		return nil
+	}
+	out := new(AgentPolicyList)
+	in.DeepCopyInto(out)
+	return out
+}
+
+func (in *AgentPolicyList) DeepCopyObject() runtime.Object {
+	if c := in.DeepCopy(); c != nil {
+		return c
+	}
+	return nil
+}
+
+func (in *AgentPolicySpec) DeepCopyInto(out *AgentPolicySpec) {
+	*out = *in
+	in.AgentSelector.DeepCopyInto(&out.AgentSelector)
+	if in.AllowedTools != nil {
+		in, out := &in.AllowedTools, &out.AllowedTools
+		*out = make([]AgentToolPermission, len(*in))
+		for i := range *in {
+			(*in)[i].DeepCopyInto(&(*out)[i])
+		}
+	}
+}
+
+func (in *AgentPolicySpec) DeepCopy() *AgentPolicySpec {
+	if in == nil {
+		return nil
+	}
+	out := new(AgentPolicySpec)
+	in.DeepCopyInto(out)
+	return out
+}
+
+func (in *AgentToolPermission) DeepCopyInto(out *AgentToolPermission) {
+	*out = *in
+	if in.Tools != nil {
+		in, out := &in.Tools, &out.Tools
+		*out = make([]string, len(*in))
+		copy(*out, *in)
+	}
+}
+
+func (in *AgentToolPermission) DeepCopy() *AgentToolPermission {
+	if in == nil {
+		return nil
+	}
+	out := new(AgentToolPermission)
+	in.DeepCopyInto(out)
+	return out
+}
