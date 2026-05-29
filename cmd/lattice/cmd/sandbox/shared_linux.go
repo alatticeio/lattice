@@ -221,16 +221,20 @@ func forkAndWait(ctx context.Context, cancel context.CancelFunc, cmdArgs []strin
 	return childErr
 }
 
-// forkWithProxy forks cmdArgs as a child process with ALL_PROXY set to proxyAddr.
-// This is a placeholder stub — Task 2 will replace this with the full implementation.
+// forkWithProxy forks the AI agent and sets ALL_PROXY / HTTP_PROXY so its
+// outbound traffic flows through the Lattice SOCKS5 proxy to the overlay.
+// Unlike the old forkAndWait, this does NOT set UID 999 or install iptables.
 func forkWithProxy(ctx context.Context, cancel context.CancelFunc, cmdArgs []string, proxyAddr string) error {
 	child := exec.CommandContext(ctx, cmdArgs[0], cmdArgs[1:]...)
 	child.Stdin = os.Stdin
 	child.Stdout = os.Stdout
 	child.Stderr = os.Stderr
-	env := os.Environ()
-	env = append(env, "ALL_PROXY="+proxyAddr)
-	child.Env = env
+	child.Env = append(os.Environ(),
+		"ALL_PROXY="+proxyAddr,
+		"all_proxy="+proxyAddr,
+		"HTTPS_PROXY="+proxyAddr,
+		"https_proxy="+proxyAddr,
+	)
 
 	if err := child.Start(); err != nil {
 		return fmt.Errorf("start agent process: %w", err)
