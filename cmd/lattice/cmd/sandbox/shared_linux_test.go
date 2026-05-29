@@ -165,7 +165,7 @@ func TestPolicyDialer_InvalidAddr_ReturnsError(t *testing.T) {
 func TestForkAgent_ExitsCleanly(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	err := forkAgent(ctx, cancel, []string{"true"})
+	err := forkAgent(ctx, cancel, []string{"true"}, "")
 	if err != nil {
 		t.Fatalf("forkAgent returned err for exit-0 child: %v", err)
 	}
@@ -174,11 +174,21 @@ func TestForkAgent_ExitsCleanly(t *testing.T) {
 func TestForkAgent_InheritsEnv(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	// Verify child inherits parent env (no ALL_PROXY injection — no SOCKS5)
 	t.Setenv("LATTICE_TEST_MARKER", "yes")
-	err := forkAgent(ctx, cancel, []string{"sh", "-c", `test "$LATTICE_TEST_MARKER" = "yes"`})
+	err := forkAgent(ctx, cancel, []string{"sh", "-c", `test "$LATTICE_TEST_MARKER" = "yes"`}, "")
 	if err != nil {
 		t.Fatalf("expected child to inherit env, got err: %v", err)
+	}
+}
+
+func TestForkAgent_InjectsHTTPProxy(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	err := forkAgent(ctx, cancel,
+		[]string{"sh", "-c", `test "$HTTP_PROXY" = "http://127.0.0.1:9999"`},
+		"http://127.0.0.1:9999")
+	if err != nil {
+		t.Fatalf("expected child to see HTTP_PROXY, got err: %v", err)
 	}
 }
 
