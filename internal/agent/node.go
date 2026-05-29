@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"time"
 
-
 	"github.com/alatticeio/lattice/internal/agent/config"
 	"github.com/alatticeio/lattice/internal/agent/infra"
 	"github.com/alatticeio/lattice/internal/agent/log"
