@@ -22,7 +22,7 @@ import (
 
 	"github.com/alatticeio/lattice/internal/agent/infra"
 	"github.com/alatticeio/lattice/internal/agent/log"
-	"github.com/alatticeio/lattice/internal/grpc"
+	"github.com/alatticeio/lattice/internal/signal"
 )
 
 const (
@@ -48,7 +48,7 @@ type lrpClient struct {
 	log       *log.Logger
 	localId   infra.PeerID
 	serverURL string
-	onMessage func(ctx context.Context, remoteId infra.PeerID, packet *grpc.SignalPacket) error
+	onMessage func(ctx context.Context, remoteId infra.PeerID, packet *signal.SignalPacket) error
 	probeCh   chan *Task
 	seq       atomic.Uint32
 }
@@ -63,7 +63,7 @@ func (c *lrpClient) probeWorker() {
 		case <-c.ctx.Done():
 			return
 		case task := <-c.probeCh:
-			var packet grpc.SignalPacket
+			var packet signal.SignalPacket
 			if err := json.Unmarshal(task.Data, &packet); err != nil {
 				c.log.Error("failed to unmarshal probe packet", err)
 				continue

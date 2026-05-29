@@ -26,7 +26,7 @@ import (
 
 	"github.com/alatticeio/lattice/internal/agent/infra"
 	"github.com/alatticeio/lattice/internal/agent/log"
-	"github.com/alatticeio/lattice/internal/grpc"
+	"github.com/alatticeio/lattice/internal/signal"
 
 	wgconn "golang.zx2c4.com/wireguard/conn"
 )
@@ -47,7 +47,7 @@ type TCPClient struct {
 }
 
 // NewTCPClient creates a new TCP LRP client, connects, and registers.
-func NewTCPClient(ctx context.Context, localID infra.PeerID, url string, onMessage func(ctx context.Context, remoteId infra.PeerID, packet *grpc.SignalPacket) error) (*TCPClient, error) {
+func NewTCPClient(ctx context.Context, localID infra.PeerID, url string, onMessage func(ctx context.Context, remoteId infra.PeerID, packet *signal.SignalPacket) error) (*TCPClient, error) {
 	ctx, cancel := context.WithCancel(ctx)
 	c := &TCPClient{
 		lrpClient: &lrpClient{

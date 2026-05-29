@@ -20,8 +20,8 @@ import (
 	"fmt"
 	"github.com/alatticeio/lattice/internal/agent/infra"
 	"github.com/alatticeio/lattice/internal/agent/log"
-	"github.com/alatticeio/lattice/internal/grpc"
 	"github.com/alatticeio/lattice/internal/relay"
+	"github.com/alatticeio/lattice/internal/signal"
 	"sync"
 	"time"
 
@@ -103,7 +103,7 @@ func (w *lrpDialer) Prepare(ctx context.Context, remoteId infra.PeerIdentity) er
 
 		// Send the first SYN immediately instead of waiting for the first tick.
 		w.log.Debug("sending SYN", "remote", remoteId)
-		if err := w.sendPacket(ctx, remoteId, grpc.PacketType_HANDSHAKE_SYN, nil); err != nil {
+		if err := w.sendPacket(ctx, remoteId, signal.PacketType_HANDSHAKE_SYN, nil); err != nil {
 			w.log.Error("send syn failed", err)
 		}
 
@@ -117,7 +117,7 @@ func (w *lrpDialer) Prepare(ctx context.Context, remoteId infra.PeerIdentity) er
 				return
 			case <-ticker.C:
 				w.log.Debug("sending SYN", "remote", remoteId)
-				if err := w.sendPacket(ctx, remoteId, grpc.PacketType_HANDSHAKE_SYN, nil); err != nil {
+				if err := w.sendPacket(ctx, remoteId, signal.PacketType_HANDSHAKE_SYN, nil); err != nil {
 					w.log.Error("send syn failed", err)
 				}
 			}
@@ -127,18 +127,18 @@ func (w *lrpDialer) Prepare(ctx context.Context, remoteId infra.PeerIdentity) er
 	return nil
 }
 
-func (w *lrpDialer) sendPacket(ctx context.Context, remoteId infra.PeerIdentity, packetType grpc.PacketType, _ ice.Candidate) error {
-	p := &grpc.SignalPacket{
+func (w *lrpDialer) sendPacket(ctx context.Context, remoteId infra.PeerIdentity, packetType signal.PacketType, _ ice.Candidate) error {
+	p := &signal.SignalPacket{
 		Type:     packetType,
-		Dialer:   grpc.DialerType_LRP,
+		Dialer:   signal.DialerType_LRP,
 		SenderID: w.localId.ID().ToUint64(),
 	}
 
 	switch packetType {
-	case grpc.PacketType_HANDSHAKE_SYN, grpc.PacketType_HANDSHAKE_ACK:
+	case signal.PacketType_HANDSHAKE_SYN, signal.PacketType_HANDSHAKE_ACK:
 		// Include local peer info so the remote learns our WG config at
 		// SYN/ACK time, before any transport negotiation begins.
-		hs := &grpc.Handshake{Timestamp: time.Now().Unix()}
+		hs := &signal.Handshake{Timestamp: time.Now().Unix()}
 		if lp := w.getLocalPeer(); lp != nil {
 			if data, err := json.Marshal(lp); err == nil {
 				hs.PeerInfo = data
@@ -156,16 +156,16 @@ func (w *lrpDialer) sendPacket(ctx context.Context, remoteId infra.PeerIdentity,
 	return w.sender(ctx, remoteId.ID(), data)
 }
 
-func (w *lrpDialer) sendOfferFromLrp(ctx context.Context, offerType grpc.PacketType) error {
+func (w *lrpDialer) sendOfferFromLrp(ctx context.Context, offerType signal.PacketType) error {
 	data, err := json.Marshal(w.getLocalPeer())
 	if err != nil {
 		return err
 	}
-	p := &grpc.SignalPacket{
+	p := &signal.SignalPacket{
 		Type:     offerType,
-		Dialer:   grpc.DialerType_LRP,
+		Dialer:   signal.DialerType_LRP,
 		SenderID: w.localId.ID().ToUint64(),
-		Offer: &grpc.Offer{
+		Offer: &signal.Offer{
 			PublicKey: w.localId.PublicKey.String(),
 			Current:   data,
 		},
@@ -178,12 +178,12 @@ func (w *lrpDialer) sendOfferFromLrp(ctx context.Context, offerType grpc.PacketT
 	return w.lrp.Send(ctx, w.remoteId.ID().ToUint64(), relay.Probe, offerData)
 }
 
-func (w *lrpDialer) Handle(ctx context.Context, remoteId infra.PeerIdentity, packet *grpc.SignalPacket) error {
-	if packet.Dialer != grpc.DialerType_LRP {
+func (w *lrpDialer) Handle(ctx context.Context, remoteId infra.PeerIdentity, packet *signal.SignalPacket) error {
+	if packet.Dialer != signal.DialerType_LRP {
 		return nil
 	}
 	switch packet.Type {
-	case grpc.PacketType_HANDSHAKE_SYN:
+	case signal.PacketType_HANDSHAKE_SYN:
 		// Extract peer info from SYN — new design: peer info in SYN/ACK.
 		if hs := packet.GetHandshake(); hs != nil && len(hs.PeerInfo) > 0 {
 			var remotePeer infra.Peer
@@ -210,9 +210,9 @@ func (w *lrpDialer) Handle(ctx context.Context, remoteId infra.PeerIdentity, pac
 			}
 			return nil
 		}
-		return w.sendPacket(ctx, remoteId, grpc.PacketType_HANDSHAKE_ACK, nil)
+		return w.sendPacket(ctx, remoteId, signal.PacketType_HANDSHAKE_ACK, nil)
 
-	case grpc.PacketType_HANDSHAKE_ACK:
+	case signal.PacketType_HANDSHAKE_ACK:
 		// Extract peer info from ACK — new design: peer info in SYN/ACK.
 		if hs := packet.GetHandshake(); hs != nil && len(hs.PeerInfo) > 0 {
 			var remotePeer infra.Peer
@@ -230,11 +230,11 @@ func (w *lrpDialer) Handle(ctx context.Context, remoteId infra.PeerIdentity, pac
 		// Only the initiator (bigger-ID numerically) drives the OFFER/ANSWER exchange.
 		// Use numeric comparison to avoid decimal string ordering bugs.
 		if isInitiator(w.localId, w.remoteId) {
-			return w.sendOfferFromLrp(ctx, grpc.PacketType_OFFER)
+			return w.sendOfferFromLrp(ctx, signal.PacketType_OFFER)
 		}
 		return nil
 
-	case grpc.PacketType_OFFER:
+	case signal.PacketType_OFFER:
 		offer := packet.GetOffer()
 		var peer infra.Peer
 		if err := json.Unmarshal(offer.Current, &peer); err != nil {
@@ -250,12 +250,12 @@ func (w *lrpDialer) Handle(ctx context.Context, remoteId infra.PeerIdentity, pac
 			cancel() // stop SYN ticker so we don't trigger spurious onRestart on the remote
 		}
 		w.closeReady()
-		if err := w.sendOfferFromLrp(ctx, grpc.PacketType_ANSWER); err != nil {
+		if err := w.sendOfferFromLrp(ctx, signal.PacketType_ANSWER); err != nil {
 			w.log.Error("send ANSWER failed", err)
 		}
 		return nil
 
-	case grpc.PacketType_ANSWER:
+	case signal.PacketType_ANSWER:
 		offer := packet.GetOffer()
 		var peer infra.Peer
 		if err := json.Unmarshal(offer.Current, &peer); err != nil {

@@ -21,7 +21,7 @@ import (
 	"fmt"
 	"github.com/alatticeio/lattice/internal/agent/infra"
 	"github.com/alatticeio/lattice/internal/agent/log"
-	"github.com/alatticeio/lattice/internal/grpc"
+	"github.com/alatticeio/lattice/internal/signal"
 	"sync"
 
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
@@ -174,10 +174,10 @@ func (c *Client) pushToNode(ctx context.Context, peer *infra.Peer, msg *infra.Me
 		return err
 	}
 
-	packet := &grpc.SignalPacket{
+	packet := &signal.SignalPacket{
 		SenderID: peerID.ToUint64(),
-		Type:     grpc.PacketType_MESSAGE,
-		Message: &grpc.Message{
+		Type:     signal.PacketType_MESSAGE,
+		Message: &signal.Message{
 			Content: data,
 		},
 	}

@@ -30,7 +30,7 @@ import (
 	"github.com/alatticeio/lattice/internal/agent/infra"
 	"github.com/alatticeio/lattice/internal/agent/log"
 	"github.com/alatticeio/lattice/internal/agent/provision"
-	"github.com/alatticeio/lattice/internal/grpc"
+	"github.com/alatticeio/lattice/internal/signal"
 
 	"github.com/pion/ice/v4"
 	"github.com/pion/logging"
@@ -112,12 +112,12 @@ type ICEDialerConfig struct {
 	OnRestart func()
 }
 
-func (i *iceDialer) Handle(ctx context.Context, remoteId infra.PeerIdentity, packet *grpc.SignalPacket) error {
-	if packet.Dialer != grpc.DialerType_ICE {
+func (i *iceDialer) Handle(ctx context.Context, remoteId infra.PeerIdentity, packet *signal.SignalPacket) error {
+	if packet.Dialer != signal.DialerType_ICE {
 		return nil
 	}
 	switch packet.Type {
-	case grpc.PacketType_RESTART_NOTIFY:
+	case signal.PacketType_RESTART_NOTIFY:
 		// The remote non-initiator just started fresh. If our ICE dialer is already
 		// closed (we were previously connected), trigger probe.restart() so we
 		// re-initiate the handshake with the restarted peer's new endpoint.
@@ -128,7 +128,7 @@ func (i *iceDialer) Handle(ctx context.Context, remoteId infra.PeerIdentity, pac
 			}
 		}
 		return nil
-	case grpc.PacketType_HANDSHAKE_ACK:
+	case signal.PacketType_HANDSHAKE_ACK:
 		if i.closed.Load() {
 			return nil
 		}
@@ -172,7 +172,7 @@ func (i *iceDialer) Handle(ctx context.Context, remoteId infra.PeerIdentity, pac
 			go i.resendCandidates(ctx)
 		}
 		return gatherErr
-	case grpc.PacketType_HANDSHAKE_SYN:
+	case signal.PacketType_HANDSHAKE_SYN:
 		// If already fully closed, the remote peer restarted after our ICE cleanup.
 		// Trigger probe.restart() so a fresh dialer is created to handle the peer's
 		// next SYN retry (sent every 2 s). Without this the probe stays stuck in
@@ -214,7 +214,7 @@ func (i *iceDialer) Handle(ctx context.Context, remoteId infra.PeerIdentity, pac
 		// the replacement dialer's nil-agent guard.
 		if existingAgent != nil {
 			i.log.Debug("SYN retransmit during ICE setup, resending ACK", "remoteId", remoteId)
-			_ = i.sendPacket(ctx, i.remoteId, grpc.PacketType_HANDSHAKE_ACK, nil)
+			_ = i.sendPacket(ctx, i.remoteId, signal.PacketType_HANDSHAKE_ACK, nil)
 			// Also resend our cached candidates: the initiator may have restarted
 			// its dialer (new gatherOnce) and is waiting for our OFFER to unblock
 			// its Dial().  Without this, only one side runs ICE and checks fail.
@@ -240,7 +240,7 @@ func (i *iceDialer) Handle(ctx context.Context, remoteId infra.PeerIdentity, pac
 		i.mu.Unlock()
 
 		// send ack to remote (includes our own peer info)
-		if err := i.sendPacket(ctx, i.remoteId, grpc.PacketType_HANDSHAKE_ACK, nil); err != nil {
+		if err := i.sendPacket(ctx, i.remoteId, signal.PacketType_HANDSHAKE_ACK, nil); err != nil {
 			return err
 		}
 		// responder also gathers candidates (gatherOnce ensures idempotency)
@@ -264,7 +264,7 @@ func (i *iceDialer) Handle(ctx context.Context, remoteId infra.PeerIdentity, pac
 			})
 		}
 		return nil
-	case grpc.PacketType_OFFER, grpc.PacketType_ANSWER:
+	case signal.PacketType_OFFER, signal.PacketType_ANSWER:
 		if i.closed.Load() {
 			i.log.Debug("receive offer: dialer closed, dropping", "remoteId", remoteId)
 			return nil
@@ -365,7 +365,7 @@ func (i *iceDialer) Prepare(ctx context.Context, remoteId infra.PeerIdentity) er
 		// handshake. If the remote is still probing (normal startup), the
 		// notification is ignored.
 		go func() {
-			if err := i.sendPacket(ctx, remoteId, grpc.PacketType_RESTART_NOTIFY, nil); err != nil {
+			if err := i.sendPacket(ctx, remoteId, signal.PacketType_RESTART_NOTIFY, nil); err != nil {
 				i.log.Debug("restart notify send failed", "remoteId", remoteId, "err", err)
 			}
 		}()
@@ -433,7 +433,7 @@ func (i *iceDialer) Prepare(ctx context.Context, remoteId infra.PeerIdentity) er
 
 		// Send the first SYN immediately instead of waiting for the first tick.
 		i.log.Debug("send syn")
-		if err := i.sendPacket(ctx, remoteId, grpc.PacketType_HANDSHAKE_SYN, nil); err != nil {
+		if err := i.sendPacket(ctx, remoteId, signal.PacketType_HANDSHAKE_SYN, nil); err != nil {
 			i.log.Error("send syn failed", err)
 		}
 
@@ -444,7 +444,7 @@ func (i *iceDialer) Prepare(ctx context.Context, remoteId infra.PeerIdentity) er
 				return
 			case <-ticker.C:
 				i.log.Debug("send syn")
-				err := i.sendPacket(ctx, remoteId, grpc.PacketType_HANDSHAKE_SYN, nil)
+				err := i.sendPacket(ctx, remoteId, signal.PacketType_HANDSHAKE_SYN, nil)
 				if err != nil {
 					i.log.Error("send syn failed", err)
 				}
@@ -594,7 +594,7 @@ func (i *iceDialer) getAgent(remoteId infra.PeerIdentity) (*ice.Agent, error) {
 		i.mu.Lock()
 		i.gatheredCandidates = append(i.gatheredCandidates, candidate)
 		i.mu.Unlock()
-		if err = i.sendPacket(context.TODO(), remoteId, grpc.PacketType_OFFER, candidate); err != nil {
+		if err = i.sendPacket(context.TODO(), remoteId, signal.PacketType_OFFER, candidate); err != nil {
 			i.log.Error("Send candidate", err)
 		}
 		i.log.Debug("Sending candidate", "remoteId", remoteId, "candidate", candidate)
@@ -607,30 +607,30 @@ func (i *iceDialer) getAgent(remoteId infra.PeerIdentity) (*ice.Agent, error) {
 
 // sendPacket sends a signal packet to remoteId.
 // PeerIdentity.ID() is used for NATS routing; PublicKey is used in OFFER payload.
-func (i *iceDialer) sendPacket(ctx context.Context, remoteId infra.PeerIdentity, packetType grpc.PacketType, candidate ice.Candidate) error {
+func (i *iceDialer) sendPacket(ctx context.Context, remoteId infra.PeerIdentity, packetType signal.PacketType, candidate ice.Candidate) error {
 	if i.closed.Load() {
 		return nil
 	}
-	p := &grpc.SignalPacket{
+	p := &signal.SignalPacket{
 		Type:     packetType,
 		SenderID: i.localId.ID().ToUint64(),
 	}
 
 	switch packetType {
-	case grpc.PacketType_HANDSHAKE_SYN, grpc.PacketType_HANDSHAKE_ACK:
+	case signal.PacketType_HANDSHAKE_SYN, signal.PacketType_HANDSHAKE_ACK:
 		// Include local peer info so the remote side learns our WG config
 		// (Address, AllowedIPs) at SYN/ACK time — before any ICE candidate
 		// exchange begins.  getLocalPeer() is called here (not at construction)
 		// to pick up Address/AllowedIPs that may have arrived via ApplyFullConfig
 		// after the dialer was created.
-		hs := &grpc.Handshake{Timestamp: time.Now().Unix()}
+		hs := &signal.Handshake{Timestamp: time.Now().Unix()}
 		if lp := i.getLocalPeer(); lp != nil {
 			if data, err := json.Marshal(lp); err == nil {
 				hs.PeerInfo = data
 			}
 		}
 		p.Handshake = hs
-	case grpc.PacketType_OFFER:
+	case signal.PacketType_OFFER:
 		i.mu.Lock()
 		agent := i.agent
 		i.mu.Unlock()
@@ -648,7 +648,7 @@ func (i *iceDialer) sendPacket(ctx context.Context, remoteId infra.PeerIdentity,
 		if candidate == nil {
 			return fmt.Errorf("candidate is nil for OFFER")
 		}
-		p.Offer = &grpc.Offer{
+		p.Offer = &signal.Offer{
 			Ufrag:     ufrag,
 			Pwd:       pwd,
 			Candidate: candidate.Marshal(),
@@ -673,7 +673,7 @@ func (i *iceDialer) resendCandidates(ctx context.Context) {
 	copy(cached, i.gatheredCandidates)
 	i.mu.Unlock()
 	for _, c := range cached {
-		if err := i.sendPacket(ctx, i.remoteId, grpc.PacketType_OFFER, c); err != nil {
+		if err := i.sendPacket(ctx, i.remoteId, signal.PacketType_OFFER, c); err != nil {
 			i.log.Warn("resend candidate failed", "err", err)
 		}
 	}

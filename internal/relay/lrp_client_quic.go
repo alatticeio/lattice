@@ -23,7 +23,7 @@ import (
 
 	"github.com/alatticeio/lattice/internal/agent/infra"
 	"github.com/alatticeio/lattice/internal/agent/log"
-	"github.com/alatticeio/lattice/internal/grpc"
+	"github.com/alatticeio/lattice/internal/signal"
 
 	"github.com/quic-go/quic-go"
 	wgconn "golang.zx2c4.com/wireguard/conn"
@@ -43,7 +43,7 @@ type QUICClient struct {
 }
 
 // NewQUICClient creates a new QUIC LRP client, connects, and registers.
-func NewQUICClient(ctx context.Context, localID infra.PeerID, url string, onMessage func(ctx context.Context, remoteId infra.PeerID, packet *grpc.SignalPacket) error) (*QUICClient, error) {
+func NewQUICClient(ctx context.Context, localID infra.PeerID, url string, onMessage func(ctx context.Context, remoteId infra.PeerID, packet *signal.SignalPacket) error) (*QUICClient, error) {
 	ctx, cancel := context.WithCancel(ctx)
 	c := &QUICClient{
 		lrpClient: &lrpClient{

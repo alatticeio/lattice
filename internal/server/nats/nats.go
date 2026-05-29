@@ -22,7 +22,7 @@ import (
 	"github.com/alatticeio/lattice/internal/agent/log"
 	"time"
 
-	"github.com/alatticeio/lattice/internal/grpc"
+	"github.com/alatticeio/lattice/internal/signal"
 
 	"encoding/json"
 
@@ -63,7 +63,7 @@ func NewNoopSignalService() infra.SignalService {
 	return &noopSignalService{log: log.GetLogger("nats-noop")}
 }
 
-type SignalHandler func(ctx context.Context, peerId infra.PeerID, packet *grpc.SignalPacket) error
+type SignalHandler func(ctx context.Context, peerId infra.PeerID, packet *signal.SignalPacket) error
 
 type NatsSignalService struct {
 	log *log.Logger
@@ -139,7 +139,7 @@ func (s *NatsSignalService) ensureStream(ctx context.Context, js jetstream.JetSt
 
 func (s *NatsSignalService) Subscribe(subject string, onMessage SignalHandler) error {
 	sub, err := s.nc.Subscribe(subject, func(m *natsgo.Msg) {
-		var packet grpc.SignalPacket
+		var packet signal.SignalPacket
 		if err := json.Unmarshal(m.Data, &packet); err != nil {
 			s.log.Error("failed to unmarshal packet", err)
 			return

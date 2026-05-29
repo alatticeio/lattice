@@ -17,7 +17,7 @@ package infra
 import (
 	"context"
 
-	"github.com/alatticeio/lattice/internal/grpc"
+	"github.com/alatticeio/lattice/internal/signal"
 )
 
 // SignalService only used for sending signal byte packet
@@ -44,7 +44,7 @@ type SignalService interface {
 type Probe interface {
 	Start(ctx context.Context, remoteId PeerIdentity) error
 
-	Handle(ctx context.Context, remoteId PeerIdentity, packet *grpc.SignalPacket) error
+	Handle(ctx context.Context, remoteId PeerIdentity, packet *signal.SignalPacket) error
 
 	// 2. Health check: periodically send probe packets after the connection is established
 	Ping(ctx context.Context) error
