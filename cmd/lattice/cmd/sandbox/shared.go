@@ -19,9 +19,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sync"
 
-	shimfwd "github.com/alatticeio/lattice-shim/shim"
+	"github.com/alatticeio/lattice/internal/agent/infra"
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 )
 
@@ -64,27 +63,10 @@ func saveSandboxCredentials(privKey wgtypes.Key, jwt string) error {
 	return os.WriteFile(sandboxCredentialsFile(), data, 0o600)
 }
 
-// fileAuditWriter implements shimfwd.AuditWriter by appending JSON lines to a file.
-type fileAuditWriter struct {
-	mu sync.Mutex
-	f  *os.File
-}
-
-func newFileAuditWriter(path string) (*fileAuditWriter, error) {
-	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
-	if err != nil {
-		return nil, err
+// overlayAddr extracts the VPN IP string from a Peer. Returns "" if nil.
+func overlayAddr(p *infra.Peer) string {
+	if p != nil && p.Address != nil {
+		return *p.Address
 	}
-	return &fileAuditWriter{f: f}, nil
-}
-
-func (w *fileAuditWriter) Write(event shimfwd.AuditEvent) error {
-	data, err := json.Marshal(event)
-	if err != nil {
-		return err
-	}
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	_, err = fmt.Fprintf(w.f, "%s\n", data)
-	return err
+	return ""
 }

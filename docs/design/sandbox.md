@@ -112,6 +112,7 @@ cmd/lattice/cmd/sandbox/
 ├── sandbox_shared.go       # No build tag — shared utilities (credential I/O, fileAuditWriter)
 ├── sandbox_community.go    # //go:build !pro — full community implementation (pod mode)
 ├── sandbox_pro.go          # //go:build pro  — Pro-only extensions (both modes)
+├── sandbox_run_pro.go      # //go:build pro  — `lattice sandbox run` (pod & gvisor modes)
 ├── sandbox_agent.go        # //go:build pro  — `lattice sandbox agent` (manual debugging)
 ├── driver.go               # DriverConfig, IsolationDriver interface
 ├── driver_pod.go           # //go:build pro  — PodDriver (in-process gVisor netstack)

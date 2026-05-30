@@ -336,6 +336,23 @@ func (s *Server) handleDiscovery() gin.HandlerFunc {
 		if natsURL == "" {
 			natsURL = "nats://127.0.0.1:4222"
 		}
-		resp.OK(c, gin.H{"nats_url": natsURL})
+
+		// STUN URL: prefer DB-stored value, then server config, then empty (agent uses its built-in default).
+		stunURL := s.cfg.StunServerURL
+		if dbStun, err := s.store.SystemConfig().Get(c.Request.Context(), models.ConfigKeyStunURL); err == nil && dbStun != "" {
+			stunURL = dbStun
+		}
+
+		// Enforcer mode: server global default from config.
+		enforcerMode := s.cfg.EnforcerMode
+		if enforcerMode == "" {
+			enforcerMode = "auto"
+		}
+
+		resp.OK(c, gin.H{
+			"nats_url":      natsURL,
+			"stun_url":      stunURL,
+			"enforcer_mode": enforcerMode,
+		})
 	}
 }

@@ -1,4 +1,4 @@
-//go:build !pro
+//go:build !linux
 
 // Copyright 2026 The Lattice Authors, Inc.
 //
@@ -14,11 +14,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package server
+package sandbox
 
-import "github.com/alatticeio/lattice/internal/agent/store"
+import "github.com/spf13/cobra"
 
-// initFlowAuditConsumer is a no-op in Community edition.
-func initFlowAuditConsumer(_ string, _ store.Store) interface{ Close() } {
-	return nil
-}
+func addInitCmd(parent *cobra.Command) {}

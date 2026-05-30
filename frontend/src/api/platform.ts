@@ -2,6 +2,7 @@ import request from '@/api/request'
 
 export interface PlatformSettings {
   nats_url: string
+  stun_url: string
 }
 
 export const getPlatformSettings = () =>

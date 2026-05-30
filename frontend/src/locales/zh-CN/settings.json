@@ -173,15 +173,15 @@
     "title": "平台设置",
     "desc": "管理全局平台配置，影响所有工作空间和 Agent 节点。",
     "natsUrlLabel": "NATS 信令地址",
-    "natsUrlPlaceholder": "nats://nats-cluster:4222",
-    "natsUrlHint": "Agent 节点通过此地址连接信令服务器。格式：nats://host:port",
+    "natsUrlHint": "Agent 节点通过此地址连接信令服务器，留空则使用节点默认值。",
+    "stunUrlLabel": "STUN 服务器地址",
+    "stunUrlHint": "Agent 节点使用此地址进行 NAT 穿透，留空则使用节点内置默认值。",
+    "hostPlaceholder": "域名或 IP",
     "saveBtn": "保存更改",
     "saving": "保存中...",
     "saved": "平台设置已保存",
     "saveFailed": "保存失败",
-    "loadFailed": "加载失败",
-    "validationRequired": "NATS URL 不能为空",
-    "validationPrefix": "NATS URL 必须以 nats:// 或 nats+tls:// 开头"
+    "loadFailed": "加载失败"
   },
   "relays": {
     "title": "中继节点",

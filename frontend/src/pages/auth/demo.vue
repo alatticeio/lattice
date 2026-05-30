@@ -38,7 +38,9 @@ onMounted(async () => {
       localStorage.setItem('active_ws_id', ws.id)
     }
 
-    router.replace('/dashboard')
+    const redirect = params.get('redirect')
+    const target = (redirect && redirect.startsWith('/')) ? redirect : '/dashboard'
+    router.replace(target)
   } catch {
     error.value = 'Network error. Please try again.'
   }

@@ -56,6 +56,10 @@ config:
     secret: ""  # auto-generated if empty
     expireHours: 24
   signalingUrl: ""  # defaults to embedded NATS within the pod
+  # -- Global default enforcer mode returned by /api/v1/discovery.
+  # Agents use this when neither CLI flag nor user setting is configured.
+  # Valid values: auto, iptables, ebpf
+  enforcerMode: ""
   stunUrl: "stun.alattice.io:3478"  # STUN server address (host:port)
   database:
     dsn: "data/lattice.db"  # SQLite path
@@ -76,14 +80,27 @@ resources:
 
 # -- Built-in coturn STUN server (optional).
 # Enable when there is no external STUN service available.
-# Requires the node to have a public IP; hostPort 3478/UDP must be open.
-# When enabled, set config.stunUrl to "<node-public-ip>:3478".
+# Uses hostNetwork so coturn binds directly to the host NIC, avoiding K8s NAT issues.
+# Requirements:
+#   1. UDP 3478 must be open in the cloud security group (inbound + outbound).
+#   2. Pin coturn to a node with a public IP via nodeSelector.
+#   3. Set config.stunUrl to "<node-public-ip>:3478".
+# Example:
+#   coturn:
+#     enabled: true
+#     nodeSelector:
+#       kubernetes.io/hostname: my-public-node
+#   config:
+#     stunUrl: "1.2.3.4:3478"
 coturn:
   enabled: false
   image:
     repository: coturn/coturn
     tag: "4.6"
     pullPolicy: IfNotPresent
+  # nodeSelector pins the coturn pod to a specific node that has a public IP.
+  # Must be set when the cluster has multiple nodes.
+  nodeSelector: {}
 
 # -- Pro edition license (optional).
 license:
