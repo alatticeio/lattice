@@ -364,7 +364,7 @@ func NewNode(ctx context.Context, cfg *NodeConfig) (*Node, error) {
 			return lrp
 		},
 		GetHandshake: func(pubKey string) (time.Time, error) {
-			return wireguard.PeerHandshake(config.Conf.InterfaceName, pubKey)
+			return wireguard.PeerHandshake(node.Name, pubKey)
 		},
 	})
 

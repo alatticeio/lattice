@@ -131,6 +131,8 @@ func (s *Server) apiRouter() error {
 	s.agentRouter()
 
 	s.agentIsolationRouter()
+	s.mcpServerRouter()
+	s.agentPolicyRouter()
 
 	s.platformRouter()
 
