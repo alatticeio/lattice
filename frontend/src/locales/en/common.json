@@ -94,7 +94,6 @@
       "workspace": "Workspace",
       "platform": "Platform",
       "ai": "AI Assistant",
-      "sandbox": "Agent Sandbox",
       "settings": "Settings"
     },
     "ai": "AI Assistant",
@@ -110,6 +109,7 @@
     "policies": "Policies",
     "tokens": "Access Tokens",
     "nodes": "Nodes",
+    "peerIdentities": "Peer Identities",
     "topology": "Topology",
     "peers": "Peers",
     "networkPeering": "Network Peering",
@@ -122,9 +122,6 @@
     "audit": "Audit Log",
     "relays": "Relays",
     "quickstart": "Quick Start",
-    "sandboxList": "Sandbox List",
-    "sandboxTokens": "Access Tokens",
-    "sandboxAudit": "Traffic Audit",
     "featureFlags": "Feature Flags"
   },
   "ai": {

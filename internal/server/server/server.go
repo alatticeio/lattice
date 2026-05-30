@@ -87,6 +87,8 @@ type Server struct {
 	mcpServerSvc          service.MCPServerService   // nil when K8s unavailable
 	agentPolicySvc        service.AgentPolicyService // nil when K8s unavailable
 
+	peerIdentityController controller.PeerIdentityController
+
 	middleware      *middleware.Middleware
 	demoLimiter     *middleware.IPRateLimiter
 	demoSessions    sync.Map // magic token → demoMagicSession
@@ -344,6 +346,7 @@ func NewServer(ctx context.Context, serverConfig *ServerConfig) (*Server, error)
 		agentRegService:        agentRegSvc,
 		mcpServerSvc:           mcpServerSvc,
 		agentPolicySvc:         agentPolicySvc,
+		peerIdentityController: controller.NewPeerIdentityController(st),
 		licenseVerifier:        lv,
 		monitor:                mon,
 		auditConsumer:          flowAuditConsumer,

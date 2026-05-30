@@ -39,6 +39,7 @@ type Store interface {
 	RefreshTokens() RefreshTokenRepository
 	ToolSpans() ToolSpanRepository
 	FlowEvents() FlowEventRepository
+	PeerIdentities() PeerIdentityRepository
 
 	Close() error
 }
@@ -260,4 +261,14 @@ type ToolSpanRepository interface {
 type FlowEventRepository interface {
 	Write(ctx context.Context, e *models.FlowEvent) error
 	ListByTrace(ctx context.Context, traceID string) ([]*models.FlowEvent, error)
+}
+
+// PeerIdentityRepository manages stable logical identities for devices.
+type PeerIdentityRepository interface {
+	GetByID(ctx context.Context, id string) (*models.PeerIdentity, error)
+	GetByNetworkAndName(ctx context.Context, networkID, name string) (*models.PeerIdentity, error)
+	Create(ctx context.Context, m *models.PeerIdentity) error
+	Update(ctx context.Context, m *models.PeerIdentity) error
+	Delete(ctx context.Context, id string) error
+	ListByNetwork(ctx context.Context, networkID string) ([]*models.PeerIdentity, error)
 }
