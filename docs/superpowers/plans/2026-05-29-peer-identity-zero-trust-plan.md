@@ -1,7 +1,7 @@
 # PeerIdentity 实现计划
 
 **日期**：2026-05-29  
-**Spec**：[2026-05-29-peer-identity-zero-trust-design.md](../specs/2026-05-29-peer-identity-zero-trust-design.md)  
+**Spec**：[2026-05-30-ai-agent-zero-trust-network-design.md](../specs/2026-05-30-ai-agent-zero-trust-network-design.md)  
 **状态**：Ready
 
 ---
