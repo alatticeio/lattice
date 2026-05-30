@@ -62,6 +62,8 @@ var _ = BeforeSuite(func() {
 		WithStatusSubresource(
 			&v1alpha1.LatticeNetwork{},
 			&v1alpha1.LatticePolicy{},
+			&v1alpha1.PeerIdentity{},
+			&v1alpha1.LatticePeer{},
 		).
 		Build()
 	Expect(k8sClient).NotTo(BeNil())
