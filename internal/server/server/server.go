@@ -84,6 +84,8 @@ type Server struct {
 
 	agentIsolationService service.AgentIsolationService
 	agentRegService       service.AgentRegistrationService
+	mcpServerSvc          service.MCPServerService   // nil when K8s unavailable
+	agentPolicySvc        service.AgentPolicyService // nil when K8s unavailable
 
 	middleware      *middleware.Middleware
 	demoLimiter     *middleware.IPRateLimiter
@@ -195,6 +197,19 @@ func NewServer(ctx context.Context, serverConfig *ServerConfig) (*Server, error)
 			}
 			if err = controller.NewAgentIdentityReconciler(mgr.GetClient()).SetupWithManager(mgr); err != nil {
 				logger.Warn("failed to setup AgentIdentityReconciler", "err", err)
+			}
+		}
+	}
+
+	// MCPServer and AgentPolicy services — available whenever K8s client is present.
+	var mcpServerSvc service.MCPServerService
+	var agentPolicySvc service.AgentPolicyService
+	if client != nil {
+		mcpServerSvc = service.NewMCPServerService(client.Client)
+		agentPolicySvc = service.NewAgentPolicyService(client.Client)
+		if mgr != nil {
+			if err = controller.NewMCPServerReconciler(mgr.GetClient()).SetupWithManager(mgr); err != nil {
+				logger.Warn("failed to setup MCPServerReconciler", "err", err)
 			}
 		}
 	}
@@ -327,6 +342,8 @@ func NewServer(ctx context.Context, serverConfig *ServerConfig) (*Server, error)
 		agentEnrollService:     service.NewAgentEnrollService(client),
 		agentIsolationService:  agentIsolSvc,
 		agentRegService:        agentRegSvc,
+		mcpServerSvc:           mcpServerSvc,
+		agentPolicySvc:         agentPolicySvc,
 		licenseVerifier:        lv,
 		monitor:                mon,
 		auditConsumer:          flowAuditConsumer,
