@@ -173,11 +173,12 @@ type FirewallRule struct {
 }
 
 type Rule struct {
-	PeerNames []string `json:"peerNames"`
-	CIDRs     []string `json:"cidrs,omitempty"` // from IPBlock
-	Protocol  string   `json:"protocol"`
-	Port      int      `json:"port"`
-	Action    string   `json:"action,omitempty"` // "ALLOW" or "DENY"
+	PeerNames    []string `json:"peerNames"`
+	CIDRs        []string `json:"cidrs,omitempty"`        // from IPBlock
+	IdentityRefs []string `json:"identityRefs,omitempty"` // from PeerIdentity
+	Protocol     string   `json:"protocol"`
+	Port         int      `json:"port"`
+	Action       string   `json:"action,omitempty"` // "ALLOW" or "DENY"
 }
 
 type TrafficRule struct {
