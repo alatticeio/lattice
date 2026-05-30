@@ -94,7 +94,6 @@
       "workspace": "工作空间",
       "platform": "平台管理",
       "ai": "AI 助手",
-      "sandbox": "Agent 沙箱",
       "settings": "设置"
     },
     "ai": "AI 助手",
@@ -104,11 +103,14 @@
     "aiCompliance": "合规审计",
     "aiTools": "MCP 工具",
     "mcpServers": "MCP Server",
+    "agentPolicies": "Agent Policies",
+    "agentIdentities": "Agent 身份",
     "dashboard": "仪表盘",
     "members": "成员管理",
     "policies": "策略管理",
     "tokens": "接入令牌",
     "nodes": "节点管理",
+    "peerIdentities": "身份管理",
     "topology": "网络拓扑",
     "peers": "Peers",
     "networkPeering": "网络互联",
@@ -121,9 +123,6 @@
     "audit": "审计日志",
     "relays": "中继节点",
     "quickstart": "快速接入",
-    "sandboxList": "沙箱列表",
-    "sandboxTokens": "接入令牌",
-    "sandboxAudit": "流量审计",
     "featureFlags": "功能配置"
   },
   "ai": {

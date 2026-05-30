@@ -94,7 +94,6 @@
       "workspace": "Workspace",
       "platform": "Platform",
       "ai": "AI Assistant",
-      "sandbox": "Agent Sandbox",
       "settings": "Settings"
     },
     "ai": "AI Assistant",
@@ -104,11 +103,14 @@
     "aiCompliance": "Compliance Audit",
     "aiTools": "MCP Tools",
     "mcpServers": "MCP Servers",
+    "agentPolicies": "Agent Policies",
+    "agentIdentities": "Agent Identities",
     "dashboard": "Dashboard",
     "members": "Members",
     "policies": "Policies",
     "tokens": "Access Tokens",
     "nodes": "Nodes",
+    "peerIdentities": "Peer Identities",
     "topology": "Topology",
     "peers": "Peers",
     "networkPeering": "Network Peering",
@@ -121,9 +123,6 @@
     "audit": "Audit Log",
     "relays": "Relays",
     "quickstart": "Quick Start",
-    "sandboxList": "Sandbox List",
-    "sandboxTokens": "Access Tokens",
-    "sandboxAudit": "Traffic Audit",
     "featureFlags": "Feature Flags"
   },
   "ai": {

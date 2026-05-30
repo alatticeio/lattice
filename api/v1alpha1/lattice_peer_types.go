@@ -92,6 +92,11 @@ type LatticePeerStatus struct {
 
 	// client applied version
 	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
+
+	// IdentityRef 是绑定到此 Peer 的 PeerIdentity 名称（controller 维护，只读）。
+	// 用于 Zero Trust 策略中的身份关联。
+	// +optional
+	IdentityRef string `json:"identityRef,omitempty"`
 }
 
 type Status string

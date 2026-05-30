@@ -177,6 +177,47 @@ var _ = Describe("PolicyEvaluator", func() {
 			}
 		})
 	})
+
+	Describe("identityRef rules", func() {
+		It("skips identityRef when resolver has no client (graceful degradation)", func() {
+			policies := []*infra.Policy{
+				{
+					PolicyName: "allow-identity",
+					Action:     "ALLOW",
+					Ingress: []*infra.Rule{
+						{IdentityRefs: []string{"some-identity"}, Action: "ALLOW"},
+					},
+				},
+			}
+			result, err := evaluator.Evaluate(ctx, current, network, policies)
+			Expect(err).NotTo(HaveOccurred())
+			// No identity IPs resolved, so no ACCEPT rules beyond default-deny
+			acceptRules := filterByAction(result.Ingress, "ACCEPT")
+			Expect(acceptRules).To(BeEmpty())
+		})
+
+		It("mixed PeerNames and IdentityRefs produce combined rules", func() {
+			// IdentityRefs won't resolve (no client), but PeerNames should still work
+			policies := []*infra.Policy{
+				{
+					PolicyName: "mixed",
+					Action:     "ALLOW",
+					Ingress: []*infra.Rule{
+						{
+							PeerNames:    []string{"frontend-1"},
+							IdentityRefs: []string{"some-identity"},
+							Action:       "ALLOW",
+						},
+					},
+				},
+			}
+			result, err := evaluator.Evaluate(ctx, current, network, policies)
+			Expect(err).NotTo(HaveOccurred())
+			acceptRules := filterByAction(result.Ingress, "ACCEPT")
+			Expect(acceptRules).To(HaveLen(1))
+			Expect(acceptRules[0].Peers).To(ContainElement("10.0.0.2"))
+		})
+	})
 })
 
 func strPtr(s string) *string { return &s }

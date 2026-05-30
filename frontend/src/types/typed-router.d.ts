@@ -155,6 +155,20 @@ declare module 'vue-router/auto-routes' {
       Record<never, never>,
       | never
     >,
+    '/manage/agent-identities/': RouteRecordInfo<
+      '/manage/agent-identities/',
+      '/manage/agent-identities',
+      Record<never, never>,
+      Record<never, never>,
+      | never
+    >,
+    '/manage/agent-policies/': RouteRecordInfo<
+      '/manage/agent-policies/',
+      '/manage/agent-policies',
+      Record<never, never>,
+      Record<never, never>,
+      | never
+    >,
     '/manage/mcp-servers/': RouteRecordInfo<
       '/manage/mcp-servers/',
       '/manage/mcp-servers',
@@ -179,6 +193,13 @@ declare module 'vue-router/auto-routes' {
     '/manage/nodes/': RouteRecordInfo<
       '/manage/nodes/',
       '/manage/nodes',
+      Record<never, never>,
+      Record<never, never>,
+      | never
+    >,
+    '/manage/peer-identities/': RouteRecordInfo<
+      '/manage/peer-identities/',
+      '/manage/peer-identities',
       Record<never, never>,
       Record<never, never>,
       | never
@@ -475,6 +496,18 @@ declare module 'vue-router/auto-routes' {
       views:
         | never
     }
+    'src/pages/manage/agent-identities/index.vue': {
+      routes:
+        | '/manage/agent-identities/'
+      views:
+        | never
+    }
+    'src/pages/manage/agent-policies/index.vue': {
+      routes:
+        | '/manage/agent-policies/'
+      views:
+        | never
+    }
     'src/pages/manage/mcp-servers/index.vue': {
       routes:
         | '/manage/mcp-servers/'
@@ -496,6 +529,12 @@ declare module 'vue-router/auto-routes' {
     'src/pages/manage/nodes/index.vue': {
       routes:
         | '/manage/nodes/'
+      views:
+        | never
+    }
+    'src/pages/manage/peer-identities/index.vue': {
+      routes:
+        | '/manage/peer-identities/'
       views:
         | never
     }

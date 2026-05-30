@@ -35,6 +35,8 @@ type GormStore struct {
 	seed                  store.SeedRepository
 	toolSpans             store.ToolSpanRepository
 	flowEvents            store.FlowEventRepository
+	peerIdentities        store.PeerIdentityRepository
+	agentIdentities       store.AgentIdentityRepository
 }
 
 // New creates the gormStore: first runs AutoMigrate, then initializes each sub-Repository.
@@ -66,6 +68,8 @@ func newStore(db *gorm.DB) *GormStore {
 		refreshTokens:         newRefreshTokenRepo(db),
 		toolSpans:             NewToolSpanRepo(db),
 		flowEvents:            NewFlowEventRepo(db),
+		peerIdentities:        newPeerIdentityRepo(db),
+		agentIdentities:       newAgentIdentityRepo(db),
 	}
 }
 
@@ -88,10 +92,12 @@ func (s *GormStore) NetworkSnapshots() store.NetworkSnapshotRepository { return 
 func (s *GormStore) AgentEnrollmentTokens() store.AgentEnrollmentTokenRepository {
 	return s.agentEnrollmentTokens
 }
-func (s *GormStore) Seed() store.SeedRepository                  { return s.seed }
-func (s *GormStore) RefreshTokens() store.RefreshTokenRepository { return s.refreshTokens }
-func (s *GormStore) ToolSpans() store.ToolSpanRepository         { return s.toolSpans }
-func (s *GormStore) FlowEvents() store.FlowEventRepository       { return s.flowEvents }
+func (s *GormStore) Seed() store.SeedRepository                     { return s.seed }
+func (s *GormStore) RefreshTokens() store.RefreshTokenRepository    { return s.refreshTokens }
+func (s *GormStore) ToolSpans() store.ToolSpanRepository            { return s.toolSpans }
+func (s *GormStore) FlowEvents() store.FlowEventRepository          { return s.flowEvents }
+func (s *GormStore) PeerIdentities() store.PeerIdentityRepository   { return s.peerIdentities }
+func (s *GormStore) AgentIdentities() store.AgentIdentityRepository { return s.agentIdentities }
 
 // Tx executes fn within a database transaction, providing a temporary Store for all Repository access.
 func (s *GormStore) Tx(ctx context.Context, fn func(store.Store) error) error {

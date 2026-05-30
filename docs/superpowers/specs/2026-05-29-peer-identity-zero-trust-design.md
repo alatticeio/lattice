@@ -1,7 +1,10 @@
 # PeerIdentity：基于身份的 Zero Trust 策略层设计
 
+> **注意**：本文档已合并至 [AI Agent Zero Trust 安全网络设计](./2026-05-30-ai-agent-zero-trust-network-design.md)，请参考最新版本。
+
 **日期**：2026-05-29  
-**状态**：Draft  
+**状态**：Deprecated（已合并）  
+**最新版本**：[AI Agent Zero Trust 安全网络设计](./2026-05-30-ai-agent-zero-trust-network-design.md)  
 **关联文档**：[AI Agent Secure Mesh](./2026-05-29-ai-agent-secure-mesh-design.md)、[Agent Sandbox](./2026-05-29-agent-sandbox-design.md)
 
 ---

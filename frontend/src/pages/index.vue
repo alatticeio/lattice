@@ -22,7 +22,6 @@ import TopologyCanvas from '@/components/lattice/TopologyCanvas.vue'
 import SectionHeader from '@/components/lattice/SectionHeader.vue'
 import type { TerminalLine } from '@/components/lattice/LatticeTerminal.vue'
 import DemoModal from '@/components/DemoModal.vue'
-import SandboxDemoModal from '@/components/SandboxDemoModal.vue'
 
 definePage({ meta: { layout: 'blank' } })
 
@@ -47,7 +46,6 @@ const latestVersion = computed(() => versions.value[0] ?? 'v0.2.0')
 
 // ── Demo ──────────────────────────────────────────────────────
 const demoOpen = ref(false)
-const sandboxDemoOpen = ref(false)
 const demoEnabled = ref(false)
 
 onMounted(async () => {
@@ -70,11 +68,11 @@ onMounted(async () => {
 })
 
 const terminalLines: TerminalLine[] = [
-  { text: '$ lattice sandbox start --name my-agent --token lt-enroll-xxx', cls: 'prompt' },
+  { text: '$ lattice up --token lt-enroll-xxx', cls: 'prompt' },
   { text: '  → NATS enrollment...                                              ✓', cls: 'ok' },
   { text: '  → WireGuard keypair generated                                     ✓', cls: 'ok' },
   { text: '  → VPN IP assigned: 10.100.0.5                                    ✓', cls: 'ok' },
-  { text: '  Agent "my-agent" online, ICE P2P connected', cls: 'cmd' },
+  { text: '  Node "node-1" online, ICE P2P connected', cls: 'cmd' },
   { text: '', cls: 'dim' },
   { text: '# Tool call trace (tool_spans)', cls: 'dim' },
   { text: '$ ExecuteTool("list_peers")', cls: 'prompt' },
@@ -108,7 +106,7 @@ const ossStats = [
 ]
 
 const features = [
-  { icon: Container, tag: 'stable', titleKey: 'landing.features.ai_sandbox.title', descKey: 'landing.features.ai_sandbox.desc' },
+  { icon: Shield, tag: 'stable', titleKey: 'landing.features.ai_policy.title', descKey: 'landing.features.ai_policy.desc' },
   { icon: Workflow, tag: 'stable', titleKey: 'landing.features.ai_traces.title', descKey: 'landing.features.ai_traces.desc' },
   { icon: Terminal, tag: 'stable', titleKey: 'landing.features.ai_mcp.title', descKey: 'landing.features.ai_mcp.desc' },
   { icon: Globe, tag: 'stable', titleKey: 'landing.features.net_wg.title', descKey: 'landing.features.net_wg.desc' },
@@ -306,15 +304,6 @@ function tagLabel(tag: string) {
           >
             Try Demo
           </Button>
-          <Button
-            v-if="demoEnabled"
-            variant="outline"
-            size="lg"
-            class="gap-2 px-7"
-            @click="sandboxDemoOpen = true"
-          >
-            Try Sandbox
-          </Button>
         </div>
       </div>
     </section>
@@ -503,13 +492,6 @@ function tagLabel(tag: string) {
             <p class="text-xs text-muted-foreground">{{ t('landing.quickstart.k8s_hint') }}</p>
           </div>
 
-          <!-- Sandbox -->
-          <div class="lattice-card p-5">
-            <code class="text-sm font-mono text-card-foreground block mb-2">
-              lattice sandbox start --name my-agent --token lt-enroll-xxx
-            </code>
-            <p class="text-xs text-muted-foreground">{{ t('landing.quickstart.sandbox_hint') }}</p>
-          </div>
         </div>
       </div>
     </section>
@@ -613,5 +595,4 @@ function tagLabel(tag: string) {
   </div>
 
   <DemoModal v-model:open="demoOpen" />
-  <SandboxDemoModal v-model:open="sandboxDemoOpen" />
 </template>

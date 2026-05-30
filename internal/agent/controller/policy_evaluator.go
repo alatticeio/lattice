@@ -20,6 +20,7 @@ import (
 	"strings"
 
 	"github.com/alatticeio/lattice/internal/agent/infra"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 )
 
@@ -36,11 +37,22 @@ type ruleDecisionKey struct {
 	protocol string
 }
 
-type policyEvaluator struct{}
+type policyEvaluator struct {
+	identityResolver *IdentityResolver
+}
 
 // NewPolicyEvaluator returns a PolicyEvaluator with ALLOW-priority conflict resolution.
 func NewPolicyEvaluator() PolicyEvaluator {
-	return &policyEvaluator{}
+	return &policyEvaluator{
+		identityResolver: NewIdentityResolver(),
+	}
+}
+
+// NewPolicyEvaluatorWithClient returns a PolicyEvaluator with a client for identity resolution.
+func NewPolicyEvaluatorWithClient(c client.Client) PolicyEvaluator {
+	return &policyEvaluator{
+		identityResolver: NewIdentityResolverWithClient(c),
+	}
 }
 
 func (e *policyEvaluator) Evaluate(ctx context.Context, currentPeer *infra.Peer, network *infra.Network, policies []*infra.Policy) (*infra.FirewallRule, error) {
@@ -70,13 +82,14 @@ func (e *policyEvaluator) Evaluate(ctx context.Context, currentPeer *infra.Peer,
 	egressDecisions := make(map[ruleDecisionKey]string)
 
 	applyDecision := func(decisions map[ruleDecisionKey]string, rule *infra.Rule, direction string) {
-		peers := e.resolveRulePeers(rule, peerIPByName, currentPeer.Name)
+		peers := e.resolveRulePeers(ctx, rule, peerIPByName, currentPeer.Name, network.NetworkName)
 		if len(peers) == 0 {
 			log.V(1).Info("policy rule resolved no peers, skipping",
 				"direction", direction,
 				"action", rule.Action,
 				"peerNames", rule.PeerNames,
 				"cidrs", rule.CIDRs,
+				"identityRefs", rule.IdentityRefs,
 			)
 		}
 		for _, peer := range peers {
@@ -171,8 +184,10 @@ func (e *policyEvaluator) Evaluate(ctx context.Context, currentPeer *infra.Peer,
 }
 
 // resolveRulePeers returns the IP/CIDR list for a rule, skipping currentPeerName.
-func (e *policyEvaluator) resolveRulePeers(rule *infra.Rule, peerIPByName map[string]string, currentPeerName string) []string {
+func (e *policyEvaluator) resolveRulePeers(ctx context.Context, rule *infra.Rule, peerIPByName map[string]string, currentPeerName string, network string) []string {
 	var peers []string
+
+	// 解析 PeerNames（label selector 匹配的 peer）
 	for _, name := range rule.PeerNames {
 		if name == currentPeerName {
 			continue
@@ -183,11 +198,20 @@ func (e *policyEvaluator) resolveRulePeers(rule *infra.Rule, peerIPByName map[st
 		}
 		peers = append(peers, ip)
 	}
+
+	// 解析 CIDRs（IPBlock）
 	for _, cidr := range rule.CIDRs {
 		if strings.TrimSpace(cidr) != "" {
 			peers = append(peers, cidr)
 		}
 	}
+
+	// 解析 IdentityRefs（PeerIdentity）
+	if len(rule.IdentityRefs) > 0 && e.identityResolver != nil {
+		identityIPs := e.identityResolver.ResolveIdentities(ctx, network, rule.IdentityRefs)
+		peers = append(peers, identityIPs...)
+	}
+
 	return peers
 }
 

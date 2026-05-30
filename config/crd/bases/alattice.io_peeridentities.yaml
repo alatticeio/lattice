@@ -1,0 +1,164 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.18.0
+  name: peeridentities.alattice.io
+spec:
+  group: alattice.io
+  names:
+    kind: PeerIdentity
+    listKind: PeerIdentityList
+    plural: peeridentities
+    shortNames:
+    - peerid
+    singular: peeridentity
+  scope: Cluster
+  versions:
+  - additionalPrinterColumns:
+    - description: The network this identity belongs to
+      jsonPath: .spec.network
+      name: NETWORK
+      type: string
+    - description: Current bound peer
+      jsonPath: .spec.peerRef
+      name: PEER
+      type: string
+    - description: Resolved peer IP
+      jsonPath: .status.resolvedPeerIP
+      name: RESOLVED-IP
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: AGE
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: |-
+          PeerIdentity 是设备的稳定逻辑身份 CRD。
+          它将逻辑角色名（如 prod-db）绑定到具体的 LatticePeer，
+          实现策略与网络拓扑的解耦。
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: PeerIdentitySpec defines the desired state of PeerIdentity.
+            properties:
+              description:
+                description: Description 是人类可读的身份描述。
+                type: string
+              gracePeriodSeconds:
+                default: 300
+                description: |-
+                  GracePeriodSeconds 是宽限期时长，默认 300s。
+                  宽限期到期后 controller 自动清空 PreviousPeerRef。
+                format: int32
+                type: integer
+              network:
+                description: |-
+                  Network 是此 PeerIdentity 归属的 LatticeNetwork 名称。
+                  (Network, metadata.name) 构成复合唯一键。
+                type: string
+              peerRef:
+                description: PeerRef 是当前绑定的 LatticePeer 名称。
+                type: string
+              previousPeerRef:
+                description: PreviousPeerRef 在设备替换时设置，宽限期内旧设备与新设备同时有效。
+                type: string
+            required:
+            - network
+            - peerRef
+            type: object
+          status:
+            description: PeerIdentityStatus defines the observed state of PeerIdentity.
+            properties:
+              conditions:
+                description: Conditions 反映控制面同步状态。
+                items:
+                  description: Condition contains details for one aspect of the current
+                    state of this API Resource.
+                  properties:
+                    lastTransitionTime:
+                      description: |-
+                        lastTransitionTime is the last time the condition transitioned from one status to another.
+                        This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.
+                      format: date-time
+                      type: string
+                    message:
+                      description: |-
+                        message is a human readable message indicating details about the transition.
+                        This may be an empty string.
+                      maxLength: 32768
+                      type: string
+                    observedGeneration:
+                      description: |-
+                        observedGeneration represents the .metadata.generation that the condition was set based upon.
+                        For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date
+                        with respect to the current state of the instance.
+                      format: int64
+                      minimum: 0
+                      type: integer
+                    reason:
+                      description: |-
+                        reason contains a programmatic identifier indicating the reason for the condition's last transition.
+                        Producers of specific condition types may define expected values and meanings for this field,
+                        and whether the values are considered a guaranteed API.
+                        The value should be a CamelCase string.
+                        This field may not be empty.
+                      maxLength: 1024
+                      minLength: 1
+                      pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
+                      type: string
+                    status:
+                      description: status of the condition, one of True, False, Unknown.
+                      enum:
+                      - "True"
+                      - "False"
+                      - Unknown
+                      type: string
+                    type:
+                      description: type of condition in CamelCase or in foo.example.com/CamelCase.
+                      maxLength: 316
+                      pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - message
+                  - reason
+                  - status
+                  - type
+                  type: object
+                type: array
+              gracePeriodExpiresAt:
+                description: GracePeriodExpiresAt 是宽限期截止时间。
+                format: date-time
+                type: string
+              previousPeerIP:
+                description: PreviousPeerIP 是宽限期内旧设备的 overlay IP。
+                type: string
+              resolvedPeerIP:
+                description: ResolvedPeerIP 是当前 PeerRef 对应的 overlay IP（controller
+                  维护，只读）。
+                type: string
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

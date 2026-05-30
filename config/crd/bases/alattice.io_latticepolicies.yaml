@@ -81,6 +81,11 @@ spec:
                     to:
                       items:
                         properties:
+                          identityRef:
+                            description: |-
+                              IdentityRef 引用 PeerIdentity 名称（在 policy.spec.network 下解析）。
+                              用于基于身份的 Zero Trust 策略。
+                            type: string
                           ipBlock:
                             properties:
                               cidr:
@@ -153,6 +158,11 @@ spec:
                     from:
                       items:
                         properties:
+                          identityRef:
+                            description: |-
+                              IdentityRef 引用 PeerIdentity 名称（在 policy.spec.network 下解析）。
+                              用于基于身份的 Zero Trust 策略。
+                            type: string
                           ipBlock:
                             properties:
                               cidr:

@@ -8,7 +8,7 @@ import {
 } from "@/components/ui/sidebar"
 import {
   LayoutDashboard, Network, Settings2,
-  ShieldCheck, Bot, House, Container,
+  ShieldCheck, Bot, House,
 } from "lucide-vue-next"
 import NavMain from "@/components/app-sidebar/NavMain.vue"
 import NavUser from "@/components/app-sidebar/NavUser.vue"
@@ -64,6 +64,7 @@ const navMain = computed(() => {
         { title: t('common.nav.topology'), url: "/manage/topology" },
         { title: t('common.nav.nodes'),    url: "/manage/nodes" },
         { title: t('common.nav.tokens'),   url: "/manage/tokens" },
+        { title: t('common.nav.peerIdentities'), url: "/manage/peer-identities" },
         { title: t('common.nav.policies'), url: "/manage/policies" },
       ],
     },
@@ -97,19 +98,8 @@ const navMain = computed(() => {
         { title: t('common.nav.aiCompliance'), url: '/ai/compliance' },
         { title: t('common.nav.aiTools'), url: '/ai/tools' },
         { title: t('common.nav.mcpServers'), url: '/manage/mcp-servers' },
-      ],
-    },
-
-    // ── Agent Sandbox ──────────────────────────────────────────────
-    {
-      title: t('common.nav.group.sandbox'),
-      url: '/sandbox',
-      icon: Container,
-      featureKey: 'feature.agent_sandbox',
-      items: [
-        { title: t('common.nav.sandboxList'),  url: '/sandbox' },
-        { title: t('common.nav.sandboxTokens'), url: '/sandbox/tokens' },
-        { title: t('common.nav.sandboxAudit'),  url: '/sandbox/audit' },
+        { title: t('common.nav.agentPolicies'), url: '/manage/agent-policies' },
+        { title: t('common.nav.agentIdentities'), url: '/manage/agent-identities' },
       ],
     },
 
