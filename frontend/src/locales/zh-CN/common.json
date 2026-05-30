@@ -104,6 +104,7 @@
     "aiTools": "MCP 工具",
     "mcpServers": "MCP Server",
     "agentPolicies": "Agent Policies",
+    "agentIdentities": "Agent 身份",
     "dashboard": "仪表盘",
     "members": "成员管理",
     "policies": "策略管理",

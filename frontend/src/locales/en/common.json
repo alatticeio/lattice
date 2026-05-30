@@ -104,6 +104,7 @@
     "aiTools": "MCP Tools",
     "mcpServers": "MCP Servers",
     "agentPolicies": "Agent Policies",
+    "agentIdentities": "Agent Identities",
     "dashboard": "Dashboard",
     "members": "Members",
     "policies": "Policies",

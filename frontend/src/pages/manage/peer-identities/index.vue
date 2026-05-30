@@ -6,7 +6,7 @@ import {
   useVueTable, getCoreRowModel, FlexRender, type ColumnDef,
 } from '@tanstack/vue-table'
 import {
-  ShieldCheck, Search, RefreshCw, MoreHorizontal, Plus, Trash2, Pencil,
+  Search, RefreshCw, MoreHorizontal, Plus, Trash2, Pencil,
   Eye, ChevronLeft, ChevronRight, Copy, Check, Fingerprint,
 } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
@@ -182,7 +182,7 @@ const table = useVueTable({
 async function handleCreateOrUpdate() {
   const ok = await store.handleCreateOrUpdate()
   if (ok) {
-    toast.success(store.drawerType.value === 'create' ? t('manage.peerIdentities.createSuccess') : t('manage.peerIdentities.editSuccess'))
+    toast.success(store.drawerType === 'create' ? t('manage.peerIdentities.createSuccess') : t('manage.peerIdentities.editSuccess'))
   } else {
     toast.error(t('manage.peerIdentities.saveFailed'))
   }
@@ -305,20 +305,20 @@ onMounted(() => store.refresh())
 
     <!-- Delete confirmation -->
     <AppAlertDialog
-      v-model:open="store.deleteDialogOpen.value"
+      v-model:open="store.deleteDialogOpen"
       :title="t('manage.peerIdentities.deleteTitle')"
-      :description="t('manage.peerIdentities.confirmDelete', { name: store.deleteTarget.value?.name ?? '' })"
+      :description="t('manage.peerIdentities.confirmDelete', { name: store.deleteTarget?.name ?? '' })"
       :confirm-text="t('common.action.delete')"
-      :loading="store.loading.value"
+      :loading="store.loading"
       @confirm="handleDelete"
     />
 
     <!-- Create / Edit dialog -->
-    <Dialog :open="store.isDrawerOpen.value" @update:open="v => { if (!v) store.isDrawerOpen.value = false }">
+    <Dialog :open="store.isDrawerOpen" @update:open="v => { if (!v) store.isDrawerOpen = false }">
       <DialogContent class="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>
-            {{ store.drawerType.value === 'create' ? t('manage.peerIdentities.createTitle') : store.drawerType.value === 'edit' ? t('manage.peerIdentities.editTitle') : t('manage.peerIdentities.viewTitle') }}
+            {{ store.drawerType === 'create' ? t('manage.peerIdentities.createTitle') : store.drawerType === 'edit' ? t('manage.peerIdentities.editTitle') : t('manage.peerIdentities.viewTitle') }}
           </DialogTitle>
         </DialogHeader>
 
@@ -327,9 +327,9 @@ onMounted(() => store.refresh())
           <div class="space-y-2">
             <Label>{{ t('manage.peerIdentities.formName') }}</Label>
             <Input
-              v-model="store.form.value.name"
+              v-model="store.form.name"
               :placeholder="t('manage.peerIdentities.formNamePlaceholder')"
-              :disabled="store.drawerType.value === 'view'"
+              :disabled="store.drawerType === 'view'"
             />
           </div>
 
@@ -337,9 +337,9 @@ onMounted(() => store.refresh())
           <div class="space-y-2">
             <Label>{{ t('manage.peerIdentities.formPeerRef') }}</Label>
             <Input
-              v-model="store.form.value.peer_ref"
+              v-model="store.form.peer_ref"
               :placeholder="t('manage.peerIdentities.formPeerRefPlaceholder')"
-              :disabled="store.drawerType.value === 'view'"
+              :disabled="store.drawerType === 'view'"
             />
           </div>
 
@@ -347,9 +347,9 @@ onMounted(() => store.refresh())
           <div class="space-y-2">
             <Label>{{ t('manage.peerIdentities.formPreviousPeerRef') }}</Label>
             <Input
-              v-model="store.form.value.previous_peer_ref"
+              v-model="store.form.previous_peer_ref"
               :placeholder="t('manage.peerIdentities.formPreviousPeerRefPlaceholder')"
-              :disabled="store.drawerType.value === 'view'"
+              :disabled="store.drawerType === 'view'"
             />
             <p class="text-xs text-muted-foreground">{{ t('manage.peerIdentities.formPreviousPeerRefHelp') }}</p>
           </div>
@@ -358,10 +358,10 @@ onMounted(() => store.refresh())
           <div class="space-y-2">
             <Label>{{ t('manage.peerIdentities.formGracePeriod') }}</Label>
             <Input
-              v-model.number="store.form.value.grace_period_seconds"
+              v-model.number="store.form.grace_period_seconds"
               type="number"
               min="0"
-              :disabled="store.drawerType.value === 'view'"
+              :disabled="store.drawerType === 'view'"
             />
             <p class="text-xs text-muted-foreground">{{ t('manage.peerIdentities.formGracePeriodHelp') }}</p>
           </div>
@@ -370,41 +370,41 @@ onMounted(() => store.refresh())
           <div class="space-y-2">
             <Label>{{ t('manage.peerIdentities.formDescription') }}</Label>
             <Input
-              v-model="store.form.value.description"
+              v-model="store.form.description"
               :placeholder="t('manage.peerIdentities.formDescriptionPlaceholder')"
-              :disabled="store.drawerType.value === 'view'"
+              :disabled="store.drawerType === 'view'"
             />
           </div>
 
           <!-- View-only: resolved info -->
-          <template v-if="store.drawerType.value === 'view' && store.selectedIdentity.value">
+          <template v-if="store.drawerType === 'view' && store.selectedIdentity">
             <Separator />
             <div class="grid grid-cols-2 gap-4 text-sm">
               <div>
                 <div class="text-muted-foreground">{{ t('manage.peerIdentities.detailResolvedIP') }}</div>
-                <div class="font-mono">{{ store.selectedIdentity.value.resolved_peer_ip || '-' }}</div>
+                <div class="font-mono">{{ store.selectedIdentity.resolved_peer_ip || '-' }}</div>
               </div>
               <div>
                 <div class="text-muted-foreground">{{ t('manage.peerIdentities.detailPreviousIP') }}</div>
-                <div class="font-mono">{{ store.selectedIdentity.value.previous_peer_ip || '-' }}</div>
+                <div class="font-mono">{{ store.selectedIdentity.previous_peer_ip || '-' }}</div>
               </div>
               <div>
                 <div class="text-muted-foreground">{{ t('manage.peerIdentities.detailCreatedAt') }}</div>
-                <div>{{ store.selectedIdentity.value.created_at || '-' }}</div>
+                <div>{{ store.selectedIdentity.created_at || '-' }}</div>
               </div>
               <div>
                 <div class="text-muted-foreground">{{ t('manage.peerIdentities.detailGraceExpires') }}</div>
-                <div>{{ store.selectedIdentity.value.grace_period_expires_at || '-' }}</div>
+                <div>{{ store.selectedIdentity.grace_period_expires_at || '-' }}</div>
               </div>
             </div>
           </template>
         </div>
 
-        <DialogFooter v-if="store.drawerType.value !== 'view'">
-          <Button variant="outline" @click="store.isDrawerOpen.value = false">
+        <DialogFooter v-if="store.drawerType !== 'view'">
+          <Button variant="outline" @click="store.isDrawerOpen = false">
             {{ t('common.action.cancel') }}
           </Button>
-          <Button :disabled="store.loading.value" @click="handleCreateOrUpdate">
+          <Button :disabled="store.loading" @click="handleCreateOrUpdate">
             {{ t('common.action.save') }}
           </Button>
         </DialogFooter>
