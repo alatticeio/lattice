@@ -66,6 +66,7 @@ declare global {
   const unref: typeof import('vue').unref
   const useAction: typeof import('../composables/useApi').useAction
   const useAgentDetailDrawer: typeof import('../composables/useAgentDetailDrawer').useAgentDetailDrawer
+  const useAgentIdentityStore: typeof import('../stores/useAgentIdentityStore').useAgentIdentityStore
   const useAgentPolicyStore: typeof import('../stores/useAgentPolicyStore').useAgentPolicyStore
   const useAiStore: typeof import('../stores/useAiStore').useAiStore
   const useAppConfig: typeof import('../composables/useAppConfig').useAppConfig
@@ -81,6 +82,7 @@ declare global {
   const useModel: typeof import('vue').useModel
   const useMonitorStore: typeof import('../stores/monitor').useMonitorStore
   const useNavbarStore: typeof import('../stores/pages/topNavbar').useNavbarStore
+  const usePeerIdentityStore: typeof import('../stores/usePeerIdentityStore').usePeerIdentityStore
   const usePeerPageStore: typeof import('../stores/peerPage').usePeerPageStore
   const usePolicyPageStore: typeof import('../stores/usePolicyPageStore').usePolicyPageStore
   const useRoute: typeof import('vue-router').useRoute

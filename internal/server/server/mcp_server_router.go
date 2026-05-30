@@ -15,7 +15,10 @@
 package server
 
 import (
+	"time"
+
 	"github.com/alatticeio/lattice/api/v1alpha1"
+	"github.com/alatticeio/lattice/internal/mcp"
 	"github.com/alatticeio/lattice/internal/server/server/middleware"
 	"github.com/alatticeio/lattice/pkg/utils/resp"
 	"github.com/gin-gonic/gin"
@@ -28,6 +31,7 @@ func (s *Server) mcpServerRouter() {
 	{
 		g.GET("", s.handleListMCPServers())
 		g.POST("", s.handleCreateMCPServer())
+		g.POST("/discover-tools", s.handleDiscoverMCPTools())
 		g.GET("/:name", s.handleGetMCPServer())
 		g.PUT("/:name", s.handleUpdateMCPServer())
 		g.DELETE("/:name", s.handleDeleteMCPServer())
@@ -141,6 +145,33 @@ func (s *Server) handleDeleteMCPServer() gin.HandlerFunc {
 			return
 		}
 		resp.OK(c, nil)
+	}
+}
+
+func (s *Server) handleDiscoverMCPTools() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var req struct {
+			Endpoint string `json:"endpoint" binding:"required"`
+		}
+		if err := c.ShouldBindJSON(&req); err != nil {
+			resp.BadRequest(c, "invalid request: "+err.Error())
+			return
+		}
+		tools, err := mcp.DiscoverTools(req.Endpoint, 10*time.Second)
+		if err != nil {
+			resp.Error(c, "discover tools: "+err.Error())
+			return
+		}
+		// Convert ToolDef to MCPTool (strip inputSchema, not needed for policy)
+		result := make([]v1alpha1.MCPTool, len(tools))
+		for i, t := range tools {
+			result[i] = v1alpha1.MCPTool{
+				Name:        t.Name,
+				Description: t.Description,
+				RiskLevel:   "low", // default risk level
+			}
+		}
+		resp.OK(c, result)
 	}
 }
 
