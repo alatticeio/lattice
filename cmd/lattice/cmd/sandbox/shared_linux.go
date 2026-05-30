@@ -21,9 +21,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"os"
 	"os/exec"
 	"os/signal"
+	"strconv"
 	"sync"
 	"syscall"
 	"time"
@@ -31,18 +33,82 @@ import (
 	shim "github.com/alatticeio/lattice-shim/shim"
 	latticeagent "github.com/alatticeio/lattice/internal/agent"
 	agentconfig "github.com/alatticeio/lattice/internal/agent/config"
-	"github.com/alatticeio/lattice/internal/agent/gvisor"
 	"github.com/alatticeio/lattice/internal/agent/infra"
 	agentlog "github.com/alatticeio/lattice/internal/agent/log"
-	"github.com/alatticeio/lattice/internal/agent/provision"
-	"github.com/alatticeio/lattice/internal/agent/tproxy"
-	wgdevice "golang.zx2c4.com/wireguard/device"
+	"github.com/alatticeio/lattice/internal/agent/mcpproxy"
 )
 
 const (
-	sandboxAgentUID = 999
-	auditLogPath    = "/tmp/lattice-audit.jsonl"
+	auditLogPath = "/tmp/lattice-audit.jsonl"
 )
+
+// policyDialer wraps net.Dial with optional egress policy checking and audit.
+// Traffic goes through the kernel (wf0) to the WireGuard overlay.
+type policyDialer struct {
+	identity string
+	checker  shim.PolicyChecker // nil = no policy enforcement
+	auditor  shim.AuditWriter   // nil = no audit
+}
+
+var defaultDialer = &net.Dialer{}
+
+var _ shim.ContextDialer = (*policyDialer)(nil)
+
+func (d *policyDialer) DialContext(ctx context.Context, network, addr string) (net.Conn, error) {
+	host, portStr, err := net.SplitHostPort(addr)
+	if err != nil {
+		return nil, fmt.Errorf("policyDialer: invalid addr %q: %w", addr, err)
+	}
+
+	ip := net.ParseIP(host)
+
+	if d.checker != nil {
+		if ip == nil {
+			// Hostname — can't check IP-based policy; deny to prevent bypass.
+			if d.auditor != nil {
+				_ = d.auditor.Write(shim.AuditEvent{
+					Identity: d.identity,
+					DstIP:    host,
+					Protocol: network,
+					Verdict:  shim.VerdictDrop,
+				})
+			}
+			return nil, fmt.Errorf("egress policy: hostname %q not allowed (IP-based policy only)", host)
+		}
+		var port uint16
+		if p, parseErr := strconv.ParseUint(portStr, 10, 16); parseErr == nil {
+			port = uint16(p)
+		}
+		if !d.checker.Allow(d.identity, ip, port) {
+			if d.auditor != nil {
+				_ = d.auditor.Write(shim.AuditEvent{
+					Identity: d.identity,
+					DstIP:    host,
+					DstPort:  port,
+					Protocol: network,
+					Verdict:  shim.VerdictDrop,
+				})
+			}
+			return nil, fmt.Errorf("egress policy denied: %s", addr)
+		}
+	}
+
+	conn, connErr := defaultDialer.DialContext(ctx, network, addr)
+	if connErr == nil && d.auditor != nil {
+		var port uint16
+		if p, parseErr := strconv.ParseUint(portStr, 10, 16); parseErr == nil {
+			port = uint16(p)
+		}
+		_ = d.auditor.Write(shim.AuditEvent{
+			Identity: d.identity,
+			DstIP:    host,
+			DstPort:  port,
+			Protocol: network,
+			Verdict:  shim.VerdictAllow,
+		})
+	}
+	return conn, connErr
+}
 
 // fileAuditWriter implements shim.AuditWriter by appending JSON lines to a file.
 type fileAuditWriter struct {
@@ -87,37 +153,26 @@ func runPeriodicRefresh(ctx context.Context, node *latticeagent.Node, logger int
 	}
 }
 
-// installRunIPTables sets up iptables REDIRECT rules.
-// UID 0 (root, the sandbox-run parent) is exempt. The AI agent runs as
-// sandboxAgentUID (999) → its TCP gets redirected → tproxy → netstack → WireGuard.
-func installRunIPTables(proxyPort int) error {
-	// Tear down any leftover chain from a previous run.
-	exec.Command("iptables", "-t", "nat", "-D", "OUTPUT", "-p", "tcp", "-j", "LATTICE_REDIRECT").Run() //nolint:errcheck
-	exec.Command("iptables", "-t", "nat", "-F", "LATTICE_REDIRECT").Run()                              //nolint:errcheck
-	exec.Command("iptables", "-t", "nat", "-X", "LATTICE_REDIRECT").Run()                              //nolint:errcheck
-
-	for _, args := range buildIPTablesRules(proxyPort, 0) {
-		if out, err := exec.Command("iptables", args...).CombinedOutput(); err != nil {
-			return fmt.Errorf("iptables %v: %s: %w", args, out, err)
-		}
-	}
-	return nil
-}
-
-// forkAndWait forks the AI agent as sandboxAgentUID (999) so iptables
-// redirects its TCP connections. Parent (UID 0) is exempt.
-func forkAndWait(ctx context.Context, cancel context.CancelFunc, cmdArgs []string) error {
+// forkAgent forks the AI agent as a child process. The child inherits the same
+// network namespace and can reach overlay peers directly via kernel wf0 routing.
+// When httpProxyAddr is non-empty, HTTP_PROXY/HTTPS_PROXY env vars are injected
+// so the AI agent's HTTP traffic routes through the MCP proxy.
+func forkAgent(ctx context.Context, cancel context.CancelFunc, cmdArgs []string, httpProxyAddr string) error {
 	child := exec.CommandContext(ctx, cmdArgs[0], cmdArgs[1:]...)
 	child.Stdin = os.Stdin
 	child.Stdout = os.Stdout
 	child.Stderr = os.Stderr
-	child.Env = os.Environ()
-	child.SysProcAttr = &syscall.SysProcAttr{
-		Credential: &syscall.Credential{
-			Uid: sandboxAgentUID,
-			Gid: sandboxAgentUID,
-		},
+
+	env := os.Environ()
+	if httpProxyAddr != "" {
+		env = append(env,
+			"HTTP_PROXY="+httpProxyAddr,
+			"http_proxy="+httpProxyAddr,
+			"HTTPS_PROXY="+httpProxyAddr,
+			"https_proxy="+httpProxyAddr,
+		)
 	}
+	child.Env = env
 
 	if err := child.Start(); err != nil {
 		return fmt.Errorf("start agent process: %w", err)
@@ -151,19 +206,23 @@ func forkAndWait(ctx context.Context, cancel context.CancelFunc, cmdArgs []strin
 	return childErr
 }
 
-const runProxyPort = 15001
-
 // runSandbox is the shared sandbox engine for both community and PRO editions.
-// currentPeer must already be registered (call registerOrResume before this).
-// policyChecker and auditWriter may be nil (community: no policy, no audit).
+// It creates a standard kernel wf0 (identical to a regular lattice agent) and
+// forks the AI agent as a child process. The child inherits the same network
+// namespace and routes overlay traffic directly through wf0 — no SOCKS5 proxy,
+// no iptables, no UID tricks.
+//
+// When enableMCPProxy is true, an MCP HTTP proxy is started and injected into
+// the child process via HTTP_PROXY/HTTPS_PROXY env vars.
 func runSandbox(
 	ctx context.Context,
 	cancel context.CancelFunc,
 	agentName string,
 	currentPeer *infra.Peer,
-	policyChecker shim.PolicyChecker,
-	auditWriter shim.AuditWriter,
+	_ shim.PolicyChecker,
+	_ shim.AuditWriter,
 	cmdArgs []string,
+	enableMCPProxy bool,
 ) error {
 	agentconfig.Conf.AppId = agentName
 
@@ -175,33 +234,15 @@ func runSandbox(
 		agentconfig.Conf.RelayURL = currentPeer.LrpUrl
 	}
 
-	sb, err := gvisor.New(gvisor.Config{
-		ID:            agentName,
-		LocalIP:       localIP,
-		PolicyChecker: policyChecker,
-		AuditWriter:   auditWriter,
-	})
-	if err != nil {
-		return fmt.Errorf("create gVisor sandbox: %w", err)
-	}
-	defer sb.Close() //nolint:errcheck
-
-	tunDev := gvisor.NewTUNAdapter(sb.Channel(), gvisor.InjectIntoChannel(sb.Channel()))
-
-	logger := agentlog.GetLogger("sandbox-run")
 	agentJWT := currentPeer.Token
+	logger := agentlog.GetLogger("sandbox-run")
 
 	nodeCfg := &latticeagent.NodeConfig{
 		Logger:      logger,
 		Port:        0,
 		ShowLog:     false,
 		Flags:       agentconfig.Conf,
-		CustomTUN:   tunDev,
-		CustomName:  agentName,
 		CurrentPeer: currentPeer,
-		ProvisionerFactory: func(dev *wgdevice.Device) provision.Provisioner {
-			return gvisor.NewSandboxProvisionerFactory(localIP, agentName)(dev)
-		},
 	}
 
 	node, err := latticeagent.NewNode(ctx, nodeCfg)
@@ -226,25 +267,29 @@ func runSandbox(
 	go node.StartHeartbeat(ctx)
 	go runPeriodicRefresh(ctx, node, logger)
 
-	if err := installRunIPTables(runProxyPort); err != nil {
-		return fmt.Errorf("iptables setup: %w", err)
-	}
-	fmt.Printf("[sandbox-run] iptables REDIRECT installed (exempt UID 0, port %d)\n", runProxyPort)
-
-	proxy := &tproxy.Proxy{
-		Addr: fmt.Sprintf("0.0.0.0:%d", runProxyPort),
-		Dial: sb.DialContext,
-	}
-	if err := proxy.Start(ctx); err != nil {
-		return fmt.Errorf("start transparent proxy: %w", err)
-	}
-	fmt.Printf("[sandbox-run] transparent proxy listening on :%d\n", runProxyPort)
-
 	select {
 	case <-time.After(runReadyWait):
 	case <-ctx.Done():
 		return ctx.Err()
 	}
 
-	return forkAndWait(ctx, cancel, cmdArgs)
+	// Start MCP proxy if enabled.
+	httpProxyAddr := ""
+	if enableMCPProxy && currentPeer.Token != "" {
+		cache := mcpproxy.NewPolicyCache(agentconfig.Conf.ServerUrl, currentPeer.Token, overlayAddr(currentPeer))
+		if cacheErr := cache.Start(ctx); cacheErr != nil {
+			logger.Warn("MCP policy cache failed to start, proxy disabled", "err", cacheErr)
+		} else {
+			auditW, _ := mcpproxy.NewAuditWriter(mcpproxy.AuditLogPath)
+			proxy := mcpproxy.NewProxy(agentName, "127.0.0.1:0", cache, auditW)
+			if proxyErr := proxy.Start(ctx); proxyErr != nil {
+				logger.Warn("MCP proxy failed to start", "err", proxyErr)
+			} else {
+				httpProxyAddr = "http://" + proxy.Addr()
+				fmt.Printf("[sandbox-run] MCP proxy on %s\n", proxy.Addr())
+			}
+		}
+	}
+
+	return forkAgent(ctx, cancel, cmdArgs, httpProxyAddr)
 }

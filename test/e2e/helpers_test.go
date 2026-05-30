@@ -434,6 +434,8 @@ func deploySandboxPod(clientset *kubernetes.Clientset, ns, name, sandboxImage, s
 		// Allow overlay traffic (any 10.x.x.x) and deny everything else.
 		"--egress-allow", "10.0.0.0/8",
 		"--egress-default-deny",
+		// Relay inbound overlay:8080 → nginx workload on localhost:8080.
+		"--forward", "8080:127.0.0.1:8080",
 	}
 
 	runAsUserID := int64(1337)

@@ -37,6 +37,7 @@ var (
 	runReadyWait   time.Duration
 	runEgressAllow string
 	runEgressDeny  bool
+	runMCPProxy    bool
 )
 
 func addRunCmd(parent *cobra.Command) {
@@ -76,6 +77,8 @@ Example:
 		"Comma-separated overlay CIDRs the AI agent is allowed to reach (Pro)")
 	cmd.Flags().BoolVar(&runEgressDeny, "egress-default-deny", false,
 		"Deny all egress except --egress-allow CIDRs (Pro)")
+	cmd.Flags().BoolVar(&runMCPProxy, "mcp-proxy", false,
+		"Enable MCP HTTP proxy for tool-level policy enforcement and audit (Pro)")
 	_ = cmd.MarkFlagRequired("server-url")
 	_ = cmd.MarkFlagRequired("token")
 	return cmd
@@ -152,5 +155,5 @@ func runRun(_ *cobra.Command, args []string) error {
 		fmt.Fprintln(os.Stderr, "[sandbox-run] WARNING: egress policy flags require a Pro account. These flags will be ignored.")
 	}
 
-	return runSandbox(ctx, cancel, agentName, currentPeer, policyChecker, auditWriter, cmdArgs)
+	return runSandbox(ctx, cancel, agentName, currentPeer, policyChecker, auditWriter, cmdArgs, runMCPProxy)
 }
