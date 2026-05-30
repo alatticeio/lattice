@@ -135,6 +135,7 @@ func (s *Server) apiRouter() error {
 	s.agentPolicyRouter()
 
 	s.peerIdentityRouter()
+	s.agentIdentityRouter()
 
 	s.platformRouter()
 

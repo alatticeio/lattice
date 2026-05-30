@@ -34,5 +34,6 @@ func migrate(db *gorm.DB) error {
 		&models.ToolSpan{},
 		&models.FlowEvent{},
 		&models.PeerIdentity{},
+		&models.AgentIdentity{},
 	)
 }

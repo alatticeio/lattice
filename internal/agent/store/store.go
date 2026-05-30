@@ -40,6 +40,7 @@ type Store interface {
 	ToolSpans() ToolSpanRepository
 	FlowEvents() FlowEventRepository
 	PeerIdentities() PeerIdentityRepository
+	AgentIdentities() AgentIdentityRepository
 
 	Close() error
 }
@@ -271,4 +272,14 @@ type PeerIdentityRepository interface {
 	Update(ctx context.Context, m *models.PeerIdentity) error
 	Delete(ctx context.Context, id string) error
 	ListByNetwork(ctx context.Context, networkID string) ([]*models.PeerIdentity, error)
+}
+
+// AgentIdentityRepository manages AI Agent identity records.
+type AgentIdentityRepository interface {
+	GetByID(ctx context.Context, id string) (*models.AgentIdentity, error)
+	GetByTenantAndName(ctx context.Context, tenantID, name string) (*models.AgentIdentity, error)
+	Create(ctx context.Context, m *models.AgentIdentity) error
+	Update(ctx context.Context, m *models.AgentIdentity) error
+	Delete(ctx context.Context, id string) error
+	ListByTenant(ctx context.Context, tenantID string) ([]*models.AgentIdentity, error)
 }
