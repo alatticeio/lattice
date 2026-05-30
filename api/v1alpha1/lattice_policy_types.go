@@ -63,6 +63,11 @@ type EgressRule struct {
 type PeerSelection struct {
 	PeerSelector *metav1.LabelSelector `json:"peerSelector,omitempty"`
 	IPBlock      *IPBlock              `json:"ipBlock,omitempty"`
+
+	// IdentityRef 引用 PeerIdentity 名称（在 policy.spec.network 下解析）。
+	// 用于基于身份的 Zero Trust 策略。
+	// +optional
+	IdentityRef *string `json:"identityRef,omitempty"`
 }
 
 type IPBlock struct {
